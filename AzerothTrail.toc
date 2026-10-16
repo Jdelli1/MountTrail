@@ -8,5 +8,6 @@
 ## OptionalDeps: TomTom, Rarity
 ## IconTexture: 132261
 
+embeds.xml
 Core\Locale.lua
 Core\Init.lua
