@@ -1,0 +1,12 @@
+## Interface: 120001, 120005, 120007
+## Title: AzerothTrail
+## Notes: A mount-collection guide: tracks the mounts you are missing and plots a route to farm them.
+## Author: James
+## Version: @project-version@
+## SavedVariables: AzerothTrailDB
+## SavedVariablesPerCharacter: AzerothTrailCharDB
+## OptionalDeps: TomTom, Rarity
+## IconTexture: 132261
+
+Core\Locale.lua
+Core\Init.lua

@@ -1,0 +1,6 @@
+package-as: AzerothTrail
+
+ignore:
+  - tools
+  - tests
+  - docs
