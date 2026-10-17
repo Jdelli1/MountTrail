@@ -33,7 +33,8 @@ describe("journal", function()
 
   it("DefaultFilters values", function()
     local J = load()
-    eq(J.DefaultFilters, { dungeon=true, raid=true, world=true, reputation=true, vendor=true, other=true, collected=false })
+    eq(J.DefaultFilters, { dungeon=true, raid=true, world=true, delve=true, treasure=true, quest=true,
+      activity=true, reputation=true, vendor=true, other=true, collected=false })
   end)
 
   it("filters out a section when its flag is false", function()
@@ -150,6 +151,118 @@ describe("journal", function()
     eq(ids(J.Select(mounts, q())), {4, 3, 2, 8, 9, 7, 6, 5, 1})
   end)
 
+  it("journal section order: dungeon raid world delve treasure quest activity reputation vendor other", function()
+    local J = load()
+    local order = { "dungeon", "raid", "world", "delve", "treasure", "quest", "activity",
+      "reputation", "vendor", "other" }
+    local mounts = {}
+    for i, s in ipairs(order) do mounts[100 - i] = mk("m", {section=s}) end
+    local expect = {}
+    for i = 1, #order do expect[i] = 100 - i end
+    eq(ids(J.Select(mounts, q())), expect)
+  end)
+
+  it("a saved filter table without the new keys shows those sections", function()
+    local J = load()
+    local mounts = { [1] = mk("A", {section="delve"}), [2] = mk("B", {section="activity"}),
+      [3] = mk("C", {section="raid"}) }
+    local old = { dungeon=true, raid=false, world=true, reputation=true, vendor=true, other=true, collected=false }
+    eq(ids(J.Select(mounts, q({ filters = old }))), {1, 2})
+  end)
+
+  describe("SectionOf", function()
+    it("refines world/treasure/quest/activity/other journal mounts from the source text", function()
+      local J = load()
+      for _, s in ipairs({ "world", "treasure", "quest", "activity", "other" }) do
+        eq(J.SectionOf(1, mk("A", {section=s}), "|cFFFFD200Drop:|r Zekvir (Delve)"), "delve", s)
+        eq(J.SectionOf(1, mk("A", {section=s}), "found in a DELVE"), "delve", s .. " case-insensitive")
+        eq(J.SectionOf(1, mk("A", {section=s}), "Paracausal cache"), "treasure", s)
+        eq(J.SectionOf(1, mk("A", {section=s}), "Delver's Cache"), "delve", s .. ": delve wins")
+        eq(J.SectionOf(1, mk("A", {section=s}), "Vendor: Somebody"), s, s .. " no match")
+      end
+    end)
+
+    it("leaves dungeon, raid, reputation and vendor alone", function()
+      local J = load()
+      for _, s in ipairs({ "dungeon", "raid", "reputation", "vendor" }) do
+        eq(J.SectionOf(1, mk("A", {section=s}), "Boss Cache in a Delve"), s, s)
+      end
+    end)
+
+    it("only refines journal-tab mounts", function()
+      local J = load()
+      eq(J.SectionOf(1, mk("A", {tab="misc", section="other"}), "Delve"), "other")
+      eq(J.SectionOf(1, mk("A", {tab="holiday", section="other"}), "Cache"), "other")
+    end)
+
+    it("no source text or a non-string keeps the generated section", function()
+      local J = load()
+      eq(J.SectionOf(1, mk("A", {section="world"})), "world")
+      eq(J.SectionOf(1, mk("A", {section="world"}), 42), "world")
+    end)
+
+    it("takes a function of the mount id and only calls it when eligible", function()
+      local J = load()
+      local calls = {}
+      local fn = function(id) calls[#calls + 1] = id; return id == 7 and "Delve" or nil end
+      eq(J.SectionOf(7, mk("A", {section="world"}), fn), "delve")
+      eq(J.SectionOf(8, mk("A", {section="world"}), fn), "world")
+      eq(J.SectionOf(9, mk("A", {section="raid"}), fn), "raid")
+      eq(calls, {7, 8})
+    end)
+
+    it("does not treat the text as a pattern", function()
+      local J = load()
+      eq(J.SectionOf(1, mk("A", {section="world"}), "[%(Delve"), "delve")
+    end)
+  end)
+
+  describe("Select with sourceText", function()
+    local function sources(map) return function(id) return map[id] end end
+
+    it("groups by the refined section in journal order and tags each entry", function()
+      local J = load()
+      local mounts = {
+        [1] = mk("Zed", {section="world"}),
+        [2] = mk("Amy", {section="other"}),
+        [3] = mk("Bob", {section="dungeon"}),
+        [4] = mk("Cat", {section="vendor"}),
+        [5] = mk("Dan", {section="quest"}),
+      }
+      local r = J.Select(mounts, q({ sourceText = sources({
+        [1] = "Delve: Earthcrawl Mines", [2] = "Hidden Cache", [3] = "Cache of the boss", [4] = "Delve vendor",
+      }) }))
+      eq(ids(r), {3, 1, 2, 5, 4})
+      local secs = {}
+      for i, e in ipairs(r) do secs[i] = e.section end
+      eq(secs, { "dungeon", "delve", "treasure", "quest", "vendor" })
+    end)
+
+    it("delve=false hides refined delve mounts; treasure=false hides refined caches", function()
+      local J = load()
+      local mounts = { [1] = mk("A", {section="world"}), [2] = mk("B", {section="world"}),
+        [3] = mk("C", {section="other"}) }
+      local st = sources({ [1] = "Delve", [3] = "Cache" })
+      eq(ids(J.Select(mounts, q({ sourceText = st, filters = { delve = false } }))), {2, 3}, "world, then treasure")
+      eq(ids(J.Select(mounts, q({ sourceText = st, filters = { treasure = false } }))), {2, 1}, "world before delve")
+      eq(ids(J.Select(mounts, q({ sourceText = st, filters = { world = false } }))), {1, 3})
+    end)
+
+    it("single-section queries use the refined section", function()
+      local J = load()
+      local mounts = { [1] = mk("A", {section="world"}), [2] = mk("B", {section="world"}) }
+      local st = sources({ [1] = "Delve" })
+      eq(ids(J.Select(mounts, q({ sourceText = st, section = "delve" }))), {1})
+      eq(ids(J.Select(mounts, q({ sourceText = st, section = "world" }))), {2})
+    end)
+
+    it("without sourceText entries carry the generated section", function()
+      local J = load()
+      local r = J.Select({ [1] = mk("A", {section="world"}) }, q())
+      eq(r[1].section, "world")
+    end)
+  end)
+
   it("misc sorts achievement, profession, shop, tradingpost, other", function()
     local J = load()
     local function m(n, s) return mk(n, {tab="misc", section=s}) end
@@ -247,6 +360,16 @@ describe("journal", function()
       eq(o, 0); eq(t, 1)
       o, t = J.Counts(mounts, nil, ownedSet({[1]=true, [2]=true}), allExist)
       eq(o, 2); eq(t, 3)
+    end)
+
+    it("is unchanged by sourceText", function()
+      local J = load()
+      local mounts = { [1] = mk("A", {section="world"}), [2] = mk("B", {section="raid"}), [3] = mk("C") }
+      local owned = ownedSet({[1]=true})
+      local o1, t1 = J.Counts(mounts, nil, owned, allExist)
+      local o2, t2 = J.Counts(mounts, nil, owned, allExist, nil, function() return "Delve Cache" end)
+      eq({o1, t1}, {1, 3})
+      eq({o2, t2}, {o1, t1})
     end)
 
     it("unobtainable counts only when owned (then owned and total)", function()

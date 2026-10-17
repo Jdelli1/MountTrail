@@ -128,15 +128,38 @@ describe("ui journal", function()
       local rows = ns.UI.ListRows({ { id = 1, m = a }, { id = 2, m = b }, { id = 3, m = c }, { id = 4, m = d } },
         function(id) return id == 2 end)
       eq(rows, {
-        { header = true, section = "dungeon", text = "Dungeons" },
+        { header = true, section = "dungeon", text = "Dungeon drops" },
         { id = 1, m = a, owned = false },
         { id = 2, m = b, owned = true },
-        { header = true, section = "raid", text = "Raids" },
+        { header = true, section = "raid", text = "Raid drops" },
         { id = 3, m = c, owned = false },
         { header = true, section = "brewfest", text = "Brewfest" },
         { id = 4, m = d, owned = false },
       })
       eq(ns.UI.ListRows({}), {})
+    end)
+
+    it("groups by the entry's refined section when Select gives one", function()
+      local ns = loadUI()
+      local a = { section = "world" }
+      local b = { section = "world" }
+      local rows = ns.UI.ListRows({ { id = 1, m = a, section = "world" }, { id = 2, m = b, section = "delve" } })
+      eq(rows, {
+        { header = true, section = "world", text = "World drops / rares" },
+        { id = 1, m = a, owned = false },
+        { header = true, section = "delve", text = "Delves" },
+        { id = 2, m = b, owned = false },
+      })
+    end)
+
+    it("labels the ten journal sections", function()
+      local ns = loadUI()
+      local want = {
+        dungeon = "Dungeon drops", raid = "Raid drops", world = "World drops / rares", delve = "Delves",
+        treasure = "Treasures & caches", quest = "Quests", activity = "Zone activities",
+        reputation = "Reputation", vendor = "Vendors", other = "Other",
+      }
+      for key, label in pairs(want) do eq(ns.UI.SectionLabel(key), label, key) end
     end)
 
     it("labels misc sections and falls back to the key", function()

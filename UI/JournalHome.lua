@@ -49,7 +49,7 @@ local function refreshHome()
         card.Logo:Hide()
         card.Name:Show()
       end
-      local have, total = ns.Journal.Counts(mounts, name, isOwned, exists, faction)
+      local have, total = ns.Journal.Counts(mounts, name, isOwned, exists, faction, Game.MountSourceText)
       card.Count:SetText(string.format(L["%d / %d"], have, total))
       card.Bar:SetMinMaxValues(0, math.max(total, 1))
       card.Bar:SetValue(have)
@@ -143,7 +143,7 @@ local function build(parent)
   holder:SetPoint("TOPLEFT", listPage, "TOPLEFT", 0, -32)
   holder:SetPoint("BOTTOMRIGHT", listPage, "BOTTOMRIGHT", 0, 0)
   list = UI.List(holder, function()
-    return { tab = "journal", exp = currentExp }
+    return { tab = "journal", exp = currentExp, sourceText = ns.Game.MountSourceText }
   end)
 end
 

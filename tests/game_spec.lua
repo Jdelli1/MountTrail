@@ -116,6 +116,26 @@ describe("game adapter", function()
     end)
   end)
 
+  describe("MountSourceText", function()
+    it("is nil when the API is missing", function()
+      C_MountJournal = nil
+      eq(loadGame().Game.MountSourceText(6), nil)
+      C_MountJournal = {}
+      eq(loadGame().Game.MountSourceText(6), nil)
+    end)
+    it("returns the 3rd value of GetMountInfoExtraByID, nil for unknown ids and non-strings", function()
+      C_MountJournal = { GetMountInfoExtraByID = function(id)
+        if id == 6 then return 1234, "A horse.", "|cFFFFD200Drop:|r Delve", false, 230, 4, 0, 0, false end
+        if id == 7 then return 1, "x", nil end
+      end }
+      local G = loadGame().Game
+      eq(G.MountSourceText(6), "|cFFFFD200Drop:|r Delve")
+      eq(G.MountSourceText(7), nil)
+      eq(G.MountSourceText(8), nil)
+      eq(G.MountSourceText(nil), nil)
+    end)
+  end)
+
   describe("wrappers", function()
     it("reads mount info, quests, lfg, resets and expansion logos", function()
       C_MountJournal = { GetMountInfoByID = function(id)

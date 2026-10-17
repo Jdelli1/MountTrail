@@ -99,7 +99,7 @@ class BuildDataTests(unittest.TestCase):
         self.assertEqual(c("Cataclysm", "Raid Drop"), ("journal", "raid"))
         self.assertEqual(c("The War Within", "Raid Renown"), ("journal", "raid"))
         self.assertEqual(c("Mists of Pandaria", "Challenge Mode"), ("journal", "dungeon"))
-        for sub in ("Rare Spawn", "World Boss", "Zone Drop", "Nemesis Drop", "Prey Drop", "Tormentors", "Treasure"):
+        for sub in ("Rare Spawn", "World Boss", "Zone Drop", "Nemesis Drop", "Prey Drop", "Tormentors"):
             self.assertEqual(c("Midnight", sub), ("journal", "world"), sub)
         for sub in ("Reputation", "Paragon Reputation", "Renown", "Cenarion Expedition", "Kurenai/The Mag'har",
                     "Netherwing", "Sha'tari Skyguard", "Golden Lotus", "Order of the Cloud Serpent",
@@ -108,7 +108,7 @@ class BuildDataTests(unittest.TestCase):
         self.assertEqual(c("Mists of Pandaria", "Kun-Lai Vendor"), ("journal", "vendor"))
         self.assertEqual(c("Legion", "Vendor"), ("journal", "vendor"))
         self.assertEqual(c("Legion", "Achievement"), ("misc", "achievement"))
-        self.assertEqual(c("Legion", "Class Hall"), ("journal", "other"))
+        self.assertEqual(c("Legion", "Class Hall"), ("journal", "activity"))
         self.assertEqual(c("Professions", "Alchemy"), ("misc", "profession"))
         self.assertEqual(c("Promotion", "Blizzard Store"), ("misc", "shop"))
         self.assertEqual(c("Promotion", "Blizzcon"), ("misc", "other"))
@@ -123,6 +123,48 @@ class BuildDataTests(unittest.TestCase):
         self.assertEqual(c("World Events", "Brawler's Guild"), ("holiday", "other"))
         for top in ("Mounts", "Racial", "Mythic+", "PVP", "Other"):
             self.assertEqual(c(top, "Anything"), ("misc", "other"), top)
+
+    def test_classify_journal_sections(self):
+        """Task 16 table: exact names first, then suffix/prefix/contains rules, else other."""
+        c = build_data.classify
+        cases = {
+            "dungeon": ["Dungeon Drop", "Challenge Mode"],
+            "raid": ["Raid Drop", "Raid Renown"],
+            "world": ["World Boss", "Zone Drop", "Zone", "Nemesis Drop", "Prey Drop", "Tormentors",
+                      "Primal Eggs", "Rare Spawn", "Night Fae Rare Spawn", "Kyrian Rare Spawn"],
+            "delve": ["Delves", "Delve Drop", "Zekvir's Delve"],
+            "treasure": ["Treasure", "Riddle", "Zskera Vaults", "Paracausal Cache", "Hidden Treasures"],
+            "quest": ["Quest", "Campaign", "Daily Activities", "Maldraxxus Callings", "Pre-Launch Event",
+                      "Venthyr Quest", "Kyrian Quest"],
+            "activity": ["Zone Feature", "Torghast", "Visions", "Visions Revisited", "Island Expedition",
+                         "Maw Assaults", "Time Rifts", "Emerald Bounty", "Dream Infusion",
+                         "Protoform Synthesis", "Ritual Sites", "Archives", "Obsidian Citadel", "Events",
+                         "Adventures", "Covenant Feature", "Class Hall", "Mage Tower", "Garrison",
+                         "Missions", "Stables", "Fishing Shack", "Tinkering", "Argent Tournament",
+                         "Allied Race", "Allied Races", "Warfront: Arathi", "Warfront: Darkshore",
+                         "Assault: Uldum", "Necrolord Covenant Features", "Kyrian Covenant Features"],
+            "reputation": ["Reputation", "Paragon Reputation", "Renown", "Cenarion Expedition",
+                           "Kurenai/The Mag'har", "Netherwing", "Sha'tari Skyguard", "Golden Lotus",
+                           "Order of the Cloud Serpent", "Shado-Pan", "The Tillers", "Necrolord Renown",
+                           "Night Fae Renown"],
+            "vendor": ["Vendor", "Kun-Lai Vendor", "Dubloons", "Medals", "Trading Post", "Kyrian Vendor",
+                       "Venthyr Vendor"],
+            "other": ["Unknown", "Something New", "Renowned", "Quests", "Vendors"],
+        }
+        for section, subs in cases.items():
+            for sub in subs:
+                self.assertEqual(c("Shadowlands", sub), ("journal", section), sub)
+        # Exact names beat suffix rules; achievement stays misc.
+        self.assertEqual(c("The War Within", "Raid Renown"), ("journal", "raid"))
+        self.assertEqual(c("Shadowlands", "Achievement"), ("misc", "achievement"))
+        # Expansion-only: the same names elsewhere keep their old tabs.
+        self.assertEqual(c("Limited Time", "Vendor"), ("misc", "other"))
+        self.assertEqual(c("World Events", "Treasure"), ("holiday", "other"))
+
+    def test_fixture_delves_subcat_is_delve(self):
+        m = self.mounts[9001]
+        self.assertEqual((m["tab"], m["section"], m["exp"], m["group"]),
+                         ("journal", "delve", "The War Within", "Delves"))
 
     def test_achievement_keeps_exp_and_misc_has_no_exp(self):
         self.assertEqual(self.mounts[415]["exp"], "Cataclysm")

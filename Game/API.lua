@@ -29,6 +29,17 @@ function Game.MountInfo(mountID)
   return name, icon, spellID
 end
 
+-- C_MountJournal.GetMountInfoExtraByID: creatureDisplayInfoID, description,
+-- source, isSelfMount, mountTypeID, ... -> the source text (may hold colour
+-- codes), or nil when unknown or the API is missing.
+function Game.MountSourceText(mountID)
+  local journal = C_MountJournal
+  if not (journal and journal.GetMountInfoExtraByID and mountID) then return nil end
+  local source = select(3, journal.GetMountInfoExtraByID(mountID))
+  if type(source) == "string" then return source end
+  return nil
+end
+
 -- Saved instances this character is locked to:
 -- { {name=, instance=<instanceId, return 14>, difficulty=<difficultyId>,
 --    bosses={ {name=, killed=bool} }} }. Unlocked (expired) rows are skipped.

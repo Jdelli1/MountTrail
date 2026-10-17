@@ -9,7 +9,9 @@ local ADDON, ns = ...
 --
 -- getQuery() returns the base query for Journal.Select ({ tab=, exp=,
 -- section= }); the list fills in filters (ns.db.global.filters), the search
--- text, isOwned, exists and faction unless the query already has them.
+-- text, isOwned, exists, faction and sourceText (Game.MountSourceText, which
+-- refines journal sections into delves / caches) unless the query already has
+-- them.
 -- opts (optional): { headerSuffix = fn(sectionKey) -> string|nil (a green
 -- badge after the header text), rowTag = fn(mountID, m) -> string|nil (a
 -- green tag after the row's source line) }.
@@ -97,8 +99,10 @@ function UI.MountIcon(mountID)
 end
 
 local SECTION_NAMES = {
-  dungeon = "Dungeons", raid = "Raids", world = "World", reputation = "Reputation",
-  vendor = "Vendor", other = "Other",
+  dungeon = "Dungeon drops", raid = "Raid drops", world = "World drops / rares",
+  delve = "Delves", treasure = "Treasures & caches", quest = "Quests",
+  activity = "Zone activities", reputation = "Reputation", vendor = "Vendors",
+  other = "Other",
   achievement = "Achievements", profession = "Professions", shop = "Shop",
   tradingpost = "Trading Post",
   timewalking = "Timewalking", anniversary = "Anniversary",
@@ -114,7 +118,8 @@ function UI.SectionLabel(section)
 end
 
 -- Journal.Select output -> ScrollBox elements: a header before each run of
--- one section, then { id=, m=, owned= } rows. With opts (see UI.List),
+-- one section (the entry's refined section, else the mount's), then
+-- { id=, m=, owned= } rows. With opts (see UI.List),
 -- headers get badge = opts.headerSuffix(section) and rows tag =
 -- opts.rowTag(id, m) (nil when the hook returns nil or is absent).
 function UI.ListRows(selected, isOwned, opts)
@@ -122,7 +127,7 @@ function UI.ListRows(selected, isOwned, opts)
   local rowTag = opts and opts.rowTag
   local rows, last = {}, nil
   for _, entry in ipairs(selected or {}) do
-    local section = entry.m.section
+    local section = entry.section or entry.m.section
     if section ~= last then
       rows[#rows + 1] = {
         header = true, section = section, text = UI.SectionLabel(section),
@@ -186,7 +191,8 @@ local HEADER_HEIGHT = 24
 local ROW_HEIGHT = 40
 local CHECK_SIZE = 24
 local MAP_WIDTH, MAP_RIGHT = 56, 6
-local SECTION_FILTERS = { "dungeon", "raid", "world", "reputation", "vendor", "other" }
+local SECTION_FILTERS = { "dungeon", "raid", "world", "delve", "treasure", "quest", "activity",
+  "reputation", "vendor", "other" }
 
 local function filtersDB()
   return ns.db and ns.db.global and ns.db.global.filters or nil
@@ -202,6 +208,20 @@ local function memo(fn)
       cache[id] = v
     end
     return v
+  end
+end
+
+-- Memoised text lookup for one refresh (false caches "no text").
+local function memoText(fn)
+  local cache = {}
+  return function(id)
+    local v = cache[id]
+    if v == nil then
+      v = fn(id)
+      if type(v) ~= "string" then v = false end
+      cache[id] = v
+    end
+    return v or nil
   end
 end
 
@@ -409,6 +429,7 @@ function UI.List(parent, getQuery, opts)
     query.isOwned = query.isOwned or memo(ns.Game.IsOwned)
     query.exists = query.exists or memo(ns.Game.Exists)
     if query.faction == nil then query.faction = ns.Game.Faction() end
+    query.sourceText = memoText(query.sourceText or ns.Game.MountSourceText)
 
     collected:SetChecked(filters.collected == true)
     local showSections = query.tab == "journal"

@@ -44,18 +44,55 @@ EXPANSIONS = [
 
 # --- classification ---------------------------------------------------------------
 
+# Expansion subcats -> journal section: exact names first, then JOURNAL_RULES in
+# order, else "other". Section order in the journal: dungeon, raid, world, delve,
+# treasure, quest, activity, reputation, vendor, other.
 JOURNAL_SECTIONS = {
     "Dungeon Drop": "dungeon",
     "Challenge Mode": "dungeon",
     "Raid Drop": "raid",
     "Raid Renown": "raid",
-    "Rare Spawn": "world",
     "World Boss": "world",
     "Zone Drop": "world",
+    "Zone": "world",
     "Nemesis Drop": "world",
     "Prey Drop": "world",
     "Tormentors": "world",
-    "Treasure": "world",
+    "Primal Eggs": "world",
+    "Treasure": "treasure",
+    "Riddle": "treasure",
+    "Zskera Vaults": "treasure",
+    "Quest": "quest",
+    "Campaign": "quest",
+    "Daily Activities": "quest",
+    "Maldraxxus Callings": "quest",
+    "Pre-Launch Event": "quest",
+    "Zone Feature": "activity",
+    "Torghast": "activity",
+    "Visions": "activity",
+    "Visions Revisited": "activity",
+    "Island Expedition": "activity",
+    "Maw Assaults": "activity",
+    "Time Rifts": "activity",
+    "Emerald Bounty": "activity",
+    "Dream Infusion": "activity",
+    "Protoform Synthesis": "activity",
+    "Ritual Sites": "activity",
+    "Archives": "activity",
+    "Obsidian Citadel": "activity",
+    "Events": "activity",
+    "Adventures": "activity",
+    "Covenant Feature": "activity",
+    "Class Hall": "activity",
+    "Mage Tower": "activity",
+    "Garrison": "activity",
+    "Missions": "activity",
+    "Stables": "activity",
+    "Fishing Shack": "activity",
+    "Tinkering": "activity",
+    "Argent Tournament": "activity",
+    "Allied Race": "activity",
+    "Allied Races": "activity",
     "Reputation": "reputation",
     "Paragon Reputation": "reputation",
     "Renown": "reputation",
@@ -69,7 +106,37 @@ JOURNAL_SECTIONS = {
     "The Tillers": "reputation",
     "Vendor": "vendor",
     "Kun-Lai Vendor": "vendor",
+    "Dubloons": "vendor",
+    "Medals": "vendor",
+    "Trading Post": "vendor",
 }
+
+# (kind, text, section), tried in order after the exact names; first match wins.
+JOURNAL_RULES = [
+    ("suffix", "Rare Spawn", "world"),
+    ("contains", "Delve", "delve"),
+    ("contains", "Cache", "treasure"),
+    ("contains", "Treasure", "treasure"),
+    ("suffix", " Quest", "quest"),
+    ("prefix", "Warfront:", "activity"),
+    ("prefix", "Assault:", "activity"),
+    ("suffix", "Covenant Features", "activity"),
+    ("suffix", " Renown", "reputation"),
+    ("suffix", " Vendor", "vendor"),
+]
+
+
+def journal_section(subcat):
+    """Journal section for an expansion subcat (see JOURNAL_SECTIONS / JOURNAL_RULES)."""
+    if subcat in JOURNAL_SECTIONS:
+        return JOURNAL_SECTIONS[subcat]
+    for kind, text, section in JOURNAL_RULES:
+        if ((kind == "suffix" and subcat.endswith(text))
+                or (kind == "prefix" and subcat.startswith(text))
+                or (kind == "contains" and text in subcat)):
+            return section
+    return "other"
+
 
 FACTIONS = {"A": "Alliance", "H": "Horde"}
 
@@ -94,7 +161,7 @@ def classify(category, subcat):
     if category in EXPANSIONS:
         if subcat == "Achievement":
             return "misc", "achievement"
-        return "journal", JOURNAL_SECTIONS.get(subcat, "other")
+        return "journal", journal_section(subcat)
     if category == "Professions":
         return "misc", "profession"
     if category == "Promotion" and subcat == "Blizzard Store":
