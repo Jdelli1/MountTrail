@@ -280,6 +280,23 @@ local MAP_WIDTH, MAP_RIGHT = 56, 6
 local ICON_MASK = "UI-HUD-ActionBar-IconFrame-Mask"
 local ICON_CROP = 0.08
 
+-- Source line font: GameFontHighlightSmall dimmed to 70 % grey (readable on
+-- the dark fill); GameFontDisableSmall when the client has no CreateFont.
+local SOURCE_FONT = "AzerothTrailFontSource"
+local sourceFont
+function UI.SourceFont()
+  if sourceFont then return sourceFont end
+  if type(CreateFont) == "function" and GameFontHighlightSmall then
+    local font = _G[SOURCE_FONT] or CreateFont(SOURCE_FONT)
+    font:SetFontObject(GameFontHighlightSmall)
+    font:SetTextColor(0.7, 0.7, 0.7)
+    sourceFont = SOURCE_FONT
+  else
+    sourceFont = "GameFontDisableSmall"
+  end
+  return sourceFont
+end
+
 local function filtersDB()
   return ns.db and ns.db.global and ns.db.global.filters or nil
 end
@@ -388,7 +405,7 @@ local function setupRow(row)
   strike:SetColorTexture(0.6, 0.6, 0.6, 0.9)
   row.Strike = strike
 
-  local source = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  local source = row:CreateFontString(nil, "OVERLAY", UI.SourceFont())
   source:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -3)
   source:SetPoint("TOPRIGHT", name, "BOTTOMRIGHT", 0, -3)
   source:SetJustifyH("LEFT")
@@ -510,12 +527,13 @@ local function createFilterDropdown(list)
   local template = UI.Template("WowStyle1FilterDropdownTemplate", nil)
   if not template then return nil end
   local good, dropdown = pcall(CreateFrame, "DropdownButton", nil, list, template)
-  if not (good and type(dropdown) == "table") then return nil end
+  if not (good and type(dropdown) == "table") then
+    UI.RecordFallback("DropdownButton", "checkbox panel")
+    return nil
+  end
   if type(dropdown.SetupMenu) ~= "function" then
     dropdown:Hide()
-    if ns.Game and ns.Game.ReportError then
-      ns.Game.ReportError("DropdownButton:SetupMenu missing, using the filter panel")
-    end
+    UI.RecordFallback("DropdownButton:SetupMenu", "checkbox panel")
     return nil
   end
   dropdown:SetSize(FILTER_BUTTON_WIDTH, FILTER_BUTTON_HEIGHT)
@@ -578,6 +596,10 @@ function UI.List(parent, getQuery, opts)
   local list = CreateFrame("Frame", nil, parent)
   list:SetAllPoints(parent)
   list.searchText = ""
+  -- Known before the first Refresh, so the Filter menu has the right items
+  -- even if it is opened first.
+  local initial = (getQuery and getQuery()) or {}
+  list.tab = initial.tab
 
   -- Top row: search box + Filter button. Fallback: the left filter panel
   -- (search box on top of it).
@@ -662,7 +684,11 @@ function UI.List(parent, getQuery, opts)
     if query.faction == nil then query.faction = ns.Game.Faction() end
     query.sourceText = memoText(query.sourceText or ns.Game.MountSourceText)
 
-    self.tab = query.tab
+    if query.tab ~= self.tab then
+      self.tab = query.tab
+      local dd = self.FilterDropdown
+      if dd and type(dd.GenerateMenu) == "function" then dd:GenerateMenu() end
+    end
     if self.FilterPanel then refreshFilterPanel(self, filters, query.tab) end
     if self.FilterDropdown and type(self.FilterDropdown.ValidateResetState) == "function" then
       self.FilterDropdown:ValidateResetState()

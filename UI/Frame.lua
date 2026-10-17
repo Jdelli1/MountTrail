@@ -37,15 +37,39 @@ end
 -- Game.ReportError (visible with /azt debug).
 function UI.Template(preferred, fallback)
   if templateExists(preferred) then return preferred end
-  if UI.TemplateFallbacks[preferred] == nil then
-    UI.TemplateFallbacks[preferred] = fallback or false
-    local game = ns.Game
-    if game and type(game.ReportError) == "function" then
-      game.ReportError(string.format("template %s missing, using %s", tostring(preferred),
-        tostring(fallback or "none")))
+  UI.RecordFallback(preferred, fallback)
+  return fallback
+end
+
+-- The first template of `...` the client defines, checked in order and only
+-- as far as needed; the last name is the final fallback and is returned
+-- without a check. When the first name is not used, that is recorded once in
+-- UI.TemplateFallbacks (first -> the name used) and reported like
+-- UI.Template.
+function UI.TemplateChain(...)
+  local n = select("#", ...)
+  local first = (...)
+  local chosen
+  for i = 1, n do
+    local name = select(i, ...)
+    if i == n or templateExists(name) then
+      chosen = name
+      break
     end
   end
-  return fallback
+  if chosen ~= first then UI.RecordFallback(first, chosen) end
+  return chosen
+end
+
+-- Records (once) that `missing` (a template, or a method a template lacks)
+-- was replaced by `used` (nil: nothing), for /azt debug.
+function UI.RecordFallback(missing, used)
+  if UI.TemplateFallbacks[missing] ~= nil then return end
+  UI.TemplateFallbacks[missing] = used or false
+  local game = ns.Game
+  if game and type(game.ReportError) == "function" then
+    game.ReportError(string.format("template %s missing, using %s", tostring(missing), tostring(used or "none")))
+  end
 end
 
 -- True when the client knows the texture atlas `name` (C_Texture.GetAtlasInfo).
@@ -215,19 +239,18 @@ local function createWindow()
   end)
   frame.DragHandle = drag
 
-  -- Content area below the portrait; one content frame per tab inside it.
-  -- Flat window: a plain frame over a slightly darker flat fill with a 1 px
-  -- edge (the modern inset look). Classic fallback: the classic inset.
+  -- Content area below the portrait; one content frame per tab inside it
+  -- (frame.Contents[key]). Flat window: a plain frame with a slightly darker
+  -- flat fill and a faint 1 px edge (the modern inset look). Classic
+  -- fallback: the classic inset.
   local inset
   if flat then
     inset = CreateFrame("Frame", nil, frame)
-    -- The fill and edge belong to the window, so the inset's children stay
-    -- the four tab contents.
-    local fill = frame:CreateTexture(nil, "BACKGROUND", nil, 2)
-    fill:SetPoint("TOPLEFT", inset, "TOPLEFT", 0, 0)
-    fill:SetPoint("BOTTOMRIGHT", inset, "BOTTOMRIGHT", 0, 0)
+    local fill = inset:CreateTexture(nil, "BACKGROUND")
+    fill:SetAllPoints(inset)
     fill:SetColorTexture(0, 0, 0, 0.3)
-    frame.InsetFill = fill
+    inset.Fill = fill
+    inset.Edge = UI.FlatBorder(inset, 1, 1, 1, 0.08)
   else
     inset = CreateFrame("Frame", nil, frame, "InsetFrameTemplate")
   end
@@ -242,6 +265,7 @@ local function createWindow()
   frame.topTabs = topTabs
 
   frame.Tabs = {}
+  frame.Contents = contents
   for i, tab in ipairs(TABS) do
     local content = CreateFrame("Frame", nil, inset)
     content:SetPoint("TOPLEFT", inset, "TOPLEFT", 4, -4)

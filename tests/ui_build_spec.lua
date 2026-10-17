@@ -39,6 +39,14 @@ end
 ScrollUtil = { InitScrollBoxListWithScrollBar = function(box, bar, view) box.view = view end }
 function CreateDataProvider(rows) return { rows = rows } end
 IsControlKeyDown = function() return false end
+GameFontHighlightSmall = { name = "GameFontHighlightSmall" }
+function CreateFont(name)
+  local font = { name = name }
+  function font:SetFontObject(base) self.base = base end
+  function font:SetTextColor(r, g, b) self.color = { r, g, b } end
+  _G[name] = font
+  return font
+end
 MenuResponse = { Refresh = 2 }
 
 -- The 11.x DropdownButton stand-in: records the generator and callbacks.
@@ -111,16 +119,18 @@ local function loadUI(global)
   return ns
 end
 
+local function content(ns, key) return ns.UI.frame.Contents[key] end
+
 -- The journal list: open the window (journal tab) and click the first card.
 local function openJournalList(ns)
   ns.ToggleWindow()
-  local content = ns.UI.frame.Inset.children[1]
-  local home = content.children[2] -- [1] is the Coming soon placeholder
+  local journal = content(ns, "journal")
+  local home = journal.children[2] -- [1] is the Coming soon placeholder
   local card = home.children[1]
   card:RunScript("OnEnter")
   card:RunScript("OnLeave")
   card:RunScript("OnClick", "LeftButton")
-  local listPage = content.children[3]
+  local listPage = journal.children[3]
   ok(listPage:IsShown() and not home:IsShown(), "card opens the list")
   local holder
   for _, child in ipairs(listPage.children) do
@@ -135,7 +145,7 @@ describe("ui build", function()
   it("journal home builds a card per expansion with flat edges", function()
     local ns = loadUI()
     ns.ToggleWindow()
-    local home = ns.UI.frame.Inset.children[1].children[2]
+    local home = content(ns, "journal").children[2]
     eq(#home.children, #ns.Data.Expansions)
     local card = home.children[1]
     ok(card.Edge and #card.Edge.edges == 4, "flat 1 px edge")
@@ -208,6 +218,44 @@ describe("ui build", function()
     eq(dd.resetShown, false)
   end)
 
+  it("the Journal menu has the ten sources before the first Refresh", function()
+    local ns = loadUI()
+    local parent = CreateFrame("Frame", nil, UIParent)
+    local list = ns.UI.List(parent, function() return { tab = "journal" } end)
+    eq(list.tab, "journal", "tab known at build time")
+    local calls = openMenu(list.FilterDropdown)
+    local boxes = 0
+    for _, c in ipairs(calls) do if c.kind == "checkbox" then boxes = boxes + 1 end end
+    eq(boxes, 11, "Collected + ten sources")
+    ok(find(calls, "Raid drops"), "sources listed")
+  end)
+
+  it("regenerates the menu when the list's tab changes", function()
+    local ns = loadUI()
+    local parent = CreateFrame("Frame", nil, UIParent)
+    local tab = "journal"
+    local list = ns.UI.List(parent, function() return { tab = tab } end)
+    local generated = 0
+    list.FilterDropdown.GenerateMenu = function() generated = generated + 1 end
+    list:Refresh()
+    eq(generated, 0, "same tab: no regeneration")
+    tab = "misc"
+    list:Refresh()
+    eq(generated, 1)
+    eq(#openMenu(list.FilterDropdown), 1, "Collected only on Misc")
+  end)
+
+  it("source lines use the dimmed highlight font", function()
+    local ns = loadUI()
+    local list = openJournalList(ns)
+    local frames = render(list.ScrollBox)
+    local row
+    for _, f in ipairs(frames) do if f.Source then row = f; break end end
+    eq(row.Source.template, "AzerothTrailFontSource")
+    eq(AzerothTrailFontSource.base, GameFontHighlightSmall)
+    eq(AzerothTrailFontSource.color, { 0.7, 0.7, 0.7 })
+  end)
+
   it("falls back to the checkbox panel without the dropdown template", function()
     local ns = loadUI({ filters = { collected = true, raid = false } })
     STUB_TEMPLATES.WowStyle1FilterDropdownTemplate = nil
@@ -234,6 +282,10 @@ describe("ui build", function()
     ok(good, tostring(list))
     eq(list.FilterDropdown, nil)
     ok(list.FilterPanel, "checkbox panel")
+    eq(ns.UI.TemplateFallbacks["DropdownButton:SetupMenu"], "checkbox panel", "listed by /azt debug")
+    eq(ns.UI.TemplateFallbacks.WowStyle1FilterDropdownTemplate, nil, "the template itself was there")
+    run_slash(ns.addon, "azt", "debug")
+    eq(ns.addon.printed[#ns.addon.printed], "Template DropdownButton:SetupMenu missing, using checkbox panel")
   end)
 
   it("Holidays and Misc build their lists with a Collected-only menu", function()
@@ -241,9 +293,8 @@ describe("ui build", function()
     ns.ToggleWindow()
     for i, key in ipairs({ "holidays", "misc" }) do
       ns.UI.SelectTab(key)
-      local content = ns.UI.frame.Inset.children[i + 1]
-      local list = content.children[2]
-      ok(list and list.FilterDropdown, key .. ": dropdown (" .. tostring(#content.children) .. " children)")
+      local list = content(ns, key).children[2]
+      ok(list and list.FilterDropdown, key .. ": dropdown")
       local calls = openMenu(list.FilterDropdown)
       eq(#calls, 1, key .. ": Collected only")
       render(list.ScrollBox)
@@ -254,14 +305,29 @@ describe("ui build", function()
     local ns = loadUI()
     ns.ToggleWindow()
     ns.UI.SelectTab("route")
-    local root = ns.UI.frame.Inset.children[4].children[2]
+    local arrowMode = "list"
+    ns.Arrow = {
+      Mode = function() return arrowMode end,
+      SetMode = function(_, mode) arrowMode = mode; return mode end,
+    }
+    local root = content(ns, "route").children[2]
     local header = root.children[1]
     eq(header.ShowCompleted.template, "MinimalCheckboxTemplate")
     eq(header.Name:GetText(), "Tester")
     eq(header.ListMode.Label.font, "GameFontNormalSmall", "List selected")
     eq(header.ArrowMode.Label.font, "GameFontDisableSmall")
     eq(header.ListMode.Bg.color, { 1, 0.82, 0, 0.22 })
-    header.ArrowMode:RunScript("OnClick") -- no Arrow.lua loaded: stays on List, no error
+    eq(header.ModeControl.width, 60 * 2 + 3, "1 px frame, two segments, 1 px divider")
+    eq(header.ModeControl.height, 22)
+    eq({ header.ListMode:GetPoint(1) }, { "TOPLEFT", header.ModeControl, "TOPLEFT", 1, -1 }, "inset 1 px")
+    eq({ header.ArrowMode:GetPoint(1) }, { "TOPRIGHT", header.ModeControl, "TOPRIGHT", -1, -1 })
+    header.ArrowMode:RunScript("OnClick")
+    eq(arrowMode, "arrow")
+    eq(header.ArrowMode.Label.font, "GameFontNormalSmall", "Arrow segment selected")
+    eq(header.ArrowMode.Bg.color, { 1, 0.82, 0, 0.22 })
+    eq(header.ListMode.Label.font, "GameFontDisableSmall")
+    header.ListMode:RunScript("OnClick")
+    eq(header.ListMode.Label.font, "GameFontNormalSmall", "back to List")
     header.ShowCompleted.checked = true
     header.ShowCompleted:RunScript("OnClick")
     eq(ns.db.char.showCompleted, true)
@@ -282,7 +348,8 @@ describe("ui build", function()
     STUB_TEMPLATES.MinimalCheckboxTemplate = nil
     ns.ToggleWindow()
     ns.UI.SelectTab("route")
-    local header = ns.UI.frame.Inset.children[4].children[2].children[1]
+    local header = content(ns, "route").children[2].children[1]
     eq(header.ShowCompleted.template, "UICheckButtonTemplate")
+    eq(ns.UI.TemplateFallbacks.MinimalCheckboxTemplate, "UICheckButtonTemplate")
   end)
 end)

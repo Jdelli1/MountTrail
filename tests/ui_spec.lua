@@ -53,6 +53,9 @@ describe("ui", function()
     ok(f.topTabs and f.isFlat, "flat window with top tabs")
     eq({ f.Tabs[1]:GetPoint(1) }, { "BOTTOMLEFT", f.Inset, "TOPLEFT", 60, 0 }, "tabs sit on the content's top edge")
     eq(f.Inset.template, nil, "flat content area, no classic inset")
+    eq(f.Inset.Fill:GetParent(), f.Inset, "flat fill drawn on the inset")
+    eq(f.Inset.Fill.color, { 0, 0, 0, 0.3 })
+    eq(#f.Inset.Edge.edges, 4, "faint 1 px edge")
     eq(next(ns.UI.TemplateFallbacks), nil, "no fallback used")
     eq(f.selectedTab, 1, "journal by default")
     eq(UISpecialFrames, { "AzerothTrailFrame" })
@@ -111,9 +114,14 @@ describe("ui", function()
     local ns = loadUI()
     ns.ToggleWindow()
     ns.UI.SelectTab("holidays")
-    local contents = ns.UI.frame.Inset.children
-    eq(#contents, 4, "one content frame per tab")
-    local holidaysContent = contents[2]
+    local contents = ns.UI.frame.Contents
+    local n = 0
+    for key, content in pairs(contents) do
+      n = n + 1
+      eq(content:GetParent(), ns.UI.frame.Inset, key .. " content in the inset")
+    end
+    eq(n, 4, "one content frame per tab")
+    local holidaysContent = contents.holidays
     ok(holidaysContent:IsShown(), "holidays content shown")
     local placeholder = holidaysContent.children[1]
     eq(placeholder.kind, "FontString")
@@ -165,6 +173,7 @@ describe("ui", function()
     eq(f.template, "PortraitFrameTemplate")
     eq(f.portraitAsset, 132261)
     eq(f.Inset.template, "InsetFrameTemplate")
+    eq(f.Inset.Fill, nil, "classic inset draws its own background")
     eq(f.Tabs[1].template, "PanelTabButtonTemplate")
     eq({ f.Tabs[1]:GetPoint(1) }, { "TOPLEFT", f, "BOTTOMLEFT", 11, 2 }, "tabs under the window")
     eq(ns.UI.TemplateFallbacks, {
@@ -222,6 +231,33 @@ describe("ui", function()
       })
       run_slash(ns.addon, "azt", "debug")
       eq(ns.addon.printed[#ns.addon.printed], "Debug: off", "nothing listed when turned off")
+    end)
+  end)
+
+  describe("TemplateChain", function()
+    it("returns the first defined template and checks no further", function()
+      local ns = loadUI()
+      local asked = {}
+      local saved = C_XMLUtil.GetTemplateInfo
+      C_XMLUtil.GetTemplateInfo = function(name) asked[#asked + 1] = name; return saved(name) end
+      eq(ns.UI.TemplateChain("MinimalCheckboxTemplate", "SettingsCheckboxTemplate", "UICheckButtonTemplate"),
+        "MinimalCheckboxTemplate")
+      C_XMLUtil.GetTemplateInfo = saved
+      eq(asked, { "MinimalCheckboxTemplate" }, "lazy: the fallbacks are not looked up")
+      eq(next(ns.UI.TemplateFallbacks), nil, "nothing recorded")
+    end)
+
+    it("falls through to the next defined template, recording the first name once", function()
+      local ns = loadUI()
+      STUB_TEMPLATES.MinimalCheckboxTemplate = nil
+      STUB_TEMPLATES.SettingsCheckboxTemplate = true
+      eq(ns.UI.TemplateChain("MinimalCheckboxTemplate", "SettingsCheckboxTemplate", "UICheckButtonTemplate"),
+        "SettingsCheckboxTemplate")
+      eq(ns.UI.TemplateFallbacks, { MinimalCheckboxTemplate = "SettingsCheckboxTemplate" })
+      STUB_TEMPLATES.SettingsCheckboxTemplate = nil
+      eq(ns.UI.TemplateChain("MinimalCheckboxTemplate", "SettingsCheckboxTemplate", "UICheckButtonTemplate"),
+        "UICheckButtonTemplate", "the last name is the final fallback")
+      eq(ns.UI.TemplateFallbacks, { MinimalCheckboxTemplate = "SettingsCheckboxTemplate" }, "recorded once")
     end)
   end)
 

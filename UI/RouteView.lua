@@ -10,7 +10,8 @@ local ADDON, ns = ...
 -- RouteToggle, RouteRowLines, RouteFlavour, FormatDuration) are unit-tested;
 -- the widget code below them is built under a stub by tests/ui_build_spec.lua.
 -- Look: a flat header strip, the flat minimal checkbox where the client has
--- it (MinimalCheckboxTemplate, else UICheckButtonTemplate), a two-segment
+-- it (MinimalCheckboxTemplate, else SettingsCheckboxTemplate, else
+-- UICheckButtonTemplate), a two-segment
 -- List / Arrow control and striped borderless rows, all in the GameFont
 -- families.
 
@@ -252,9 +253,10 @@ local TITLE_RIGHT = MAP_RIGHT + MAP_WIDTH + 40 -- room for the "auto" tag
 local LINE_RIGHT = MAP_RIGHT + MAP_WIDTH + 8
 local KILL_TITLE_Y, TRAVEL_TITLE_Y = -6, -5
 
--- Flat minimal checkbox of the current panels; classic one as the fallback.
+-- Flat minimal checkbox of the current panels, else the Settings one, else
+-- the classic one (checked lazily: an unused fallback is never looked up).
 local function checkTemplate()
-  return UI.Template("MinimalCheckboxTemplate", "UICheckButtonTemplate")
+  return UI.TemplateChain("MinimalCheckboxTemplate", "SettingsCheckboxTemplate", "UICheckButtonTemplate")
 end
 
 local function rowExtent(row)
@@ -500,7 +502,8 @@ local function build(parent)
   -- List / Arrow toggle on the resets line's right end (ns.db.char.routeMode):
   -- a flat two-segment control in a 1 px frame.
   local modes = CreateFrame("Frame", nil, header)
-  modes:SetSize(MODE_WIDTH * 2 + 1, MODE_HEIGHT)
+  -- 1 px frame + two segments + a 1 px divider between them.
+  modes:SetSize(MODE_WIDTH * 2 + 3, MODE_HEIGHT + 2)
   modes:SetPoint("TOPRIGHT", header, "TOPRIGHT", -8, -30)
   UI.FlatBorder(modes, 1, 1, 1, 0.15)
   header.ModeControl = modes
@@ -525,13 +528,13 @@ local function build(parent)
     return button
   end
   header.ListMode = modeButton("list", "List")
-  header.ListMode:SetPoint("TOPLEFT", modes, "TOPLEFT", 0, 0)
+  header.ListMode:SetPoint("TOPLEFT", modes, "TOPLEFT", 1, -1)
   header.ArrowMode = modeButton("arrow", "Arrow")
-  header.ArrowMode:SetPoint("TOPRIGHT", modes, "TOPRIGHT", 0, 0)
+  header.ArrowMode:SetPoint("TOPRIGHT", modes, "TOPRIGHT", -1, -1)
   local divider = modes:CreateTexture(nil, "BORDER")
   divider:SetWidth(1)
-  divider:SetPoint("TOP", modes, "TOP", 0, 0)
-  divider:SetPoint("BOTTOM", modes, "BOTTOM", 0, 0)
+  divider:SetPoint("TOPLEFT", header.ListMode, "TOPRIGHT", 0, 0)
+  divider:SetPoint("BOTTOMLEFT", header.ListMode, "BOTTOMRIGHT", 0, 0)
   divider:SetColorTexture(1, 1, 1, 0.15)
 
   scrollBox = CreateFrame("Frame", nil, root, "WowScrollBoxList")
