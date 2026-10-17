@@ -22,3 +22,6 @@ L["Commands:"] = "Commands:"
 L["/azt - show or hide the window"] = "/azt - show or hide the window"
 L["/azt dump - list saved instances (instance ID, difficulty ID, bosses)"] = "/azt dump - list saved instances (instance ID, difficulty ID, bosses)"
 L["/azt help - this list"] = "/azt help - this list"
+
+-- Map button
+L["No map location for %s"] = "No map location for %s"
