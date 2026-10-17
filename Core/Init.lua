@@ -122,6 +122,7 @@ function addon:OnInitialize()
       minimap = { hide = false },
       window = {},
       arrow = {}, -- route arrow frame position (UI\Arrow.lua)
+      debug = false, -- /azt debug: show caught map / arrow errors
     },
     char = {
       ticks = {},
@@ -206,11 +207,16 @@ function addon:OnSlash(input)
     else
       self:Print(L["The window is not available yet. Type /azt help for commands."])
     end
+  elseif cmd == "debug" then
+    ns.db.global.debug = not ns.db.global.debug
+    self:Print(ns.db.global.debug and L["Debug: on (caught map and arrow errors go to the error handler)"]
+      or L["Debug: off"])
   else
     self:Print(L["Commands:"])
     self:Print(L["/azt - show or hide the window"])
     self:Print(L["/azt dump - list saved instances (instance ID, difficulty ID, bosses)"])
     self:Print(L["/azt arrow - switch the route between list and arrow"])
+    self:Print(L["/azt debug - show or hide caught map and arrow errors"])
     self:Print(L["/azt help - this list"])
   end
 end

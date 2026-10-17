@@ -24,6 +24,9 @@ L["/azt dump - list saved instances (instance ID, difficulty ID, bosses)"] = "/a
 L["/azt help - this list"] = "/azt help - this list"
 L["/azt arrow - switch the route between list and arrow"] = "/azt arrow - switch the route between list and arrow"
 L["Route mode: %s"] = "Route mode: %s"
+L["/azt debug - show or hide caught map and arrow errors"] = "/azt debug - show or hide caught map and arrow errors"
+L["Debug: on (caught map and arrow errors go to the error handler)"] = "Debug: on (caught map and arrow errors go to the error handler)"
+L["Debug: off"] = "Debug: off"
 
 -- Map button
 L["No map location for %s"] = "No map location for %s"

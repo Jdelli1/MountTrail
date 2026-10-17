@@ -5,7 +5,8 @@ local ADDON, ns = ...
 -- waypoint when TomTom is installed. This is an integration layer, so it calls
 -- the WoW API directly, but always through an `api` table (the real globals by
 -- default) so the decision logic can be tested with stubs. Every call is
--- guarded; nothing here raises a Lua error.
+-- guarded; nothing here raises a Lua error (caught errors are shown only with
+-- /azt debug).
 local Map = {}
 ns.Map = Map
 
@@ -32,6 +33,21 @@ local function realApi()
   }
 end
 
+-- A caught error: dropped, or shown when /azt debug is on (Game.ReportError,
+-- looked up at call time).
+local function swallowed(err)
+  local game = ns.Game
+  if game and type(game.ReportError) == "function" then game.ReportError(err) end
+end
+
+-- pcall(fn, ...) that reports a failure through swallowed() -> good, results.
+local function guarded(fn, ...)
+  return (function(good, ...)
+    if not good then swallowed((...)) end
+    return good, ...
+  end)(pcall(fn, ...))
+end
+
 -- Calls lib[method](...) when present; returns its results, or nil when the
 -- function is missing or raises an error.
 local function try(lib, method, ...)
@@ -39,7 +55,7 @@ local function try(lib, method, ...)
   return (function(good, ...)
     if not good then return nil end
     return ...
-  end)(pcall(lib[method], ...))
+  end)(guarded(lib[method], ...))
 end
 
 -- Holiday mounts (tab "holiday" whose section is a Data.Holidays key) use the
@@ -62,7 +78,7 @@ local function positionXY(position)
   if type(position) ~= "table" then return nil end
   local x, y = position.x, position.y
   if (x == nil or y == nil) and type(position.GetXY) == "function" then
-    local good, px, py = pcall(position.GetXY, position)
+    local good, px, py = guarded(position.GetXY, position)
     if good then x, y = px, py end
   end
   if type(x) == "number" and type(y) == "number" then return x, y end
@@ -129,7 +145,7 @@ function Map.Show(mountID, api)
   local name = mountName(mountID)
   if target.kind == "none" then
     local say = type(api.Print) == "function" and api.Print or defaultPrint
-    pcall(say, string.format(L["No map location for %s"], name))
+    guarded(say, string.format(L["No map location for %s"], name))
     return target
   end
   local m = target.map
@@ -143,11 +159,11 @@ function Map.Show(mountID, api)
       end
     end
   end
-  if type(api.OpenWorldMap) == "function" then pcall(api.OpenWorldMap, m) end
+  if type(api.OpenWorldMap) == "function" then guarded(api.OpenWorldMap, m) end
   -- TomTom only for a real point (pin or entrance), never for "open".
   local tomtom = api.TomTom
   if target.x and target.y and type(tomtom) == "table" and type(tomtom.AddWaypoint) == "function" then
-    pcall(tomtom.AddWaypoint, tomtom, m, target.x / 100, target.y / 100, { title = name, persistent = false })
+    guarded(tomtom.AddWaypoint, tomtom, m, target.x / 100, target.y / 100, { title = name, persistent = false })
   end
   return target
 end

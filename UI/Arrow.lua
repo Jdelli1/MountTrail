@@ -18,7 +18,8 @@ local ADDON, ns = ...
 -- The pure helpers (Bearing, NextStep, Mode, SetMode, ToggleMode) are
 -- unit-tested in tests/arrow_spec.lua; the frame code is compile-checked only.
 -- Every WoW API call below is guarded: a missing API or a nil result hides the
--- arrow, it never raises an error. No protected or secure calls are made.
+-- arrow, it never raises an error (caught errors are shown only with
+-- /azt debug). No protected or secure calls are made.
 
 local L = ns.L
 
@@ -120,6 +121,25 @@ local frame
 local skipped = {} -- session only: { [row.key] = true }
 local current = { row = nil, key = nil, target = nil, tomtomUid = nil }
 
+-- A caught error: dropped, or shown when /azt debug is on (Game.ReportError).
+-- The pointer updates at 10 Hz, so a repeat of the last message is dropped.
+local lastSwallowed
+local function swallowed(err)
+  local msg = tostring(err)
+  if msg == lastSwallowed then return end
+  lastSwallowed = msg
+  local game = ns.Game
+  if game and type(game.ReportError) == "function" then game.ReportError(msg) end
+end
+
+-- pcall(fn, ...) that reports a failure through swallowed() -> good, results.
+local function guarded(fn, ...)
+  return (function(good, ...)
+    if not good then swallowed((...)) end
+    return good, ...
+  end)(pcall(fn, ...))
+end
+
 -- Calls lib[method](...) (no self) when present; its results, or nil on a
 -- missing function or an error.
 local function try(lib, method, ...)
@@ -127,7 +147,7 @@ local function try(lib, method, ...)
   return (function(good, ...)
     if not good then return nil end
     return ...
-  end)(pcall(lib[method], ...))
+  end)(guarded(lib[method], ...))
 end
 
 -- A number the addon may do arithmetic on (12.x can hand out secret values).
@@ -141,7 +161,7 @@ local function vectorXY(v)
   if type(v) ~= "table" then return nil end
   local x, y = v.x, v.y
   if (x == nil or y == nil) and type(v.GetXY) == "function" then
-    local good, vx, vy = pcall(v.GetXY, v)
+    local good, vx, vy = guarded(v.GetXY, v)
     if good then x, y = vx, vy end
   end
   if plain(x) and plain(y) then return x, y end
@@ -159,7 +179,7 @@ end
 
 local function playerFacing()
   if type(GetPlayerFacing) ~= "function" then return nil end
-  local good, facing = pcall(GetPlayerFacing)
+  local good, facing = guarded(GetPlayerFacing)
   if good and plain(facing) then return facing end
   return nil
 end
@@ -180,7 +200,7 @@ end
 
 local function updatePointer()
   if not (frame and current.row) then return end
-  local good, angle, distance, status = pcall(pointer)
+  local good, angle, distance, status = guarded(pointer)
   if good and angle then
     frame.Arrow:SetRotation(angle)
     frame.Arrow:Show()
@@ -200,7 +220,7 @@ local function removeTomTom()
   local uid = current.tomtomUid
   current.tomtomUid = nil
   if uid and type(TomTom) == "table" and type(TomTom.RemoveWaypoint) == "function" then
-    pcall(TomTom.RemoveWaypoint, TomTom, uid)
+    guarded(TomTom.RemoveWaypoint, TomTom, uid)
   end
 end
 
@@ -216,7 +236,7 @@ local function retarget(row)
   if not row then return end
   local mountID = firstMount(row)
   if not (mountID and ns.Map and ns.Map.Resolve) then return end
-  local good, target = pcall(ns.Map.Resolve, mountID)
+  local good, target = guarded(ns.Map.Resolve, mountID)
   if not (good and type(target) == "table") then return end
   current.target = target
   if not (target.map and target.x and target.y) then return end
@@ -229,7 +249,7 @@ local function retarget(row)
     end
   end
   if type(TomTom) == "table" and type(TomTom.AddWaypoint) == "function" then
-    local added, uid = pcall(TomTom.AddWaypoint, TomTom, target.map, fx, fy,
+    local added, uid = guarded(TomTom.AddWaypoint, TomTom, target.map, fx, fy,
       { title = row.title, persistent = false })
     if added then current.tomtomUid = uid end
   end

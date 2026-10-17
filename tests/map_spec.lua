@@ -225,6 +225,21 @@ describe("Map.Show", function()
     eq(#calls(api, "TomTom"), 1, "TomTom still tried")
   end)
 
+  it("reports swallowed errors through ns.Game.ReportError (/azt debug)", function()
+    local Map, ns = loadMap({ [1] = { name = "M", coords = { m = 5, x = 10, y = 20 } } })
+    local reported = {}
+    ns.Game = { ReportError = function(err) reported[#reported + 1] = tostring(err) end }
+    local api = fakeApi({ canSet = { [5] = true } })
+    api.C_Map.SetUserWaypoint = function() error("bad point") end
+    api.OpenWorldMap = function() error("combat") end
+    api.TomTom = { AddWaypoint = function() error("tomtom broke") end }
+    Map.Show(1, api)
+    eq(#reported, 3)
+    ok(reported[1]:find("bad point", 1, true), reported[1])
+    ok(reported[2]:find("combat", 1, true), reported[2])
+    ok(reported[3]:find("tomtom broke", 1, true), reported[3])
+  end)
+
   it("prints through ns.addon by default", function()
     local Map, ns = loadMap({})
     local printed = {}

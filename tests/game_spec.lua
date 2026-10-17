@@ -5,7 +5,7 @@ local API_GLOBALS = {
   "GetNumSavedInstances", "GetSavedInstanceInfo", "GetSavedInstanceEncounterInfo",
   "C_DateAndTime", "C_Calendar", "GetExpansionDisplayInfo", "C_MountJournal",
   "C_QuestLog", "GetLFGDungeonRewards", "RequestRaidInfo", "RequestLFDPlayerLockInfo",
-  "GetServerTime",
+  "GetServerTime", "geterrorhandler",
 }
 local ORIGINAL = {}
 for _, name in ipairs(API_GLOBALS) do ORIGINAL[name] = _G[name] end
@@ -46,6 +46,45 @@ describe("game adapter", function()
       eq(G.Faction(), "Neutral")
       UnitFactionGroup = nil
       eq(G.Faction(), "Neutral")
+    end)
+  end)
+
+  describe("ReportError (/azt debug)", function()
+    local function capture()
+      local got = {}
+      geterrorhandler = function() return function(msg) got[#got + 1] = msg end end
+      return got
+    end
+
+    it("is silent without a db or with debug off (the default)", function()
+      local ns = loadGame()
+      local got = capture()
+      eq(ns.Game.ReportError("boom"), false)
+      ns.db = { global = {} }
+      eq(ns.Game.ReportError("boom"), false)
+      ns.db.global.debug = false
+      eq(ns.Game.ReportError("boom"), false)
+      eq(got, {})
+    end)
+
+    it("sends the error to geterrorhandler(), prefixed, when debug is on", function()
+      local ns = loadGame()
+      local got = capture()
+      ns.db = { global = { debug = true } }
+      eq(ns.Game.ReportError("Map.lua:42: boom"), true)
+      eq(ns.Game.ReportError(nil), true)
+      eq(got, { "AzerothTrail: Map.lua:42: boom", "AzerothTrail: nil" })
+    end)
+
+    it("never raises: missing geterrorhandler, nil handler or a failing handler", function()
+      local ns = loadGame()
+      ns.db = { global = { debug = true } }
+      geterrorhandler = nil
+      eq(ns.Game.ReportError("x"), false)
+      geterrorhandler = function() return nil end
+      eq(ns.Game.ReportError("x"), false)
+      geterrorhandler = function() return function() error("handler broke") end end
+      eq(ns.Game.ReportError("x"), false)
     end)
   end)
 
@@ -397,7 +436,19 @@ describe("init", function()
     it("help lists commands", function()
       local ns = setup()
       run_slash(ns.addon, "azt", "help")
-      ok(table.concat(ns.addon.printed, "\n"):find("dump", 1, true), "help mentions dump")
+      local out = table.concat(ns.addon.printed, "\n")
+      ok(out:find("dump", 1, true), "help mentions dump")
+      ok(out:find("/azt debug", 1, true), "help mentions /azt debug")
+    end)
+    it("debug toggles ns.db.global.debug (default off) and says so", function()
+      local ns = setup()
+      eq(ns.db.global.debug, false)
+      run_slash(ns.addon, "azt", "debug")
+      eq(ns.db.global.debug, true)
+      ok(ns.addon.printed[#ns.addon.printed]:find("on", 1, true), "says on")
+      run_slash(ns.addon, "azt", " DEBUG ")
+      eq(ns.db.global.debug, false)
+      ok(ns.addon.printed[#ns.addon.printed]:find("off", 1, true), "says off")
     end)
   end)
 end)

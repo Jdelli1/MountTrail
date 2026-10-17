@@ -12,6 +12,20 @@ local function mountInfo(mountID)
   return journal.GetMountInfoByID(mountID)
 end
 
+-- Errors the addon catches on purpose (pcall around map, waypoint and arrow
+-- calls) are dropped silently unless `/azt debug` is on
+-- (ns.db.global.debug): then they go to geterrorhandler(), prefixed
+-- "AzerothTrail: ". -> true when the error was handed to the handler. Never
+-- raises.
+function Game.ReportError(err)
+  local db = ns.db
+  if not (db and db.global and db.global.debug == true) then return false end
+  if type(geterrorhandler) ~= "function" then return false end
+  local good, handler = pcall(geterrorhandler)
+  if not (good and type(handler) == "function") then return false end
+  return (pcall(handler, "AzerothTrail: " .. tostring(err)))
+end
+
 -- C_MountJournal.GetMountInfoByID: name, spellID, icon, isActive, isUsable,
 -- sourceType, isFavorite, isFactionSpecific, faction, shouldHideOnChar,
 -- isCollected, mountID.
