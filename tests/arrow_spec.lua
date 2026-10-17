@@ -69,7 +69,7 @@ describe("arrow", function()
 
   it("loads and exposes the helpers without building the frame", function()
     local ns = loadUI()
-    for _, name in ipairs({ "Bearing", "NextStep", "Mode", "SetMode", "ToggleMode" }) do
+    for _, name in ipairs({ "Bearing", "NextStep", "TargetBoss", "Mode", "SetMode", "ToggleMode" }) do
       eq(type(ns.Arrow[name]), "function", name)
     end
     eq(type(ns.UI.RouteNextStep), "function", "RouteNextStep")
@@ -159,6 +159,30 @@ describe("arrow", function()
       eq(hints, {})
       eq(Arrow.NextStep({}, {}), nil, "empty route")
       eq(Arrow.NextStep(nil, nil), nil, "no rows")
+    end)
+  end)
+
+  describe("TargetBoss", function()
+    local function row(states)
+      local bosses = {}
+      for i, st in ipairs(states) do bosses[i] = { mount = 100 + i, boss = "B" .. i, state = st } end
+      return { kind = "kill", bosses = bosses }
+    end
+
+    it("targets the first boss that is not done or manual-done", function()
+      local Arrow = loadUI().Arrow
+      local b, i = Arrow.TargetBoss(row({ "done", "manual-done", "open", "manual-open" }))
+      eq({ b.mount, i }, { 103, 3 })
+      b, i = Arrow.TargetBoss(row({ "done", "manual-open" }))
+      eq({ b.mount, i }, { 102, 2 })
+    end)
+
+    it("falls back to the first boss, and nil without bosses", function()
+      local Arrow = loadUI().Arrow
+      local b, i = Arrow.TargetBoss(row({ "done", "manual-done" }))
+      eq({ b.mount, i }, { 101, 1 })
+      eq(Arrow.TargetBoss({ kind = "kill", bosses = {} }), nil)
+      eq(Arrow.TargetBoss(nil), nil)
     end)
   end)
 

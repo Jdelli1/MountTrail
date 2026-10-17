@@ -10,12 +10,14 @@ local ADDON, ns = ...
 --     It is recomputed on every ns.Refresh() (lockout, quest and calendar
 --     events already trigger one) through a Frame.lua refresh hook, so the
 --     frame follows the route while the main window is closed.
---   * On a new step: the game's user waypoint is set and super-tracked (the
---     built-in on-screen pointer), and a TomTom waypoint replaces the previous
---     one when TomTom is installed.
+--   * The arrow points at the step's first boss that is not done yet
+--     (Arrow.TargetBoss). On a new target: the game's user waypoint is set and
+--     super-tracked (the built-in on-screen pointer), and a TomTom waypoint
+--     replaces the previous one when TomTom is installed. The Map button only
+--     opens the world map there (no second TomTom waypoint).
 --   * Skip hides a step for this session only (not saved).
 --
--- The pure helpers (Bearing, NextStep, Mode, SetMode, ToggleMode) are
+-- The pure helpers (Bearing, NextStep, TargetBoss, Mode, SetMode, ToggleMode) are
 -- unit-tested in tests/arrow_spec.lua; the frame code is compile-checked only.
 -- Every WoW API call below is guarded: a missing API or a nil result hides the
 -- arrow, it never raises an error (caught errors are shown only with
@@ -78,6 +80,18 @@ function Arrow.NextStep(rows, skipped)
   return nil, {}
 end
 
+-- The boss of a route row the arrow points at: the first one whose state is
+-- not "done" / "manual-done" (falls back to the first boss). -> boss, index;
+-- nil when the row has no bosses.
+function Arrow.TargetBoss(row)
+  local bosses = row and row.bosses
+  if not (bosses and bosses[1]) then return nil end
+  for i, b in ipairs(bosses) do
+    if b.state ~= "done" and b.state ~= "manual-done" then return b, i end
+  end
+  return bosses[1], 1
+end
+
 local function charStore(char)
   if char then return char end
   return ns.db and ns.db.char or nil
@@ -119,7 +133,9 @@ local MAX_HINTS = 2 -- innermost travel rows shown on the "via:" line
 
 local frame
 local skipped = {} -- session only: { [row.key] = true }
-local current = { row = nil, key = nil, target = nil, tomtomUid = nil }
+-- target: Map.Resolve result for the targeted boss's mount; world: its world
+-- position { c=, x=, y= }, computed once per retarget (nil until it resolves).
+local current = { row = nil, key = nil, target = nil, world = nil, tomtomUid = nil }
 
 -- A caught error: dropped, or shown when /azt debug is on (Game.ReportError).
 -- The pointer updates at 10 Hz, so a repeat of the last message is dropped.
@@ -188,8 +204,13 @@ end
 local function pointer()
   local t = current.target
   if not (t and t.map and t.x and t.y) then return nil, nil, L["No waypoint for this step"] end
-  if type(CreateVector2D) ~= "function" then return nil, nil, L["Arrow unavailable here"] end
-  local tc, tx, ty = worldOf(t.map, CreateVector2D(t.x / 100, t.y / 100))
+  if not current.world then
+    if type(CreateVector2D) ~= "function" then return nil, nil, L["Arrow unavailable here"] end
+    local wc, wx, wy = worldOf(t.map, CreateVector2D(t.x / 100, t.y / 100))
+    if not wx then return nil, nil, L["Arrow unavailable here"] end
+    current.world = { c = wc, x = wx, y = wy }
+  end
+  local tc, tx, ty = current.world.c, current.world.x, current.world.y
   local mapID = try(C_Map, "GetBestMapForUnit", "player")
   local pc, px, py = worldOf(mapID, mapID and try(C_Map, "GetPlayerMapPosition", mapID, "player"))
   local facing = playerFacing()
@@ -211,8 +232,8 @@ local function updatePointer()
   end
 end
 
-local function firstMount(row)
-  local b = row and row.bosses and row.bosses[1]
+local function targetMount(row)
+  local b = Arrow.TargetBoss(row)
   return b and b.mount or nil
 end
 
@@ -224,17 +245,19 @@ local function removeTomTom()
   end
 end
 
--- Points the game (user waypoint + super-track) and TomTom at the step's
--- mount location when the step changed. retarget(nil) drops the TomTom
--- waypoint; the game's user waypoint is left for the player to clear.
+-- Points the game (user waypoint + super-track) and TomTom at the targeted
+-- boss's mount location (Arrow.TargetBoss) when the step or its target
+-- changed. retarget(nil) drops the TomTom waypoint; the game's user waypoint
+-- is left for the player to clear.
 local function retarget(row)
-  local key = row and (tostring(row.key) .. ":" .. tostring(firstMount(row))) or nil
+  local key = row and (tostring(row.key) .. ":" .. tostring(targetMount(row))) or nil
   if key == current.key then return end
   current.key = key
   current.target = nil
+  current.world = nil
   removeTomTom()
   if not row then return end
-  local mountID = firstMount(row)
+  local mountID = targetMount(row)
   if not (mountID and ns.Map and ns.Map.Resolve) then return end
   local good, target = guarded(ns.Map.Resolve, mountID)
   if not (good and type(target) == "table") then return end
@@ -358,11 +381,22 @@ local function createFrame()
   skip:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
   f.SkipButton = skip
 
+  -- The waypoints are already set by retarget: Map only opens the world map
+  -- at the target (no second TomTom waypoint).
   local map = button(f, L["Map"])
   map:SetPoint("BOTTOMRIGHT", skip, "BOTTOMLEFT", -2, 0)
   map:SetScript("OnClick", function()
-    local id = firstMount(current.row)
-    if id and ns.Map then ns.Map.Show(id) end
+    local t = current.target
+    if t and t.map then
+      if type(OpenWorldMap) == "function" then guarded(OpenWorldMap, t.map) end
+      return
+    end
+    local id = targetMount(current.row)
+    if id and ns.addon and ns.addon.Print then
+      local name = ns.Game.MountInfo(id)
+      local m = ns.Data and ns.Data.Mounts and ns.Data.Mounts[id]
+      ns.addon:Print(string.format(L["No map location for %s"], name or (m and m.name) or tostring(id)))
+    end
   end)
   f.MapButton = map
 
@@ -396,10 +430,11 @@ local function paint(f, row, hints)
     return
   end
   local title, lines = UI.RouteRowLines(row)
+  local _, index = Arrow.TargetBoss(row)
   f.Title:SetText(title)
-  f.Detail:SetText(lines[1] or "")
+  f.Detail:SetText(lines[index or 1] or lines[1] or "")
   f.Hint:SetText(hintText(hints))
-  f.MapButton:SetShown(firstMount(row) ~= nil)
+  f.MapButton:SetShown(targetMount(row) ~= nil)
 end
 
 local function refresh()
