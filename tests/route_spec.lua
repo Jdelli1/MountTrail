@@ -110,6 +110,15 @@ describe("route", function()
       eq(rows[1].title, "Hearthstone to Orgrimmar")
     end)
 
+    it("start step reads Start in <capital>", function()
+      local t = { { title = "Start in ", capital = true, startStep = true, steps = tree[1].steps } }
+      local ns = load()
+      eq(ns.Route.Build(t, ctx({ faction = "Horde" }))[1].title, "Start in Orgrimmar")
+      eq(ns.Route.Build(t, ctx({ faction = "Alliance" }))[1].title, "Start in Stormwind")
+      eq(ns.Route.Build(t, ctx({ faction = "Neutral" }))[1].title, "Start in your capital")
+      eq(rawget(ns.L, "Start in %s"), "Start in %s")
+    end)
+
     it("locale has explicit capital strings", function()
       local ns = load()
       eq(rawget(ns.L, "Hearthstone to %s"), "Hearthstone to %s")

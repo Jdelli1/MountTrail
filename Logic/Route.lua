@@ -20,6 +20,8 @@ end
 
 local function capitalTitle(node, faction)
   local cap = CAPITALS[faction] or L["your capital"]
+  -- The route's start step ("Start in ") names the capital itself (R14).
+  if node.startStep then return string.format(L["Start in %s"], cap) end
   local title = string.format(L["Hearthstone to %s"], cap)
   local own = node.title and string.match(node.title, "^%s*(.-)%s*$") or ""
   if own ~= "" then title = title .. " " .. own end

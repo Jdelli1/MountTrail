@@ -10,3 +10,4 @@ local L = ns.L
 -- Route
 L["Hearthstone to %s"] = "Hearthstone to %s"
 L["your capital"] = "your capital"
+L["Start in %s"] = "Start in %s"
