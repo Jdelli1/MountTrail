@@ -12,6 +12,75 @@ ns.UI = UI
 local ICON = 132261 -- same as ## IconTexture in the .toc
 local WIDTH, HEIGHT = 800, 560
 
+-- Style helpers ------------------------------------------------------------------
+-- The window follows Blizzard's current flat panel style (Professions, Delves,
+-- the modern Collections). Every template newer than the classic ones goes
+-- through UI.Template, so a client without it gets the classic look instead
+-- of a broken window.
+
+-- preferred -> fallback for each template the client did not define (shown
+-- by `/azt debug`).
+UI.TemplateFallbacks = UI.TemplateFallbacks or {}
+
+local function templateExists(name)
+  local util = C_XMLUtil
+  if type(name) ~= "string" or type(util) ~= "table" or type(util.GetTemplateInfo) ~= "function" then
+    return false
+  end
+  local good, info = pcall(util.GetTemplateInfo, name)
+  return good and info ~= nil
+end
+
+-- `preferred` when the client defines that XML template
+-- (C_XMLUtil.GetTemplateInfo), else `fallback` (may be nil). A fallback is
+-- recorded in UI.TemplateFallbacks and reported once through
+-- Game.ReportError (visible with /azt debug).
+function UI.Template(preferred, fallback)
+  if templateExists(preferred) then return preferred end
+  if UI.TemplateFallbacks[preferred] == nil then
+    UI.TemplateFallbacks[preferred] = fallback or false
+    local game = ns.Game
+    if game and type(game.ReportError) == "function" then
+      game.ReportError(string.format("template %s missing, using %s", tostring(preferred),
+        tostring(fallback or "none")))
+    end
+  end
+  return fallback
+end
+
+-- True when the client knows the texture atlas `name` (C_Texture.GetAtlasInfo).
+function UI.AtlasExists(name)
+  local tex = C_Texture
+  if type(name) ~= "string" or type(tex) ~= "table" or type(tex.GetAtlasInfo) ~= "function" then
+    return false
+  end
+  local good, info = pcall(tex.GetAtlasInfo, name)
+  return good and info ~= nil
+end
+
+-- A 1 px flat border around `frame` (four edge textures on `layer`, default
+-- BORDER) -> border; border:SetColor(r, g, b, a) recolours it (hover tints).
+function UI.FlatBorder(frame, r, g, b, a, layer)
+  local border = { edges = {} }
+  local function edge(p1, p2, horizontal)
+    local t = frame:CreateTexture(nil, layer or "BORDER")
+    t:SetPoint(p1, frame, p1, 0, 0)
+    t:SetPoint(p2, frame, p2, 0, 0)
+    if horizontal then t:SetHeight(1) else t:SetWidth(1) end
+    border.edges[#border.edges + 1] = t
+    return t
+  end
+  edge("TOPLEFT", "TOPRIGHT", true)
+  edge("BOTTOMLEFT", "BOTTOMRIGHT", true)
+  edge("TOPLEFT", "BOTTOMLEFT", false)
+  edge("TOPRIGHT", "BOTTOMRIGHT", false)
+  function border:SetColor(cr, cg, cb, ca)
+    for _, t in ipairs(self.edges) do t:SetColorTexture(cr, cg, cb, ca) end
+  end
+  border:SetColor(r or 1, g or 1, b or 1, a or 0.1)
+  return border
+end
+
 -- Tab order is fixed; views plug in by key (Tasks 13/14).
 local TABS = {
   { key = "journal", label = "Journal" },
@@ -110,9 +179,16 @@ function UI.SelectTab(key)
   showCurrent()
 end
 
+local TITLE_HEIGHT = 24 -- title bar of the portrait frame
+local PORTRAIT_RIGHT = 60 -- the portrait covers the top-left corner up to here
+local CONTENT_TOP = -60 -- content starts below the portrait
+
 local function createWindow()
-  local frame = CreateFrame("Frame", "AzerothTrailFrame", UIParent, "PortraitFrameTemplate")
+  local frameTemplate = UI.Template("PortraitFrameFlatTemplate", "PortraitFrameTemplate")
+  local flat = frameTemplate == "PortraitFrameFlatTemplate"
+  local frame = CreateFrame("Frame", "AzerothTrailFrame", UIParent, frameTemplate)
   UI.frame = frame
+  frame.isFlat = flat
   frame:Hide()
   frame:SetSize(WIDTH, HEIGHT)
   frame:SetToplevel(true)
@@ -126,9 +202,9 @@ local function createWindow()
   -- Drag handle over the title bar (right of the portrait, left of the close
   -- button). We save the position ourselves, so opt out of the layout cache.
   local drag = CreateFrame("Frame", nil, frame)
-  drag:SetPoint("TOPLEFT", frame, "TOPLEFT", 60, 0)
+  drag:SetPoint("TOPLEFT", frame, "TOPLEFT", PORTRAIT_RIGHT, 0)
   drag:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -28, 0)
-  drag:SetHeight(24)
+  drag:SetHeight(TITLE_HEIGHT)
   drag:EnableMouse(true)
   drag:RegisterForDrag("LeftButton")
   drag:SetScript("OnDragStart", function() frame:StartMoving() end)
@@ -139,11 +215,31 @@ local function createWindow()
   end)
   frame.DragHandle = drag
 
-  -- Inset below the portrait; one content frame per tab inside it.
-  local inset = CreateFrame("Frame", nil, frame, "InsetFrameTemplate")
-  inset:SetPoint("TOPLEFT", frame, "TOPLEFT", 4, -60)
+  -- Content area below the portrait; one content frame per tab inside it.
+  -- Flat window: a plain frame over a slightly darker flat fill with a 1 px
+  -- edge (the modern inset look). Classic fallback: the classic inset.
+  local inset
+  if flat then
+    inset = CreateFrame("Frame", nil, frame)
+    -- The fill and edge belong to the window, so the inset's children stay
+    -- the four tab contents.
+    local fill = frame:CreateTexture(nil, "BACKGROUND", nil, 2)
+    fill:SetPoint("TOPLEFT", inset, "TOPLEFT", 0, 0)
+    fill:SetPoint("BOTTOMRIGHT", inset, "BOTTOMRIGHT", 0, 0)
+    fill:SetColorTexture(0, 0, 0, 0.3)
+    frame.InsetFill = fill
+  else
+    inset = CreateFrame("Frame", nil, frame, "InsetFrameTemplate")
+  end
+  inset:SetPoint("TOPLEFT", frame, "TOPLEFT", 6, CONTENT_TOP)
   inset:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -6, 6)
   frame.Inset = inset
+
+  -- Tabs: modern top tabs between the title bar and the content (right of
+  -- the portrait); classic bottom tabs when the client lacks the template.
+  local tabTemplate = UI.Template("PanelTopTabButtonTemplate", "PanelTabButtonTemplate")
+  local topTabs = tabTemplate == "PanelTopTabButtonTemplate"
+  frame.topTabs = topTabs
 
   frame.Tabs = {}
   for i, tab in ipairs(TABS) do
@@ -159,11 +255,17 @@ local function createWindow()
     placeholders[tab.key] = placeholder
 
     -- PanelTemplates_* find tabs as <frameName>Tab<i> (or frame.Tabs[i]).
-    local button = CreateFrame("Button", "AzerothTrailFrameTab" .. i, frame, "PanelTabButtonTemplate")
+    local button = CreateFrame("Button", "AzerothTrailFrameTab" .. i, frame, tabTemplate)
     button:SetID(i)
     button:SetText(L[tab.label])
     if i == 1 then
-      button:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", 11, 2)
+      if topTabs then
+        button:SetPoint("BOTTOMLEFT", inset, "TOPLEFT", PORTRAIT_RIGHT, 0)
+      else
+        button:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", 11, 2)
+      end
+    elseif topTabs then
+      button:SetPoint("LEFT", frame.Tabs[i - 1], "RIGHT", 2, 0)
     else
       button:SetPoint("TOPLEFT", frame.Tabs[i - 1], "TOPRIGHT", 3, 0)
     end

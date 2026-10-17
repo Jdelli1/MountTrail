@@ -27,6 +27,8 @@ L["Route mode: %s"] = "Route mode: %s"
 L["/azt debug - show or hide caught map and arrow errors"] = "/azt debug - show or hide caught map and arrow errors"
 L["Debug: on (caught map and arrow errors go to the error handler)"] = "Debug: on (caught map and arrow errors go to the error handler)"
 L["Debug: off"] = "Debug: off"
+L["Template %s missing, using %s"] = "Template %s missing, using %s"
+L["none"] = "none"
 
 -- Map button
 L["No map location for %s"] = "No map location for %s"

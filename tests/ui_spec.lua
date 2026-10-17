@@ -42,14 +42,18 @@ describe("ui", function()
     local f = ns.UI.frame
     ok(f and f:IsShown(), "window shown")
     eq(f:GetName(), "AzerothTrailFrame")
-    eq(f.template, "PortraitFrameTemplate")
+    eq(f.template, "PortraitFrameFlatTemplate", "modern flat window")
     eq({ f:GetSize() }, { 800, 560 })
     eq(f.title, "AzerothTrail")
     eq(f.portraitAsset, 132261)
     ok(f.movable and f.clamped, "movable and clamped")
     eq(f.numTabs, 4)
     eq(f.Tabs[4]:GetText(), "Route")
-    eq(f.Tabs[1].template, "PanelTabButtonTemplate")
+    eq(f.Tabs[1].template, "PanelTopTabButtonTemplate", "modern top tabs")
+    ok(f.topTabs and f.isFlat, "flat window with top tabs")
+    eq({ f.Tabs[1]:GetPoint(1) }, { "BOTTOMLEFT", f.Inset, "TOPLEFT", 60, 0 }, "tabs sit on the content's top edge")
+    eq(f.Inset.template, nil, "flat content area, no classic inset")
+    eq(next(ns.UI.TemplateFallbacks), nil, "no fallback used")
     eq(f.selectedTab, 1, "journal by default")
     eq(UISpecialFrames, { "AzerothTrailFrame" })
     ns.ToggleWindow()
@@ -149,6 +153,105 @@ describe("ui", function()
     eq(f.userPlaced, false)
     local w = ns.db.global.window
     eq({ w.point, w.relPoint, w.x, w.y }, { "BOTTOMLEFT", "BOTTOMLEFT", 12, 34 })
+  end)
+
+  it("falls back to the classic window, inset and bottom tabs without the modern templates", function()
+    local ns = loadUI()
+    STUB_TEMPLATES.PortraitFrameFlatTemplate = nil
+    STUB_TEMPLATES.PanelTopTabButtonTemplate = nil
+    ns.ToggleWindow()
+    local f = ns.UI.frame
+    ok(f:IsShown(), "window still opens")
+    eq(f.template, "PortraitFrameTemplate")
+    eq(f.portraitAsset, 132261)
+    eq(f.Inset.template, "InsetFrameTemplate")
+    eq(f.Tabs[1].template, "PanelTabButtonTemplate")
+    eq({ f.Tabs[1]:GetPoint(1) }, { "TOPLEFT", f, "BOTTOMLEFT", 11, 2 }, "tabs under the window")
+    eq(ns.UI.TemplateFallbacks, {
+      PortraitFrameFlatTemplate = "PortraitFrameTemplate",
+      PanelTopTabButtonTemplate = "PanelTabButtonTemplate",
+    })
+    ns.UI.SelectTab("route")
+    eq(f.selectedTab, 4, "tabs still work")
+  end)
+
+  describe("Template", function()
+    it("returns the preferred template when the client defines it", function()
+      local ns = loadUI()
+      eq(ns.UI.Template("PanelTopTabButtonTemplate", "PanelTabButtonTemplate"), "PanelTopTabButtonTemplate")
+      eq(next(ns.UI.TemplateFallbacks), nil)
+    end)
+
+    it("returns the fallback (or nil) for a missing template and records it", function()
+      local ns = loadUI()
+      eq(ns.UI.Template("NoSuchTemplate", "UIPanelButtonTemplate"), "UIPanelButtonTemplate")
+      eq(ns.UI.Template("AlsoMissing"), nil)
+      eq(ns.UI.TemplateFallbacks, { NoSuchTemplate = "UIPanelButtonTemplate", AlsoMissing = false })
+    end)
+
+    it("reports a fallback once through /azt debug's error handler", function()
+      local ns = loadUI({ debug = true })
+      local got = {}
+      local old = geterrorhandler
+      geterrorhandler = function() return function(msg) got[#got + 1] = msg end end
+      ns.UI.Template("NoSuchTemplate", "UIPanelButtonTemplate")
+      ns.UI.Template("NoSuchTemplate", "UIPanelButtonTemplate")
+      geterrorhandler = old
+      eq(got, { "AzerothTrail: template NoSuchTemplate missing, using UIPanelButtonTemplate" })
+    end)
+
+    it("falls back when C_XMLUtil is missing or errors", function()
+      local ns = loadUI()
+      local saved = C_XMLUtil
+      C_XMLUtil = nil
+      eq(ns.UI.Template("PanelTopTabButtonTemplate", "PanelTabButtonTemplate"), "PanelTabButtonTemplate")
+      C_XMLUtil = { GetTemplateInfo = function() error("boom") end }
+      eq(ns.UI.Template("PortraitFrameFlatTemplate", "PortraitFrameTemplate"), "PortraitFrameTemplate")
+      C_XMLUtil = saved
+    end)
+
+    it("/azt debug lists the fallbacks when turned on", function()
+      local ns = loadUI()
+      ns.UI.Template("NoSuchTemplate", "UIPanelButtonTemplate")
+      ns.UI.Template("AlsoMissing")
+      run_slash(ns.addon, "azt", "debug")
+      local n = #ns.addon.printed
+      eq({ ns.addon.printed[n - 1], ns.addon.printed[n] }, {
+        "Template AlsoMissing missing, using none",
+        "Template NoSuchTemplate missing, using UIPanelButtonTemplate",
+      })
+      run_slash(ns.addon, "azt", "debug")
+      eq(ns.addon.printed[#ns.addon.printed], "Debug: off", "nothing listed when turned off")
+    end)
+  end)
+
+  describe("style helpers", function()
+    it("AtlasExists asks C_Texture and never errors", function()
+      local ns = loadUI()
+      STUB_ATLASES["UI-HUD-ActionBar-IconFrame-Mask"] = true
+      eq(ns.UI.AtlasExists("UI-HUD-ActionBar-IconFrame-Mask"), true)
+      eq(ns.UI.AtlasExists("nope"), false)
+      eq(ns.UI.AtlasExists(nil), false)
+      local saved = C_Texture
+      C_Texture = { GetAtlasInfo = function() error("boom") end }
+      eq(ns.UI.AtlasExists("UI-HUD-ActionBar-IconFrame-Mask"), false)
+      C_Texture = nil
+      eq(ns.UI.AtlasExists("UI-HUD-ActionBar-IconFrame-Mask"), false)
+      C_Texture = saved
+    end)
+
+    it("FlatBorder draws four 1 px edges and recolours them", function()
+      local ns = loadUI()
+      local f = CreateFrame("Frame", nil, UIParent)
+      local border = ns.UI.FlatBorder(f, 1, 1, 1, 0.1)
+      eq(#border.edges, 4)
+      eq(#f.children, 4, "edges belong to the frame")
+      eq(border.edges[1].height, 1)
+      eq(border.edges[3].width, 1)
+      eq(border.edges[2].color, { 1, 1, 1, 0.1 })
+      border:SetColor(1, 0.82, 0, 0.6)
+      for _, edge in ipairs(border.edges) do eq(edge.color, { 1, 0.82, 0, 0.6 }) end
+    end)
   end)
 
   it("rejects unknown view keys", function()

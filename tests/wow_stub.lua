@@ -103,8 +103,8 @@ end
 
 -- Fake widgets for loading UI/ files (Task 12). Only what UI/Frame.lua calls;
 -- a missing method errors, as it would in game. Templates add nothing except
--- the PortraitFrameTemplate methods Frame.lua uses (SetTitle,
--- SetPortraitToAsset), which Retail's PortraitFrameMixin provides.
+-- the PortraitFrameTemplate / PortraitFrameFlatTemplate methods Frame.lua uses
+-- (SetTitle, SetPortraitToAsset), which Retail's PortraitFrameMixin provides.
 -- Simplification: OnShow/OnHide fire only on the frame whose Show/Hide was
 -- called, not on its children.
 local Region = {}
@@ -160,6 +160,8 @@ function Region:SetShown(show) if show then self:Show() else self:Hide() end end
 function Region:SetText(text) self.text = text end
 function Region:GetText() return self.text end
 function Region:SetTexture(tex) self.texture = tex end
+function Region:SetColorTexture(r, g, b, a) self.color = { r, g, b, a } end
+function Region:SetAtlas(atlas) self.atlas = atlas end
 
 local Frame = setmetatable({}, { __index = Region })
 Frame.__index = Frame
@@ -203,11 +205,42 @@ function Frame:RunScript(name, ...)
   if fn then return fn(self, ...) end
 end
 
+local portraitMethods = {
+  SetTitle = function(self, title) self.title = title end,
+  SetPortraitToAsset = function(self, asset) self.portraitAsset = asset end,
+}
 local TEMPLATE_METHODS = {
-  PortraitFrameTemplate = {
-    SetTitle = function(self, title) self.title = title end,
-    SetPortraitToAsset = function(self, asset) self.portraitAsset = asset end,
-  },
+  PortraitFrameTemplate = portraitMethods,
+  PortraitFrameFlatTemplate = portraitMethods,
+}
+
+-- C_XMLUtil.GetTemplateInfo knows the templates in STUB_TEMPLATES (the
+-- classic ones plus the modern ones the UI prefers); specs remove entries to
+-- test the fallbacks (reset_ui_stub restores them).
+local MODERN_TEMPLATES = { "PortraitFrameFlatTemplate", "PanelTopTabButtonTemplate",
+  "WowStyle1FilterDropdownTemplate", "MinimalCheckboxTemplate" }
+local CLASSIC_TEMPLATES = { "PortraitFrameTemplate", "PanelTabButtonTemplate", "InsetFrameTemplate",
+  "UIPanelButtonTemplate", "UICheckButtonTemplate", "SearchBoxTemplate", "BackdropTemplate" }
+STUB_TEMPLATES = {}
+local function resetTemplates()
+  wipe(STUB_TEMPLATES)
+  for _, name in ipairs(MODERN_TEMPLATES) do STUB_TEMPLATES[name] = true end
+  for _, name in ipairs(CLASSIC_TEMPLATES) do STUB_TEMPLATES[name] = true end
+end
+resetTemplates()
+C_XMLUtil = {
+  GetTemplateInfo = function(name)
+    if STUB_TEMPLATES[name] then return { type = "Frame", width = 0, height = 0 } end
+    return nil
+  end,
+}
+-- C_Texture.GetAtlasInfo knows the atlases in STUB_ATLASES.
+STUB_ATLASES = {}
+C_Texture = {
+  GetAtlasInfo = function(name)
+    if STUB_ATLASES[name] then return { width = 1, height = 1 } end
+    return nil
+  end,
 }
 
 UIParent = UIParent or setmetatable(newRegion("Frame", "UIParent"), Frame)
@@ -263,6 +296,8 @@ function reset_ui_stub()
   wipe(fakeLibs["LibDataBroker-1.1"].objects)
   wipe(fakeLibs["LibDBIcon-1.0"].registered)
   loggedIn = false
+  resetTemplates()
+  wipe(STUB_ATLASES)
   AzerothTrailFrame = nil
   for i = 1, 4 do _G["AzerothTrailFrameTab" .. i] = nil end
 end

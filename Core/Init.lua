@@ -211,6 +211,17 @@ function addon:OnSlash(input)
     ns.db.global.debug = not ns.db.global.debug
     self:Print(ns.db.global.debug and L["Debug: on (caught map and arrow errors go to the error handler)"]
       or L["Debug: off"])
+    -- Templates the window could not use on this client (UI.Template).
+    local fallbacks = ns.UI and ns.UI.TemplateFallbacks
+    if ns.db.global.debug and type(fallbacks) == "table" and next(fallbacks) then
+      local names = {}
+      for preferred in pairs(fallbacks) do names[#names + 1] = preferred end
+      table.sort(names)
+      for _, preferred in ipairs(names) do
+        self:Print(string.format(L["Template %s missing, using %s"], preferred,
+          fallbacks[preferred] or L["none"]))
+      end
+    end
   else
     self:Print(L["Commands:"])
     self:Print(L["/azt - show or hide the window"])
