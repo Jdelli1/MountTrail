@@ -197,8 +197,20 @@ function ns.ToggleWindow()
   end
 end
 
--- Re-renders the visible tab only; nothing while the window is closed.
+-- Refresh hooks: functions run on every ns.Refresh(), before the window check,
+-- so UI that lives outside the main window (the route arrow, UI\Arrow.lua)
+-- stays current while the window is closed. Hooks must not raise errors.
+local refreshHooks = {}
+
+function UI.AddRefreshHook(fn)
+  assert(type(fn) == "function", "AzerothTrail: refresh hook must be a function")
+  refreshHooks[#refreshHooks + 1] = fn
+end
+
+-- Runs the refresh hooks, then re-renders the visible tab (nothing more while
+-- the window is closed).
 ns.Refresh = function()
+  for _, fn in ipairs(refreshHooks) do fn() end
   local frame = UI.frame
   if not (frame and frame:IsShown()) then return end
   local view = views[current]

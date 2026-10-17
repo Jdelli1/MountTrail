@@ -22,6 +22,8 @@ L["Commands:"] = "Commands:"
 L["/azt - show or hide the window"] = "/azt - show or hide the window"
 L["/azt dump - list saved instances (instance ID, difficulty ID, bosses)"] = "/azt dump - list saved instances (instance ID, difficulty ID, bosses)"
 L["/azt help - this list"] = "/azt help - this list"
+L["/azt arrow - switch the route between list and arrow"] = "/azt arrow - switch the route between list and arrow"
+L["Route mode: %s"] = "Route mode: %s"
 
 -- Map button
 L["No map location for %s"] = "No map location for %s"
@@ -84,3 +86,14 @@ L["%s has reached Oregon. Nothing left to farm until reset."] = "%s has reached 
 L["Your party"] = "Your party"
 L["auto"] = "auto"
 L["Locked"] = "Locked"
+
+-- Route arrow
+L["List"] = "List"
+L["Arrow"] = "Arrow"
+L["Skip"] = "Skip"
+L["via: %s"] = "via: %s"
+L["%d yd"] = "%d yd"
+L["Arrow unavailable here"] = "Arrow unavailable here"
+L["Target is on another continent"] = "Target is on another continent"
+L["No waypoint for this step"] = "No waypoint for this step"
+L["Skip this step for this session"] = "Skip this step for this session"

@@ -81,3 +81,18 @@ Map.Show has no slash command; test it with the Map button once the mount list (
 - [ ] Hover a kill row: mount tooltip of its first mount; Koralon/Emalon/Toravon and Chrono-Lord Deios mounts show `Lockout: Saved` once that boss is killed this week (BossLockouts). Ctrl+click previews the mount.
 - [ ] With every step done: `<Name> has reached Oregon. Nothing left to farm until reset.`
 - [ ] ScrollBox: rows with several boss lines do not overlap (row height = 28 + 14 per detail line); scroll position is kept when ticking a manual row.
+
+## Task 17: route arrow mode
+
+- [ ] `/reload` with `/console scriptErrors 1`: no Lua errors. Route tab header shows a **List / Arrow** toggle (active mode's button highlighted) on the resets line, right of the timers. Click Arrow: the small "AzerothTrailArrow" frame appears; click List: it hides. `/azt arrow` toggles too and prints `Route mode: Arrow` / `Route mode: List`; `/azt help` lists `/azt arrow`. The mode survives `/reload` (`/dump AzerothTrailDB.char` -> `routeMode`).
+- [ ] Arrow frame shows the next step's title (e.g. "Run Throne of the Four Winds"), `<boss> → <mount>`, a grey `via: ...` line with the (up to two innermost) travel steps above it, the distance `N yd` and Map / Skip buttons. It stays up and updates with the main window closed.
+- [ ] Arrow texture: `Interface\Minimap\MinimapArrow` loads (not a green square); if it does not, the yellow `UI-MicroStream-Yellow` fallback shows. Note which one in this checklist.
+- [ ] Outdoors in the target's zone (or same continent): the arrow points at the target; walk/turn in a full circle and check it keeps pointing at the same spot (confirms world X = north, Y = west, facing counter-clockwise and `SetRotation` counter-clockwise). If it mirrors (points left when the target is right), the rotation sign is wrong. The distance shrinks as you walk towards it and roughly matches the built-in waypoint's distance.
+- [ ] On a new step the built-in user waypoint is set and super-tracked (the game's own on-screen pointer and map pin), without opening the world map.
+- [ ] Target on another continent: `Target is on another continent`, no arrow. Inside an instance (or wherever position is restricted): `Arrow unavailable here`, no arrow, no Lua error. A step with no coordinates: `No waypoint for this step`.
+- [ ] Kill the step's boss (or tick a manual row in the list): after the lockout update the frame advances to the next step and re-targets (waypoint and TomTom move).
+- [ ] With TomTom installed: TomTom's arrow follows the current step; after Skip or advance the old TomTom waypoint is removed (only one AzerothTrail waypoint in `/way list`). Switching to List removes it.
+- [ ] Skip moves to the next step; `/reload` brings the skipped step back (session only).
+- [ ] With every step done or skipped: the Oregon line, no arrow, no buttons.
+- [ ] Drag the frame, `/reload`: same position (`/dump AzerothTrailDB.global.arrow`). It cannot be dragged off screen.
+- [ ] Map button on the arrow frame opens the world map at the step (as the list's Map button).

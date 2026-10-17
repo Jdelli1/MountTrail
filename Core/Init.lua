@@ -108,10 +108,12 @@ function addon:OnInitialize()
       attempts = {},
       minimap = { hide = false },
       window = {},
+      arrow = {}, -- route arrow frame position (UI\Arrow.lua)
     },
     char = {
       ticks = {},
       showCompleted = false,
+      routeMode = "list", -- "list" | "arrow" (UI\Arrow.lua)
     },
   }, true)
   self:RegisterChatCommand("azt", "OnSlash")
@@ -183,10 +185,19 @@ function addon:OnSlash(input)
     end
   elseif cmd == "dump" then
     ns.Dump()
+  elseif cmd == "arrow" then
+    if ns.Arrow and ns.Arrow.ToggleMode then
+      local mode = ns.Arrow.ToggleMode()
+      self:Print(string.format(L["Route mode: %s"], mode == "arrow" and L["Arrow"] or L["List"]))
+      ns.Refresh()
+    else
+      self:Print(L["The window is not available yet. Type /azt help for commands."])
+    end
   else
     self:Print(L["Commands:"])
     self:Print(L["/azt - show or hide the window"])
     self:Print(L["/azt dump - list saved instances (instance ID, difficulty ID, bosses)"])
+    self:Print(L["/azt arrow - switch the route between list and arrow"])
     self:Print(L["/azt help - this list"])
   end
 end

@@ -28,3 +28,4 @@ UI\List.lua
 UI\JournalHome.lua
 UI\Tabs.lua
 UI\RouteView.lua
+UI\Arrow.lua

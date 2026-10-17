@@ -1,13 +1,14 @@
 local ADDON, ns = ...
 
 -- Route tab: this character's farming route (Logic/Route.lua rows) with the
--- reset timers, a "Show completed" box, Oregon-Trail flavour lines, a tick
--- box per kill row and a Map button. Also defines ns.UI.RouteRemaining for
--- the minimap tooltip.
+-- reset timers, a "Show completed" box, a List / Arrow mode toggle,
+-- Oregon-Trail flavour lines, a tick box per kill row and a Map button. Also
+-- defines ns.UI.RouteRemaining for the minimap tooltip and ns.UI.RouteNextStep
+-- for the route arrow (UI\Arrow.lua).
 --
--- The pure helpers (RouteContext, RouteRemaining, RouteCheck, RouteToggle,
--- RouteRowLines, RouteFlavour, FormatDuration) are unit-tested; the widget
--- code below them is compile-checked only.
+-- The pure helpers (RouteContext, RouteRemaining, RouteNextStep, RouteCheck,
+-- RouteToggle, RouteRowLines, RouteFlavour, FormatDuration) are unit-tested;
+-- the widget code below them is compile-checked only.
 
 local L = ns.L
 
@@ -104,6 +105,16 @@ end
 function UI.RouteRemaining(now)
   local rows = ns.Route.Build((ns.Data and ns.Data.Route) or {}, UI.RouteContext(now))
   return countLeft(rows)
+end
+
+-- Next-step hook for the route arrow (UI\Arrow.lua): the first kill row of
+-- this character's route at `now` that is not done, not in `skipped`
+-- ({ [row.key] = true }) and not locked -> row, { travel titles above it }
+-- (outermost first); nil, {} when none remain.
+function UI.RouteNextStep(now, skipped)
+  if not (ns.Arrow and ns.Arrow.NextStep) then return nil, {} end
+  local rows = ns.Route.Build((ns.Data and ns.Data.Route) or {}, UI.RouteContext(now))
+  return ns.Arrow.NextStep(rows, skipped)
 end
 
 local function isManual(state)
@@ -344,8 +355,24 @@ local function initRow(frame, data)
   for i = #lines + 1, #frame.Lines do frame.Lines[i]:Hide() end
 end
 
+local MODE_WIDTH = 64
+
 local view = {}
 local root, header, scrollBox
+
+local function routeMode()
+  return (ns.Arrow and ns.Arrow.Mode()) or "list"
+end
+
+-- The List / Arrow toggle: the active mode's button keeps its highlight.
+local function paintMode()
+  local arrow = routeMode() == "arrow"
+  if arrow then
+    header.ArrowMode:LockHighlight(); header.ListMode:UnlockHighlight()
+  else
+    header.ListMode:LockHighlight(); header.ArrowMode:UnlockHighlight()
+  end
+end
 
 local function refresh()
   if not root then return end
@@ -359,6 +386,7 @@ local function refresh()
     .. "    " .. string.format(L["Daily reset in %s"], UI.FormatDuration(Game.UntilDaily())))
   header.ShowCompleted:SetChecked(ctx.showCompleted)
   header.Flavour:SetText(UI.RouteFlavour(countLeft(rows), name))
+  paintMode()
 
   if ScrollBoxConstants then
     scrollBox:SetDataProvider(CreateDataProvider(rows), ScrollBoxConstants.RetainScrollPosition)
@@ -413,6 +441,22 @@ local function build(parent)
     ns.Refresh()
   end)
   header.ShowCompleted = show
+
+  -- List / Arrow toggle on the resets line's right end (ns.db.char.routeMode).
+  local function modeButton(mode, label)
+    local button = CreateFrame("Button", nil, header, "UIPanelButtonTemplate")
+    button:SetSize(MODE_WIDTH, 20)
+    button:SetText(L[label])
+    button:SetScript("OnClick", function()
+      if ns.Arrow then ns.Arrow.SetMode(nil, mode) end
+      ns.Refresh()
+    end)
+    return button
+  end
+  header.ArrowMode = modeButton("arrow", "Arrow")
+  header.ArrowMode:SetPoint("TOPRIGHT", header, "TOPRIGHT", -8, -30)
+  header.ListMode = modeButton("list", "List")
+  header.ListMode:SetPoint("TOPRIGHT", header.ArrowMode, "TOPLEFT", -2, 0)
 
   scrollBox = CreateFrame("Frame", nil, root, "WowScrollBoxList")
   scrollBox:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -2)
