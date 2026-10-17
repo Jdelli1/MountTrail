@@ -11,6 +11,56 @@ describe("data", function()
     eq(missing, {})
   end)
 
+  -- Spec shape check shared by Lockouts (keyed by mountID) and BossLockouts
+  -- (keyed by route boss name). difficulties entries (R9): a number, or a
+  -- non-empty table of numbers = one lockout group satisfied by any of its IDs.
+  local function checkSpec(id, s, fail)
+    if type(s) ~= "table" then fail(id, "spec not a table") return end
+    local kinds = 0
+    if s.instance ~= nil then kinds = kinds + 1 end
+    if s.quest ~= nil then kinds = kinds + 1 end
+    if s.lfg ~= nil then kinds = kinds + 1 end
+    if s.manual ~= nil then kinds = kinds + 1 end
+    if kinds ~= 1 then fail(id, "has " .. kinds .. " of instance/quest/lfg/manual") end
+    if s.reset ~= "daily" and s.reset ~= "weekly" then fail(id, "reset is " .. tostring(s.reset)) end
+    if s.instance ~= nil then
+      if type(s.instance) ~= "number" then fail(id, "instance not a number") end
+      if type(s.boss) ~= "string" or s.boss == "" then fail(id, "instance spec without boss") end
+      if type(s.difficulties) ~= "table" or #s.difficulties == 0 then
+        fail(id, "instance spec without difficulties")
+      else
+        for _, d in ipairs(s.difficulties) do
+          if type(d) == "table" then
+            if #d == 0 then fail(id, "empty difficulty group") end
+            for _, g in ipairs(d) do
+              if type(g) ~= "number" then fail(id, "difficulty in group not a number") end
+            end
+          elseif type(d) ~= "number" then
+            fail(id, "difficulty not a number or group")
+          end
+        end
+      end
+    else
+      if s.boss ~= nil or s.difficulties ~= nil then fail(id, "boss/difficulties on a non-instance spec") end
+    end
+    if s.quest ~= nil and type(s.quest) ~= "number" then fail(id, "quest not a number") end
+    if s.lfg ~= nil and type(s.lfg) ~= "number" then fail(id, "lfg not a number") end
+    if s.manual ~= nil and s.manual ~= true then fail(id, "manual must be true") end
+    if s.requires ~= nil then
+      if type(s.requires) ~= "table" or type(s.requires.quest) ~= "number"
+        or type(s.requires.text) ~= "string" or s.requires.text == "" then
+        fail(id, "requires must be {quest=<number>, text=<string>}")
+      end
+    end
+  end
+
+  -- every difficulty ID used by an instance spec, flattened over groups
+  local function eachDifficulty(s, fn)
+    for _, d in ipairs(s.difficulties or {}) do
+      if type(d) == "table" then for _, g in ipairs(d) do fn(g) end else fn(d) end
+    end
+  end
+
   it("lockout specs are well-formed", function()
     local ns = load_addon(FILES)
     local bad = {}
@@ -18,38 +68,80 @@ describe("data", function()
     for id, s in pairs(ns.Data.Lockouts) do
       if type(id) ~= "number" then fail(id, "key not a number") end
       if not ns.Data.Mounts[id] then fail(id, "unknown mount") end
-      local kinds = 0
-      if s.instance ~= nil then kinds = kinds + 1 end
-      if s.quest ~= nil then kinds = kinds + 1 end
-      if s.lfg ~= nil then kinds = kinds + 1 end
-      if s.manual ~= nil then kinds = kinds + 1 end
-      if kinds ~= 1 then fail(id, "has " .. kinds .. " of instance/quest/lfg/manual") end
-      if s.reset ~= "daily" and s.reset ~= "weekly" then fail(id, "reset is " .. tostring(s.reset)) end
-      if s.instance ~= nil then
-        if type(s.instance) ~= "number" then fail(id, "instance not a number") end
-        if type(s.boss) ~= "string" or s.boss == "" then fail(id, "instance spec without boss") end
-        if type(s.difficulties) ~= "table" or #s.difficulties == 0 then
-          fail(id, "instance spec without difficulties")
-        else
-          for _, d in ipairs(s.difficulties) do
-            if type(d) ~= "number" then fail(id, "difficulty not a number") end
-          end
-        end
-      else
-        if s.boss ~= nil or s.difficulties ~= nil then fail(id, "boss/difficulties on a non-instance spec") end
-      end
-      if s.quest ~= nil and type(s.quest) ~= "number" then fail(id, "quest not a number") end
-      if s.lfg ~= nil and type(s.lfg) ~= "number" then fail(id, "lfg not a number") end
-      if s.manual ~= nil and s.manual ~= true then fail(id, "manual must be true") end
-      if s.requires ~= nil then
-        if type(s.requires) ~= "table" or type(s.requires.quest) ~= "number"
-          or type(s.requires.text) ~= "string" or s.requires.text == "" then
-          fail(id, "requires must be {quest=<number>, text=<string>}")
-        end
-      end
+      checkSpec(id, s, fail)
     end
     table.sort(bad)
     eq(bad, {})
+  end)
+
+  it("spec checker accepts difficulty groups and rejects empty ones (R9)", function()
+    local bad = {}
+    local function fail(id, why) bad[#bad + 1] = tostring(id) .. ": " .. why end
+    checkSpec("plain", { instance = 1, boss = "B", difficulties = { 3, 4 }, reset = "weekly" }, fail)
+    checkSpec("group", { instance = 1, boss = "B", difficulties = { { 3, 4, 5, 6 } }, reset = "weekly" }, fail)
+    checkSpec("mixed", { instance = 1, boss = "B", difficulties = { { 5, 6 }, 4 }, reset = "weekly" }, fail)
+    eq(bad, {})
+    checkSpec("empty", { instance = 1, boss = "B", difficulties = { {} }, reset = "weekly" }, fail)
+    checkSpec("str", { instance = 1, boss = "B", difficulties = { { "3" } }, reset = "weekly" }, fail)
+    eq(bad, { "empty: empty difficulty group", "str: difficulty in group not a number" })
+  end)
+
+  it("no instance spec tracks LFR (R10)", function()
+    local ns = load_addon(FILES)
+    local bad = {}
+    local function check(id, s)
+      eachDifficulty(s, function(d) if d == 17 then bad[#bad + 1] = tostring(id) end end)
+    end
+    for id, s in pairs(ns.Data.Lockouts) do check(id, s) end
+    for name, s in pairs(ns.Data.BossLockouts) do check(name, s) end
+    table.sort(bad)
+    eq(bad, {})
+  end)
+
+  it("shared-lockout raids use one difficulty group, split-size raids two (R11)", function()
+    local ns = load_addon(FILES)
+    local L = ns.Data.Lockouts
+    for _, id in ipairs({ 396, 425, 415, 445, 442, 478, 531, 543 }) do
+      eq(L[id].difficulties, { { 3, 4, 5, 6 } }, "mount " .. id)
+    end
+    eq(L[444].difficulties, { { 5, 6 } }, "mount 444")
+    for _, id in ipairs({ 349, 246, 247, 286, 287 }) do
+      eq(L[id].difficulties, { 3, 4 }, "mount " .. id)
+    end
+    eq(L[363].difficulties, { 6 }, "mount 363")
+    eq(L[781], { manual = true, reset = "daily" }, "mount 781")
+  end)
+
+  it("boss lockouts name route bosses of a single node and are well-formed (R12)", function()
+    local ns = load_addon(FILES)
+    local nodesByBoss = {}
+    local function walk(n)
+      for _, b in ipairs(n.bosses or {}) do
+        local t = nodesByBoss[b.boss] or {}
+        t[n] = true
+        nodesByBoss[b.boss] = t
+      end
+      for _, c in ipairs(n.steps or {}) do walk(c) end
+    end
+    for _, n in ipairs(ns.Data.Route) do walk(n) end
+    local bad = {}
+    local function fail(id, why) bad[#bad + 1] = tostring(id) .. ": " .. why end
+    for name, s in pairs(ns.Data.BossLockouts) do
+      local nodes = nodesByBoss[name]
+      if not nodes then
+        fail(name, "not a route boss")
+      else
+        local count = 0
+        for _ in pairs(nodes) do count = count + 1 end
+        if count ~= 1 then fail(name, "boss name used by " .. count .. " route nodes") end
+      end
+      checkSpec(name, s, fail)
+    end
+    table.sort(bad)
+    eq(bad, {})
+    for _, name in ipairs({ "Chrono-Lord Deios", "Koralon", "Emalon", "Toravon" }) do
+      ok(ns.Data.BossLockouts[name], "BossLockouts has " .. name)
+    end
   end)
 
   it("defines the three holiday-boss events with their LFG dungeons", function()
