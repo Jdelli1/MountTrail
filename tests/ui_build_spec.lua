@@ -434,6 +434,110 @@ describe("ui build", function()
     ok(got[2][1] ~= nil, "route row passes its first mount")
   end)
 
+  -- Mount rows under each section header of a provider -> { [key] = n }.
+  local function shownPerSection(rows)
+    local shown, key = {}, nil
+    for _, row in ipairs(rows) do
+      if row.header and row.depth == 1 then
+        key = row.key
+        shown[key] = 0
+      elseif not row.header then
+        shown[key] = shown[key] + 1
+      end
+    end
+    return shown
+  end
+
+  it("section headers collapse on left-click, saved per view and expansion", function()
+    local ns = loadUI()
+    eq(ns.db.global.collapsed, {}, "AceDB default")
+    local list = openJournalList(ns)
+    local rows = list.ScrollBox.provider.rows
+    local first = rows[1]
+    ok(first.header and first.depth == 1, "a section header first")
+    eq(first.key, "journal|Classic|" .. first.section)
+    local before = #rows
+    local header = render(list.ScrollBox)[1]
+    ok(header.mouse, "header takes the mouse")
+    eq(header.Indicator:IsShown() or header.IndicatorText:IsShown(), true, "a +/- indicator")
+    eq(header.IndicatorText.text, "\226\128\147", "expanded: en dash (no atlas in the stub)")
+
+    header:RunScript("OnMouseUp", "LeftButton")
+    eq(ns.db.global.collapsed, { [first.key] = true })
+    rows = list.ScrollBox.provider.rows
+    eq(rows[1].collapsed, true)
+    ok(rows[2] == nil or (rows[2].header and rows[2].depth == 1), "its sub-headers and mounts are gone")
+    ok(#rows < before, "fewer rows")
+    header = render(list.ScrollBox)[1]
+    eq(header.IndicatorText.text, "+")
+
+    header:RunScript("OnMouseUp", "RightButton")
+    eq(ns.db.global.collapsed[first.key], true, "right-click does nothing")
+    header:RunScript("OnMouseUp", "LeftButton")
+    eq(ns.db.global.collapsed, {}, "expanded again: the key is removed")
+    eq(#list.ScrollBox.provider.rows, before)
+  end)
+
+  it("uses the atlas indicator when the client has it", function()
+    local ns = loadUI()
+    STUB_ATLASES.campaign_headericon_open = true
+    STUB_ATLASES.campaign_headericon_closed = true
+    local list = openJournalList(ns)
+    local header = render(list.ScrollBox)[1]
+    eq(header.Indicator.atlas, "campaign_headericon_open")
+    ok(header.Indicator:IsShown() and not header.IndicatorText:IsShown(), "atlas, no text")
+  end)
+
+  it("sub-headers are indented and smaller; counts include owned mounts the Collected filter hides", function()
+    local ns = loadUI()
+    ns.Game.MountSourceText = function(id) return "|cFFFFD200Zone:|r Zone " .. (id % 2) end
+    local list = openJournalList(ns)
+    local rows = list.ScrollBox.provider.rows
+    local frames = render(list.ScrollBox)
+    local top, sub
+    for i, row in ipairs(rows) do
+      if row.header and row.depth == 1 and not top then top = frames[i] end
+      if row.header and row.depth == 2 and not sub then sub = frames[i] end
+      if not row.header then eq(row.owned, false, "Collected off: no owned rows") end
+    end
+    ok(sub, "dungeon/raid/world sections split into sub-groups")
+    eq(top.Label.font, "GameFontNormal")
+    eq(sub.Label.font, "GameFontNormalSmall")
+    ok(select(4, sub.Indicator:GetPoint(1)) > select(4, top.Indicator:GetPoint(1)), "sub-header indented")
+    eq(list.ScrollBox.view.extent(1, { header = true, depth = 2 }) < list.ScrollBox.view.extent(1, rows[1]), true,
+      "sub-headers are shorter")
+
+    local shown = shownPerSection(rows)
+    local sawOwned = false
+    for _, row in ipairs(rows) do
+      if row.header and row.depth == 1 then
+        eq(shown[row.key], row.total - row.owned, row.key .. ": hidden owned mounts still counted")
+        if row.owned > 0 then sawOwned = true end
+      end
+    end
+    ok(sawOwned, "some section has owned mounts")
+
+    ns.db.global.filters.collected = true
+    list:Refresh()
+    rows = list.ScrollBox.provider.rows
+    shown = shownPerSection(rows)
+    for _, row in ipairs(rows) do
+      if row.header and row.depth == 1 then eq(shown[row.key], row.total, row.key .. ": all shown") end
+    end
+  end)
+
+  it("other tabs collapse their (flat) sections under their own view key", function()
+    local ns = loadUI()
+    ns.ToggleWindow()
+    ns.UI.SelectTab("holidays")
+    local list = content(ns, "holidays").children[2]
+    local header = render(list.ScrollBox)[1]
+    local key = list.ScrollBox.provider.rows[1].key
+    ok(key:find("^holidays||"), key)
+    header:RunScript("OnMouseUp", "LeftButton")
+    eq(ns.db.global.collapsed[key], true)
+  end)
+
   it("opening the Achievements tab starts the achievement scan", function()
     local ns = loadUI()
     local ensured = 0

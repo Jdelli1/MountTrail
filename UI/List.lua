@@ -20,8 +20,15 @@ local ADDON, ns = ...
 -- opts (optional): { headerSuffix = fn(sectionKey) -> string|nil (a green
 -- badge after the header text), rowTag = fn(mountID, m) -> string|nil (a
 -- green tag after the row's source line) }.
+-- Rows are a tree (UI.ListRows): section headers, sub-headers (dungeon / raid
+-- by instance, world by zone, reputation by faction group), mounts. Headers
+-- show +/- and (owned/total) over every mount the view's filters select,
+-- owned ones included even while Collected is off; left-clicking one
+-- collapses or expands it, saved in ns.db.global.collapsed under
+-- "<view>|<exp>|<section>[|<sub-group>]" (only collapsed = true is stored).
 -- The pure helpers above the widget code (SourceLine, MountIcon, SectionLabel,
--- ListRows, PreviewMount, the filter menu helpers) are unit-tested; the widget
+-- ListRows, SubGroup, SourceZone, InstanceName, CollapseKey, ToggleCollapsed,
+-- HeaderIcon, PreviewMount, the filter menu helpers) are unit-tested; the widget
 -- code is built under a stub by tests/ui_build_spec.lua.
 
 local L = ns.L
@@ -31,7 +38,7 @@ ns.UI = UI
 
 -- Pure helpers -------------------------------------------------------------------
 
--- mountID -> { boss=, title= } for the first route boss row of each mount
+-- mountID -> { boss=, title=, instance= (UI.InstanceName) } for the first route boss row of each mount
 -- (depth-first, Data.Route order). Built once, on first use.
 local routeIndex
 
@@ -519,6 +526,9 @@ local SEARCH_WIDTH = 220
 local FILTER_BUTTON_WIDTH, FILTER_BUTTON_HEIGHT = 93, 22 -- the Mount Journal's Filter button
 local TOP_ROW = 30 -- search box + Filter button above the list
 local HEADER_HEIGHT = 24
+local SUB_HEADER_HEIGHT = 20
+local INDICATOR_SIZE = 14
+local SUB_INDENT = 22 -- sub-header indicator inset (section headers: 6)
 local ROW_HEIGHT = 40
 local ICON_SIZE = 32
 local CHECK_SIZE = 24
@@ -576,24 +586,67 @@ local function memoText(fn)
   end
 end
 
+local function collapsedDB()
+  local global = ns.db and ns.db.global
+  if not global then return nil end
+  if type(global.collapsed) ~= "table" then global.collapsed = {} end
+  return global.collapsed
+end
+
+-- Section header (depth 1) and sub-header (depth 2, indented, smaller font,
+-- fainter band). A plain Frame (not a Button) so the ScrollBox pools it apart
+-- from the mount rows; left-click (OnMouseUp) calls frame.onToggle(key).
 local function initHeader(frame, data)
   if not frame.Label then
-    -- Flat section header: a faint band with a thin gold rule underneath.
+    frame:EnableMouse(true)
+    -- Flat header: a faint band with a thin gold rule underneath.
     local bg = frame:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints(frame)
-    bg:SetColorTexture(1, 1, 1, 0.05)
     frame.Bg = bg
+    local hover = frame:CreateTexture(nil, "BORDER")
+    hover:SetAllPoints(frame)
+    hover:SetColorTexture(1, 1, 1, 0.05)
+    hover:Hide()
+    frame.Hover = hover
     local rule = frame:CreateTexture(nil, "BORDER")
     rule:SetHeight(1)
     rule:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
     rule:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
-    rule:SetColorTexture(1, 0.82, 0, 0.25)
     frame.Rule = rule
+    -- +/- indicator: the campaign header atlas, else a text glyph.
+    local indicator = frame:CreateTexture(nil, "ARTWORK")
+    indicator:SetSize(INDICATOR_SIZE, INDICATOR_SIZE)
+    frame.Indicator = indicator
+    local indicatorText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    indicatorText:SetPoint("CENTER", indicator, "CENTER", 0, 0)
+    frame.IndicatorText = indicatorText
     local label = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    label:SetPoint("LEFT", frame, "LEFT", 8, 0)
+    label:SetPoint("LEFT", indicator, "RIGHT", 6, 0)
     label:SetJustifyH("LEFT")
     frame.Label = label
+    frame:SetScript("OnEnter", function(self) self.Hover:Show() end)
+    frame:SetScript("OnLeave", function(self) self.Hover:Hide() end)
+    frame:SetScript("OnMouseUp", function(self, button)
+      if button == "LeftButton" and self.key and self.onToggle then self.onToggle(self.key) end
+    end)
   end
+  local sub = data.depth == 2
+  frame.key = data.key
+  frame.Bg:SetColorTexture(1, 1, 1, sub and 0.025 or 0.05)
+  frame.Rule:SetColorTexture(1, 0.82, 0, sub and 0.1 or 0.25)
+  frame.Indicator:ClearAllPoints()
+  frame.Indicator:SetPoint("LEFT", frame, "LEFT", sub and SUB_INDENT or 6, 0)
+  local atlas, glyph = UI.HeaderIcon(data.collapsed == true)
+  if atlas then
+    frame.Indicator:SetAtlas(atlas)
+    frame.Indicator:Show()
+    frame.IndicatorText:Hide()
+  else
+    frame.Indicator:Hide()
+    frame.IndicatorText:SetText(glyph)
+    frame.IndicatorText:Show()
+  end
+  frame.Label:SetFontObject(sub and "GameFontNormalSmall" or "GameFontNormal")
   frame.Label:SetText(UI.HeaderText(data))
 end
 
@@ -901,11 +954,25 @@ function UI.List(parent, getQuery, opts)
 
   local view = CreateScrollBoxListLinearView()
   view:SetElementExtentCalculator(function(_, elementData)
-    return elementData.header and HEADER_HEIGHT or ROW_HEIGHT
+    if elementData.header then
+      return elementData.depth == 2 and SUB_HEADER_HEIGHT or HEADER_HEIGHT
+    end
+    return ROW_HEIGHT
   end)
+  -- Clicking a header flips its saved collapse state and redraws in place.
+  local function toggle(key)
+    local store = collapsedDB()
+    if not store then return end
+    UI.ToggleCollapsed(store, key)
+    list:Refresh()
+  end
+  local function initListHeader(frame, data)
+    frame.onToggle = toggle
+    initHeader(frame, data)
+  end
   view:SetElementFactory(function(factory, elementData)
     if elementData.header then
-      factory("Frame", initHeader)
+      factory("Frame", initListHeader)
     else
       factory("Button", initRow)
     end
@@ -924,7 +991,13 @@ function UI.List(parent, getQuery, opts)
     local query = {}
     for k, v in pairs(base) do query[k] = v end
     local filters = query.filters or filtersDB() or ns.Journal.DefaultFilters
-    query.filters = filters
+    -- Select every mount, owned or not: header counts span all of them, and
+    -- ListRows drops the owned rows itself while Collected is off.
+    local showCollected = filters.collected == true
+    local selectFilters = {}
+    for k, v in pairs(filters) do selectFilters[k] = v end
+    selectFilters.collected = true
+    query.filters = selectFilters
     if query.search == nil then query.search = self.searchText end
     query.isOwned = query.isOwned or memo(ns.Game.IsOwned)
     query.exists = query.exists or memo(ns.Game.Exists)
@@ -943,7 +1016,16 @@ function UI.List(parent, getQuery, opts)
     end
 
     local selected = ns.Journal.Select((ns.Data and ns.Data.Mounts) or {}, query)
-    local rows = UI.ListRows(selected, query.isOwned, opts)
+    local rows = UI.ListRows(selected, query.isOwned, {
+      headerSuffix = opts and opts.headerSuffix,
+      rowTag = opts and opts.rowTag,
+      view = tab,
+      exp = query.exp,
+      collapsed = collapsedDB() or {},
+      hideOwned = not showCollected,
+      sourceText = query.sourceText,
+      mapName = ns.Game.MapName and memoText(ns.Game.MapName) or nil,
+    })
     -- Stripe every other mount row, restarting under each header.
     local n = 0
     for _, row in ipairs(rows) do
