@@ -238,6 +238,27 @@ function Game.AchievementInfo(achievementID)
   return info
 end
 
+-- GetStatistic(id) gives this character's statistic as a display string:
+-- "--" when never done (-> 0), digits maybe with thousands separators (",",
+-- ".", spaces) -> the number. Anything else (money with coin icons, text),
+-- a missing API, an error (Game.ReportError) or no ID -> nil.
+function Game.Statistic(statisticID)
+  if not (statisticID and type(GetStatistic) == "function") then return nil end
+  local good, value = pcall(GetStatistic, statisticID)
+  if not good then
+    Game.ReportError(value)
+    return nil
+  end
+  if type(value) == "number" then return value end
+  if type(value) ~= "string" then return nil end
+  value = string.gsub(value, "^%s+", "")
+  value = string.gsub(value, "%s+$", "")
+  if value == "--" then return 0 end
+  local digits = string.gsub(string.gsub(value, "\194\160", ""), "[,%.%s]", "")
+  if digits == "" or string.find(digits, "%D") then return nil end
+  return tonumber(digits)
+end
+
 -- True while the player is in combat (InCombatLockdown); false when the API
 -- is missing.
 function Game.InCombat()

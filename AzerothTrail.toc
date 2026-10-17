@@ -19,6 +19,7 @@ Logic\Route.lua
 Logic\Journal.lua
 Logic\Attempts.lua
 Logic\Achievements.lua
+Logic\Stats.lua
 Game\API.lua
 Integrations\Map.lua
 Integrations\Rarity.lua

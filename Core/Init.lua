@@ -109,6 +109,28 @@ function ns.UpdateAttempts(freshInstances)
   return newly
 end
 
+-- Kill statistics -------------------------------------------------------------
+
+-- True when a read was skipped in combat; PLAYER_REGEN_ENABLED does it then.
+local statsPending = false
+
+-- Reads this character's kill statistics (Stats.Collect over Game.Statistic)
+-- into ns.db.global.stats[charKey]. Not in combat: then it waits for
+-- PLAYER_REGEN_ENABLED. -> true when read.
+function ns.UpdateStats()
+  if not ns.db then return false end
+  if ns.Game.InCombat() then
+    statsPending = true
+    return false
+  end
+  statsPending = false
+  local global = ns.db.global
+  if type(global.stats) ~= "table" then global.stats = {} end
+  local readings = ns.Stats.Collect(ns.Data and ns.Data.Mounts, ns.Game.Statistic)
+  ns.Stats.Merge(global.stats, ns.Game.CharKey(), readings)
+  return true
+end
+
 -- Lifecycle -------------------------------------------------------------------
 
 function addon:OnInitialize()
@@ -119,6 +141,7 @@ function addon:OnInitialize()
     global = {
       filters = copyTable(ns.Journal.DefaultFilters),
       attempts = {},
+      stats = {}, -- kill statistics: { [charKey] = { [mountID] = kills } } (Logic\Stats.lua)
       minimap = { hide = false },
       window = {},
       arrow = {}, -- route arrow frame position (UI\Arrow.lua)
@@ -142,6 +165,7 @@ function addon:OnEnable()
   self:RegisterEvent("LFG_UPDATE_RANDOM_INFO", "OnLockoutEvent")
   self:RegisterEvent("NEW_MOUNT_ADDED", "OnLockoutEvent")
   self:RegisterEvent("CALENDAR_UPDATE_EVENT_LIST", "OnCalendarUpdate")
+  self:RegisterEvent("PLAYER_REGEN_ENABLED", "OnCombatEnd")
   -- Kill triggers: ask for fresh saved-instance data so UPDATE_INSTANCE_INFO
   -- (which does the counting) follows promptly. Payloads are not read: Midnight
   -- may hide encounter details.
@@ -152,6 +176,7 @@ end
 function addon:OnEnteringWorld()
   ns.Game.RequestLockouts()
   ns.Resets.Prune(ns.db.char.ticks, ns.Game.Now())
+  ns.UpdateStats()
   ns.Refresh()
 end
 
@@ -159,7 +184,13 @@ function addon:OnLockoutEvent(event)
   if event == "UPDATE_INSTANCE_INFO" then ready.instances = true end
   if event == "LFG_UPDATE_RANDOM_INFO" then ready.lfg = true end
   ns.UpdateAttempts(event == "UPDATE_INSTANCE_INFO")
+  if event == "UPDATE_INSTANCE_INFO" then ns.UpdateStats() end
   ns.Refresh()
+end
+
+-- Reads the kill statistics a combat-time event had to skip.
+function addon:OnCombatEnd()
+  if statsPending then ns.UpdateStats() end
 end
 
 function addon:OnKill()

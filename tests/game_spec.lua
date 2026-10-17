@@ -5,7 +5,7 @@ local API_GLOBALS = {
   "GetNumSavedInstances", "GetSavedInstanceInfo", "GetSavedInstanceEncounterInfo",
   "C_DateAndTime", "C_Calendar", "GetExpansionDisplayInfo", "C_MountJournal",
   "C_QuestLog", "GetLFGDungeonRewards", "RequestRaidInfo", "RequestLFDPlayerLockInfo",
-  "GetServerTime", "geterrorhandler",
+  "GetServerTime", "geterrorhandler", "GetStatistic", "InCombatLockdown",
 }
 local ORIGINAL = {}
 for _, name in ipairs(API_GLOBALS) do ORIGINAL[name] = _G[name] end
@@ -155,6 +155,38 @@ describe("game adapter", function()
     end)
   end)
 
+  describe("Statistic", function()
+    it("parses GetStatistic's string; \"--\" (never done) is 0", function()
+      local values = { [1] = "12", [2] = "--", [3] = " 7 ", [4] = "1,234", [5] = "1.234", [6] = 5 }
+      GetStatistic = function(id) return values[id] end
+      local G = loadGame().Game
+      eq(G.Statistic(1), 12)
+      eq(G.Statistic(2), 0)
+      eq(G.Statistic(3), 7)
+      eq(G.Statistic(4), 1234, "thousands separator")
+      eq(G.Statistic(5), 1234, "thousands separator (other locales)")
+      eq(G.Statistic(6), 5, "a number passes through")
+    end)
+    it("is nil for non-numeric, empty or missing values", function()
+      local values = { [1] = "abc", [2] = "", [3] = "12|TInterface\MoneyFrame\UI-GoldIcon:0:0:2:0|t",
+        [4] = "1-2" }
+      GetStatistic = function(id) return values[id] end
+      local G = loadGame().Game
+      for id = 1, 5 do eq(G.Statistic(id), nil, tostring(id)) end
+    end)
+    it("is nil when the API is missing, errors, or no ID is given", function()
+      GetStatistic = nil
+      local G = loadGame().Game
+      eq(G.Statistic(1), nil)
+      GetStatistic = function() error("boom") end
+      eq(G.Statistic(1), nil)
+      local called = false
+      GetStatistic = function() called = true; return "3" end
+      eq(G.Statistic(nil), nil)
+      eq(called, false)
+    end)
+  end)
+
   describe("MountSourceText", function()
     it("is nil when the API is missing", function()
       C_MountJournal = nil
@@ -295,6 +327,7 @@ describe("init", function()
     eq(ns.db.global.filters, ns.Journal.DefaultFilters)
     ok(ns.db.global.filters ~= ns.Journal.DefaultFilters, "a copy, not the same table")
     eq(ns.db.global.attempts, {})
+    eq(ns.db.global.stats, {})
     eq(ns.db.global.minimap, { hide = false })
     eq(ns.db.global.window, {})
     eq(ns.db.char.ticks, {})
@@ -398,6 +431,66 @@ describe("init", function()
     fire_event(ns.addon, "PLAYER_ENTERING_WORLD")
     eq(requested, 1)
     eq(ns.db.char.ticks, { [2] = 2000 })
+  end)
+
+  describe("kill statistics", function()
+    local function withStats()
+      local ns, w = setup()
+      ns.Data.Mounts = {
+        [6] = { name = "Stat Mount", stats = { 61, 62 } },
+        [7] = { name = "Other Stat Mount", stats = { 71 } },
+        [8] = { name = "No Stats" },
+      }
+      local values = { [61] = 2, [62] = 3, [71] = 0 }
+      local combat, reads = false, 0
+      ns.Game.Statistic = function(id) reads = reads + 1; return values[id] end
+      ns.Game.InCombat = function() return combat end
+      ns.Game.CharKey = function() return "Me-Realm" end
+      w.values, w.setCombat, w.reads = values, function(v) combat = v end, function() return reads end
+      return ns, w
+    end
+
+    it("PLAYER_ENTERING_WORLD stores this character's summed statistics", function()
+      local ns = withStats()
+      ns.db.global.stats["Alt-Realm"] = { [6] = 9 }
+      fire_event(ns.addon, "PLAYER_ENTERING_WORLD")
+      eq(ns.db.global.stats, { ["Alt-Realm"] = { [6] = 9 }, ["Me-Realm"] = { [6] = 5, [7] = 0 } })
+    end)
+
+    it("UPDATE_INSTANCE_INFO re-reads them; other events do not", function()
+      local ns, w = withStats()
+      fire_event(ns.addon, "PLAYER_ENTERING_WORLD")
+      w.values[61] = 4
+      fire_event(ns.addon, "QUEST_TURNED_IN", 1)
+      fire_event(ns.addon, "LFG_UPDATE_RANDOM_INFO")
+      eq(ns.db.global.stats["Me-Realm"][6], 5)
+      fire_event(ns.addon, "UPDATE_INSTANCE_INFO")
+      eq(ns.db.global.stats["Me-Realm"][6], 7)
+    end)
+
+    it("keeps the last value of a statistic that gives no reading", function()
+      local ns, w = withStats()
+      fire_event(ns.addon, "PLAYER_ENTERING_WORLD")
+      w.values[71] = nil
+      w.values[61], w.values[62] = 10, nil
+      fire_event(ns.addon, "UPDATE_INSTANCE_INFO")
+      eq(ns.db.global.stats["Me-Realm"], { [6] = 10, [7] = 0 })
+    end)
+
+    it("waits for the end of combat before reading", function()
+      local ns, w = withStats()
+      w.setCombat(true)
+      fire_event(ns.addon, "PLAYER_ENTERING_WORLD")
+      fire_event(ns.addon, "UPDATE_INSTANCE_INFO")
+      eq(w.reads(), 0, "nothing read in combat")
+      eq(ns.db.global.stats, {})
+      w.setCombat(false)
+      fire_event(ns.addon, "PLAYER_REGEN_ENABLED")
+      eq(ns.db.global.stats, { ["Me-Realm"] = { [6] = 5, [7] = 0 } })
+      local after = w.reads()
+      fire_event(ns.addon, "PLAYER_REGEN_ENABLED")
+      eq(w.reads(), after, "leaving combat again reads nothing new")
+    end)
   end)
 
   it("CALENDAR_UPDATE_EVENT_LIST fires ns.Refresh", function()
