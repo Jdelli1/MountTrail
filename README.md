@@ -5,7 +5,7 @@ AzerothTrail is a World of Warcraft Retail (Midnight 12.x) addon that tracks whi
 ## Features
 
 - **Journal by expansion**: browse every farmable mount grouped by expansion, with filters, search, a tooltip with drop details and your attempt count, and Ctrl-click to preview the mount.
-- **Click a row for a waypoint**: left-click a mount row (on any tab, or a Route step) to set the game's waypoint at the mount's location or its dungeon / raid entrance, plus a TomTom waypoint when TomTom is installed (the previous AzerothTrail one is replaced). Chat confirms the place, e.g. `Waypoint: The Vortex Pinnacle (entrance)`. Shift-left-click opens the world map there instead. Rows with a known location show a small pin on the right.
+- **Click a row for a waypoint**: left-click a mount row (on any tab, or a Route step) to set the game's waypoint at the mount's location or its dungeon / raid entrance, plus a TomTom waypoint when TomTom is installed (the previous AzerothTrail one is replaced). Chat confirms the place, e.g. `Waypoint: The Vortex Pinnacle (entrance)`. Shift-left-click opens the world map there instead (not in combat). Rows with a known location show a small pin on the right.
 - **Holidays**: holiday mounts, with the ones whose event is currently running highlighted.
 - **Achievements**: achievement-reward mounts, grouped by expansion. Hovering one shows the achievement that rewards it with its criteria progress; Shift-right-click the row to open that achievement in the Achievements window.
 - **Timewalking**: mounts from the Timewalking vendors.

@@ -35,6 +35,8 @@ Items are added by each task; verify in game.
 
 ## Task 11: map waypoints, TomTom and Rarity bridges
 
+_Superseded by F5 (no Map buttons on rows; Map.Show removed): use row left-click (Map.SetWaypoint) and Shift+left-click (Map.OpenMap) for these checks._
+
 Map.Show has no slash command; test it with the Map button once the mount list (Task 13) or route (Task 14) exists.
 
 - [ ] Outdoor mount: Map button for Heavenly Onyx Cloud Serpent (473, Sha of Anger, Kun-Lai Summit `m=379`) opens the world map on Kun-Lai Summit with a user waypoint pin near 53.7, 64.7, and the pin is super-tracked (on-screen navigation marker).
@@ -54,6 +56,8 @@ Map.Show has no slash command; test it with the Map button once the mount list (
 
 ## Task 13: journal home, mount list, tooltip
 
+_Superseded by F5 (no Map buttons on rows): where the checks below say Map button on a list or Route row, left-click the row instead._
+
 - [ ] `/reload` with `/console scriptErrors 1`, `/azt`: the Journal tab shows a 4 x 3 grid of expansion cards in Data.Expansions order (Classic first, Midnight last), each with its logo (or the expansion name when the client has no logo), `owned / total` and a green progress bar. Counts look right for this character's faction (faction-only mounts of the other faction are not counted).
 - [ ] Click the Cataclysm card: the list opens with Back and the title "Cataclysm"; rows are grouped under headers in the order Dungeon drops, Raid drops, World drops / rares, Delves, Treasures & caches, Quests, Zone activities, Reputation, Vendors, Other (empty sections have no header). Back returns to the grid.
 - [ ] Untick Raid drops in the left panel's Sources list: raid rows and the Raid drops header disappear; tick again and they return. The setting survives `/reload` (`/dump AzerothTrailDB.global.filters`).
@@ -68,6 +72,8 @@ Map.Show has no slash command; test it with the Map button once the mount list (
 - [ ] While the window is open on a list, killing a tracked boss (UPDATE_INSTANCE_INFO) refreshes the list without resetting the scroll position.
 
 ## Task 14: Holidays, Misc and Route tabs
+
+_Superseded by F5 (no Map buttons on rows): where the checks below say Map button on a list or Route row, left-click the row instead._
 
 - [ ] `/reload` with `/console scriptErrors 1`, `/azt`: the Holidays, Misc and Route tabs build without Lua errors (no "Coming soon" left on any tab).
 - [ ] Holidays tab: mounts grouped under holiday titles (Hallow's End, Brewfest, Love is in the Air, ...); the header of a holiday that is on today reads `<title>  Active now` in green (the calendar loads asynchronously: the badge may appear a moment after the first open).
@@ -107,6 +113,8 @@ Map.Show has no slash command; test it with the Map button once the mount list (
 - [ ] A row with several bosses where the first is already done (e.g. a Vault of Archavon row after killing Archavon): the arrow, its detail line and the waypoint point at the first boss that is not done.
 
 ## Final review fixes
+
+_Superseded by F5 (no Map buttons on rows): where the checks below say Map button on a list or Route row, left-click the row instead._
 
 - [ ] Map in combat: click a Map button (Journal list, Route list and the arrow frame) while in combat and again after combat, then click quest and map pins on the world map. Watch chat and the error frame for "Interface action failed because of an AddOn" / "action blocked"; note any that name AzerothTrail.
 - [ ] Manual override: on an open instance row (e.g. Eye of Eternity, Malygos), click the box: it ticks, the row counts as done (hidden with Show completed off, `Route: N steps left` drops by one) and `/dump AzerothTrailDB.char` shows `ticks[<mountID>]` with the spec's reset (weekly here). The attempt count (`/dump AzerothTrailDB.global.attempts`) does not move. Click again to untick. After the boss is really killed, the row shows the green "auto" tag and a disabled box (the game wins). A Dawn of the Infinites (Chrono-Lord Deios) tick is stored as `ticks["<mountID>@Chrono-Lord Deios"]` and does not tick the same mounts' own dungeon rows.
@@ -172,6 +180,8 @@ The mount -> achievement map is built in the background the first time an achiev
 
 ## F4: Collapsible groups and sub-groups
 
+_Superseded by F5 (no Map buttons on rows): where the checks below say Map button on a list or Route row, left-click the row instead._
+
 List rows are now a tree: section header > sub-header > mounts. Dungeon and raid sections split by instance (the client's name first: the source text's `Zone:`, else the coords map name; the route step's instance only as the last resort, else "Other"; names that differ only in case or a leading "The " are one group, labelled with the client's name), World drops by zone (source text `Zone:`, else coords map name, else "Other"), Reputation by the data's faction group (SimpleArmory's catch-alls "Reputation", "Renown" and "Paragon Reputation" go to Other); every other section stays flat. A section stays flat when "Other" is its only sub-group with a shown mount (e.g. Collected off and every named instance owned). Header counts `(owned/total)` cover every mount the view's other filters (search, sources, faction) select, owned ones included even while Collected is off. Collapsed headers are saved in `AzerothTrailDB.global.collapsed` as `"<view>|<expansion>|<section>[|<sub-group>]" = true`; expanded headers are not stored.
 
 - [ ] `/reload`, `/azt`, Journal > Wrath of the Lich King: "Raid drops (n/m)" with indented, smaller sub-headers (Eye of Eternity, Icecrown Citadel, Obsidian Sanctum, Onyxia, Ulduar, Vault of Archavon ...), each with its own `(owned/total)` and a +/- indicator (campaign quest-log icon; if it shows as text, note it). Sub-groups are alphabetical, "Other" last.
@@ -214,7 +224,7 @@ The mount tooltip now follows Rarity's layout. After the item's own tooltip (or 
 
 ## F5: Click a row to set a waypoint
 
-The per-row Map buttons are gone (mount lists and Route). Left-click a mount row: the game's user waypoint goes on the mount's spot (or its dungeon / raid entrance) and is super-tracked, a TomTom waypoint is added when TomTom is installed (the previous AzerothTrail TomTom waypoint is removed first), and chat says `Waypoint: <zone>` or `Waypoint: <instance> (entrance)`; the world map is not opened. Mounts with only a map (no point to pin) open the world map there and print `Opened map: <zone>`; mounts without a location print `No map location for <name>`. Shift+left-click opens the world map at the target without setting a waypoint. Ctrl+left-click previews, Shift+right-click opens the achievement, plain right-click does nothing. Rows with a location show a small pin on the right. Route rows behave the same, aimed at the first boss that is not done. The route arrow (`/azt arrow`) is unchanged and keeps its own Map button.
+The per-row Map buttons are gone (mount lists and Route). Left-click a mount row: the game's user waypoint goes on the mount's spot (or its dungeon / raid entrance) and is super-tracked, a TomTom waypoint is added when TomTom is installed (the previous AzerothTrail TomTom waypoint is removed first), and chat says `Waypoint: <zone>` or `Waypoint: <instance> (entrance)`; the world map is not opened. Mounts with only a map (no point to pin) open the world map there and print `Opened map: <zone>`; mounts without a location print `No map location for <name>`. Shift+left-click opens the world map at the target without setting a waypoint. Neither opens the world map in combat: chat says `Can't open the map in combat` instead (a pin / entrance waypoint is still set in combat). When the target map takes no user waypoint and TomTom is missing or fails, left-click opens the map there instead and says `Opened map: <place>`. The same chat line repeated within 2 s (a double click) is printed once. Ctrl+left-click previews, Shift+right-click opens the achievement, plain right-click does nothing. Rows with a location show a small pin on the right. Route rows behave the same, aimed at the first boss that is not done. The route arrow (`/azt arrow`) is unchanged and keeps its own Map button.
 
 - [ ] Pin icon: rows show the chat map-pin icon (`Waypoint-MapPin-ChatIcon`, the icon in the client's own map pin links), crisp at 16 px and vertically centred on the row's right end; it does not overlap the mount name (long names are cut off before it). If it shows the old map item icon instead, `/dump C_Texture.GetAtlasInfo("Waypoint-MapPin-ChatIcon")` returned nil: note it. Vendor / shop mounts without coords show no pin.
 - [ ] Outdoor mount: left-click Heavenly Onyx Cloud Serpent (MoP > World drops, Sha of Anger): chat `Waypoint: Kun-Lai Summit`, the on-screen navigation marker appears (super-tracked) and the world map stays closed; open the map yourself: the pin is near 53.7, 64.7.
@@ -225,5 +235,8 @@ The per-row Map buttons are gone (mount lists and Route). Left-click a mount row
 - [ ] TomTom installed: click three different mounts in a row: `/way list` shows only the last one from AzerothTrail (titled with the mount name). Clicking a map-only or no-location mount leaves the last TomTom waypoint in place. Without TomTom: no Lua error.
 - [ ] Route tab: rows have no Map button; kill rows with a location show the pin. Left-click a row whose first boss is done (or ticked) and a later one is not: the waypoint is for the later boss's mount, and hovering shows that mount's tooltip. Clicking the tick box still only ticks. Travel rows do nothing on click.
 - [ ] Tooltip hint line reads `Click: waypoint · Shift-click: map · Ctrl-click: preview`; achievement mounts still add `Shift-right-click to open the achievement`.
-- [ ] Combat: left-click and Shift+left-click rows in combat: note any "Interface action failed" / "action blocked" naming AzerothTrail (OpenWorldMap may be blocked in combat; with `/azt debug` on, a caught error shows prefixed `AzerothTrail:`).
+- [ ] Combat: in combat, left-click an outdoor mount: the waypoint and TomTom waypoint are set and chat says `Waypoint: ...`. Left-click a map-only mount and Shift+left-click any mount: the world map stays closed and chat says `Can't open the map in combat`. No "Interface action failed" / "action blocked" naming AzerothTrail. After combat both open the map again.
+- [ ] Double click: double-click a row: one `Waypoint: ...` line in chat, not two. Click it again after a few seconds: the line prints again.
+- [ ] Fallback: a mount whose entrance map takes no user waypoint (if you find one, e.g. `/dump C_Map.CanSetUserWaypointOnMap(<parent>)` false) with TomTom disabled: left-click opens the world map there and says `Opened map: <instance> (entrance)`. With TomTom enabled it says `Waypoint: ...` and only TomTom has the point.
+- [ ] Pins are cheap: scroll and toggle filters on a long list (Journal > Classic, Collected on): no hitch (the pin only checks the data's coords).
 - [ ] Route arrow mode still works as in Task 17 (its own waypoint and TomTom waypoint, its Map button).

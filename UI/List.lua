@@ -32,12 +32,11 @@ local ADDON, ns = ...
 -- "Drop: Ultraxion · Dragon Soul", "Achievement: ...", the route boss, else
 -- the category), computed once per refresh. Left-click sets a waypoint
 -- (Map.SetWaypoint), Shift+left-click opens the world map there (Map.OpenMap);
--- rows with a location (UI.LocationKind, resolved once per refresh) show a
--- small pin on the right.
+-- rows with a location (UI.HasLocation) show a small pin on the right.
 -- The pure helpers above the widget code (SourceLine, RowDescription,
 -- StripMarkup, SourcePairs, MountIcon, SectionLabel,
 -- ListRows, SubGroup, SourceZone, InstanceName, CollapseKey, ToggleCollapsed,
--- HeaderIcon, PreviewMount, RowClickAction, LocationKind, ShowsPin, PinIcon,
+-- HeaderIcon, PreviewMount, RowClickAction, HasLocation, PinIcon,
 -- the filter menu helpers) are unit-tested; the widget
 -- code is built under a stub by tests/ui_build_spec.lua.
 
@@ -740,24 +739,18 @@ function UI.RowClickAction(button, ctrl, shift)
   return nil
 end
 
--- Where a mount's waypoint would go: Map.Resolve's kind ("pin", "entrance",
--- "open", "none"); "none" without ns.Map or when Resolve errors.
-function UI.LocationKind(mountID)
+-- Whether a row shows the pin icon: the mount has a location to point at
+-- (Map.HasLocation: coords, no API call, so it is cheap on every refresh).
+-- false without ns.Map or when the check errors (Game.ReportError).
+function UI.HasLocation(mountID)
   local map = ns.Map
-  if not (mountID and map and type(map.Resolve) == "function") then return "none" end
-  local good, target = pcall(map.Resolve, mountID)
+  if not (mountID and map and type(map.HasLocation) == "function") then return false end
+  local good, has = pcall(map.HasLocation, mountID)
   if not good then
-    if ns.Game and ns.Game.ReportError then ns.Game.ReportError(target) end
-    return "none"
+    if ns.Game and ns.Game.ReportError then ns.Game.ReportError(has) end
+    return false
   end
-  return type(target) == "table" and type(target.kind) == "string" and target.kind or "none"
-end
-
--- Whether a row shows the pin icon: a location to point at (a pin, a dungeon
--- entrance, or at least a map to open).
-local PIN_KINDS = { pin = true, entrance = true, open = true }
-function UI.ShowsPin(kind)
-  return PIN_KINDS[kind] == true
+  return has == true
 end
 
 -- The row pin icon: the chat map-pin atlas (the icon of the client's own map
@@ -962,7 +955,7 @@ function UI.StyleIcon(owner, icon)
 end
 
 -- A row's location pin (UI.PinIcon): a small texture on `owner`, hidden
--- until the row has a location (UI.ShowsPin).
+-- until the row has a location (UI.HasLocation).
 function UI.CreatePin(owner)
   local pin = owner:CreateTexture(nil, "OVERLAY")
   pin:SetSize(PIN_SIZE, PIN_SIZE)
@@ -1347,10 +1340,9 @@ function UI.List(parent, getQuery, opts)
     })
     -- Stripe every other mount row, restarting under each header; describe
     -- each shown mount once per refresh (UI.RowDescription over the memoised
-    -- source text) and resolve its location once (UI.LocationKind) for the pin.
+    -- source text); rows with a location get the pin (UI.HasLocation).
     local sourceText = query.sourceText
     local describe = memoText(function(id) return UI.RowDescription(id, sourceText(id)) end)
-    local locationKind = memoText(UI.LocationKind)
     local n = 0
     for _, row in ipairs(rows) do
       if row.header then
@@ -1359,7 +1351,7 @@ function UI.List(parent, getQuery, opts)
         n = n + 1
         row.alt = n % 2 == 0
         row.desc = describe(row.id)
-        row.pin = UI.ShowsPin(locationKind(row.id))
+        row.pin = UI.HasLocation(row.id)
       end
     end
     local provider = CreateDataProvider(rows)

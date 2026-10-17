@@ -1,6 +1,7 @@
--- Map.Resolve picks where a mount's Map button should point; Map.Show acts on
--- it. Both take the WoW API through an injected table, so these specs never
--- touch globals.
+-- Map.Resolve picks where a mount's waypoint goes; Map.SetWaypoint (row
+-- left-click) and Map.OpenMap (Shift+left-click) act on it; Map.HasLocation
+-- is the cheap pin check. They take the WoW API through an injected table, so
+-- these specs never touch globals.
 
 local function loadMap(mounts, holidays)
   local ns = load_addon({ "Core/Locale.lua", "Integrations/Map.lua" })
@@ -13,6 +14,8 @@ end
 -- instance. opts.entrances: map ID -> list of entrance records. opts.names:
 -- map ID -> GetMapInfo name. TomTom (unless opts.tomtom == false) hands out
 -- uids "uid1", "uid2", ... and records RemoveWaypoint as "TomTomRemove".
+-- opts.combat: InCombat() result. opts.clock: { now = seconds } read by
+-- GetTime (absent: no GetTime, so no chat de-duplication).
 local function fakeApi(opts)
   opts = opts or {}
   local log = {}
@@ -36,7 +39,9 @@ local function fakeApi(opts)
     },
     OpenWorldMap = function(m) rec("OpenWorldMap", m) end,
     Print = function(msg) rec("Print", msg) end,
+    InCombat = function() return opts.combat == true end,
   }
+  if opts.clock then api.GetTime = function() return opts.clock.now end end
   if opts.tomtom ~= false then
     local n = 0
     api.TomTom = {
@@ -148,114 +153,6 @@ describe("Map.Resolve", function()
   it("defaults to the real globals and does not error when they are absent", function()
     local Map = loadMap({ [1] = { name = "M", coords = { m = 10 } } })
     eq(Map.Resolve(1), { map = 10, kind = "open" })
-  end)
-end)
-
-describe("Map.Show", function()
-  local function calls(api, what)
-    local out = {}
-    for _, entry in ipairs(api.log) do if entry[1] == what then out[#out + 1] = entry end end
-    return out
-  end
-
-  it("pin: sets and super-tracks the waypoint, opens the map, adds a TomTom waypoint", function()
-    local Map = loadMap({ [517] = { name = "Heavenly Onyx Cloud Serpent", coords = { m = 379, x = 53.6, y = 64.4 } } })
-    local api = fakeApi({ canSet = { [379] = true } })
-    Map.Show(517, api)
-    local wp = calls(api, "SetUserWaypoint")
-    eq(#wp, 1)
-    eq(wp[1][2].uiMapID, 379)
-    ok(near(wp[1][2].x, 0.536) and near(wp[1][2].y, 0.644), "waypoint uses 0-1 coordinates")
-    eq(calls(api, "SuperTrack"), { { "SuperTrack", true } })
-    eq(calls(api, "OpenWorldMap"), { { "OpenWorldMap", 379 } })
-    local tt = calls(api, "TomTom")
-    eq(#tt, 1)
-    eq(tt[1][2], 379)
-    ok(near(tt[1][3], 0.536) and near(tt[1][4], 0.644), "TomTom uses 0-1 coordinates")
-    eq(tt[1][5], { title = "Heavenly Onyx Cloud Serpent", persistent = false })
-    eq(#calls(api, "Print"), 0)
-  end)
-
-  it("entrance: pins the entrance on the parent map", function()
-    local Map = loadMap({ [395] = { name = "Drake of the North Wind", coords = { m = 325 } } })
-    local api = fakeApi({
-      canSet = { [249] = true }, journal = { [325] = 68 }, parents = { [325] = 249 },
-      entrances = { [249] = { { journalInstanceID = 68, position = { x = 0.5, y = 0.25 } } } },
-    })
-    Map.Show(395, api)
-    local wp = calls(api, "SetUserWaypoint")
-    eq(#wp, 1); eq(wp[1][2], { uiMapID = 249, x = 0.5, y = 0.25 })
-    eq(calls(api, "OpenWorldMap"), { { "OpenWorldMap", 249 } })
-    eq(calls(api, "TomTom")[1], { "TomTom", 249, 0.5, 0.25, { title = "Drake of the North Wind", persistent = false } })
-  end)
-
-  it("open: opens the map only, no pin and no TomTom", function()
-    local Map = loadMap({ [118] = { name = "Red Qiraji Battle Tank", coords = { m = 319 } } })
-    local api = fakeApi({})
-    Map.Show(118, api)
-    eq(calls(api, "OpenWorldMap"), { { "OpenWorldMap", 319 } })
-    eq(#calls(api, "SetUserWaypoint"), 0)
-    eq(#calls(api, "TomTom"), 0)
-    eq(#calls(api, "Print"), 0)
-  end)
-
-  it("none: prints the no-location message and does nothing else", function()
-    local Map, ns = loadMap({ [6] = { name = "Brown Horse" } })
-    local api = fakeApi({})
-    Map.Show(6, api)
-    eq(api.log, { { "Print", string.format(ns.L["No map location for %s"], "Brown Horse") } })
-    eq(ns.L["No map location for %s"], "No map location for %s")
-    api = fakeApi({})
-    Map.Show(4242, api)
-    eq(api.log, { { "Print", "No map location for 4242" } })
-  end)
-
-  it("works without TomTom and when TomTom errors", function()
-    local Map = loadMap({ [1] = { name = "M", coords = { m = 5, x = 10, y = 20 } } })
-    local api = fakeApi({ canSet = { [5] = true }, tomtom = false })
-    Map.Show(1, api)
-    eq(#calls(api, "OpenWorldMap"), 1)
-    api = fakeApi({ canSet = { [5] = true }, tomtom = false })
-    api.TomTom = { AddWaypoint = function() error("tomtom broke") end }
-    Map.Show(1, api)
-    eq(#calls(api, "OpenWorldMap"), 1)
-    api = fakeApi({ canSet = { [5] = true }, tomtom = false })
-    api.TomTom = {}
-    Map.Show(1, api)
-    eq(#calls(api, "OpenWorldMap"), 1)
-  end)
-
-  it("does not error when the map APIs are missing or erroring", function()
-    local Map = loadMap({ [1] = { name = "M", coords = { m = 5, x = 10, y = 20 } } })
-    Map.Show(1, {})
-    local api = fakeApi({ canSet = { [5] = true } })
-    api.C_Map.SetUserWaypoint = function() error("bad point") end
-    api.OpenWorldMap = function() error("combat") end
-    Map.Show(1, api)
-    eq(#calls(api, "TomTom"), 1, "TomTom still tried")
-  end)
-
-  it("reports swallowed errors through ns.Game.ReportError (/azt debug)", function()
-    local Map, ns = loadMap({ [1] = { name = "M", coords = { m = 5, x = 10, y = 20 } } })
-    local reported = {}
-    ns.Game = { ReportError = function(err) reported[#reported + 1] = tostring(err) end }
-    local api = fakeApi({ canSet = { [5] = true } })
-    api.C_Map.SetUserWaypoint = function() error("bad point") end
-    api.OpenWorldMap = function() error("combat") end
-    api.TomTom = { AddWaypoint = function() error("tomtom broke") end }
-    Map.Show(1, api)
-    eq(#reported, 3)
-    ok(reported[1]:find("bad point", 1, true), reported[1])
-    ok(reported[2]:find("combat", 1, true), reported[2])
-    ok(reported[3]:find("tomtom broke", 1, true), reported[3])
-  end)
-
-  it("prints through ns.addon by default", function()
-    local Map, ns = loadMap({})
-    local printed = {}
-    ns.addon = { Print = function(self, msg) printed[#printed + 1] = msg end }
-    Map.Show(7)
-    eq(printed, { "No map location for 7" })
   end)
 end)
 
@@ -410,12 +307,94 @@ describe("Map.SetWaypoint", function()
     eq(#logOf(api, "SetUserWaypoint"), 1)
   end)
 
-  it("Map.Show's TomTom waypoint is tracked too", function()
-    local Map = loadMap({ [517] = SERPENT })
-    local api = fakeApi({ canSet = { [379] = true } })
-    Map.Show(517, api)
-    Map.SetWaypoint(517, api)
-    eq(logOf(api, "TomTomRemove"), { { "TomTomRemove", "uid1" } })
+  it("in combat: open targets do not open the map; pins still set the waypoint", function()
+    local Map = loadMap({ [517] = SERPENT, [118] = TANK })
+    local api = fakeApi({ combat = true, canSet = { [379] = true }, names = { [379] = "Kun-Lai Summit", [319] = "Ahn'Qiraj" } })
+    eq({ Map.SetWaypoint(118, api) }, { "Ahn'Qiraj", "open" })
+    eq(#logOf(api, "OpenWorldMap"), 0, "no OpenWorldMap in combat")
+    eq(logOf(api, "Print"), { { "Print", "Can't open the map in combat" } })
+    api = fakeApi({ combat = true, canSet = { [379] = true }, names = { [379] = "Kun-Lai Summit" } })
+    eq(Map.SetWaypoint(517, api), "Kun-Lai Summit")
+    eq(#logOf(api, "SetUserWaypoint"), 1)
+    eq(#logOf(api, "TomTom"), 1)
+    eq(logOf(api, "Print"), { { "Print", "Waypoint: Kun-Lai Summit" } })
+  end)
+
+  it("opens the map instead when the target map takes no waypoint and TomTom is not used", function()
+    local Map = loadMap({ [395] = DRAKE })
+    local names_ = { [325] = "The Vortex Pinnacle" }
+    local function api(opts)
+      opts.journal, opts.parents = { [325] = 68 }, { [325] = 249 }
+      opts.entrances = { [249] = { { journalInstanceID = 68, position = { x = 0.5, y = 0.25 } } } }
+      opts.names = names_
+      return fakeApi(opts)
+    end
+    -- No user waypoint on 249, no TomTom: open the map.
+    local a = api({ tomtom = false })
+    eq({ Map.SetWaypoint(395, a) }, { "The Vortex Pinnacle (entrance)", "entrance" })
+    eq(#logOf(a, "SetUserWaypoint"), 0)
+    eq(logOf(a, "OpenWorldMap"), { { "OpenWorldMap", 249 } })
+    eq(logOf(a, "Print"), { { "Print", "Opened map: The Vortex Pinnacle (entrance)" } })
+    -- TomTom took it: that is the waypoint, no map.
+    a = api({})
+    Map.SetWaypoint(395, a)
+    eq(#logOf(a, "TomTom"), 1)
+    eq(#logOf(a, "OpenWorldMap"), 0)
+    eq(logOf(a, "Print"), { { "Print", "Waypoint: The Vortex Pinnacle (entrance)" } })
+    -- TomTom failing counts as not used.
+    a = api({ tomtom = false })
+    a.TomTom = { AddWaypoint = function() error("tomtom broke") end }
+    Map.SetWaypoint(395, a)
+    eq(logOf(a, "OpenWorldMap"), { { "OpenWorldMap", 249 } })
+    -- SetUserWaypoint failing counts as not set.
+    a = api({ tomtom = false, canSet = { [249] = true } })
+    a.C_Map.SetUserWaypoint = function() error("bad point") end
+    Map.SetWaypoint(395, a)
+    eq(#logOf(a, "SuperTrack"), 0, "nothing to super-track")
+    eq(logOf(a, "OpenWorldMap"), { { "OpenWorldMap", 249 } })
+    eq(logOf(a, "Print"), { { "Print", "Opened map: The Vortex Pinnacle (entrance)" } })
+    -- The fallback respects the combat guard.
+    a = api({ tomtom = false, combat = true })
+    Map.SetWaypoint(395, a)
+    eq(#logOf(a, "OpenWorldMap"), 0)
+    eq(logOf(a, "Print"), { { "Print", "Can't open the map in combat" } })
+  end)
+
+  it("reports swallowed errors through ns.Game.ReportError (/azt debug)", function()
+    local Map, ns = loadMap({ [1] = { name = "M", coords = { m = 5, x = 10, y = 20 } } })
+    local reported = {}
+    ns.Game = { ReportError = function(err) reported[#reported + 1] = tostring(err) end }
+    local api = fakeApi({ canSet = { [5] = true }, tomtom = false })
+    api.C_Map.SetUserWaypoint = function() error("bad point") end
+    api.OpenWorldMap = function() error("combat") end
+    api.TomTom = { AddWaypoint = function() error("tomtom broke") end }
+    Map.SetWaypoint(1, api)
+    eq(#reported, 3)
+    ok(reported[1]:find("bad point", 1, true), reported[1])
+    ok(reported[2]:find("tomtom broke", 1, true), reported[2])
+    ok(reported[3]:find("combat", 1, true), reported[3])
+  end)
+
+  it("drops an identical chat line repeated within 2 s", function()
+    local Map = loadMap({ [6] = { name = "Brown Horse" }, [7] = { name = "Grey Horse" } })
+    local clock = { now = 100 }
+    local api = fakeApi({ clock = clock })
+    local function prints() return #logOf(api, "Print") end
+    Map.SetWaypoint(6, api)
+    clock.now = 101.9
+    Map.SetWaypoint(6, api)
+    eq(prints(), 1, "same line within 2 s: dropped")
+    clock.now = 102
+    Map.SetWaypoint(7, api)
+    eq(prints(), 2, "another line")
+    clock.now = 102.5
+    Map.SetWaypoint(6, api)
+    eq(prints(), 3, "the last line differs: printed")
+    clock.now = 104.6
+    Map.SetWaypoint(6, api)
+    eq(prints(), 4, "2 s later: printed again")
+    Map.OpenMap(6, api)
+    eq(prints(), 4, "OpenMap's line is de-duplicated too")
   end)
 
   it("does not error with missing APIs and prints through ns.addon by default", function()
@@ -425,8 +404,10 @@ describe("Map.SetWaypoint", function()
     -- No C_Map: the mount resolves to "open"; the label falls back to the
     -- mount name.
     eq(Map.SetWaypoint(517, {}), "Heavenly Onyx Cloud Serpent")
-    eq(Map.SetWaypoint(517), "Heavenly Onyx Cloud Serpent")
-    eq(printed, { "Opened map: Heavenly Onyx Cloud Serpent", "Opened map: Heavenly Onyx Cloud Serpent" })
+    eq(Map.SetWaypoint(517), "Heavenly Onyx Cloud Serpent") -- the real globals
+    eq(Map.SetWaypoint(99999), nil)
+    eq(printed, { "Opened map: Heavenly Onyx Cloud Serpent", "Opened map: Heavenly Onyx Cloud Serpent",
+      "No map location for 99999" }, "no clock in {}: nothing recorded to de-duplicate against")
   end)
 end)
 
@@ -450,6 +431,43 @@ describe("Map.OpenMap", function()
     eq(Map.OpenMap(6, api).kind, "none")
     eq(api.log, { { "Print", "No map location for Brown Horse" } })
   end)
+
+  it("does not open the map in combat", function()
+    local Map = loadMap({ [517] = SERPENT })
+    local api = fakeApi({ combat = true, canSet = { [379] = true } })
+    eq(Map.OpenMap(517, api).kind, "pin")
+    eq(#logOf(api, "OpenWorldMap"), 0)
+    eq(logOf(api, "Print"), { { "Print", "Can't open the map in combat" } })
+  end)
+
+  it("reads combat from ns.Game.InCombat by default", function()
+    local Map, ns = loadMap({ [118] = TANK })
+    local printed = {}
+    ns.addon = { Print = function(self, msg) printed[#printed + 1] = msg end }
+    ns.Game = { InCombat = function() return true end }
+    Map.OpenMap(118)
+    eq(printed, { "Can't open the map in combat" })
+  end)
+end)
+
+describe("Map.HasLocation", function()
+  it("is true when the mount (or its holiday) has coords, without any API call", function()
+    local Map = loadMap({
+      [517] = SERPENT, [118] = TANK, [6] = { name = "Brown Horse" },
+      [226] = { name = "Great Brewfest Kodo", tab = "holiday", section = "brewfest" },
+      [227] = { name = "Bare Holiday", tab = "holiday", section = "noblegarden" },
+    }, {
+      brewfest = { title = "Brewfest", coords = { m = 242, x = 46.6, y = 60.0 } },
+      noblegarden = { title = "Noblegarden" },
+    })
+    eq(Map.HasLocation(517), true)
+    eq(Map.HasLocation(118), true, "map-only coords: the map opens")
+    eq(Map.HasLocation(226), true, "holiday coords")
+    eq(Map.HasLocation(227), false, "holiday without coords, mount without coords")
+    eq(Map.HasLocation(6), false)
+    eq(Map.HasLocation(99999), false)
+    eq(Map.HasLocation(nil), false)
+  end)
 end)
 
 describe("integrations toc", function()
@@ -462,7 +480,8 @@ describe("integrations toc", function()
     ok(pos["Game/API.lua"] < pos["Integrations/Rarity.lua"], "Rarity after Game/API")
     eq(files[#files], "Core/Init.lua")
     local ns = load_addon(files)
-    ok(ns.Map and ns.Map.Show and ns.Map.Resolve, "ns.Map loaded")
+    ok(ns.Map and ns.Map.Resolve and ns.Map.SetWaypoint and ns.Map.OpenMap and ns.Map.HasLocation, "ns.Map loaded")
+    eq(ns.Map.Show, nil, "Map.Show removed (no callers since F5)")
     ok(ns.RarityBridge and ns.RarityBridge.Attempts, "ns.RarityBridge loaded")
   end)
 end)

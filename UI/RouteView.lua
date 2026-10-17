@@ -432,15 +432,11 @@ local function refresh()
   local Game = ns.Game
   local ctx = UI.RouteContext(Game.Now())
   local rows = ns.Route.Build((ns.Data and ns.Data.Route) or {}, ctx)
-  -- Each target mount's location is resolved once per refresh (the pin).
-  local kinds = {}
   for i, row in ipairs(rows) do
     row.alt = i % 2 == 0
+    -- The pin: the target mount has a location (UI.HasLocation).
     local id = row.kind == "kill" and UI.RouteTargetMount(row) or nil
-    if id then
-      kinds[id] = kinds[id] or UI.LocationKind(id)
-      row.pin = UI.ShowsPin(kinds[id])
-    end
+    row.pin = id ~= nil and UI.HasLocation(id) or nil
   end
   local name = Game.PlayerName()
 

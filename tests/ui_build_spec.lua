@@ -436,17 +436,11 @@ describe("ui build", function()
     ok(got[2][1] ~= nil, "route row passes its first mount")
   end)
 
-  it("mount rows have no Map button and show a pin only where Map.Resolve finds a location (once per refresh)", function()
+  it("mount rows have no Map button and show a pin only where Map.HasLocation says so", function()
     local ns = loadUI()
-    local asked = {}
-    ns.Map.Resolve = function(id)
-      asked[id] = (asked[id] or 0) + 1
-      if id % 2 == 0 then return { map = 1, x = 1, y = 2, kind = "pin" } end
-      if id % 5 == 0 then return { map = 1, kind = "open" } end
-      return { kind = "none" }
-    end
+    ns.Map.Resolve = function() error("Resolve must not run on refresh") end
+    ns.Map.HasLocation = function(id) return id % 2 == 0 or id % 5 == 0 end
     local list = openJournalList(ns)
-    for id, n in pairs(asked) do eq(n, 1, "Resolve once for " .. id) end
     local rows = list.ScrollBox.provider.rows
     local frames = render(list.ScrollBox)
     local pins, bare = 0, 0
@@ -460,9 +454,6 @@ describe("ui build", function()
       end
     end
     ok(pins > 0 and bare > 0, "both kinds of rows rendered")
-    for id in pairs(asked) do asked[id] = 0 end
-    list:Refresh()
-    for id, n in pairs(asked) do ok(n <= 1, "Resolve at most once per refresh for " .. id) end
 
     -- The pin is the map-pin atlas when the client has it.
     STUB_ATLASES["Waypoint-MapPin-ChatIcon"] = true
@@ -473,7 +464,8 @@ describe("ui build", function()
 
   it("route rows: pin and click target the first boss not done", function()
     local ns = loadUI()
-    ns.Map.Resolve = function() return { map = 1, x = 1, y = 2, kind = "pin" } end
+    ns.Map.Resolve = function() error("Resolve must not run on refresh") end
+    ns.Map.HasLocation = function() return true end
     local got = {}
     ns.UI.HandleRowClick = function(id, button) got[#got + 1] = { id, button } end
     ns.ToggleWindow()

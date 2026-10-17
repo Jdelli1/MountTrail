@@ -120,33 +120,21 @@ describe("ui journal", function()
   end)
 
   describe("row waypoints", function()
-    it("LocationKind asks Map.Resolve, and is 'none' without it or on an error", function()
+    it("HasLocation asks Map.HasLocation (never Resolve), false without it or on an error", function()
       local ns = loadUI()
-      local asked = {}
-      ns.Map.Resolve = function(id)
-        asked[#asked + 1] = id
-        return ({ [1] = { kind = "pin" }, [2] = { kind = "entrance" }, [3] = { kind = "open" } })[id] or { kind = "none" }
-      end
-      eq(ns.UI.LocationKind(1), "pin")
-      eq(ns.UI.LocationKind(2), "entrance")
-      eq(ns.UI.LocationKind(3), "open")
-      eq(ns.UI.LocationKind(4), "none")
-      eq(asked, { 1, 2, 3, 4 })
-      ns.Map.Resolve = function() error("boom") end
-      eq(ns.UI.LocationKind(1), "none")
-      ns.Map.Resolve = function() return nil end
-      eq(ns.UI.LocationKind(1), "none")
+      ns.Map.Resolve = function() error("Resolve must not run for the pin") end
+      ns.Map.HasLocation = function(id) return id == 1 end
+      eq(ns.UI.HasLocation(1), true)
+      eq(ns.UI.HasLocation(2), false)
+      ns.Map.HasLocation = function() return "yes" end
+      eq(ns.UI.HasLocation(1), false, "only true counts")
+      local reported = {}
+      ns.Game.ReportError = function(err) reported[#reported + 1] = tostring(err) end
+      ns.Map.HasLocation = function() error("boom") end
+      eq(ns.UI.HasLocation(1), false)
+      eq(#reported, 1)
       ns.Map = nil
-      eq(ns.UI.LocationKind(1), "none")
-    end)
-
-    it("ShowsPin is true for pin, entrance and open only", function()
-      local ns = loadUI()
-      eq(ns.UI.ShowsPin("pin"), true)
-      eq(ns.UI.ShowsPin("entrance"), true)
-      eq(ns.UI.ShowsPin("open"), true)
-      eq(ns.UI.ShowsPin("none"), false)
-      eq(ns.UI.ShowsPin(nil), false)
+      eq(ns.UI.HasLocation(1), false)
     end)
 
     it("PinIcon: the map-pin chat atlas when the client has it, else a map icon texture", function()

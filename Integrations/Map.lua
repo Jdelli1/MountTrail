@@ -3,7 +3,9 @@ local ADDON, ns = ...
 -- Points the player at a mount's farm location: a user waypoint (super-tracked)
 -- on the world map, the dungeon entrance for instance maps, and a TomTom
 -- waypoint when TomTom is installed (Map.SetWaypoint, a row's left-click), or
--- just the world map there (Map.OpenMap, Shift+left-click). This is an integration layer, so it calls
+-- just the world map there (Map.OpenMap, Shift+left-click; never in combat).
+-- Map.HasLocation is the cheap check behind the rows' pin icons. (Map.Show,
+-- the old Map button's action, was removed with the buttons in F5.) This is an integration layer, so it calls
 -- the WoW API directly, but always through an `api` table (the real globals by
 -- default) so the decision logic can be tested with stubs. Every call is
 -- guarded; nothing here raises a Lua error (caught errors are shown only with
@@ -31,6 +33,11 @@ local function realApi()
     OpenWorldMap = OpenWorldMap,
     TomTom = TomTom,
     Print = defaultPrint,
+    GetTime = GetTime,
+    InCombat = function()
+      local game = ns.Game
+      return game and type(game.InCombat) == "function" and game.InCombat() or false
+    end,
   }
 end
 
@@ -133,13 +140,33 @@ function Map.Resolve(mountID, api)
   return { map = m, kind = "open" }
 end
 
+-- Whether the mount has a location (its coords, or its holiday's): exactly
+-- when Map.Resolve's kind is not "none", without any API call. For the row
+-- pins, checked on every list refresh.
+function Map.HasLocation(mountID)
+  return coordsFor(mountID) ~= nil
+end
+
 local function mountName(mountID)
   local mount = ns.Data and ns.Data.Mounts and ns.Data.Mounts[mountID]
   if type(mount) == "table" and mount.name then return mount.name end
   return tostring(mountID)
 end
 
+-- The last chat line and when (api.GetTime) it was printed: the same line
+-- again within REPEAT_WINDOW seconds is dropped (a double click, or clicking
+-- the same row twice). Without a clock nothing is dropped.
+local REPEAT_WINDOW = 2
+local lastLine, lastAt
+
 local function say(api, msg)
+  local now
+  if type(api.GetTime) == "function" then
+    local good, t = guarded(api.GetTime)
+    if good and type(t) == "number" then now = t end
+  end
+  if now and msg == lastLine and lastAt and now - lastAt < REPEAT_WINDOW then return end
+  lastLine, lastAt = (now and msg or nil), now
   local print_ = type(api.Print) == "function" and api.Print or defaultPrint
   guarded(print_, msg)
 end
@@ -200,59 +227,63 @@ end
 
 -- uid of the last TomTom waypoint this file added (TomTom:AddWaypoint's
 -- return), removed before the next one is added so AzerothTrail keeps at most
--- one TomTom waypoint. The route arrow (UI/Arrow.lua) tracks its own.
+-- one TomTom waypoint. The route arrow (UI/Arrow.lua) tracks its own. Both add
+-- non-persistent waypoints (persistent = false), so /reload clears them along
+-- with this session-only uid: nothing is left behind to remove.
 local tomtomUid
 
+-- Replaces our TomTom waypoint with one at m, x, y (0-1). -> true when TomTom
+-- took the new waypoint.
 local function replaceTomTom(api, m, x, y, title)
   local tomtom = api.TomTom
-  if type(tomtom) ~= "table" then return end
+  if type(tomtom) ~= "table" then return false end
   if tomtomUid ~= nil and type(tomtom.RemoveWaypoint) == "function" then
     guarded(tomtom.RemoveWaypoint, tomtom, tomtomUid)
   end
   tomtomUid = nil
-  if type(tomtom.AddWaypoint) ~= "function" then return end
+  if type(tomtom.AddWaypoint) ~= "function" then return false end
   local good, uid = guarded(tomtom.AddWaypoint, tomtom, m, x, y, { title = title, persistent = false })
   if good then tomtomUid = uid end
+  return good
 end
 
 -- The game's user waypoint at target (x/y in percent), super-tracked, when the
--- map takes one.
+-- map takes one. -> true when the waypoint was set.
 local function setUserWaypoint(api, target)
   local m = target.map
-  if try(api.C_Map, "CanSetUserWaypointOnMap", m) ~= true then return end
+  if try(api.C_Map, "CanSetUserWaypointOnMap", m) ~= true then return false end
   local point = try(api.UiMapPoint, "CreateFromCoordinates", m, target.x / 100, target.y / 100)
-  if point then
-    try(api.C_Map, "SetUserWaypoint", point)
-    try(api.C_SuperTrack, "SetSuperTrackedUserWaypoint", true)
-  end
+  if not point or type(api.C_Map.SetUserWaypoint) ~= "function" then return false end
+  if not guarded(api.C_Map.SetUserWaypoint, point) then return false end
+  try(api.C_SuperTrack, "SetSuperTrackedUserWaypoint", true)
+  return true
 end
 
+local function inCombat(api)
+  if type(api.InCombat) ~= "function" then return false end
+  local good, combat = guarded(api.InCombat)
+  return good and combat == true
+end
+
+-- Opens the world map at m, unless the player is in combat (the map can be
+-- blocked there): then chat says so. -> true when OpenWorldMap was called.
 local function openWorldMap(api, m)
+  if inCombat(api) then
+    say(api, L["Can't open the map in combat"])
+    return false
+  end
   if type(api.OpenWorldMap) == "function" then guarded(api.OpenWorldMap, m) end
-end
-
--- Opens the world map at the mount's location; see Map.Resolve.
-function Map.Show(mountID, api)
-  api = api or realApi()
-  local target = Map.Resolve(mountID, api)
-  if target.kind == "none" then
-    noLocation(api, mountID)
-    return target
-  end
-  if target.x and target.y then setUserWaypoint(api, target) end
-  openWorldMap(api, target.map)
-  -- TomTom only for a real point (pin or entrance), never for "open".
-  if target.x and target.y then
-    replaceTomTom(api, target.map, target.x / 100, target.y / 100, mountName(mountID))
-  end
-  return target
+  return true
 end
 
 -- Left-click on a mount row: points the player at the mount without opening
 -- the world map. pin / entrance: the game's user waypoint (super-tracked) and
 -- a TomTom waypoint (replacing the previous AzerothTrail one), chat
--- "Waypoint: <place>". open (no point to pin): opens the world map there,
--- chat "Opened map: <zone>". none: chat "No map location for <mount>".
+-- "Waypoint: <place>"; when neither could be set (the map takes no user
+-- waypoint and TomTom is missing or failed) it falls back to opening the map.
+-- open (no point to pin): opens the world map there, chat "Opened map:
+-- <place>". Out of combat only: in combat chat says the map can't be opened.
+-- none: chat "No map location for <mount>".
 -- -> the place label (nil for none), the Map.Resolve kind.
 function Map.SetWaypoint(mountID, api)
   api = api or realApi()
@@ -263,19 +294,23 @@ function Map.SetWaypoint(mountID, api)
   end
   local place = placeLabel(api, mountID, target)
   if target.x and target.y then
-    setUserWaypoint(api, target)
-    replaceTomTom(api, target.map, target.x / 100, target.y / 100, mountName(mountID))
-    say(api, string.format(L["Waypoint: %s"], place))
-  else
-    openWorldMap(api, target.map)
+    local set = setUserWaypoint(api, target)
+    local tomtom = replaceTomTom(api, target.map, target.x / 100, target.y / 100, mountName(mountID))
+    if set or tomtom then
+      say(api, string.format(L["Waypoint: %s"], place))
+      return place, target.kind
+    end
+  end
+  if openWorldMap(api, target.map) then
     say(api, string.format(L["Opened map: %s"], place))
   end
   return place, target.kind
 end
 
 -- Shift+left-click on a mount row: opens the world map at the mount's
--- location (Map.Resolve's map) without setting a waypoint. none: chat "No
--- map location for <mount>". -> the Map.Resolve result.
+-- location (Map.Resolve's map) without setting a waypoint; in combat chat
+-- says the map can't be opened. none: chat "No map location for <mount>".
+-- -> the Map.Resolve result.
 function Map.OpenMap(mountID, api)
   api = api or realApi()
   local target = Map.Resolve(mountID, api)
