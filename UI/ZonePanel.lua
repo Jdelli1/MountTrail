@@ -9,8 +9,10 @@ local ADDON, ns = ...
 -- open state is saved in ns.db.global.zonePanel.open. The panel is a child
 -- of the main window, so it is shown only while the window is (v1: no
 -- detached mode). It recomputes on ZONE_CHANGED_NEW_AREA, ZONE_CHANGED,
--- ZONE_CHANGED_INDOORS and PLAYER_ENTERING_WORLD (only when the player's map
--- changed) and on every ns.Refresh(), and only while it is visible.
+-- ZONE_CHANGED_INDOORS and PLAYER_ENTERING_WORLD (only when the zone,
+-- Zone.Key, changed) and on ns.Refresh() (debounced to the next frame), and
+-- only while it is visible. While shown, the window's clamp rect includes
+-- the panel so both stay on screen.
 -- UI.ZoneContext / UI.ZoneMounts / UI.ZoneTitle / UI.ZoneRows are unit-tested
 -- (tests/ui_zone_spec.lua); the widget is built under the stub in
 -- tests/ui_build_spec.lua.
@@ -52,9 +54,11 @@ local function sourceZone(id)
 end
 
 -- Map and Encounter Journal data is static for the session: each lookup is
--- asked once per argument (a nil reply is asked again next time).
+-- asked once per argument. A nil reply is asked again next time, unless
+-- `cacheNil` (then it is stored as false: GetInstanceForGameMap says "none"
+-- for most maps).
 local sessionCaches = {}
-local function sessionMemo(name)
+local function sessionMemo(name, cacheNil)
   local cache = sessionCaches[name]
   if not cache then
     cache = {}
@@ -65,10 +69,13 @@ local function sessionMemo(name)
     local v = cache[arg]
     if v == nil then
       v = ns.Game[name](arg)
-      if v == nil then return nil end
+      if v == nil then
+        if not cacheNil then return nil end
+        v = false
+      end
       cache[arg] = v
     end
-    return v
+    return v or nil
   end
 end
 
@@ -81,7 +88,8 @@ end
 -- the instance sub-group of dungeon / raid mounts (UI.SubGroup), the route
 -- instance (UI.RouteEntry), UI.GroupKey, the Journal's gate (other faction,
 -- unobtainable and mounts unknown to the client left out) and the Collected
--- filter (ns.db.global.filters.collected).
+-- filter (ns.db.global.filters.collected); currentInstance
+-- (Game.CurrentInstanceName) for when the player's map is unknown.
 function UI.ZoneContext()
   local game = ns.Game
   local db = ns.db and ns.db.global
@@ -92,7 +100,7 @@ function UI.ZoneContext()
     mapInfo = sessionMemo("MapInfo"),
     entrances = sessionMemo("DungeonEntrances"),
     children = sessionMemo("MapChildren"),
-    instanceForMap = game.InstanceForMap, -- per mount coords map; Zone.MountsFor caches per call
+    instanceForMap = sessionMemo("InstanceForMap", true),
     instanceName = sessionMemo("JournalInstanceName"),
     coords = function(id, m)
       local map = ns.Map
@@ -113,15 +121,17 @@ function UI.ZoneContext()
     key = UI.GroupKey,
     gate = ns.Zone.Gate(UI.Memo(game.IsOwned), UI.Memo(game.Exists), game.Faction()),
     showCollected = filters.collected == true,
+    currentInstance = game.CurrentInstanceName and game.CurrentInstanceName() or nil,
   }
 end
 
--- Zone.MountsFor for the player's map (Game.PlayerMap) -> list, zone. An
--- error (reported through Game.ReportError) gives an empty list.
-function UI.ZoneMounts()
-  local mapID = ns.Game.PlayerMap()
+-- Zone.MountsFor for `mapID` (default: the player's map, Game.PlayerMap)
+-- with `ctx` (default UI.ZoneContext()) -> list, zone. An error (reported
+-- through Game.ReportError) gives an empty list.
+function UI.ZoneMounts(mapID, ctx)
+  if mapID == nil then mapID = ns.Game.PlayerMap() end
   local good, list, zone = pcall(function()
-    return ns.Zone.MountsFor(mapID, UI.ZoneContext())
+    return ns.Zone.MountsFor(mapID, ctx or UI.ZoneContext())
   end)
   if not good then
     if ns.Game.ReportError then ns.Game.ReportError(list) end
@@ -174,31 +184,62 @@ local BUTTON_SIZE = 20 -- title-bar toggle
 
 local panel   -- the panel frame (UI.zonePanel)
 local button  -- the title-bar toggle (frame.ZoneButton)
-local lastMap -- the player's map of the last rebuild
-local dirty = true -- rebuild on the next refresh even if the map is the same
+local lastKey -- Zone.Key of the last rebuild (the zone root + instance)
+local dirty = true -- rebuild on the next refresh even if the zone is the same
+local pending = false -- a debounced rebuild is scheduled (C_Timer.After(0))
 
 local function paintButton()
   if button then button.Selected:SetShown(UI.ZonePanelOpen()) end
 end
 
--- Rebuilds the list when the panel is on screen and the player's map changed
--- (or `force`, or data changed since: dirty). Off screen it only marks dirty.
+local function report(err)
+  if ns.Game.ReportError then ns.Game.ReportError(err) end
+end
+
+-- The window's clamp rect takes the docked panel in while it is shown, so
+-- the window keeps it on screen; the point is set again to re-clamp now.
+local function applyClamp(open)
+  local frame = UI.frame
+  if not (frame and type(frame.SetClampRectInsets) == "function") then return end
+  frame:SetClampRectInsets(0, open and (PANEL_WIDTH + PANEL_GAP) or 0, 0, 0)
+  local point, rel, relPoint, x, y = frame:GetPoint(1)
+  if point then
+    frame:ClearAllPoints()
+    frame:SetPoint(point, rel, relPoint, x, y)
+  end
+end
+
+-- Rebuilds the list when the panel is on screen and the player's zone
+-- (Zone.Key: the zone root and instance, not the raw map, so walking between
+-- sub-zones keeps the list and its scroll) changed, or `force`, or data
+-- changed since (dirty). Off screen it only marks dirty.
 function UI.RefreshZonePanel(force)
   if not (panel and panel:IsVisible()) then
     dirty = true
     return
   end
   local mapID = ns.Game.PlayerMap()
-  local sameMap = mapID == lastMap
-  if not (force or dirty) and sameMap then return end
-  lastMap, dirty = mapID, false
-  local list, zone = UI.ZoneMounts()
+  local good, ctx = pcall(UI.ZoneContext)
+  if not good then
+    report(ctx)
+    ctx = nil
+  end
+  local key
+  if ctx then
+    local good2, k = pcall(ns.Zone.Key, mapID, ctx)
+    if good2 then key = k else report(k) end
+  end
+  local sameZone = key == lastKey
+  if not (force or dirty) and sameZone then return end
+  lastKey, dirty = key, false
+  local list, zone = {}, nil
+  if ctx then list, zone = UI.ZoneMounts(mapID, ctx) end
   local rows = UI.ZoneRows(list)
   panel.Title:SetText(UI.ZoneTitle(zone, #rows))
-  -- Same place (a data refresh): keep the scroll position; a new zone starts
+  -- Same zone (a data refresh): keep the scroll position; a new zone starts
   -- at the top.
   local provider = CreateDataProvider(rows)
-  if sameMap and ScrollBoxConstants then
+  if sameZone and ScrollBoxConstants then
     panel.ScrollBox:SetDataProvider(provider, ScrollBoxConstants.RetainScrollPosition)
   else
     panel.ScrollBox:SetDataProvider(provider)
@@ -212,6 +253,7 @@ function UI.SetZonePanelOpen(open)
   if db then db.open = open and true or false end
   if panel then
     panel:SetShown(open and true or false)
+    applyClamp(open)
     if open then UI.RefreshZonePanel(true) end
   end
   paintButton()
@@ -225,7 +267,10 @@ function ns.ToggleZonePanel()
     -- Open before the window shows: its OnShow hook then builds the list once.
     local db = stateDB()
     if db then db.open = true end
-    if panel then panel:Show() end
+    if panel then
+      panel:Show()
+      applyClamp(true)
+    end
     paintButton()
     if ns.ToggleWindow then ns.ToggleWindow() end
     return true
@@ -339,14 +384,30 @@ UI.AddWindowHook(function(frame)
   button = buildButton(frame)
   frame.ZoneButton = button
   panel:SetShown(UI.ZonePanelOpen())
+  applyClamp(UI.ZonePanelOpen())
   paintButton()
   -- The panel shows with the window: rebuild if anything changed meanwhile.
   frame:HookScript("OnShow", function() UI.RefreshZonePanel() end)
 end)
 
--- Data changed (filters, a new mount, lockouts...): rebuild when visible.
+-- Data changed (filters, a new mount, lockouts...): rebuild when visible,
+-- once per burst: ns.Refresh often comes several times in one frame
+-- (lockout, quest and LFG events), so the rebuild waits for the next frame
+-- (C_Timer.After(0)); without C_Timer it runs at once.
 UI.AddRefreshHook(function()
   dirty = true
+  if not (panel and panel:IsVisible()) or pending then return end
+  local timer = C_Timer
+  if type(timer) == "table" and type(timer.After) == "function" then
+    pending = true
+    local good, err = pcall(timer.After, 0, function()
+      pending = false
+      UI.RefreshZonePanel()
+    end)
+    if good then return end
+    pending = false
+    report(err)
+  end
   UI.RefreshZonePanel()
 end)
 

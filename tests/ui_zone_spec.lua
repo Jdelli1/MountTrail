@@ -42,6 +42,7 @@ local function loadUI(over)
     MapChildren = function() return {} end,
     InstanceForMap = function(id) if id == 325 then return 68 end end,
     JournalInstanceName = function(id) if id == 68 then return "The Vortex Pinnacle" end end,
+    CurrentInstanceName = function() return nil end,
   }
   for k, v in pairs(over or {}) do game[k] = v end
   for k, v in pairs(game) do ns.Game[k] = v end
@@ -132,6 +133,24 @@ describe("zone panel glue", function()
     ns.Game.PlayerMap = function() return 249 end
     list, zone = ns.UI.ZoneMounts()
     eq(list, {}, "error caught")
+  end)
+
+  it("asks GetInstanceForGameMap once per map per session, 'none' included", function()
+    local ns = loadUI()
+    local asked = {}
+    ns.Game.InstanceForMap = function(id) asked[id] = (asked[id] or 0) + 1; if id == 325 then return 68 end end
+    ns.UI.ZoneMounts()
+    ns.UI.ZoneMounts()
+    for id, n in pairs(asked) do eq(n, 1, "map " .. id) end
+    ok(next(asked) ~= nil, "asked at all")
+  end)
+
+  it("no player map inside an instance: lists the instance's mounts by name", function()
+    local ns = loadUI({ PlayerMap = function() return nil end,
+      CurrentInstanceName = function() return "The Vortex Pinnacle" end })
+    local list, zone = ns.UI.ZoneMounts()
+    eq(zone, { name = "The Vortex Pinnacle" })
+    eq(ids(list), { 3, 7, 5 }, "source Zone:, route instance; any mount whose Zone: names the instance")
   end)
 
   it("asks the map and journal lookups once per session", function()

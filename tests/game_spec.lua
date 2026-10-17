@@ -7,6 +7,7 @@ local API_GLOBALS = {
   "C_QuestLog", "GetLFGDungeonRewards", "RequestRaidInfo", "RequestLFDPlayerLockInfo",
   "GetServerTime", "geterrorhandler", "GetStatistic", "InCombatLockdown", "C_Map",
   "C_Item", "Item", "C_EncounterJournal", "EJ_GetInstanceInfo",
+  "IsInInstance", "GetInstanceInfo",
 }
 local ORIGINAL = {}
 for _, name in ipairs(API_GLOBALS) do ORIGINAL[name] = _G[name] end
@@ -340,6 +341,21 @@ describe("game adapter", function()
       eq(G.InstanceForMap(4), nil)
       C_EncounterJournal = nil
       eq(loadGame().Game.InstanceForMap(325), nil)
+    end)
+
+    it("CurrentInstanceName is GetInstanceInfo's name while IsInInstance; nil otherwise", function()
+      IsInInstance = function() return true, "raid" end
+      GetInstanceInfo = function() return "Dragon Soul", "raid", 14 end
+      eq(loadGame().Game.CurrentInstanceName(), "Dragon Soul")
+      IsInInstance = function() return false, "none" end
+      eq(loadGame().Game.CurrentInstanceName(), nil, "outside")
+      IsInInstance = function() return true end
+      GetInstanceInfo = function() return "" end
+      eq(loadGame().Game.CurrentInstanceName(), nil, "empty name")
+      GetInstanceInfo = function() error("boom") end
+      eq(loadGame().Game.CurrentInstanceName(), nil, "error caught")
+      IsInInstance, GetInstanceInfo = nil, nil
+      eq(loadGame().Game.CurrentInstanceName(), nil, "no API")
     end)
 
     it("JournalInstanceName is EJ_GetInstanceInfo's name; nil when empty, missing or erroring", function()

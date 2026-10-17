@@ -220,13 +220,19 @@ local CONTENT_TOP = -60 -- content starts below the portrait
 local TITLE_BUTTONS_RIGHT = 52 -- close button + one 20 px title-bar button
 
 -- Window hooks: fn(frame) runs once the main window is built (right away
--- when it already is), for UI that docks to it (UI/ZonePanel.lua).
+-- when it already is), for UI that docks to it (UI/ZonePanel.lua). A hook
+-- that errors is reported (Game.ReportError) and never breaks the window.
 local windowHooks = {}
+
+local function runWindowHook(fn, frame)
+  local good, err = pcall(fn, frame)
+  if not good and ns.Game and ns.Game.ReportError then ns.Game.ReportError(err) end
+end
 
 function UI.AddWindowHook(fn)
   assert(type(fn) == "function", "AzerothTrail: window hook must be a function")
   windowHooks[#windowHooks + 1] = fn
-  if UI.frame then fn(UI.frame) end
+  if UI.frame then runWindowHook(fn, UI.frame) end
 end
 
 local function createWindow()
@@ -335,7 +341,7 @@ local function createWindow()
   -- Esc closes the window.
   tinsert(UISpecialFrames, frame:GetName())
 
-  for _, fn in ipairs(windowHooks) do fn(frame) end
+  for _, fn in ipairs(windowHooks) do runWindowHook(fn, frame) end
 
   local db = windowDB()
   UI.SelectTab(db and db.tab)

@@ -21,6 +21,15 @@ local MAPS = {
   [325] = { name = "The Vortex Pinnacle", mapType = 4, parentMapID = 249 },
   [409] = { name = "The Dragon Wastes", mapType = 4, parentMapID = 75 },
   [410] = { name = "Eye of Eternity", mapType = 4, parentMapID = 75 },
+  -- Nested zones: 1978 Dragon Isles (continent) > 2025 Thaldraszus (zone) >
+  -- 2112 Valdrakken (zone) > 2113 a Valdrakken micro; 2026 a Thaldraszus micro.
+  [1978] = { name = "Dragon Isles", mapType = 2, parentMapID = 1 },
+  [2025] = { name = "Thaldraszus", mapType = 3, parentMapID = 1978 },
+  [2026] = { name = "Tyrhold", mapType = 5, parentMapID = 2025 },
+  [2112] = { name = "Valdrakken", mapType = 3, parentMapID = 2025 },
+  [2113] = { name = "Seat of the Aspects", mapType = 5, parentMapID = 2112 },
+  -- An orphan / micro map that is a journal instance (a delve, a scenario).
+  [600] = { name = "Delve floor", mapType = 6, parentMapID = 71 },
 }
 
 local function ctxFor(ns, mounts, over)
@@ -66,7 +75,83 @@ describe("Zone.Root", function()
   end)
 end)
 
+describe("Zone.Root instance detection", function()
+  local info = function(id) return MAPS[id] end
+  it("any floor type below a zone (dungeon, micro, orphan) can be a journal instance", function()
+    local Zone = loadZone().Zone
+    local inst = function(id) if id == 600 or id == 74 or id == 71 or id == 12 then return 99 end end
+    eq({ Zone.Root(600, info, inst) }, { 600, 99 }, "orphan")
+    eq({ Zone.Root(74, info, inst) }, { 74, 99 }, "micro")
+    eq({ Zone.Root(71, info, inst) }, { 71 }, "a zone is never an instance")
+    eq({ Zone.Root(12, info, inst) }, { 12 }, "nor a continent (world-boss journal entries)")
+  end)
+end)
+
+describe("Zone.Key", function()
+  it("is the root plus the instance, so sub-zones of one zone share it", function()
+    local ns = loadZone()
+    local ctx = { mapInfo = function(id) return MAPS[id] end,
+      instanceForMap = function(id) if id == 409 then return 187 end end }
+    eq(ns.Zone.Key(74, ctx), "71")
+    eq(ns.Zone.Key(75, ctx), "71")
+    eq(ns.Zone.Key(71, ctx), "71")
+    eq(ns.Zone.Key(409, ctx), "409:187")
+    eq(ns.Zone.Key(999, ctx), nil)
+    eq(ns.Zone.Key(nil, ctx), nil)
+    ctx.currentInstance = "Dragon Soul"
+    eq(ns.Zone.Key(nil, ctx), "instance:dragon soul", "no map inside an instance: by name")
+  end)
+end)
+
 describe("Zone.MountsFor", function()
+  it("(a) nested zones: the zone-type ancestors of the root count, not the continent or their other maps", function()
+    local ns = loadZone()
+    local mounts = {
+      [1] = { name = "Thaldraszus rare", coords = { m = 2025 } },
+      [2] = { name = "Valdrakken vendor", coords = { m = 2112 } },
+      [3] = { name = "Tyrhold", coords = { m = 2026 } },
+      [4] = { name = "Dragon Isles", coords = { m = 1978 } },
+      [5] = { name = "Seat", coords = { m = 2113 } },
+    }
+    local list, zone = ns.Zone.MountsFor(2113, ctxFor(ns, mounts))
+    eq(ids(list), { 5, 1, 2 })
+    eq(zone, { mapID = 2112, name = "Valdrakken" }, "root and title stay the inner zone")
+    eq(ids(ns.Zone.MountsFor(2025, ctxFor(ns, mounts))), { 5, 1, 3, 2 }, "outer zone: inner zone is a descendant")
+  end)
+
+  it("no map but inside an instance (ctx.currentInstance): mounts named for it", function()
+    local ns = loadZone()
+    local mounts = {
+      [1] = { name = "By source", tab = "journal", section = "raid" },
+      [2] = { name = "By sub-group", tab = "journal", section = "raid" },
+      [3] = { name = "By route", tab = "journal", section = "raid" },
+      [4] = { name = "Other", tab = "journal", section = "raid", coords = { m = 71 } },
+    }
+    local ctx = ctxFor(ns, mounts, {
+      currentInstance = "Dragon Soul",
+      sourceZone = function(id) if id == 1 then return "Dragon Soul" end end,
+      subGroup = function(id) if id == 2 then return "dragon soul" end end,
+      routeInstance = function(id) if id == 3 then return "The Dragon Soul" end end,
+    })
+    local list, zone = ns.Zone.MountsFor(nil, ctx)
+    eq(ids(list), { 3, 1, 2 })
+    eq(zone, { name = "Dragon Soul" })
+  end)
+
+  it("gates first: excluded mounts never reach the source text or instance lookups", function()
+    local ns = loadZone()
+    local mounts = { [1] = { name = "Kept" }, [2] = { name = "Owned" }, [3] = { name = "Horde" } }
+    local asked = {}
+    local ctx = ctxFor(ns, mounts, {
+      gate = function(id) if id == 1 then return false elseif id == 2 then return true end return nil end,
+      sourceZone = function(id) asked[#asked + 1] = id; return "Tanaris" end,
+      subGroup = function(id) asked[#asked + 1] = id end,
+    })
+    eq(ids(ns.Zone.MountsFor(71, ctx)), { 1 })
+    eq(asked, { 1 }, "only the kept mount was looked up")
+  end)
+
+
   it("(a) coords on the zone, a map inside it, or the player's own floor", function()
     local ns = loadZone()
     local mounts = {

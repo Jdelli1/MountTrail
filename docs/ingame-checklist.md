@@ -260,3 +260,12 @@ A slim panel (260 px) docked to the main window's right edge lists "Mounts in <z
 - [ ] Screen edge: move the window to the right edge of the screen: the panel may run off screen (the window is clamped, the panel is not). Note whether that is a problem in practice.
 - [ ] Combat: zone changes and toggling the panel in combat give no "Interface action failed" or Lua errors naming AzerothTrail.
 - [ ] Performance: with the panel open, the first open costs a short moment (reads every mount's source once per session); later zone changes and refreshes are instant.
+
+### F6 fix round 1
+
+- [ ] Nested zones: in Valdrakken the title reads "Mounts in Valdrakken" and also lists mounts pinned to Thaldraszus itself (its outer zone), but not those on other Thaldraszus sub-maps; in Thaldraszus, Valdrakken's mounts show (it is inside). Same for Dornogal / Isle of Dorn.
+- [ ] On-screen: with the panel open, drag the window against the right screen edge: the window stops so the panel stays fully on screen. Close the panel: the window can go up to the edge again. Open the panel while the window touches the right edge: the window jumps left to make room (note if it does not until you drag it).
+- [ ] Sub-zones: scroll the panel down, then walk between sub-zones of the same zone (e.g. districts of a city, the Caverns of Time in Tanaris): the list and its scroll position stay put. Kill something that triggers a lockout refresh: the list rebuilds without jumping to the top.
+- [ ] Inside an instance whose map the client does not report (`/dump C_Map.GetBestMapForUnit("player")` prints nil): the title is the instance name (from GetInstanceInfo) and its mounts are listed by name. Delves / scenarios on micro or orphan maps that the journal knows: titled with the journal instance. Note any outdoor micro map (e.g. the Caverns of Time) that gets mistaken for an instance.
+- [ ] Bursts: with the panel open, log in / zone into an instance (several lockout events fire at once): no hitch; the panel rebuilds once.
+

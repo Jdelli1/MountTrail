@@ -144,6 +144,17 @@ function Game.InstanceForMap(mapID)
   return nil
 end
 
+-- The name of the instance the player is in (GetInstanceInfo's 1st return)
+-- while IsInInstance() says so; nil outside, for an empty name or a missing
+-- / erroring API. The zone panel's fallback when GetBestMapForUnit has no
+-- map inside an instance.
+function Game.CurrentInstanceName()
+  if not call(_G, "IsInInstance") then return nil end
+  local name = call(_G, "GetInstanceInfo")
+  if type(name) == "string" and name ~= "" then return name end
+  return nil
+end
+
 -- EJ_GetInstanceInfo(journalInstanceID)'s name, nil when empty, unknown or
 -- the API is missing / errors. Never called without an ID (that would read
 -- the Encounter Journal's selected instance).

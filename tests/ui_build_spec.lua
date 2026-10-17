@@ -33,6 +33,7 @@ function FrameMT:GetChecked() return self.checked end
 function FrameMT:SetEnabled(on) self.enabled = on end
 function FrameMT:CreateMaskTexture() return self:CreateTexture(nil, "ARTWORK") end
 function FrameMT:SetDataProvider(provider, retain) self.provider = provider; self.retain = retain end
+function FrameMT:SetClampRectInsets(l, r, t, b) self.clampInsets = { l, r, t, b } end
 
 function CreateScrollBoxListLinearView()
   local view = {}
@@ -665,6 +666,8 @@ describe("ui build", function()
     [71] = { name = "Tanaris", mapType = 3, parentMapID = 12 },
     [249] = { name = "Uldum", mapType = 3, parentMapID = 12 },
     [900] = { name = "Empty Isle", mapType = 3, parentMapID = 12 },
+    [74] = { name = "Caverns of Time", mapType = 5, parentMapID = 71 },
+    [75] = { name = "Caverns of Time", mapType = 5, parentMapID = 74 },
   }
 
   -- Real mount data; the player stands on `map.id` (Tanaris unless changed);
@@ -678,6 +681,7 @@ describe("ui build", function()
     ns.Game.MapChildren = function() return {} end
     ns.Game.InstanceForMap = function() return nil end
     ns.Game.JournalInstanceName = function() return nil end
+    ns.Game.CurrentInstanceName = function() return nil end
     ns.Game.MountSourceText = function(id)
       if id % 7 == 0 then return "|cFFFFD200Zone:|r Tanaris" end
       if id % 11 == 0 then return "|cFFFFD200Zone:|r Uldum" end
@@ -772,6 +776,72 @@ describe("ui build", function()
     ns.ToggleWindow() -- show
     eq(computed(), n + 3, "rebuilt on show")
     ok(panel.Title:GetText():find("^Mounts in Tanaris"))
+  end)
+
+  it("zone panel: the window's clamp rect takes the panel in while it is shown", function()
+    local ns = loadZoneUI()
+    ns.ToggleWindow()
+    local frame = ns.UI.frame
+    local before = { frame:GetPoint(1) }
+    frame.ZoneButton:RunScript("OnClick")
+    eq(frame.clampInsets, { 0, 262, 0, 0 }, "260 px panel + 2 px gap on the right")
+    eq({ frame:GetPoint(1) }, before, "point re-applied unchanged (re-clamps in game)")
+    frame.ZoneButton:RunScript("OnClick")
+    eq(frame.clampInsets, { 0, 0, 0, 0 }, "reset when hidden")
+    local reopened = loadZoneUI({ zonePanel = { open = true } })
+    reopened.ToggleWindow()
+    eq(reopened.UI.frame.clampInsets, { 0, 262, 0, 0 }, "saved open: set when built")
+  end)
+
+  it("zone panel: moving between sub-zones keeps the list; a refresh there keeps the scroll", function()
+    local ns, map, computed = loadZoneUI({ zonePanel = { open = true } })
+    ScrollBoxConstants = { RetainScrollPosition = "retain" }
+    map.id = 74
+    ns.ToggleWindow()
+    local panel = ns.UI.zonePanel
+    local n = computed()
+    map.id = 75
+    fire_frame_event("ZONE_CHANGED")
+    map.id = 71
+    fire_frame_event("ZONE_CHANGED_INDOORS")
+    eq(computed(), n, "same zone root: no rebuild")
+    ns.Refresh()
+    eq(computed(), n + 1)
+    eq(panel.ScrollBox.retain, "retain", "same zone: scroll kept")
+    map.id = 249
+    fire_frame_event("ZONE_CHANGED_NEW_AREA")
+    eq(panel.ScrollBox.retain, nil, "new zone: back to the top")
+    ScrollBoxConstants = nil
+  end)
+
+  it("zone panel: bursts of ns.Refresh rebuild once on the next frame (C_Timer.After(0))", function()
+    local ns, _, computed = loadZoneUI({ zonePanel = { open = true } })
+    ns.ToggleWindow()
+    local n = computed()
+    local timers = {}
+    C_Timer = { After = function(seconds, fn) timers[#timers + 1] = { seconds, fn } end }
+    ns.Refresh(); ns.Refresh(); ns.Refresh()
+    eq(computed(), n, "deferred")
+    eq(#timers, 1, "coalesced")
+    eq(timers[1][1], 0)
+    timers[1][2]()
+    eq(computed(), n + 1)
+    ns.Refresh()
+    eq(#timers, 2, "a later burst schedules again")
+    C_Timer = nil
+  end)
+
+  it("a window hook that errors is reported, not raised", function()
+    local ns = loadZoneUI()
+    local reported = {}
+    ns.Game.ReportError = function(err) reported[#reported + 1] = tostring(err) end
+    ns.UI.AddWindowHook(function() error("hook boom") end)
+    ns.ToggleWindow()
+    ok(ns.UI.frame:IsShown() and ns.UI.zonePanel, "window and panel still built")
+    eq(#reported, 1)
+    ok(reported[1]:find("hook boom"), reported[1])
+    ns.UI.AddWindowHook(function() error("late boom") end)
+    eq(#reported, 2, "a hook added after the window is built runs at once, guarded")
   end)
 
   it("zone panel: empty state line", function()

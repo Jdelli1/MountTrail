@@ -7,7 +7,7 @@ local Zone = {}
 ns.Zone = Zone
 
 -- Enum.UIMapType values (C_Map.GetMapInfo(...).mapType).
-local CONTINENT, ZONE, DUNGEON = 2, 3, 4
+local CONTINENT, ZONE = 2, 3
 
 -- Parent steps followed at most (map trees are a few levels deep).
 local MAX_STEPS = 10
@@ -20,15 +20,18 @@ local MAX_ENTRANCE_MAPS = 40
 -- The zone the player is in, from the player's map: micro / dungeon / orphan
 -- floors climb to the first Zone map above them, but never onto a continent
 -- (a floor straight under a continent is its own root; a continent stays a
--- continent). When instanceForMap is given and the map is a dungeon floor of
--- a journal instance, the player is inside that instance: the floor itself
--- is the root. mapInfo(id) -> { name=, mapType=, parentMapID= } | nil.
+-- continent). When instanceForMap is given and the map is a floor finer than
+-- a zone (dungeon, micro, orphan: delves and scenarios are not always
+-- dungeon maps) that belongs to a journal instance, the player is inside
+-- that instance: the floor itself is the root. Zone and coarser maps are
+-- never taken for an instance (the journal ties continents to their world
+-- bosses). mapInfo(id) -> { name=, mapType=, parentMapID= } | nil.
 -- -> rootMapID, journalInstanceID|nil; nil for an unknown map.
 function Zone.Root(mapID, mapInfo, instanceForMap)
   if not mapID then return nil end
   local info = mapInfo(mapID)
   if type(info) ~= "table" then return nil end
-  if info.mapType == DUNGEON and instanceForMap then
+  if type(info.mapType) == "number" and info.mapType > ZONE and instanceForMap then
     local jid = instanceForMap(mapID)
     if jid and jid ~= 0 then return mapID, jid end
   end
@@ -60,6 +63,22 @@ local function nonEmpty(s)
   return type(s) == "string" and s ~= "" and s or nil
 end
 
+-- What the panel shows for `mapID`, as a string: "<root>" or
+-- "<root>:<journalInstanceID>" (Zone.Root), or "instance:<name key>" when
+-- the map is unknown but ctx.currentInstance names the instance the player
+-- is in; nil when nothing is known. Moving between sub-zones of one zone
+-- keeps the key, so the panel need not rebuild.
+function Zone.Key(mapID, ctx)
+  local root, jid = Zone.Root(mapID, ctx.mapInfo, ctx.instanceForMap)
+  if root then
+    if jid then return root .. ":" .. jid end
+    return tostring(root)
+  end
+  local name = nonEmpty(ctx.currentInstance)
+  if name then return "instance:" .. (ctx.key or defaultKey)(name) end
+  return nil
+end
+
 -- Mounts the player can still get whose location is the zone of `mapID`
 -- (normally C_Map.GetBestMapForUnit("player")); a mount matches when
 --   (a) "coords": its coords map is the root (Zone.Root) or a map under it
@@ -83,15 +102,24 @@ end
 --   instance, instanceName(journalInstanceID) -> name (EJ_GetInstanceInfo),
 --   key(name) -> comparable key (UI.GroupKey), gate(id, m) -> owned boolean
 --   or nil to leave the mount out (Zone.Gate; default: kept, not owned),
---   showCollected = true to keep owned mounts.
+--   showCollected = true to keep owned mounts, currentInstance = the name
+--   of the instance the player is in (GetInstanceInfo) for when the map is
+--   unknown (GetBestMapForUnit gives nil in some instances): then only (b)
+--   and (c) by that name apply.
+-- Nested zones: a Zone-type ancestor of a Zone root (Thaldraszus above
+-- Valdrakken, Isle of Dorn above Dornogal) counts for (a) itself, not its
+-- other maps; the root and the title stay the inner zone.
+-- The gate runs first: excluded mounts are never looked up.
 -- -> list of { id=, m=, owned=, via= "coords"|"source"|"instance" } sorted
 -- by name (case-insensitive), then id; zone = { mapID = root, name =,
--- instance = journalInstanceID (inside one) } or nil for an unknown map.
+-- instance = journalInstanceID (inside one) } ({ name = } by instance name
+-- only) or nil when nothing is known.
 function Zone.MountsFor(mapID, ctx)
   local mapInfo = ctx.mapInfo
   local root, insideInstance = Zone.Root(mapID, mapInfo, ctx.instanceForMap)
-  if not root then return {}, nil end
-  local rootInfo = mapInfo(root)
+  local byName = not root and nonEmpty(ctx.currentInstance) or nil
+  if not (root or byName) then return {}, nil end
+  local rootInfo = root and mapInfo(root) or {}
   local key = ctx.key or defaultKey
 
   -- Parent lookups and instance lookups, once per map this call.
@@ -116,11 +144,23 @@ function Zone.MountsFor(mapID, ctx)
     return v or nil
   end
 
-  -- (a) Is `id` the root or a map below it?
+  -- (a) Is `id` the root, a map below it, or a Zone-type ancestor below the
+  -- continent (nested zones)?
   local rootIsZone = type(rootInfo.mapType) == "number" and rootInfo.mapType >= ZONE
+  local ancestors = {}
+  if root and rootInfo.mapType == ZONE then
+    local current, steps = rootInfo.parentMapID, 0
+    while current and current ~= 0 and current ~= root and not ancestors[current] and steps < MAX_STEPS do
+      local i = info(current)
+      if not i or type(i.mapType) ~= "number" or i.mapType <= CONTINENT then break end
+      if i.mapType == ZONE then ancestors[current] = true end
+      current, steps = i.parentMapID, steps + 1
+    end
+  end
   local inZone = {}
   local function underRoot(id)
-    if id == root then return true end
+    if not root then return false end
+    if id == root or ancestors[id] then return true end
     if not rootIsZone then return false end
     local v = inZone[id]
     if v ~= nil then return v end
@@ -138,7 +178,7 @@ function Zone.MountsFor(mapID, ctx)
   end
 
   -- (b) Names the source text's Zone: may carry.
-  local zoneName = rootInfo.name
+  local zoneName = byName or rootInfo.name
   local names = {}
   local function addName(name)
     name = nonEmpty(name)
@@ -155,7 +195,9 @@ function Zone.MountsFor(mapID, ctx)
     if name then instanceNames[key(name)] = true end
     return name
   end
-  if insideInstance then
+  if byName then
+    instanceNames[key(byName)] = true
+  elseif insideInstance then
     local name = addInstance(insideInstance)
     if name then
       zoneName = name
@@ -191,7 +233,7 @@ function Zone.MountsFor(mapID, ctx)
       end
     end
   end
-  local anyInstance = next(instances) ~= nil
+  local anyInstance = next(instances) ~= nil or next(instanceNames) ~= nil
 
   local function coordsMap(id, m)
     local c
@@ -208,7 +250,8 @@ function Zone.MountsFor(mapID, ctx)
     if cm and underRoot(cm) then return "coords" end
     if ctx.sourceZone and named(ctx.sourceZone(id), names) then return "source" end
     if anyInstance then
-      if cm and instanceOf(cm) and instances[instanceOf(cm)] then return "instance" end
+      local jid = cm and instanceOf(cm)
+      if jid and instances[jid] then return "instance" end
       if ctx.subGroup and named(ctx.subGroup(id, m), instanceNames) then return "instance" end
       if ctx.routeInstance and named(ctx.routeInstance(id), instanceNames) then return "instance" end
     end
@@ -217,11 +260,12 @@ function Zone.MountsFor(mapID, ctx)
 
   local out = {}
   for id, m in pairs(ctx.mounts or {}) do
-    local reason = via(id, m)
-    if reason then
-      local owned = false
-      if ctx.gate then owned = ctx.gate(id, m) end
-      if owned ~= nil and (ctx.showCollected or not owned) then
+    -- Gate first: owned / other-faction mounts skip every lookup.
+    local owned = false
+    if ctx.gate then owned = ctx.gate(id, m) end
+    if owned ~= nil and (ctx.showCollected or not owned) then
+      local reason = via(id, m)
+      if reason then
         out[#out + 1] = { id = id, m = m, owned = owned and true or false, via = reason }
       end
     end
@@ -231,6 +275,7 @@ function Zone.MountsFor(mapID, ctx)
     if na ~= nb then return na < nb end
     return a.id < b.id
   end)
+  if byName then return out, { name = zoneName } end
   return out, { mapID = root, name = zoneName, instance = insideInstance }
 end
 
