@@ -262,7 +262,7 @@ describe("ui route", function()
         { false, true, false })
     end)
 
-    it("ticks every manual boss with its spec's reset, then unticks them", function()
+    it("ticks every open boss with its spec's reset, then unticks them", function()
       local ns = loadUI(nil, {
         Lockouts = { [1] = { manual = true, reset = "daily" }, [3] = { quest = 9, reset = "weekly" } },
         BossLockouts = { ["Weekly Rare"] = { manual = true, reset = "weekly" } },
@@ -272,11 +272,13 @@ describe("ui route", function()
         { mount = 1, boss = "Daily Rare", state = "manual-open" },
         { mount = 2, boss = "Weekly Rare", state = "manual-open" },
         { mount = 3, boss = "Quest Boss", state = "open" },
+        { mount = 4, boss = "Untracked", state = "open" },
       }, "manual")
       eq(ns.UI.RouteToggle(r, store, NOW, 100, 5000), true)
-      eq(store, { [1] = NOW + 100, [2] = NOW + 5000 })
+      eq(store, { [1] = NOW + 100, ["2@Weekly Rare"] = NOW + 5000, [3] = NOW + 5000 },
+        "BossLockouts bosses are keyed per route boss; untracked mounts are not ticked")
 
-      r.bosses[1].state, r.bosses[2].state = "manual-done", "manual-done"
+      r.bosses[1].state, r.bosses[2].state, r.bosses[3].state = "manual-done", "manual-done", "manual-done"
       eq(ns.UI.RouteToggle(r, store, NOW, 100, 5000), true)
       eq(store, {})
     end)
@@ -286,6 +288,72 @@ describe("ui route", function()
       local store = { [9] = 1 }
       eq(ns.UI.RouteToggle(row({ { mount = 1, state = "done" } }, "done", true), store, NOW, 1, 2), false)
       eq(store, { [9] = 1 })
+    end)
+
+    it("an open auto row (instance, quest or lfg spec) can be ticked by hand", function()
+      local ns = loadUI(nil, { Lockouts = {
+        [1] = { instance = 616, boss = "Malygos", difficulties = { 3, 4 }, reset = "weekly" },
+      } })
+      eq({ ns.UI.RouteCheck(row({ { mount = 1, boss = "Malygos", state = "open" } })) }, { false, true, false })
+      eq({ ns.UI.RouteCheck(row({ { mount = 1, boss = "Malygos", state = "manual-done" } }, "done")) },
+        { true, true, false }, "a hand tick is clickable to untick and never tagged auto")
+      eq({ ns.UI.RouteCheck(row({ { mount = 9, state = "open" } })) }, { false, false, false }, "untracked stays disabled")
+    end)
+
+    it("manual override on an instance row: stored with the spec's reset, done until reset", function()
+      local saved = {}
+      local ns = loadUI({ SavedRows = function() return saved end }, {
+        Route = { kill("Eye of Eternity", { { mount = 1, boss = "Malygos" } }) },
+        Lockouts = { [1] = { instance = 616, boss = "Malygos", difficulties = { 3, 4 }, reset = "weekly" } },
+      })
+      local rows = ns.Route.Build(ns.Data.Route, ns.UI.RouteContext(NOW))
+      eq(rows[1].state, "open")
+      eq(ns.UI.RouteToggle(rows[1], ns.db.char.ticks, NOW, 100, 5000), true)
+      eq(ns.db.char.ticks, { [1] = NOW + 5000 }, "weekly spec -> weekly expiry")
+      eq(ns.UI.RouteContext(NOW).stateOf(1, "Malygos"), "manual-done")
+      eq(ns.UI.RouteRemaining(NOW), 0)
+      ns.db.char.showCompleted = true
+      rows = ns.Route.Build(ns.Data.Route, ns.UI.RouteContext(NOW))
+      eq({ rows[1].state, rows[1].auto }, { "done", false })
+      eq(ns.UI.RouteRemaining(NOW + 5000), 1, "open again after the weekly reset")
+
+      -- The game reports it done: the auto path wins over the hand tick.
+      saved[1] = { instance = 616, difficulty = 3, bosses = { { name = "Malygos", killed = true } } }
+      saved[2] = { instance = 616, difficulty = 4, bosses = { { name = "Malygos", killed = true } } }
+      eq(ns.UI.RouteContext(NOW).stateOf(1, "Malygos"), "done")
+      rows = ns.Route.Build(ns.Data.Route, ns.UI.RouteContext(NOW))
+      eq({ ns.UI.RouteCheck(rows[1]) }, { true, false, true })
+    end)
+
+    it("a hand tick on a BossLockouts row does not mark the mount's other rows", function()
+      local ns = loadUI(nil, {
+        Route = {
+          kill("Vortex Pinnacle", { { mount = 395, boss = "Altairus" } }),
+          kill("Dawn of the Infinites", { { mount = 395, boss = "Chrono-Lord Deios" } }),
+        },
+        Lockouts = { [395] = { instance = 657, boss = "Altairus", difficulties = { 2 }, reset = "daily" } },
+        BossLockouts = { ["Chrono-Lord Deios"] = { instance = 2579, boss = "Chrono-Lord Deios", difficulties = { 23 }, reset = "weekly" } },
+      })
+      local rows = ns.Route.Build(ns.Data.Route, ns.UI.RouteContext(NOW))
+      ns.UI.RouteToggle(rows[2], ns.db.char.ticks, NOW, 100, 5000)
+      local ctx = ns.UI.RouteContext(NOW)
+      eq(ctx.stateOf(395, "Chrono-Lord Deios"), "manual-done")
+      eq(ctx.stateOf(395, "Altairus"), "open")
+      eq(ns.UI.RouteRemaining(NOW), 1)
+    end)
+
+    it("manual overrides never add attempts", function()
+      local ns = loadUI({ RequestLockouts = function() end }, {
+        Route = { kill("Eye of Eternity", { { mount = 1, boss = "Malygos" } }) },
+        Lockouts = { [1] = { instance = 616, boss = "Malygos", difficulties = { 3, 4 }, reset = "weekly" } },
+      })
+      ns.addon:OnEnable()
+      fire_event(ns.addon, "UPDATE_INSTANCE_INFO")
+      local rows = ns.Route.Build(ns.Data.Route, ns.UI.RouteContext(NOW))
+      ns.UI.RouteToggle(rows[1], ns.db.char.ticks, NOW, 100, 5000)
+      fire_event(ns.addon, "UPDATE_INSTANCE_INFO")
+      fire_event(ns.addon, "QUEST_TURNED_IN", 1)
+      eq(ns.db.global.attempts, {})
     end)
 
     it("round-trips through RouteContext: a ticked row reads manual-done", function()

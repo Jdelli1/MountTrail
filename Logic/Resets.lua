@@ -1,7 +1,8 @@
 local ADDON, ns = ...
 
 -- Manual "done" ticks that expire at the next daily/weekly reset.
--- store is a plain table {[mountID] = expiresAt}; pure Lua, no WoW API.
+-- store is a plain table {[key] = expiresAt}, key a mountID (or a route tick
+-- key, UI.RouteTickKey); pure Lua, no WoW API.
 local Resets = {}
 ns.Resets = Resets
 

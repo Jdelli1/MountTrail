@@ -64,10 +64,24 @@ local function holidaySteps()
   return steps
 end
 
+-- Key of a route boss's hand tick in ns.db.char.ticks: the mountID, or
+-- "<mountID>@<routeBoss>" when a per-boss spec (Data.BossLockouts) governs
+-- the row, so ticking e.g. the Dawn of the Infinites row does not also tick
+-- the same mounts' own dungeon rows.
+function UI.RouteTickKey(mountID, routeBoss)
+  local per = ns.Data and ns.Data.BossLockouts
+  if routeBoss and per and per[routeBoss] then
+    return tostring(mountID) .. "@" .. tostring(routeBoss)
+  end
+  return mountID
+end
+
 -- Route.Build context for this character at `now` (epoch seconds, defaults to
--- Game.Now()). stateOf(mountID, routeBoss): the governing spec's state,
--- "done" | "open", or for manual specs "manual-done" (ticked, not expired) |
--- "manual-open"; untracked mounts are "open".
+-- Game.Now()). stateOf(mountID, routeBoss): "done" when the game reports the
+-- governing spec done (the auto path always wins); else "manual-done" while a
+-- hand tick (any spec kind: manual specs, or a manual override of an
+-- instance / quest / LFG spec) has not expired; else "manual-open" for manual
+-- specs and "open" otherwise (untracked mounts too).
 function UI.RouteContext(now)
   local Game = ns.Game
   now = now or Game.Now()
@@ -76,10 +90,9 @@ function UI.RouteContext(now)
   local function stateOf(mountID, routeBoss)
     local spec = ns.Lockouts.SpecFor(mountID, routeBoss)
     local state = ns.Lockouts.State(spec, snap, Game.IsQuestDone, Game.IsLfgDone)
-    if state == "manual" then
-      return ns.Resets.IsTicked(ticks, mountID, now) and "manual-done" or "manual-open"
-    end
     if state == "done" then return "done" end
+    if ns.Resets.IsTicked(ticks, UI.RouteTickKey(mountID, routeBoss), now) then return "manual-done" end
+    if state == "manual" then return "manual-open" end
     return "open"
   end
   local char = charDB()
@@ -117,42 +130,52 @@ function UI.RouteNextStep(now, skipped)
   return ns.Arrow.NextStep(rows, skipped)
 end
 
-local function isManual(state)
-  return state == "manual-open" or state == "manual-done"
+-- Whether the player may tick (or untick) a route boss by hand: a hand tick
+-- (manual-done), a manual spec, or an open boss whose spec the game tracks
+-- (instance / quest / LFG: a manual override). "done" belongs to the game;
+-- untracked mounts have nothing to reset.
+local function tickable(b)
+  local state = b.state
+  if state == "manual-open" or state == "manual-done" then return true end
+  if state ~= "open" then return false end
+  return ns.Lockouts.SpecFor(b.mount, b.boss) ~= nil
 end
 
 -- Tick box for a route row -> checked, enabled, auto.
--- Rows with manual bosses: enabled, checked when every manual boss is ticked,
--- never tagged "auto" (the tick is the player's). Other kill rows: disabled
--- (the game decides), checked when done, "auto" when Route.Build says so.
--- Travel rows: nil (no box).
+-- Rows with a tickable boss: enabled, checked when every tickable boss is
+-- ticked, never tagged "auto" (the tick is the player's). Other kill rows:
+-- disabled (the game decides), checked when done, "auto" when Route.Build
+-- says so. Travel rows: nil (no box).
 function UI.RouteCheck(row)
   if row.kind ~= "kill" then return nil end
-  local anyManual, allTicked = false, true
+  local anyTickable, allTicked = false, true
   for _, b in ipairs(row.bosses or {}) do
-    if isManual(b.state) then
-      anyManual = true
+    if tickable(b) then
+      anyTickable = true
       if b.state ~= "manual-done" then allTicked = false end
     end
   end
-  if anyManual then return allTicked, true, false end
+  if anyTickable then return allTicked, true, false end
   return row.state == "done", false, row.auto == true
 end
 
--- Click on a manual row: untick every manual boss when all are ticked, else
--- tick them all until the next reset of their spec (`reset`, default daily).
--- -> true when the row had manual bosses.
+-- Click on a tickable row: untick every tickable boss when all are ticked,
+-- else tick them all until the next reset of their spec (`reset`, default
+-- daily). Ticks are keyed by UI.RouteTickKey. -> true when the row had a
+-- tickable boss. Hand ticks never count attempts (Core\Init.lua reads only
+-- the game's lockout data).
 function UI.RouteToggle(row, store, now, untilDaily, untilWeekly)
   local checked, enabled = UI.RouteCheck(row)
   if not enabled then return false end
   for _, b in ipairs(row.bosses or {}) do
-    if isManual(b.state) then
+    if tickable(b) then
+      local key = UI.RouteTickKey(b.mount, b.boss)
       if checked then
-        ns.Resets.Untick(store, b.mount)
+        ns.Resets.Untick(store, key)
       else
         local spec = ns.Lockouts.SpecFor(b.mount, b.boss)
         local kind = (spec and (spec.reset == "weekly" or spec.reset == "daily")) and spec.reset or "daily"
-        ns.Resets.Tick(store, b.mount, kind, now, untilDaily, untilWeekly)
+        ns.Resets.Tick(store, key, kind, now, untilDaily, untilWeekly)
       end
     end
   end
