@@ -47,6 +47,14 @@ describe("lockouts", function()
       eq(load().Lockouts.Snapshot(rows), { [657] = { [2] = { Altairus = true } } })
     end)
 
+    it("ignores bosses with an empty name", function()
+      local rows = {
+        { instance = 657, difficulty = 2, bosses = { { name = "", killed = true }, { name = "Altairus", killed = true } } },
+        { instance = 658, difficulty = 2, bosses = { { name = "", killed = true } } },
+      }
+      eq(load().Lockouts.Snapshot(rows), { [657] = { [2] = { Altairus = true } } })
+    end)
+
     it("omits rows with no kills", function()
       local rows = { { instance = 1, difficulty = 1, bosses = { { name = "X", killed = false } } } }
       eq(load().Lockouts.Snapshot(rows), {})
@@ -111,6 +119,15 @@ describe("lockouts", function()
       eq(L.State(s, killed(1, 16, "Not Fyrakk")), "open")
     end)
 
+    it("an empty name never matches, on either side", function()
+      local L = load().Lockouts
+      local s = { instance = 1, boss = "Fyrakk", difficulties = { 16 }, reset = "weekly" }
+      eq(L.State(s, killed(1, 16, "")), "open", "empty snapshot name")
+      local empty = { instance = 1, boss = "", difficulties = { 16 }, reset = "weekly" }
+      eq(L.State(empty, killed(1, 16, "Fyrakk")), "open", "empty spec name")
+      eq(L.State(empty, killed(1, 16, "")), "open", "both empty")
+    end)
+
     it("boss names with pattern characters match literally", function()
       local L = load().Lockouts
       local s = { instance = 1, boss = "Kael'thas (Sunstrider)-", difficulties = { 2 }, reset = "daily" }
@@ -143,6 +160,27 @@ describe("lockouts", function()
 
     it("unknown spec kind is open", function()
       eq(load().Lockouts.State({ reset = "weekly" }, {}), "open")
+    end)
+  end)
+
+  describe("GroupsDone", function()
+    it("numbers are their own group, tables are any-of groups", function()
+      local L = load().Lockouts
+      local s = { instance = 1, boss = "B", difficulties = { 14, 15, 16 }, reset = "weekly" }
+      eq({ L.GroupsDone(s, {}) }, { {}, 0 })
+      eq({ L.GroupsDone(s, killed(1, 15, "B")) }, { { [2] = true }, 1 })
+      eq({ L.GroupsDone(s, merge(killed(1, 14, "B"), killed(1, 16, "B"))) }, { { [1] = true, [3] = true }, 2 })
+      local anyOf = { instance = 1, boss = "B", difficulties = { 2, { 5, 6 } }, reset = "weekly" }
+      eq({ L.GroupsDone(anyOf, killed(1, 6, "B")) }, { { [2] = true }, 1 })
+      eq({ L.GroupsDone(anyOf, merge(killed(1, 5, "B"), killed(1, 6, "B"))) }, { { [2] = true }, 1 })
+    end)
+
+    it("non-instance specs and nil have no groups", function()
+      local L = load().Lockouts
+      eq({ L.GroupsDone(nil, {}) }, { {}, 0 })
+      eq({ L.GroupsDone({ quest = 1, reset = "weekly" }, {}) }, { {}, 0 })
+      eq({ L.GroupsDone({ manual = true }, {}) }, { {}, 0 })
+      eq({ L.GroupsDone({ instance = 1, boss = "B", difficulties = { 2 } }, nil) }, { {}, 0 })
     end)
   end)
 

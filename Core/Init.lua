@@ -81,9 +81,11 @@ local function observe(prev)
   return curr
 end
 
--- Compares the last stored observation with a fresh one and counts one
--- attempt for each unowned mount whose lockout went open -> done. Returns the
--- mountIDs counted. Does nothing until saved-instance data has arrived.
+-- Compares the last stored observation with a fresh one and counts the new
+-- attempts of unowned mounts (Attempts.Newly: one per newly satisfied
+-- difficulty group, or per quest / LFG flag going open -> done). Returns the
+-- mountIDs counted (a mount once per attempt). Does nothing until
+-- saved-instance data has arrived.
 function ns.UpdateAttempts()
   if not (ns.db and ready.instances) then return {} end
   local char, global = ns.db.char, ns.db.global

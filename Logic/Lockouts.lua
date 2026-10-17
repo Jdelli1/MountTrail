@@ -7,13 +7,14 @@ ns.Lockouts = Lockouts
 
 -- rows: { {instance=, difficulty=, bosses={ {name=, killed=bool} }} } or nil
 -- -> snap[instance][difficulty][bossName] = true, killed bosses only.
--- Rows with a nil instance or difficulty and bosses with a nil name are skipped.
+-- Rows with a nil instance or difficulty and bosses with a nil or empty name
+-- are skipped (an empty name would prefix-match every boss).
 function Lockouts.Snapshot(rows)
   local snap = {}
   for _, row in ipairs(rows or {}) do
     if row.instance ~= nil and row.difficulty ~= nil then
       for _, boss in ipairs(row.bosses or {}) do
-        if boss.killed and boss.name ~= nil then
+        if boss.killed and type(boss.name) == "string" and boss.name ~= "" then
           local byDiff = snap[row.instance]
           if not byDiff then byDiff = {}; snap[row.instance] = byDiff end
           local byBoss = byDiff[row.difficulty]
@@ -49,8 +50,13 @@ local function startsWith(s, prefix)
 end
 
 -- A spec boss matches a snapshot boss if equal, or either is a prefix of the
--- other ("Fyrakk" vs "Fyrakk the Blazing").
+-- other ("Fyrakk" vs "Fyrakk the Blazing"). An empty name on either side
+-- never matches.
 local function bossMatches(specBoss, snapBoss)
+  if type(specBoss) ~= "string" or type(snapBoss) ~= "string"
+    or specBoss == "" or snapBoss == "" then
+    return false
+  end
   return specBoss == snapBoss or startsWith(snapBoss, specBoss) or startsWith(specBoss, snapBoss)
 end
 
@@ -72,6 +78,26 @@ local function groupSatisfied(snap, spec, group)
     return false
   end
   return killedOn(snap, spec.instance, group, spec.boss)
+end
+
+local function isInstanceSpec(spec)
+  return spec and not spec.manual and not spec.quest and not spec.lfg
+    and spec.instance and type(spec.difficulties) == "table" and #spec.difficulties > 0
+end
+
+-- Difficulty groups of an instance spec that the snapshot satisfies: a number
+-- in spec.difficulties is its own group, a table is an any-of group.
+-- -> { [groupIndex] = true }, count. Other specs (and nil) -> {}, 0.
+function Lockouts.GroupsDone(spec, snap)
+  local done, count = {}, 0
+  if not isInstanceSpec(spec) then return done, count end
+  for i, group in ipairs(spec.difficulties) do
+    if groupSatisfied(snap, spec, group) then
+      done[i] = true
+      count = count + 1
+    end
+  end
+  return done, count
 end
 
 -- spec nil -> nil (not tracked); else "done" | "open" | "manual".
