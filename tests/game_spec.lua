@@ -6,6 +6,7 @@ local API_GLOBALS = {
   "C_DateAndTime", "C_Calendar", "GetExpansionDisplayInfo", "C_MountJournal",
   "C_QuestLog", "GetLFGDungeonRewards", "RequestRaidInfo", "RequestLFDPlayerLockInfo",
   "GetServerTime", "geterrorhandler", "GetStatistic", "InCombatLockdown", "C_Map",
+  "C_Item", "Item",
 }
 local ORIGINAL = {}
 for _, name in ipairs(API_GLOBALS) do ORIGINAL[name] = _G[name] end
@@ -204,6 +205,42 @@ describe("game adapter", function()
       eq(G.MountSourceText(7), nil)
       eq(G.MountSourceText(8), nil)
       eq(G.MountSourceText(nil), nil)
+    end)
+  end)
+
+  describe("item data", function()
+    it("ItemCached asks C_Item.IsItemDataCachedByID; nil when it cannot tell", function()
+      C_Item = { IsItemDataCachedByID = function(id)
+        if id == 1 then return true end
+        if id == 3 then error("boom") end
+        return false
+      end }
+      local G = loadGame().Game
+      eq(G.ItemCached(1), true)
+      eq(G.ItemCached(2), false)
+      eq(G.ItemCached(3), nil, "error caught")
+      eq(G.ItemCached(nil), nil)
+      C_Item = {}
+      eq(loadGame().Game.ItemCached(1), nil, "no API")
+      C_Item = nil
+      eq(loadGame().Game.ItemCached(1), nil, "no C_Item")
+    end)
+
+    it("OnItemLoad runs fn through the Item mixin's ContinueOnItemLoad", function()
+      local got
+      Item = { CreateFromItemID = function(self, id)
+        eq(self, Item)
+        return { ContinueOnItemLoad = function(_, fn) got = id; fn() end }
+      end }
+      local ran = false
+      local G = loadGame().Game
+      eq(G.OnItemLoad(87771, function() ran = true end), true)
+      eq({ got, ran }, { 87771, true })
+      eq(G.OnItemLoad(nil, function() end), false)
+      Item = { CreateFromItemID = function() error("boom") end }
+      eq(loadGame().Game.OnItemLoad(1, function() end), false, "error caught")
+      Item = nil
+      eq(loadGame().Game.OnItemLoad(1, function() end), false, "no mixin")
     end)
   end)
 

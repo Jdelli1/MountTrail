@@ -179,7 +179,7 @@ describe("ui achievements", function()
       ns.UI.ShowMountTooltip({}, 262)
       GameTooltip = old
       eq(addLines(calls), {
-        "Mount", "Achievement reward", "Attempts=0", "Lockout: —",
+        "Mount", "Achievement reward", "Lockout: —",
         "Achievement: Glory of the Hero", "Heroic feats.", "  Done one", "  Open one",
         "Ctrl-click to preview", "Shift-right-click to open the achievement",
       })
@@ -198,7 +198,7 @@ describe("ui achievements", function()
       GameTooltip = tip
       ns.UI.ShowMountTooltip({}, 20)
       GameTooltip = old
-      eq(addLines(calls), { "Mount", "Attempts=0", "Lockout: —", "Ctrl-click to preview" })
+      eq(addLines(calls), { "Mount", "Lockout: —", "Ctrl-click to preview" })
     end)
 
     it("repaints the open tooltip when the scan finishes", function()
@@ -213,7 +213,7 @@ describe("ui achievements", function()
       GameTooltip = tip
       local owner = {}
       ns.UI.ShowMountTooltip(owner, 262)
-      ok(addLines(calls)[5] == "Achievement: looking up...", "pending line")
+      ok(addLines(calls)[4] == "Achievement: looking up...", "pending line")
       status = "ready"
       ns.UI.OnAchievementsReady()
       local lines = addLines(calls)
@@ -225,7 +225,7 @@ describe("ui achievements", function()
       local slice = {}
       for i = before + 1, #calls do slice[#slice + 1] = calls[i] end
       local after = addLines(slice)
-      eq(after, { "Mount", "Attempts=0", "Lockout: —", "Ctrl-click to preview" }, "repainted for mount 20")
+      eq(after, { "Mount", "Lockout: —", "Ctrl-click to preview" }, "repainted for mount 20")
       -- Once hidden (or owned by something else) nothing is repainted.
       local n = #calls
       ns.UI.HideMountTooltip()

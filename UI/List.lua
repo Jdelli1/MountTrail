@@ -18,8 +18,10 @@ local ADDON, ns = ...
 -- refines journal sections into delves / caches) unless the query already has
 -- them.
 -- opts (optional): { headerSuffix = fn(sectionKey) -> string|nil (a green
--- badge after the header text), rowTag = fn(mountID, m) -> string|nil (a
--- green tag after the row's source line) }.
+-- badge after the header text), headerActive = fn(sectionKey) -> bool (the
+-- header text in green), rowTag = fn(mountID, m) -> string|nil (a green tag
+-- after the row's source line) }. The base query may carry pin =
+-- {[section]=true} (Journal.Select: those sections first).
 -- Rows are a tree (UI.ListRows): section headers, sub-headers (dungeon / raid
 -- by instance, world by zone, reputation by faction group), mounts. Headers
 -- show +/- and (owned/total) over every mount the view's filters select,
@@ -184,6 +186,55 @@ end
 local FULLWIDTH_COLON = "\239\188\154" -- U+FF1A, zhCN / zhTW labels
 local MAX_LABEL = 40 -- bytes; longer "labels" are sentences with a colon
 
+local function trim(s)
+  return string.match(s, "^%s*(.-)%s*$")
+end
+
+-- Comparable form of a label: lower case, without the colon and spaces.
+local function labelKey(label)
+  if type(label) ~= "string" then return nil end
+  label = string.gsub(label, FULLWIDTH_COLON, "")
+  label = string.gsub(label, ":", "")
+  label = trim(label)
+  if label == "" then return nil end
+  return string.lower(label)
+end
+
+-- Label kinds of the source text: English words plus the client's own
+-- (GlobalStrings: BATTLE_PET_SOURCE_n are the Mount Journal's source names,
+-- ZONE_COLON / LOCATION_COLON / COSTS_LABEL / CATEGORY) for other locales.
+-- Read on each call, so a client without them still works. cost and
+-- category only serve to split lines (UI.SourcePairs).
+local KIND_WORDS = {
+  { kind = "drop", words = { "Drop" }, globals = { "BATTLE_PET_SOURCE_1" } },
+  { kind = "quest", words = { "Quest" }, globals = { "BATTLE_PET_SOURCE_2" } },
+  { kind = "vendor", words = { "Vendor" }, globals = { "BATTLE_PET_SOURCE_3" } },
+  { kind = "achievement", words = { "Achievement" }, globals = { "BATTLE_PET_SOURCE_6" } },
+  { kind = "zone", words = { "Zone", "Location" }, globals = { "ZONE_COLON", "LOCATION_COLON" } },
+  { kind = "cost", words = { "Cost" }, globals = { "COSTS_LABEL" } },
+  { kind = "category", words = { "Category" }, globals = { "CATEGORY" } },
+}
+
+local function labelKinds()
+  local kinds = {}
+  local function add(word, kind)
+    local key = labelKey(word)
+    if key and not kinds[key] then kinds[key] = kind end
+  end
+  for _, entry in ipairs(KIND_WORDS) do
+    for _, word in ipairs(entry.words) do add(word, entry.kind) end
+    for _, name in ipairs(entry.globals) do add(_G[name], entry.kind) end
+  end
+  return kinds
+end
+
+-- Kind of a source label: "drop" | "quest" | "vendor" | "achievement" |
+-- "zone" (Zone / Location) | "cost" | "category" | nil.
+function UI.SourceLabelKind(label, kinds)
+  local key = labelKey(label)
+  return key and (kinds or labelKinds())[key] or nil
+end
+
 -- "<label>: <value>" -> label (with its colon), value; nil when the line has
 -- no short, digit-free label before its first colon.
 local function splitLabel(line)
@@ -195,22 +246,56 @@ local function splitLabel(line)
   return label, value
 end
 
+-- A value that runs into another known label ("Ultraxion Zone: Dragon
+-- Soul") -> head, label, tail; nil when no known label (labelKinds) follows a
+-- space. Unknown words never split ("Ahead of the Curve: Ultraxion").
+local function splitKnown(value, kinds)
+  local from = 1
+  while true do
+    local space = string.find(value, "%s", from)
+    if not space then return nil end
+    local rest = string.sub(value, space + 1)
+    local label = string.match(rest, "^([^:%s][^:]-:)")
+    if label and #label <= MAX_LABEL and kinds[labelKey(label)] then
+      local head = trim(string.sub(value, 1, space - 1))
+      if head ~= "" then return head, label, trim(string.sub(rest, #label + 1)) end
+    end
+    from = space + 1
+  end
+end
+
+-- Coloured labels ("|cFFFFD200Zone:|r", "|cnNORMAL_FONT_COLOR:Zone:|r") start
+-- a line of their own, even when the client put several on one line.
+local function breakColouredLabels(text)
+  for _, colon in ipairs({ ":", FULLWIDTH_COLON }) do
+    text = string.gsub(text, "(|c%x%x%x%x%x%x%x%x[^|\n]-" .. colon .. "%s*|r)", "|n%1")
+    text = string.gsub(text, "(|cn[^:|]*:[^|\n]-" .. colon .. "%s*|r)", "|n%1")
+  end
+  return text
+end
+
 -- The source string's lines (UI.StripMarkup) -> { { label = "Drop:", value =
 -- "Ultraxion" }, { value = "<unlabelled line>" }, ... } in order. Labels are
 -- the client's own (localised) text with the colon; lines and values are
--- trimmed; empty lines and labels with an empty value are left out.
+-- trimmed; empty lines and labels with an empty value are left out. Several
+-- labels on one line become several pairs: coloured labels always, plain
+-- ones when the label is a known word (UI.SourceLabelKind).
 function UI.SourcePairs(text)
   local out = {}
-  text = UI.StripMarkup(text)
-  if not text then return out end
+  if type(text) ~= "string" then return out end
+  text = UI.StripMarkup(breakColouredLabels(text))
+  local kinds = labelKinds()
   for line in string.gmatch(text .. "\n", "([^\n]*)\n") do
-    line = string.match(line, "^%s*(.-)%s*$")
+    line = trim(line)
     if line ~= "" then
       local label, value = splitLabel(line)
       if label then
-        value = string.match(value, "^%s*(.-)%s*$")
-        if value ~= "" then
-          out[#out + 1] = { label = string.match(label, "^%s*(.-)%s*$"), value = value }
+        value = trim(value)
+        while label do
+          local head, nextLabel, tail = splitKnown(value, kinds)
+          if head then value = head end
+          if value ~= "" then out[#out + 1] = { label = trim(label), value = value } end
+          label, value = nextLabel, tail
         end
       else
         out[#out + 1] = { value = line }
@@ -218,48 +303,6 @@ function UI.SourcePairs(text)
     end
   end
   return out
-end
-
--- Comparable form of a label: lower case, without the colon and spaces.
-local function labelKey(label)
-  if type(label) ~= "string" then return nil end
-  label = string.gsub(label, FULLWIDTH_COLON, "")
-  label = string.gsub(label, ":", "")
-  label = string.match(label, "^%s*(.-)%s*$")
-  if label == "" then return nil end
-  return string.lower(label)
-end
-
--- Label kinds of the source text: English words plus the client's own
--- (GlobalStrings: BATTLE_PET_SOURCE_n are the Mount Journal's source names,
--- ZONE_COLON / LOCATION_COLON) for other locales. Read on each call, so a
--- client without them still works.
-local KIND_WORDS = {
-  { "drop", "Drop", "BATTLE_PET_SOURCE_1" },
-  { "quest", "Quest", "BATTLE_PET_SOURCE_2" },
-  { "vendor", "Vendor", "BATTLE_PET_SOURCE_3" },
-  { "achievement", "Achievement", "BATTLE_PET_SOURCE_6" },
-  { "zone", "Zone", "ZONE_COLON", "Location", "LOCATION_COLON" },
-}
-
-local function labelKinds()
-  local kinds = {}
-  for _, entry in ipairs(KIND_WORDS) do
-    for i = 2, #entry do
-      local word = entry[i]
-      if string.find(word, "_") then word = _G[word] end
-      local key = labelKey(word)
-      if key and not kinds[key] then kinds[key] = entry[1] end
-    end
-  end
-  return kinds
-end
-
--- Kind of a source label: "drop" | "quest" | "vendor" | "achievement" |
--- "zone" (Zone / Location) | nil.
-function UI.SourceLabelKind(label, kinds)
-  local key = labelKey(label)
-  return key and (kinds or labelKinds())[key] or nil
 end
 
 -- True for the label of the zone line: "Zone:", or ZONE_COLON (a
@@ -296,7 +339,7 @@ end
 --   "Drop: Ultraxion · Dragon Soul" (Drop, plus Zone / Location),
 --   "Achievement: <name>" (source text, else the achievement scan's name),
 --   "Vendor: <name> · <zone>", "Quest: <name>",
---   another labelled line ("Treasure: <name> · <zone>"),
+--   another labelled line, not Cost / Category ("Treasure: <name> · <zone>"),
 --   the route's "<boss> (<instance>)",
 --   a lone "Zone: <name>", an unlabelled line,
 --   else UI.SourceLine (the category text; "" when there is none).
@@ -439,13 +482,15 @@ end
 -- header, including owned ones hidden by opts.hideOwned and children of a
 -- collapsed header. Headers with no shown mount are left out; a collapsed
 -- header's children are left out.
--- opts (all optional): headerSuffix = fn(section) -> badge, rowTag =
+-- opts (all optional): headerSuffix = fn(section) -> badge, headerActive =
+-- fn(section) -> true marks the section header active (row.active = true;
+-- UI.HeaderText paints it green), rowTag =
 -- fn(id, m) -> tag, view =, exp = (collapse keys), collapsed = { [key] = true },
 -- hideOwned = true (drop owned mount rows: the Collected filter is off),
 -- sourceText = fn(id), mapName = fn(mapID) (UI.SubGroup's ctx).
 function UI.ListRows(selected, isOwned, opts)
   opts = opts or {}
-  local headerSuffix, rowTag = opts.headerSuffix, opts.rowTag
+  local headerSuffix, rowTag, headerActive = opts.headerSuffix, opts.rowTag, opts.headerActive
   local collapsed = opts.collapsed or {}
   local hideOwned = opts.hideOwned == true
   local ctx = { sourceText = opts.sourceText, mapName = opts.mapName }
@@ -506,6 +551,7 @@ function UI.ListRows(selected, isOwned, opts)
         header = true, depth = 1, section = sec.key, key = key, text = UI.SectionLabel(sec.key),
         badge = headerSuffix and headerSuffix(sec.key) or nil,
         owned = owned, total = total, collapsed = isCollapsed,
+        active = (headerActive and headerActive(sec.key)) and true or nil,
       }
       if not isCollapsed then
         -- Sub-groups with at least one shown mount decide the shape.
@@ -553,14 +599,18 @@ function UI.HeaderIcon(collapsed)
 end
 
 -- Header label: section / sub-group name, "(owned/total)" in grey when
--- counted, then the badge in green.
+-- counted, then the badge in green. Active headers (row.active, e.g. a
+-- holiday on the calendar now) paint the name and badge in the game's
+-- GREEN_FONT_COLOR.
+local ACTIVE_GREEN = "|cff19ff19"
 function UI.HeaderText(row)
   local text = row.text or ""
+  if row.active then text = ACTIVE_GREEN .. text .. "|r" end
   if row.total then
     text = text .. "  " .. GREY .. "(" .. (row.owned or 0) .. "/" .. row.total .. ")|r"
   end
   if row.badge and row.badge ~= "" then
-    text = text .. "  " .. GREEN .. row.badge .. "|r"
+    text = text .. "  " .. (row.active and ACTIVE_GREEN or GREEN) .. row.badge .. "|r"
   end
   return text
 end
@@ -1216,6 +1266,7 @@ function UI.List(parent, getQuery, opts)
     local selected = ns.Journal.Select((ns.Data and ns.Data.Mounts) or {}, query)
     local rows = UI.ListRows(selected, query.isOwned, {
       headerSuffix = opts and opts.headerSuffix,
+      headerActive = opts and opts.headerActive,
       rowTag = opts and opts.rowTag,
       view = tab,
       exp = query.exp,

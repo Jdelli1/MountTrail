@@ -4,8 +4,8 @@ local ADDON, ns = ...
 -- (UI/List.lua) on the matching Journal.Select view (Journal.ViewOf: the
 -- Achievements view takes the misc achievement section, grouped by
 -- expansion; Timewalking takes the holiday timewalking section; Holidays and
--- Misc keep the rest of their data tabs). Holiday section headers get
--- an "Active now" badge while the event is on the calendar; Trading Post
+-- Misc keep the rest of their data tabs). Holiday sections on the calendar
+-- now come first, with green header text and an "Active now" badge; Trading Post
 -- mounts in this month's rotation get a "Trading Post — this month" tag.
 -- The two hooks are pure (UI.HolidayBadge, UI.TradingTag) and unit-tested;
 -- the views are compile-checked only.
@@ -36,10 +36,13 @@ UI.RegisterView("holidays", {
   Build = function(parent)
     holidayList = UI.List(parent, function()
       -- Read the calendar once per refresh; headerSuffix runs per header.
+      -- Active holidays are pinned to the top (Journal.Select's pin) with
+      -- green header text.
       activeNow = ns.Game.ActiveHolidays() or {}
-      return { view = "holidays" }
+      return { view = "holidays", pin = activeNow }
     end, {
       headerSuffix = function(section) return UI.HolidayBadge(section, activeNow) end,
+      headerActive = function(section) return activeNow[section] == true end,
     })
   end,
   Refresh = function()
@@ -66,13 +69,10 @@ UI.RegisterView("achievements", {
 })
 
 -- Rows describe achievement mounts by the scan's achievement name when the
--- source text has none (UI.RowDescription): redraw once the scan finishes.
+-- source text has none (UI.RowDescription): redraw the visible view once the
+-- scan finishes.
 if ns.AchievementScan then
-  ns.AchievementScan.OnDone(function()
-    if achievementList and type(achievementList.IsVisible) == "function" and achievementList:IsVisible() then
-      achievementList:Refresh()
-    end
-  end)
+  ns.AchievementScan.OnDone(function() ns.Refresh() end)
 end
 
 -- Timewalking -----------------------------------------------------------------------

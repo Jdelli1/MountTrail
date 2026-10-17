@@ -109,13 +109,16 @@ local function expansionRank(ns, list)
 end
 
 -- query: { view= | tab=, exp=, section=, filters=, search=, isOwned=fn(id),
--- exists=fn(id), faction=, sourceText=fn(id)|nil, expansions=list|nil }.
+-- exists=fn(id), faction=, sourceText=fn(id)|nil, expansions=list|nil,
+-- pin={[section]=true}|nil }.
 -- view (one of Journal.Views) selects by Journal.ViewOf and wins over tab;
 -- tab (data tab "journal"/"holiday"/"misc") is the older raw selection.
 -- -> list of { id=, m=, section= } sorted by section order, then name, then
 -- id. Sections: journal mounts refined by SectionOf; the Achievements view
 -- groups by expansion (m.exp, nil -> "General"); the Timewalking view has the
 -- one section "timewalking". Section filters apply on the journal only.
+-- pin (e.g. the Holidays tab's active holidays) moves those sections to the
+-- top, keeping their usual order among themselves; the rest follow in order.
 function Journal.Select(mounts, query)
   local filters = query.filters or Journal.DefaultFilters
   local showCollected = filters.collected == true
@@ -177,7 +180,10 @@ function Journal.Select(mounts, query)
     rank = RANK[tab] or {}
   end
   local none = 1000
+  local pin = query.pin or {}
   table.sort(out, function(a, b)
+    local pa, pb = pin[a.section] == true, pin[b.section] == true
+    if pa ~= pb then return pa end
     local ra, rb = rank[a.section] or none, rank[b.section] or none
     if ra ~= rb then return ra < rb end
     local na, nb = (a.m.name or ""):lower(), (b.m.name or ""):lower()

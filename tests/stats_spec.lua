@@ -109,34 +109,4 @@ describe("stats", function()
       eq({ load().Totals(store, 11, "A-R") }, { 0, 0, 1 })
     end)
   end)
-
-  describe("Line", function()
-    local store = {
-      ["A-R"] = { [10] = 3, [11] = 6 },
-      ["B-R"] = { [10] = 4 },
-      ["C-R"] = { [12] = 2, [13] = 0 },
-      ["D-R"] = { [13] = 5 },
-    }
-
-    it("shows the total and this character's count", function()
-      eq(load().Line(store, 10, "A-R"), "Kills: 7 (this character: 3)")
-    end)
-
-    it("shows the split when another character's reading is 0", function()
-      eq(load().Line(store, 13, "D-R"), "Kills: 5 (this character: 5)")
-    end)
-
-    it("shows only the total when this character is the only one with data", function()
-      eq(load().Line(store, 11, "A-R"), "Kills: 6")
-    end)
-
-    it("shows only the total when this character has no reading yet", function()
-      eq(load().Line(store, 12, "A-R"), "Kills: 2")
-    end)
-
-    it("is nil when no character has data", function()
-      eq(load().Line(store, 99, "A-R"), nil)
-      eq(load().Line(nil, 10, "A-R"), nil)
-    end)
-  end)
 end)

@@ -254,6 +254,38 @@ function Game.AchievementInfo(achievementID)
   return info
 end
 
+-- Items -------------------------------------------------------------------------
+
+-- C_Item.IsItemDataCachedByID(itemID) -> true / false; nil when the API is
+-- missing, errors (Game.ReportError) or no ID is given (cannot tell).
+function Game.ItemCached(itemID)
+  local item = C_Item
+  if not (itemID and type(item) == "table" and type(item.IsItemDataCachedByID) == "function") then
+    return nil
+  end
+  local good, cached = pcall(item.IsItemDataCachedByID, itemID)
+  if not good then
+    Game.ReportError(cached)
+    return nil
+  end
+  return cached == true
+end
+
+-- Runs fn once the item's data has loaded (Item:CreateFromItemID(itemID)
+-- :ContinueOnItemLoad(fn)). -> true when the callback was registered; false
+-- without an ID, without the Item mixin, or on an error (Game.ReportError).
+function Game.OnItemLoad(itemID, fn)
+  if not (itemID and type(fn) == "function" and type(Item) == "table"
+    and type(Item.CreateFromItemID) == "function") then
+    return false
+  end
+  local good, err = pcall(function()
+    Item:CreateFromItemID(itemID):ContinueOnItemLoad(fn)
+  end)
+  if not good then Game.ReportError(err) end
+  return good
+end
+
 -- The achievement's name alone (GetAchievementInfo's 2nd return; no
 -- criteria reads, cheap enough for list rows). nil when unknown, empty, the
 -- API is missing or errors.

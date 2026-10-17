@@ -467,6 +467,25 @@ describe("journal", function()
       eq(ids(J.Select(mounts, q({ view = "holidays" }))), {3, 1, 4})
     end)
 
+    it("pin: pinned sections first (in their usual order), then the rest in order", function()
+      local J = load()
+      local mounts = {
+        [1] = mk("a", {tab="holiday", section="hallowsend"}),
+        [2] = mk("b", {tab="holiday", section="brewfest"}),
+        [3] = mk("c", {tab="holiday", section="darkmoon"}),
+        [4] = mk("d", {tab="holiday", section="anniversary"}),
+        [5] = mk("e", {tab="holiday", section="midsummer"}),
+        [6] = mk("f", {tab="holiday", section="darkmoon"}),
+      }
+      eq(ids(J.Select(mounts, q({ view = "holidays" }))), {1, 2, 5, 3, 6, 4})
+      eq(ids(J.Select(mounts, q({ view = "holidays", pin = { darkmoon = true, brewfest = true } }))),
+        {2, 3, 6, 1, 5, 4})
+      eq(ids(J.Select(mounts, q({ view = "holidays", pin = { anniversary = true } }))), {4, 1, 2, 5, 3, 6})
+      eq(ids(J.Select(mounts, q({ view = "holidays", pin = {} }))), {1, 2, 5, 3, 6, 4})
+      eq(ids(J.Select(mounts, q({ view = "holidays", pin = { winterveil = true } }))), {1, 2, 5, 3, 6, 4},
+        "a pinned section without mounts changes nothing")
+    end)
+
     it("misc: profession, shop, tradingpost, other; no achievements or timewalking", function()
       local J = load()
       local function m(n, s, o)

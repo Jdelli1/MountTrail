@@ -354,11 +354,11 @@ describe("ui journal", function()
     end)
 
     it("Attempts without statistics: the larger of our counter and Rarity's", function()
-      local ns = loadUI(nil, { Mounts = { [10] = { name = "M", item = 5555 } } })
+      local ns = loadUI(nil, { Mounts = { [10] = { name = "M", item = 5555, quest = 111 } } })
       ns.db.global.attempts[10] = 7
       local rarity = 42
       ns.RarityBridge.Attempts = function(item) if item == 5555 then return rarity end end
-      eq(lefts(ns.UI.TooltipLines(10)), { "Mount", "Attempts=42", "Lockout: —", "Ctrl-click to preview" },
+      eq(lefts(ns.UI.TooltipLines(10)), { "Mount", "Attempts=42", "Lockout: Available", "Ctrl-click to preview" },
         "no chance: Attempts only")
       rarity = 3
       eq(lefts(ns.UI.TooltipLines(10))[2], "Attempts=7")
@@ -387,11 +387,27 @@ describe("ui journal", function()
     end)
 
     it("statistics are ignored for mounts without stats (stale readings)", function()
-      local ns = loadUI({ CharKey = function() return "Me-Realm" end }, { Mounts = { [41] = { name = "Plain" } } })
+      local ns = loadUI({ CharKey = function() return "Me-Realm" end },
+        { Mounts = { [41] = { name = "Plain", quest = 1 } } })
       ns.RarityBridge.Attempts = function() return nil end
       ns.db.global.attempts[41] = 5
       ns.db.global.stats = { ["Me-Realm"] = { [41] = 9 } }
       eq(lefts(ns.UI.TooltipLines(41))[2], "Attempts=5")
+    end)
+
+    it("untracked mounts (no chance, statistics or lockout spec) show no Attempts block", function()
+      local ns = loadUI(nil, { Mounts = {
+        [20] = { name = "Shop Mount", tab = "misc", section = "shop", item = 1 },
+        [21] = { name = "Boss Mount", tab = "journal", section = "world" },
+        [22] = { name = "Spec Mount", tab = "journal", section = "world" },
+      }, Route = DS_ROUTE, BossLockouts = { Galleon = { quest = 9, reset = "weekly" } },
+        Lockouts = { [22] = { manual = true, reset = "weekly" } } })
+      ns.Data.Route = { { title = "Kill Galleon", bosses = { { mount = 21, boss = "Galleon" } } } }
+      ns.db.global.attempts[20] = 3
+      ns.RarityBridge.Attempts = function() return 8 end
+      eq(lefts(ns.UI.TooltipLines(20)), { "Mount", "In-game shop", "Lockout: —", "Ctrl-click to preview" })
+      eq(lefts(ns.UI.TooltipLines(21))[4], "Attempts=0", "route boss with a BossLockouts spec")
+      eq(lefts(ns.UI.TooltipLines(22))[3], "Attempts=0", "own lockout spec")
     end)
 
     it("a chance with no attempts yet shows 0.00%", function()
@@ -461,7 +477,12 @@ describe("ui journal", function()
     -- A recording GameTooltip -> tip, calls.
     local function recordingTip(withItem)
       local calls, tip = {}, {}
-      function tip:SetOwner(owner, anchor) calls[#calls + 1] = { "SetOwner", owner, anchor } end
+      function tip:SetOwner(owner, anchor)
+        self.owner = owner
+        calls[#calls + 1] = { "SetOwner", owner, anchor }
+      end
+      function tip:IsOwned(owner) return self.owner == owner end
+      function tip:Hide() self.owner = nil end
       if withItem then
         function tip:SetItemByID(id) calls[#calls + 1] = { "SetItemByID", id } end
       end
@@ -484,14 +505,18 @@ describe("ui journal", function()
 
     it("no item: name, wrapped flavor, then the structured lines (double lines as such)", function()
       local ns = loadUI({ MountDescription = function() return "Swift as the wind." end },
-        { Mounts = { [20] = { name = "Vendor Mount", tab = "journal", section = "vendor", exp = "Legion" } } })
+        { Mounts = { [20] = { name = "Rare Mount", tab = "journal", section = "world", exp = "Legion",
+          chance = 50 } } })
       eq(paint(ns, 20), {
         { "SetOwner", "owner", "ANCHOR_RIGHT" },
-        { "SetText", "Vendor Mount", 1, 1, 1 },
+        { "SetText", "Rare Mount", 1, 1, 1 },
         { "AddLine", "Swift as the wind.", 0.9, 0.9, 0.9, true },
         { "AddLine", "Mount |cffffd100[LEGION]|r", 1, 1, 1 },
-        { "AddLine", "Sold by a vendor", 0.4, 0.78, 1 },
+        { "AddLine", "Drops from NPC(s)", 0.4, 0.78, 1 },
+        { "AddLine", "1 in 50 chance", 1, 1, 1 },
+        { "AddLine", "Lucky if you obtain in 35 or less", 0.6, 0.6, 0.6 },
         { "AddDoubleLine", "Attempts", "0", 1, 0.82, 0, 1, 1, 1 },
+        { "AddDoubleLine", "Chance so far", "0.00%", 1, 0.82, 0, 1, 1, 1 },
         { "AddLine", "Lockout: —", 1, 0.82, 0 },
         { "AddLine", "Ctrl-click to preview", 0.5, 0.9, 0.5 },
         { "Show" },
@@ -512,7 +537,6 @@ describe("ui journal", function()
         { "SetItemByID", 87771 },
         { "AddLine", " " },
         { "AddLine", "Mount", 1, 1, 1 },
-        { "AddDoubleLine", "Attempts", "0", 1, 0.82, 0, 1, 1, 1 },
         { "AddLine", "Lockout: —", 1, 0.82, 0 },
         { "AddLine", "Ctrl-click to preview", 0.5, 0.9, 0.5 },
         { "Show" },
@@ -520,7 +544,7 @@ describe("ui journal", function()
     end)
 
     it("a tooltip without AddDoubleLine gets one joined line", function()
-      local ns = loadUI(nil, { Mounts = { [20] = { name = "Vendor Mount" } } })
+      local ns = loadUI(nil, { Mounts = { [20] = { name = "Rare Mount", quest = 1 } } })
       local tip, calls = recordingTip()
       tip.AddDoubleLine = nil
       local old = GameTooltip
@@ -528,6 +552,54 @@ describe("ui journal", function()
       ns.UI.ShowMountTooltip("owner", 20)
       GameTooltip = old
       eq(calls[4], { "AddLine", "Attempts  0", 1, 0.82, 0 })
+    end)
+
+    it("item data not cached yet: repaints once it loads, one callback per owner and mount", function()
+      local ns = loadUI(nil, { Mounts = { [20] = { name = "Rare Mount", item = 87771 },
+        [21] = { name = "Other", item = 99 } } })
+      local oldItem, oldCItem, oldTip = Item, C_Item, GameTooltip
+      local cached, waiting = {}, {}
+      C_Item = { IsItemDataCachedByID = function(id) return cached[id] == true end }
+      Item = { CreateFromItemID = function(_, id)
+        return { ContinueOnItemLoad = function(_, fn) waiting[#waiting + 1] = { id = id, fn = fn } end }
+      end }
+      local tip, calls = recordingTip(true)
+      GameTooltip = tip
+      local function count(name, arg)
+        local n = 0
+        for _, c in ipairs(calls) do if c[1] == name and (arg == nil or c[2] == arg) then n = n + 1 end end
+        return n
+      end
+      local row = { mountID = 20 }
+      ns.UI.ShowMountTooltip(row, 20)
+      ns.UI.ShowMountTooltip(row, 20) -- hovered again before the data arrived
+      eq(#waiting, 1, "one callback for the same owner and mount")
+      eq(waiting[1].id, 87771)
+      cached[87771] = true
+      waiting[1].fn()
+      eq(count("SetItemByID", 87771), 3, "repainted once")
+      eq(count("AddLine", "Ctrl-click to preview"), 3, "our block painted again")
+      eq(#waiting, 1, "cached now: no new callback")
+
+      -- Hidden (or owned by something else) before the data arrives: no repaint.
+      ns.UI.ShowMountTooltip(row, 21)
+      eq(#waiting, 2)
+      ns.UI.HideMountTooltip()
+      local before = #calls
+      waiting[2].fn()
+      eq(#calls, before, "not repainted after hide")
+
+      -- Cached from the start, or no Item mixin / C_Item: no waiting, no error.
+      cached[99] = true
+      ns.UI.ShowMountTooltip(row, 21)
+      eq(#waiting, 2)
+      Item = nil
+      cached[99] = nil
+      ns.UI.ShowMountTooltip({}, 21)
+      C_Item = nil
+      ns.UI.ShowMountTooltip({}, 21)
+      eq(#waiting, 2)
+      Item, C_Item, GameTooltip = oldItem, oldCItem, oldTip
     end)
 
     it("TooltipFlavor returns the client's mount description", function()
@@ -877,6 +949,32 @@ describe("ui journal", function()
         { { label = "\230\142\137\232\144\189\239\188\154", value = "Boss" } }, "full-width colon")
       eq(SP(nil), {})
       eq(SP(""), {})
+    end)
+
+    it("SourcePairs splits several labels on one line", function()
+      local ns = loadUI()
+      local SP = ns.UI.SourcePairs
+      eq(SP("Drop: Ultraxion Zone: Dragon Soul"), {
+        { label = "Drop:", value = "Ultraxion" }, { label = "Zone:", value = "Dragon Soul" },
+      }, "known labels in plain text")
+      eq(SP("|cFFFFD200Drop: |rUltraxion |cFFFFD200Zone: |rDragon Soul"), {
+        { label = "Drop:", value = "Ultraxion" }, { label = "Zone:", value = "Dragon Soul" },
+      }, "coloured labels")
+      eq(SP("|cnNORMAL_FONT_COLOR:Vendor:|r Mei |cnNORMAL_FONT_COLOR:Treasure Hunt:|r Big Chest"), {
+        { label = "Vendor:", value = "Mei" }, { label = "Treasure Hunt:", value = "Big Chest" },
+      }, "named-colour labels, any label word")
+      eq(SP("Vendor: Mei Francis Zone: Dalaran Cost: 200"), {
+        { label = "Vendor:", value = "Mei Francis" }, { label = "Zone:", value = "Dalaran" },
+        { label = "Cost:", value = "200" },
+      })
+      eq(SP("Achievement: Ahead of the Curve: Ultraxion"),
+        { { label = "Achievement:", value = "Ahead of the Curve: Ultraxion" } }, "unknown words never split")
+      eq(SP("Zone: |cff00ff00Icecrown|r"), { { label = "Zone:", value = "Icecrown" } }, "colour inside a value")
+      BATTLE_PET_SOURCE_1, ZONE_COLON = "Beute", "Gebiet:"
+      local got = SP("Beute: Ultraxion Gebiet: Drachenseele")
+      BATTLE_PET_SOURCE_1, ZONE_COLON = nil, nil
+      eq(got, { { label = "Beute:", value = "Ultraxion" }, { label = "Gebiet:", value = "Drachenseele" } },
+        "the client's own label words")
     end)
   end)
 

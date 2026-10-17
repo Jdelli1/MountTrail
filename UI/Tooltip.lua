@@ -146,6 +146,16 @@ local function attempts(mountID, m)
   return count, nil
 end
 
+-- Whether attempts are worth showing for a mount: it has a drop chance,
+-- kill statistics, or a lockout spec (Lockouts.SpecFor, incl. the route
+-- boss's BossLockouts). Shop / vendor / profession mounts have none.
+function UI.IsTracked(mountID, m)
+  m = m or mountData(mountID) or {}
+  if (type(m.chance) == "number" and m.chance > 0) or m.stats then return true end
+  local routeBoss = UI.RouteBoss and UI.RouteBoss(mountID) or nil
+  return ns.Lockouts.SpecFor(mountID, routeBoss) ~= nil
+end
+
 -- -> the tooltip's lines after the item tooltip / name + flavor, in order,
 -- each { left =, r =, g =, b = [, wrap = true] } or, for "Attempts" and
 -- "Chance so far", { double = true, left =, right =, r, g, b (left colour),
@@ -166,11 +176,13 @@ function UI.TooltipLines(mountID)
     lines[#lines + 1] = line(string.format(L["1 in %d chance"], n), WHITE)
     lines[#lines + 1] = line(string.format(L["Lucky if you obtain in %d or less"], ns.Odds.LuckyBy(n)), GREY)
   end
-  local count, mine = attempts(mountID, m)
-  lines[#lines + 1] = double(L["Attempts"], tostring(count))
-  if mine then lines[#lines + 1] = line(string.format(L["(this character: %d)"], mine), GREY) end
-  if n then
-    lines[#lines + 1] = double(L["Chance so far"], ns.Odds.Percent(ns.Odds.ChanceSoFar(n, count)))
+  if UI.IsTracked(mountID, m) then
+    local count, mine = attempts(mountID, m)
+    lines[#lines + 1] = double(L["Attempts"], tostring(count))
+    if mine then lines[#lines + 1] = line(string.format(L["(this character: %d)"], mine), GREY) end
+    if n then
+      lines[#lines + 1] = double(L["Chance so far"], ns.Odds.Percent(ns.Odds.ChanceSoFar(n, count)))
+    end
   end
 
   local status = UI.LockoutStatus(mountID)
@@ -213,8 +225,43 @@ end
 -- an item show that item's own tooltip (as when hovering the Reins in your
 -- bags); others show the name and the wrapped flavor text. UI.TooltipLines
 -- follow either way (double lines via AddDoubleLine; one joined line when the
--- tooltip has none).
+-- tooltip has none). When the item's data is not cached yet, the client
+-- rebuilds the item tooltip once it arrives, wiping our lines: we wait for
+-- the data (Game.OnItemLoad) and repaint, once per owner and mount, and
+-- never for an item that has loaded before.
 local shownOwner, shownMount
+local waiting = {} -- owner -> { [mountID] = true } while a callback is pending
+local loadedItems = {} -- itemID -> true once a callback ran
+
+-- Repaints the tooltip when it still shows `owner` (or, without one, whatever
+-- row it shows). List rows are recycled, so the row's current mountID wins
+-- over the one it was shown for.
+local function repaint(owner)
+  local tip = GameTooltip
+  if not (shownOwner and tip and tip.IsOwned and tip:IsOwned(shownOwner)) then return end
+  if owner ~= nil and owner ~= shownOwner then return end
+  local mountID = type(shownOwner) == "table" and shownOwner.mountID or shownMount
+  UI.ShowMountTooltip(shownOwner, mountID)
+end
+
+local function waitForItem(owner, mountID, item)
+  if loadedItems[item] or ns.Game.ItemCached(item) ~= false then return end
+  local forOwner = waiting[owner]
+  if forOwner and forOwner[mountID] then return end
+  forOwner = forOwner or {}
+  forOwner[mountID] = true
+  waiting[owner] = forOwner
+  local registered = ns.Game.OnItemLoad(item, function()
+    loadedItems[item] = true
+    forOwner[mountID] = nil
+    if next(forOwner) == nil and waiting[owner] == forOwner then waiting[owner] = nil end
+    repaint(owner)
+  end)
+  if not registered then
+    forOwner[mountID] = nil
+    loadedItems[item] = true -- no mixin / error: do not try again
+  end
+end
 
 function UI.ShowMountTooltip(owner, mountID)
   local tip = GameTooltip
@@ -244,16 +291,15 @@ function UI.ShowMountTooltip(owner, mountID)
     end
   end
   tip:Show()
+  if m.item and tip.SetItemByID and ns.Game.ItemCached and ns.Game.OnItemLoad then
+    waitForItem(owner, mountID, m.item)
+  end
 end
 
 -- Repaints the mount tooltip if it is still showing (the achievement scan
--- finished while the row was hovered). List rows are recycled, so the row's
--- current mountID wins over the one it was shown for.
+-- finished while the row was hovered).
 function UI.OnAchievementsReady()
-  local tip = GameTooltip
-  if not (shownOwner and tip and tip.IsOwned and tip:IsOwned(shownOwner)) then return end
-  local mountID = type(shownOwner) == "table" and shownOwner.mountID or shownMount
-  UI.ShowMountTooltip(shownOwner, mountID)
+  repaint(nil)
 end
 
 if ns.AchievementScan then

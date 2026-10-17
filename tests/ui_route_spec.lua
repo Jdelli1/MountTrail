@@ -446,6 +446,26 @@ describe("ui route", function()
       })
     end)
 
+    it("ListRows marks headers of active sections (opts.headerActive)", function()
+      local ns = loadUI(nil, { Holidays = { brewfest = { title = "Brewfest" }, darkmoon = { title = "Darkmoon Faire" } } })
+      local a, b = { section = "brewfest" }, { section = "darkmoon" }
+      local active = { brewfest = true }
+      local rows = ns.UI.ListRows({ { id = 1, m = a }, { id = 2, m = b } }, nil, {
+        headerSuffix = function(section) return ns.UI.HolidayBadge(section, active) end,
+        headerActive = function(section) return active[section] == true end,
+      })
+      eq(rows[1], { header = true, depth = 1, section = "brewfest", key = "||brewfest", text = "Brewfest",
+        badge = "Active now", owned = 0, total = 1, collapsed = false, active = true })
+      eq(rows[3].active, nil, "inactive header: no flag")
+    end)
+
+    it("HeaderText paints an active header's text and badge in green", function()
+      local ns = loadUI()
+      eq(ns.UI.HeaderText({ text = "Brewfest", badge = "Active now", active = true, owned = 1, total = 3 }),
+        "|cff19ff19Brewfest|r  |cff9d9d9d(1/3)|r  |cff19ff19Active now|r")
+      eq(ns.UI.HeaderText({ text = "Brewfest", active = true }), "|cff19ff19Brewfest|r")
+    end)
+
     it("HeaderText and RowSourceText paint the badge and tag in green", function()
       local ns = loadUI(nil, { Mounts = { [7] = { name = "x", group = "Trading Post: October" }, [8] = { name = "y" } } })
       eq(ns.UI.HeaderText({ text = "Brewfest", badge = "Active now" }), "Brewfest  |cff33ff99Active now|r")

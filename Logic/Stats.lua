@@ -2,12 +2,11 @@ local ADDON, ns = ...
 
 -- Kill statistics for mounts that carry Rarity statistic IDs (Data.Mounts
 -- `stats`). The game keeps these per character and retroactively, so for
--- such mounts they replace our own attempt counter in the tooltip. Pure Lua,
--- no WoW API: callers pass a statistic reader (Game.Statistic) in.
+-- such mounts they replace our own attempt counter in the tooltip's
+-- Attempts line (UI.TooltipLines). Pure Lua, no WoW API: callers pass a
+-- statistic reader (Game.Statistic) in.
 --
 -- Saved as ns.db.global.stats = { [charKey] = { [mountID] = kills } }.
-
-local L = ns.L or setmetatable({}, { __index = function(_, key) return key end })
 
 local Stats = {}
 ns.Stats = Stats
@@ -70,16 +69,4 @@ function Stats.Totals(store, mountID, charKey)
     end
   end
   return total, mine, chars
-end
-
--- "Kills: <total> (this character: <n>)"; just "Kills: <total>" when this
--- character is the only one with a reading, or has none yet. nil when no
--- character has a reading (the caller shows the attempt counter instead).
-function Stats.Line(store, mountID, charKey)
-  local total, mine, chars = Stats.Totals(store, mountID, charKey)
-  if total == nil then return nil end
-  if mine == nil or chars == 1 then
-    return string.format(L["Kills: %d"], total)
-  end
-  return string.format(L["Kills: %d (this character: %d)"], total, mine)
 end
