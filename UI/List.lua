@@ -185,6 +185,7 @@ local FILTER_WIDTH = 150
 local HEADER_HEIGHT = 24
 local ROW_HEIGHT = 40
 local CHECK_SIZE = 24
+local MAP_WIDTH, MAP_RIGHT = 56, 6
 local SECTION_FILTERS = { "dungeon", "raid", "world", "reputation", "vendor", "other" }
 
 local function filtersDB()
@@ -230,8 +231,8 @@ local function setupRow(row)
   row.Icon = icon
 
   local map = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-  map:SetSize(56, 22)
-  map:SetPoint("RIGHT", row, "RIGHT", -6, 0)
+  map:SetSize(MAP_WIDTH, 22)
+  map:SetPoint("RIGHT", row, "RIGHT", -MAP_RIGHT, 0)
   map:SetText(L["Map"])
   map:SetScript("OnClick", function()
     if row.mountID and ns.Map then ns.Map.Show(row.mountID) end
@@ -239,8 +240,11 @@ local function setupRow(row)
   row.Map = map
 
   local name = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  -- Same-edge anchor pairs only (a RIGHT anchor would also pin the vertical
+  -- centre). The 32 px icon is centred in the 40 px row, so its top is at -4
+  -- and the name's at -6; the right edge stops 8 px left of the Map button.
   name:SetPoint("TOPLEFT", icon, "TOPRIGHT", 8, -2)
-  name:SetPoint("RIGHT", map, "LEFT", -8, 0)
+  name:SetPoint("TOPRIGHT", row, "TOPRIGHT", -(MAP_RIGHT + MAP_WIDTH + 8), -((ROW_HEIGHT - 32) / 2 + 2))
   name:SetJustifyH("LEFT")
   name:SetWordWrap(false)
   row.Name = name
@@ -254,7 +258,7 @@ local function setupRow(row)
 
   local source = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   source:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -3)
-  source:SetPoint("RIGHT", map, "LEFT", -8, 0)
+  source:SetPoint("TOPRIGHT", name, "BOTTOMRIGHT", 0, -3)
   source:SetJustifyH("LEFT")
   source:SetWordWrap(false)
   source:SetTextColor(0.7, 0.7, 0.7)

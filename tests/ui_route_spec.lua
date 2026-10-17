@@ -254,6 +254,14 @@ describe("ui route", function()
         { true, true, false })
     end)
 
+    it("an auto + manual mix is clickable and never tagged auto", function()
+      local ns = loadUI()
+      eq({ ns.UI.RouteCheck(row({ { mount = 1, state = "done" }, { mount = 2, state = "manual-done" } }, "done", true)) },
+        { true, true, false })
+      eq({ ns.UI.RouteCheck(row({ { mount = 1, state = "done" }, { mount = 2, state = "manual-open" } }, "manual", false)) },
+        { false, true, false })
+    end)
+
     it("ticks every manual boss with its spec's reset, then unticks them", function()
       local ns = loadUI(nil, {
         Lockouts = { [1] = { manual = true, reset = "daily" }, [3] = { quest = 9, reset = "weekly" } },

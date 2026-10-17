@@ -111,8 +111,9 @@ local function isManual(state)
 end
 
 -- Tick box for a route row -> checked, enabled, auto.
--- Rows with manual bosses: enabled, checked when every manual boss is ticked.
--- Other kill rows: disabled (the game decides), checked when done.
+-- Rows with manual bosses: enabled, checked when every manual boss is ticked,
+-- never tagged "auto" (the tick is the player's). Other kill rows: disabled
+-- (the game decides), checked when done, "auto" when Route.Build says so.
 -- Travel rows: nil (no box).
 function UI.RouteCheck(row)
   if row.kind ~= "kill" then return nil end
@@ -123,7 +124,7 @@ function UI.RouteCheck(row)
       if b.state ~= "manual-done" then allTicked = false end
     end
   end
-  if anyManual then return allTicked, true, row.auto == true end
+  if anyManual then return allTicked, true, false end
   return row.state == "done", false, row.auto == true
 end
 
@@ -208,6 +209,10 @@ local LINE_HEIGHT = 14
 local TRAVEL_HEIGHT = 22
 local KILL_BASE = 28
 local CHECK_SIZE = 22
+local MAP_WIDTH, MAP_RIGHT = 56, 6
+local TITLE_RIGHT = MAP_RIGHT + MAP_WIDTH + 40 -- room for the "auto" tag
+local LINE_RIGHT = MAP_RIGHT + MAP_WIDTH + 8
+local KILL_TITLE_Y, TRAVEL_TITLE_Y = -6, -5
 
 local function rowExtent(row)
   local _, lines = UI.RouteRowLines(row)
@@ -239,8 +244,8 @@ local function setupRow(frame)
   frame.Check = check
 
   local map = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-  map:SetSize(56, 22)
-  map:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -6, -3)
+  map:SetSize(MAP_WIDTH, 22)
+  map:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -MAP_RIGHT, -3)
   map:SetText(L["Map"])
   map:SetScript("OnClick", function()
     local id = frame.data and firstMount(frame.data)
@@ -281,12 +286,16 @@ local function detailLine(frame, i)
     line:SetJustifyH("LEFT")
     line:SetWordWrap(false)
     line:SetHeight(LINE_HEIGHT)
+    -- Same-edge anchor pairs only (a RIGHT anchor would also pin the
+    -- vertical centre). Line 1 hangs under the title and reaches further
+    -- right (to the Map button) than the title, which leaves room for "auto".
     if i == 1 then
       line:SetPoint("TOPLEFT", frame.Title, "BOTTOMLEFT", 0, -3)
+      line:SetPoint("TOPRIGHT", frame.Title, "BOTTOMRIGHT", TITLE_RIGHT - LINE_RIGHT, -3)
     else
       line:SetPoint("TOPLEFT", frame.Lines[i - 1], "BOTTOMLEFT", 0, 0)
+      line:SetPoint("TOPRIGHT", frame.Lines[i - 1], "BOTTOMRIGHT", 0, 0)
     end
-    line:SetPoint("RIGHT", frame.Map, "LEFT", -8, 0)
     frame.Lines[i] = line
   end
   return line
@@ -305,8 +314,13 @@ local function initRow(frame, data)
     frame.Check:SetPoint("TOPLEFT", frame, "TOPLEFT", left, -2)
     frame.Check:SetChecked(checked and true or false)
     frame.Check:SetEnabled(enabled and true or false)
+    -- A disabled button still eats the mouse: let hover and ctrl-click
+    -- reach the row through it.
+    frame.Check:EnableMouse(enabled and true or false)
     frame.Check:Show()
-    frame.Title:SetPoint("TOPLEFT", frame.Check, "TOPRIGHT", 4, -4)
+    -- Check top is -2, so the title top is -6 (= KILL_TITLE_Y).
+    frame.Title:SetPoint("TOPLEFT", frame.Check, "TOPRIGHT", 4, KILL_TITLE_Y + 2)
+    frame.Title:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -TITLE_RIGHT, KILL_TITLE_Y)
     frame.Title:SetFontObject("GameFontNormal")
     frame.Title:SetTextColor(1, 0.82, 0)
     frame.Auto:SetShown(auto and true or false)
@@ -316,12 +330,11 @@ local function initRow(frame, data)
     frame.Check:Hide()
     frame.Auto:Hide()
     frame.Map:Hide()
-    frame.Title:SetPoint("TOPLEFT", frame, "TOPLEFT", left + 4, -5)
+    frame.Title:SetPoint("TOPLEFT", frame, "TOPLEFT", left + 4, TRAVEL_TITLE_Y)
+    frame.Title:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -TITLE_RIGHT, TRAVEL_TITLE_Y)
     frame.Title:SetFontObject("GameFontHighlight")
     frame.Title:SetTextColor(0.6, 0.6, 0.6)
   end
-  -- Leave room for the "auto" tag before the Map button.
-  frame.Title:SetPoint("RIGHT", frame.Map, "LEFT", -40, 0)
   frame.Title:SetText(titleText)
   for i, text in ipairs(lines) do
     local line = detailLine(frame, i)
@@ -363,17 +376,24 @@ local function build(parent)
   header:SetPoint("TOPRIGHT", root, "TOPRIGHT", 0, 0)
   header:SetHeight(HEADER_HEIGHT)
 
+  -- Header lines span the header with same-edge anchor pairs, each chained
+  -- under the one above (the Show completed box overlays the name line's
+  -- right end; the name is short and left-justified).
   local name = header:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
   name:SetPoint("TOPLEFT", header, "TOPLEFT", 8, -6)
+  name:SetPoint("TOPRIGHT", header, "TOPRIGHT", -8, -6)
+  name:SetJustifyH("LEFT")
   header.Name = name
 
   local resets = header:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   resets:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -4)
+  resets:SetPoint("TOPRIGHT", name, "BOTTOMRIGHT", 0, -4)
+  resets:SetJustifyH("LEFT")
   header.Resets = resets
 
   local flavour = header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   flavour:SetPoint("TOPLEFT", resets, "BOTTOMLEFT", 0, -8)
-  flavour:SetPoint("RIGHT", header, "RIGHT", -8, 0)
+  flavour:SetPoint("TOPRIGHT", resets, "BOTTOMRIGHT", 0, -8)
   flavour:SetJustifyH("LEFT")
   flavour:SetTextColor(0.9, 0.8, 0.55)
   header.Flavour = flavour
