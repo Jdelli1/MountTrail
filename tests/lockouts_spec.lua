@@ -38,6 +38,15 @@ describe("lockouts", function()
       })
     end)
 
+    it("skips rows with nil instance or difficulty and bosses with nil name", function()
+      local rows = {
+        { instance = nil, difficulty = 2, bosses = { { name = "A", killed = true } } },
+        { instance = 657, difficulty = nil, bosses = { { name = "B", killed = true } } },
+        { instance = 657, difficulty = 2, bosses = { { name = nil, killed = true }, { name = "Altairus", killed = true } } },
+      }
+      eq(load().Lockouts.Snapshot(rows), { [657] = { [2] = { Altairus = true } } })
+    end)
+
     it("omits rows with no kills", function()
       local rows = { { instance = 1, difficulty = 1, bosses = { { name = "X", killed = false } } } }
       eq(load().Lockouts.Snapshot(rows), {})

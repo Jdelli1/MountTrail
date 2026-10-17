@@ -7,16 +7,19 @@ ns.Lockouts = Lockouts
 
 -- rows: { {instance=, difficulty=, bosses={ {name=, killed=bool} }} } or nil
 -- -> snap[instance][difficulty][bossName] = true, killed bosses only.
+-- Rows with a nil instance or difficulty and bosses with a nil name are skipped.
 function Lockouts.Snapshot(rows)
   local snap = {}
   for _, row in ipairs(rows or {}) do
-    for _, boss in ipairs(row.bosses or {}) do
-      if boss.killed then
-        local byDiff = snap[row.instance]
-        if not byDiff then byDiff = {}; snap[row.instance] = byDiff end
-        local byBoss = byDiff[row.difficulty]
-        if not byBoss then byBoss = {}; byDiff[row.difficulty] = byBoss end
-        byBoss[boss.name] = true
+    if row.instance ~= nil and row.difficulty ~= nil then
+      for _, boss in ipairs(row.bosses or {}) do
+        if boss.killed and boss.name ~= nil then
+          local byDiff = snap[row.instance]
+          if not byDiff then byDiff = {}; snap[row.instance] = byDiff end
+          local byBoss = byDiff[row.difficulty]
+          if not byBoss then byBoss = {}; byDiff[row.difficulty] = byBoss end
+          byBoss[boss.name] = true
+        end
       end
     end
   end

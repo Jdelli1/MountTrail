@@ -1,3 +1,28 @@
+-- API globals these specs replace; every `it` below saves and restores them
+-- so one test's stubs never leak into the next.
+local API_GLOBALS = {
+  "UnitFactionGroup", "UnitName", "GetNormalizedRealmName", "GetRealmName",
+  "GetNumSavedInstances", "GetSavedInstanceInfo", "GetSavedInstanceEncounterInfo",
+  "C_DateAndTime", "C_Calendar", "GetExpansionDisplayInfo", "C_MountJournal",
+  "C_QuestLog", "GetLFGDungeonRewards", "RequestRaidInfo", "RequestLFDPlayerLockInfo",
+  "GetServerTime",
+}
+local ORIGINAL = {}
+for _, name in ipairs(API_GLOBALS) do ORIGINAL[name] = _G[name] end
+
+local function restoring(fn)
+  return function()
+    local saved = {}
+    for _, name in ipairs(API_GLOBALS) do saved[name] = _G[name] end
+    local good, err = pcall(fn)
+    for _, name in ipairs(API_GLOBALS) do _G[name] = saved[name] end
+    if not good then error(err, 0) end
+  end
+end
+
+local harnessIt = it
+local function it(name, fn) return harnessIt(name, restoring(fn)) end
+
 describe("game adapter", function()
   local function loadGame()
     return load_addon({"Data/Holidays.lua", "Game/API.lua"})
@@ -47,6 +72,24 @@ describe("game adapter", function()
         { name = "The Stonecore", instance = 725, difficulty = 2, bosses = {
           { name = "Slabhide", killed = false } } },
       })
+    end)
+    it("leaves out rows with nil instance or difficulty unless asked to include them", function()
+      local info = {
+        { "Karazhan", 11, 3600, 3, true, false, 0, true, 10, "10 Player", 1, 1, false, 532 },
+        { "No ID", 12, 3600, 16, true, false, 0, true, 20, "Mythic", 1, 1, false, nil },
+        { "No Diff", 13, 3600, nil, true, false, 0, true, 20, "?", 1, 1, false, 2900 },
+      }
+      GetNumSavedInstances = function() return #info end
+      GetSavedInstanceInfo = function(i) return unpack(info[i], 1, 14) end
+      GetSavedInstanceEncounterInfo = function() return "Boss", 1, true, false end
+      local G = loadGame().Game
+      local rows = G.SavedRows()
+      eq(#rows, 1)
+      eq(rows[1].instance, 532)
+      local all = G.SavedRows(true)
+      eq(#all, 3)
+      eq(all[2].name, "No ID"); eq(all[2].instance, nil); eq(all[2].difficulty, 16)
+      eq(all[3].name, "No Diff"); eq(all[3].instance, 2900); eq(all[3].difficulty, nil)
     end)
     it("returns {} when the saved-instance API is missing", function()
       GetNumSavedInstances, GetSavedInstanceInfo, GetSavedInstanceEncounterInfo = nil, nil, nil
@@ -251,6 +294,16 @@ describe("init", function()
     eq(calls, 1)
   end)
 
+  it("BOSS_KILL and ENCOUNTER_END request fresh lockouts", function()
+    local ns = setup()
+    local requested = 0
+    ns.Game.RequestLockouts = function() requested = requested + 1 end
+    fire_event(ns.addon, "BOSS_KILL")
+    eq(requested, 1)
+    fire_event(ns.addon, "ENCOUNTER_END")
+    eq(requested, 2)
+  end)
+
   describe("slash", function()
     it("dump prints instance, difficulty and bosses", function()
       local ns, w = setup()
@@ -260,6 +313,17 @@ describe("init", function()
       ok(out:find("532", 1, true), "instance id printed: " .. out)
       ok(out:find("Attumen the Huntsman", 1, true), "boss printed")
       ok(out:find("killed", 1, true), "kill state printed")
+    end)
+    it("dump shows rows with nil instance or difficulty", function()
+      local ns = setup()
+      ns.Game.SavedRows = function(includeIncomplete)
+        if not includeIncomplete then return {} end
+        return { { name = "Mystery Raid", instance = nil, difficulty = 16, bosses = { { name = "Boss", killed = true } } } }
+      end
+      run_slash(ns.addon, "azt", "dump")
+      local out = table.concat(ns.addon.printed, "\n")
+      ok(out:find("Mystery Raid", 1, true), "incomplete row printed: " .. out)
+      ok(out:find("nil", 1, true), "missing id shown as nil")
     end)
     it("dump with no saved instances says so", function()
       local ns = setup()
@@ -280,5 +344,13 @@ describe("init", function()
       run_slash(ns.addon, "azt", "help")
       ok(table.concat(ns.addon.printed, "\n"):find("dump", 1, true), "help mentions dump")
     end)
+  end)
+end)
+
+describe("game spec hygiene", function()
+  harnessIt("API globals are back to their original values", function()
+    for _, name in ipairs(API_GLOBALS) do
+      eq(_G[name], ORIGINAL[name], name .. " restored")
+    end
   end)
 end)

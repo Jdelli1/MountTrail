@@ -124,6 +124,11 @@ function addon:OnEnable()
   self:RegisterEvent("LFG_UPDATE_RANDOM_INFO", "OnLockoutEvent")
   self:RegisterEvent("NEW_MOUNT_ADDED", "OnLockoutEvent")
   self:RegisterEvent("CALENDAR_UPDATE_EVENT_LIST", "OnCalendarUpdate")
+  -- Kill triggers: ask for fresh saved-instance data so UPDATE_INSTANCE_INFO
+  -- (which does the counting) follows promptly. Payloads are not read: Midnight
+  -- may hide encounter details.
+  self:RegisterEvent("BOSS_KILL", "OnKill")
+  self:RegisterEvent("ENCOUNTER_END", "OnKill")
 end
 
 function addon:OnEnteringWorld()
@@ -139,6 +144,10 @@ function addon:OnLockoutEvent(event)
   ns.Refresh()
 end
 
+function addon:OnKill()
+  ns.Game.RequestLockouts()
+end
+
 function addon:OnCalendarUpdate()
   ns.Refresh()
 end
@@ -146,7 +155,7 @@ end
 -- Slash commands --------------------------------------------------------------
 
 function ns.Dump()
-  local rows = ns.Game.SavedRows()
+  local rows = ns.Game.SavedRows(true) -- include rows missing an ID, to spot them
   if #rows == 0 then
     addon:Print(L["No saved instances yet (lockout data arrives shortly after login). Try again in a moment."])
     ns.Game.RequestLockouts()

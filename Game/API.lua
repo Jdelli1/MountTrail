@@ -32,12 +32,14 @@ end
 -- Saved instances this character is locked to:
 -- { {name=, instance=<instanceId, return 14>, difficulty=<difficultyId>,
 --    bosses={ {name=, killed=bool} }} }. Unlocked (expired) rows are skipped.
-function Game.SavedRows()
+-- Rows with a nil instance or difficulty are left out (nothing to match them
+-- against) unless includeIncomplete is true (/azt dump shows them).
+function Game.SavedRows(includeIncomplete)
   local rows = {}
   if not (GetNumSavedInstances and GetSavedInstanceInfo) then return rows end
   for i = 1, GetNumSavedInstances() or 0 do
     local name, _, _, difficulty, locked, _, _, _, _, _, numEncounters, _, _, instanceID = GetSavedInstanceInfo(i)
-    if locked then
+    if locked and (includeIncomplete or (instanceID ~= nil and difficulty ~= nil)) then
       local bosses = {}
       if GetSavedInstanceEncounterInfo then
         for j = 1, numEncounters or 0 do
