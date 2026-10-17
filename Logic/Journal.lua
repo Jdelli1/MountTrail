@@ -79,6 +79,10 @@ local function gate(id, m, isOwned, exists, faction)
   return owned
 end
 
+-- The same gate for other lists (Logic/Zone.lua): (id, m, isOwned, exists,
+-- faction) -> owned (boolean), or nil when the mount is excluded.
+Journal.Gate = gate
+
 -- Generated sections the client's source text may refine (delves and caches
 -- the data does not label).
 local REFINABLE = { world = true, treasure = true, quest = true, activity = true, other = true }

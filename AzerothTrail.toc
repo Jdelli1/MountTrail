@@ -17,6 +17,7 @@ Logic\Resets.lua
 Logic\Lockouts.lua
 Logic\Route.lua
 Logic\Journal.lua
+Logic\Zone.lua
 Logic\Attempts.lua
 Logic\Achievements.lua
 Logic\Stats.lua
