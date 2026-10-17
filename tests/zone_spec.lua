@@ -159,6 +159,25 @@ describe("Zone.MountsFor", function()
     eq(asked, { 71, 74 })
   end)
 
+  it("(c) asks for entrances on the zone's micro / zone children too, not on dungeon floors", function()
+    local ns = loadZone()
+    local mounts = { [1] = { name = "X", tab = "journal", section = "raid" } }
+    local asked = {}
+    local ctx = ctxFor(ns, mounts, {
+      children = function(id)
+        eq(id, 71)
+        return { { mapID = 74, mapType = 5 }, { mapID = 75, mapType = 5 }, { mapID = 409, mapType = 4 } }
+      end,
+      entrances = function(id)
+        asked[#asked + 1] = id
+        if id == 75 then return { { journalInstanceID = 187, name = "Dragon Soul" } } end
+      end,
+      subGroup = function() return "Dragon Soul" end,
+    })
+    eq(ids(ns.Zone.MountsFor(74, ctx)), { 1 })
+    eq(asked, { 71, 74, 75 }, "root, the player's map, then children once each")
+  end)
+
   it("inside an instance: the instance's mounts on every floor, titled with the instance", function()
     local ns = loadZone()
     local mounts = {

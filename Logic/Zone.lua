@@ -12,6 +12,11 @@ local CONTINENT, ZONE, DUNGEON = 2, 3, 4
 -- Parent steps followed at most (map trees are a few levels deep).
 local MAX_STEPS = 10
 
+-- Child maps that may hold dungeon entrances (zones and micro maps, not
+-- dungeon floors), and the most maps asked for entrances per call.
+local ENTRANCE_TYPES = { [ZONE] = true, [5] = true }
+local MAX_ENTRANCE_MAPS = 40
+
 -- The zone the player is in, from the player's map: micro / dungeon / orphan
 -- floors climb to the first Zone map above them, but never onto a continent
 -- (a floor straight under a continent is its own root; a continent stays a
@@ -63,8 +68,9 @@ end
 --   (b) "source": its source text's "Zone:" equals the zone's name (or, in
 --       an instance, the instance's), compared by ctx.key,
 --   (c) "instance": it belongs to a journal instance whose entrance is in
---       the zone (entrances on the root and on the player's own map; inside
---       an instance: that instance) - its instance sub-group or route
+--       the zone (entrances on the root, the player's own map and the
+--       root's zone / micro children; inside an instance: that instance) -
+--       its instance sub-group or route
 --       instance names the instance, or its coords map is one of the
 --       instance's maps.
 -- Every mount appears once, with the first rule that matched.
@@ -72,7 +78,8 @@ end
 --   coords(id, m) -> { m= } (default m.coords; the holiday override),
 --   sourceZone(id) -> "Zone:" value, subGroup(id, m) -> instance name,
 --   routeInstance(id) -> instance name, entrances(mapID) -> { {
---   journalInstanceID=, name= } }, instanceForMap(mapID) -> journal
+--   journalInstanceID=, name= } }, children(mapID) -> { { mapID=,
+--   mapType= } } (every descendant), instanceForMap(mapID) -> journal
 --   instance, instanceName(journalInstanceID) -> name (EJ_GetInstanceInfo),
 --   key(name) -> comparable key (UI.GroupKey), gate(id, m) -> owned boolean
 --   or nil to leave the mount out (Zone.Gate; default: kept, not owned),
@@ -155,8 +162,26 @@ function Zone.MountsFor(mapID, ctx)
       addName(name)
     end
   elseif rootIsZone and ctx.entrances then
-    local maps = { root }
-    if mapID ~= root then maps[2] = mapID end
+    -- The root, the player's own map, then the root's zone / micro children
+    -- (an entrance may sit on a sub-map such as the Caverns of Time), each
+    -- once, at most MAX_ENTRANCE_MAPS lookups.
+    local maps, listed = {}, {}
+    local function addMap(m)
+      if m and not listed[m] and #maps < MAX_ENTRANCE_MAPS then
+        listed[m] = true
+        maps[#maps + 1] = m
+      end
+    end
+    addMap(root)
+    addMap(mapID)
+    if ctx.children then
+      local children = ctx.children(root)
+      if type(children) == "table" then
+        for _, child in ipairs(children) do
+          if type(child) == "table" and ENTRANCE_TYPES[child.mapType] then addMap(child.mapID) end
+        end
+      end
+    end
     for _, m in ipairs(maps) do
       local list = ctx.entrances(m)
       if type(list) == "table" then
