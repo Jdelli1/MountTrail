@@ -7,15 +7,17 @@ local ADDON, ns = ...
 -- (GetCategoryList -> GetCategoryNumAchievements(cat, true) ->
 -- GetAchievementInfo(cat, i), rewardText = 11th return) is read, at most
 -- PER_FRAME per frame; those with a reward text or a title some mount's
--- source text names are fed to Achievements.NewMatcher (item name or mount
--- name in the reward text, else the source text's "Achievement:" title), at
--- most MATCH_PER_FRAME per frame (each is checked against every achievement
--- mount). Nothing is read in combat: the scan
--- waits, checking once a second. The result is saved in
--- ns.db.global.achievementMap = { build = "<toc>:<build>", ids = { [mountID]
--- = achievementID or false } } and reused while the client build is the
--- same and it covers every achievement mount; otherwise it is rebuilt, at
--- most once per session.
+-- source text names are fed to Achievements.NewMatcher (item name in the
+-- reward text, else the source text's "Achievement:" title, else mount
+-- name in the reward text), at most MATCH_PER_FRAME per frame (each is
+-- checked against every achievement mount). Nothing is read in combat: the
+-- scan waits, checking once a second. Only achievement mounts the player's
+-- faction can earn are mapped (the client lists only that faction's
+-- achievements), and the result is saved per faction:
+-- ns.db.global.achievementMap[<"Alliance"|"Horde"|"Neutral">] = { build =
+-- "<toc>:<build>:<MATCHER_VERSION>", ids = { [mountID] = achievementID or
+-- false } }, reused while the key is the same and it covers every such
+-- mount; otherwise it is rebuilt, at most once per session.
 --
 -- Scan.api holds every client call (specs replace it).
 
@@ -27,6 +29,9 @@ ns.AchievementScan = Scan
 Scan.PER_FRAME = 200
 Scan.MATCH_PER_FRAME = 25
 Scan.COMBAT_RETRY = 1 -- seconds
+-- Bumped when matching changes, so saved maps from an older matcher are
+-- rebuilt.
+Scan.MATCHER_VERSION = "v2"
 
 Scan.api = {
   CategoryList = function()
@@ -52,6 +57,9 @@ Scan.api = {
   InCombat = function()
     return InCombatLockdown ~= nil and InCombatLockdown() == true
   end,
+  Faction = function()
+    return ns.Game.Faction()
+  end,
   Build = function()
     if not GetBuildInfo then return "?" end
     local _, build, _, toc = GetBuildInfo()
@@ -73,13 +81,18 @@ Scan.api = {
 }
 
 local listeners = {}
-local sessionIds -- results when there is no ns.db (never in game)
+local sessionIds = {} -- faction -> results when there is no ns.db (never in game)
 
--- mountID -> data entry for every achievement mount, sorted by ID.
-local function achievementMounts()
+-- The cache key: client build plus matcher version.
+local function cacheKey()
+  return tostring(Scan.api.Build()) .. ":" .. Scan.MATCHER_VERSION
+end
+
+-- IDs of the achievement mounts `faction` can earn, sorted.
+local function achievementMounts(faction)
   local out = {}
   for id, m in pairs((ns.Data and ns.Data.Mounts) or {}) do
-    if Achievements.IsAchievementMount(m) then out[#out + 1] = id end
+    if Achievements.IsAchievementMountFor(m, faction) then out[#out + 1] = id end
   end
   table.sort(out)
   return out
@@ -89,45 +102,49 @@ local function store()
   return ns.db and ns.db.global
 end
 
--- The saved map when it is for this build, else nil.
-local function cachedIds()
-  if sessionIds then return sessionIds end
+-- The saved map of `faction` when its key is current, else nil.
+local function cachedIds(faction)
+  if sessionIds[faction] then return sessionIds[faction] end
   local db = store()
   local map = db and db.achievementMap
-  if type(map) == "table" and type(map.ids) == "table" and map.build == Scan.api.Build() then
-    return map.ids
+  local entry = type(map) == "table" and map[faction] or nil
+  if type(entry) == "table" and type(entry.ids) == "table" and entry.build == cacheKey() then
+    return entry.ids
   end
   return nil
 end
 
-local function covers(ids)
-  for _, id in ipairs(achievementMounts()) do
+local function covers(ids, faction)
+  for _, id in ipairs(achievementMounts(faction)) do
     if ids[id] == nil then return false end
   end
   return true
 end
 
-local function finish(ids)
+local function finish(ids, faction)
   Scan.state = "done"
   if ids then
     local db = store()
     if db then
-      db.achievementMap = { build = Scan.api.Build(), ids = ids }
+      local map = type(db.achievementMap) == "table" and db.achievementMap or {}
+      map.build, map.ids = nil, nil -- the first matcher's single map
+      map[faction] = { build = cacheKey(), ids = ids }
+      db.achievementMap = map
     else
-      sessionIds = ids
+      sessionIds[faction] = ids
     end
   end
   for _, fn in ipairs(listeners) do pcall(fn) end
 end
 
--- Matcher input for every achievement mount: item and mount names (read
--- now, so item names that arrived during the scan count) and the source
--- text title.
-local function candidates()
+-- Matcher input for every achievement mount of `faction`: item and mount
+-- names (read now, so item names that arrived during the scan count) and
+-- the source text title.
+local function candidates(faction)
   local api, data = Scan.api, (ns.Data and ns.Data.Mounts) or {}
   local labels = api.SourceLabels() or {}
   local out = {}
-  for _, id in ipairs(achievementMounts()) do
+  for _, id in ipairs(achievementMounts(faction)) do
     local m = data[id]
     local items, names = {}, {}
     items[#items + 1] = m.item and api.ItemName(m.item) or nil
@@ -141,11 +158,12 @@ local function candidates()
   return out
 end
 
--- Achievement titles named by achievement mounts' source texts (a set).
-local function sourceTitles()
+-- Achievement titles named by `faction`'s achievement mounts' source texts
+-- (a set).
+local function sourceTitles(faction)
   local api, titles = Scan.api, {}
   local labels = api.SourceLabels() or {}
-  for _, id in ipairs(achievementMounts()) do
+  for _, id in ipairs(achievementMounts(faction)) do
     local title = Achievements.SourceTitle(api.SourceText(id), labels)
     if title then titles[title] = true end
   end
@@ -159,7 +177,7 @@ local function step(job)
   local api, budget = Scan.api, Scan.PER_FRAME
   if not job.cats then
     job.cats = api.CategoryList() or {}
-    job.ci, job.ai, job.read, job.titles = 1, 1, {}, sourceTitles()
+    job.ci, job.ai, job.read, job.titles = 1, 1, {}, sourceTitles(job.faction)
   end
   while budget > 0 and job.ci <= #job.cats do
     local cat = job.cats[job.ci]
@@ -177,7 +195,7 @@ local function step(job)
   end
   if job.ci <= #job.cats then return false end
   if not job.matcher then
-    job.matcher, job.fed = Achievements.NewMatcher(candidates()), 0
+    job.matcher, job.fed = Achievements.NewMatcher(candidates(job.faction)), 0
     return #job.read == 0 -- match from the next frame on
   end
   budget = Scan.MATCH_PER_FRAME
@@ -199,9 +217,9 @@ local function schedule(job)
     local good, doneOrErr = pcall(step, job)
     if not good then
       if ns.Game and ns.Game.ReportError then ns.Game.ReportError(doneOrErr) end
-      finish(nil)
+      finish(nil, job.faction)
     elseif doneOrErr then
-      finish(job.matcher:Result())
+      finish(job.matcher:Result(), job.faction)
     else
       Scan.api.After(0, tick)
     end
@@ -213,29 +231,32 @@ end
 -- -> Scan.state.
 function Scan.Ensure()
   if Scan.state ~= "idle" then return Scan.state end
-  local ids = cachedIds()
-  if ids and covers(ids) then
+  local faction = Scan.api.Faction()
+  local ids = cachedIds(faction)
+  if ids and covers(ids, faction) then
     Scan.state = "done"
     return Scan.state
   end
   Scan.state = "running"
   -- Item names load asynchronously: ask now, read when matching.
   local data = (ns.Data and ns.Data.Mounts) or {}
-  for _, id in ipairs(achievementMounts()) do
+  for _, id in ipairs(achievementMounts(faction)) do
     local item = data[id].item
     if item and not Scan.api.ItemName(item) then Scan.api.RequestItem(item) end
   end
-  schedule({})
+  schedule({ faction = faction })
   return Scan.state
 end
 
 -- -> achievementID or nil, and "ready" (known), "pending" (scan running or
--- just started) or "none" (not an achievement mount, or no match). Starts
--- the scan for achievement mounts not in the saved map.
+-- just started) or "none" (not an achievement mount of the player's
+-- faction, or no match). Starts the scan for achievement mounts not in the
+-- faction's saved map.
 function Scan.Lookup(mountID)
   local m = mountID and ns.Data and ns.Data.Mounts and ns.Data.Mounts[mountID]
-  if not Achievements.IsAchievementMount(m) then return nil, "none" end
-  local ids = cachedIds()
+  local faction = Scan.api.Faction()
+  if not Achievements.IsAchievementMountFor(m, faction) then return nil, "none" end
+  local ids = cachedIds(faction)
   if ids and ids[mountID] ~= nil then
     if ids[mountID] then return ids[mountID], "ready" end
     return nil, "none"

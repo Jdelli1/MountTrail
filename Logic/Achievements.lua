@@ -16,6 +16,13 @@ function Achievements.IsAchievementMount(m)
   return type(m) == "table" and m.tab == "misc" and m.section == "achievement"
 end
 
+-- An achievement mount this faction ("Alliance" | "Horde" | "Neutral") can
+-- earn: no faction, or the same one (Neutral: no faction mounts).
+function Achievements.IsAchievementMountFor(m, faction)
+  if not Achievements.IsAchievementMount(m) then return false end
+  return m.faction == nil or m.faction == faction
+end
+
 local function trim(s)
   return (string.gsub(string.gsub(s, "^%s+", ""), "%s+$", ""))
 end
@@ -77,7 +84,7 @@ function Achievements.ContainsName(text, name)
   end
 end
 
-local RANK_ITEM, RANK_NAME, RANK_TITLE, RANK_NONE = 1, 2, 3, 4
+local RANK_ITEM, RANK_TITLE, RANK_NAME, RANK_NONE = 1, 2, 3, 4
 
 local function nonEmpty(list)
   local out = {}
@@ -92,8 +99,11 @@ end
 -- source text or nil } }. Feed every achievement (id, name, rewardText);
 -- Result() -> { [mountID] = achievementID or false }. A mount takes the
 -- first achievement whose reward text names its item; else the first whose
--- reward text names the mount; else the first whose title equals the
--- source-text title.
+-- title equals its source-text title; else the first whose reward text
+-- names the mount. A reward-text hit is skipped when the same reward text
+-- also names a longer candidate of another mount that contains it (the
+-- "Heavenly Crimson Cloud Serpent" reward is not the "Crimson Cloud
+-- Serpent"'s).
 function Achievements.NewMatcher(mounts)
   local entries, byTitle = {}, {}
   for _, mount in ipairs(mounts or {}) do
@@ -108,25 +118,39 @@ function Achievements.NewMatcher(mounts)
 
   local matcher = {}
 
+  local function firstHit(text, list)
+    for _, candidate in ipairs(list) do
+      if Achievements.ContainsName(text, candidate) then return candidate end
+    end
+    return nil
+  end
+
+  -- True when another mount's hit is longer and contains this hit's name.
+  local function shadowed(hit, hits)
+    for _, other in ipairs(hits) do
+      if other.entry ~= hit.entry and #other.text > #hit.text
+        and string.find(other.text, hit.text, 1, true) then
+        return true
+      end
+    end
+    return false
+  end
+
   function matcher:Feed(achievementID, name, rewardText)
     if not achievementID then return end
     if type(rewardText) == "string" and rewardText ~= "" then
+      -- Every candidate the reward text names (also for mounts already
+      -- matched, so they can shadow shorter names).
+      local hits = {}
       for _, entry in ipairs(entries) do
-        if entry.rank > RANK_ITEM then
-          for _, item in ipairs(entry.items) do
-            if Achievements.ContainsName(rewardText, item) then
-              entry.rank, entry.match = RANK_ITEM, achievementID
-              break
-            end
-          end
-        end
-        if entry.rank > RANK_NAME then
-          for _, mountName in ipairs(entry.names) do
-            if Achievements.ContainsName(rewardText, mountName) then
-              entry.rank, entry.match = RANK_NAME, achievementID
-              break
-            end
-          end
+        local item = firstHit(rewardText, entry.items)
+        if item then hits[#hits + 1] = { entry = entry, text = item, rank = RANK_ITEM } end
+        local mountName = firstHit(rewardText, entry.names)
+        if mountName then hits[#hits + 1] = { entry = entry, text = mountName, rank = RANK_NAME } end
+      end
+      for _, hit in ipairs(hits) do
+        if hit.entry.rank > hit.rank and not shadowed(hit, hits) then
+          hit.entry.rank, hit.entry.match = hit.rank, achievementID
         end
       end
     end
@@ -167,12 +191,15 @@ end
 
 -- Tooltip lines for an achievement. info: { name=, description=,
 -- completed=, numCriteria=, criteria = { { text=, completed=, quantity=,
--- required= } } } (Game.AchievementInfo). -> { { text=, r=, g=, b=, wrap= } }:
--- "Achievement: <name>" (gold; green with "(completed)" when earned), the
--- description (white, wrapped), then up to `max` (default 8) criteria,
--- completed green and others grey, with "(quantity/required)" on
--- unfinished counted ones, and "+N more" for the rest. A criterion without
--- text shows as "Progress (q/r)" when counted, else is left out.
+-- required=, progressBar=, quantityString= } } } (Game.AchievementInfo).
+-- -> { { text=, r=, g=, b=, wrap= } }: "Achievement: <name>" (gold; green
+-- with "(completed)" when earned), the description (white, wrapped), then
+-- up to `max` (default 8) criteria, completed green and others grey.
+-- Progress-bar criteria show the client's quantityString ("<text>: <qs>",
+-- e.g. money with coin icons); other unfinished counted ones
+-- "(quantity/required)". A criterion without text shows as "Progress ..."
+-- when counted, else is not shown; "+N more" counts every criterion not
+-- shown (including those, and those not fetched).
 function Achievements.TooltipLines(info, max)
   if type(info) ~= "table" or type(info.name) ~= "string" or info.name == "" then return {} end
   max = max or 8
@@ -193,12 +220,15 @@ function Achievements.TooltipLines(info, max)
     local c = criteria[i]
     local text = type(c.text) == "string" and c.text or ""
     local required = count(c.required)
-    local progress = (not c.completed and required > 1)
-      and string.format(" (%d/%d)", count(c.quantity), required) or ""
-    if text == "" then
+    local qs = type(c.quantityString) == "string" and c.quantityString ~= "" and c.quantityString or nil
+    if c.progressBar and qs then
+      shown[#shown + 1] = { text = (text ~= "" and text or L["Progress"]) .. ": " .. qs, completed = c.completed }
+    elseif text == "" then
       if required > 1 then shown[#shown + 1] = { text = L["Progress"] .. string.format(" (%d/%d)",
         count(c.quantity), required), completed = c.completed } end
     else
+      local progress = (not c.completed and required > 1)
+        and string.format(" (%d/%d)", count(c.quantity), required) or ""
       shown[#shown + 1] = { text = text .. progress, completed = c.completed }
     end
   end
@@ -207,7 +237,7 @@ function Achievements.TooltipLines(info, max)
   for i = 1, n do
     lines[#lines + 1] = line("  " .. shown[i].text, shown[i].completed and GREEN or GREY)
   end
-  local more = (#shown - n) + math.max(0, count(info.numCriteria) - #criteria)
+  local more = math.max(count(info.numCriteria), #criteria) - n
   if more > 0 then
     lines[#lines + 1] = line(string.format(L["+%d more"], more), GREY)
   end

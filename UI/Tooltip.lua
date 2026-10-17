@@ -128,11 +128,13 @@ function UI.ShowMountTooltip(owner, mountID)
 end
 
 -- Repaints the mount tooltip if it is still showing (the achievement scan
--- finished while the row was hovered).
+-- finished while the row was hovered). List rows are recycled, so the row's
+-- current mountID wins over the one it was shown for.
 function UI.OnAchievementsReady()
   local tip = GameTooltip
   if not (shownOwner and tip and tip.IsOwned and tip:IsOwned(shownOwner)) then return end
-  UI.ShowMountTooltip(shownOwner, shownMount)
+  local mountID = type(shownOwner) == "table" and shownOwner.mountID or shownMount
+  UI.ShowMountTooltip(shownOwner, mountID)
 end
 
 if ns.AchievementScan then

@@ -193,30 +193,55 @@ end
 
 local MAX_CRITERIA = 100
 
+-- True when `flags` has bit `flag` (bit.band in game; arithmetic otherwise).
+local function hasFlag(flags, flag)
+  flags = tonumber(flags)
+  if not (flags and flag and flag > 0) then return false end
+  if bit and bit.band then return bit.band(flags, flag) == flag end
+  return math.floor(flags / flag) % 2 == 1
+end
+
 -- GetAchievementInfo(id): id, name, points, completed, month, day, year,
 -- description, flags, icon, rewardText, ... GetAchievementCriteriaInfo(id,
--- i): criteriaString, criteriaType, completed, quantity, reqQuantity, ...
+-- i): criteriaString, criteriaType, completed, quantity, reqQuantity,
+-- charName, flags, assetID, quantityString, ...
 -- -> { id=, name=, description=, completed=, numCriteria=, criteria = {
--- { text=, completed=, quantity=, required= } } } (at most 100 criteria
--- read; one that errors is left out), or nil when unknown.
+-- { text=, completed=, quantity=, required=, progressBar= (flags has
+-- EVALUATION_TREE_FLAG_PROGRESS_BAR, as the Achievements UI checks),
+-- quantityString= } } } (at most 100 criteria read; one that errors is left
+-- out), or nil when unknown.
 function Game.AchievementInfo(achievementID)
   if not (GetAchievementInfo and achievementID) then return nil end
   local good, id, name, _, completed, _, _, _, description = pcall(GetAchievementInfo, achievementID)
   if not (good and id and type(name) == "string") then return nil end
   local info = { id = id, name = name, description = description, completed = completed == true,
     numCriteria = 0, criteria = {} }
-  local n = GetAchievementNumCriteria and tonumber(GetAchievementNumCriteria(achievementID)) or 0
+  local n = 0
+  if GetAchievementNumCriteria then
+    local good2, count = pcall(GetAchievementNumCriteria, achievementID)
+    n = good2 and tonumber(count) or 0
+  end
   info.numCriteria = n
   if GetAchievementCriteriaInfo then
+    local progressFlag = tonumber(EVALUATION_TREE_FLAG_PROGRESS_BAR) or 1
     for i = 1, math.min(n, MAX_CRITERIA) do
-      local ok2, text, _, done, quantity, required = pcall(GetAchievementCriteriaInfo, achievementID, i)
-      if ok2 then
+      local good3, text, _, done, quantity, required, _, flags, _, quantityString =
+        pcall(GetAchievementCriteriaInfo, achievementID, i)
+      if good3 then
         info.criteria[#info.criteria + 1] = { text = text, completed = done == true,
-          quantity = tonumber(quantity), required = tonumber(required) }
+          quantity = tonumber(quantity), required = tonumber(required),
+          progressBar = hasFlag(flags, progressFlag),
+          quantityString = type(quantityString) == "string" and quantityString ~= "" and quantityString or nil }
       end
     end
   end
   return info
+end
+
+-- True while the player is in combat (InCombatLockdown); false when the API
+-- is missing.
+function Game.InCombat()
+  return type(InCombatLockdown) == "function" and InCombatLockdown() == true
 end
 
 -- Opens the achievement UI on `achievementID`: the bootstrap's

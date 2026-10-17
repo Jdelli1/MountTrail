@@ -125,6 +125,25 @@ describe("ui achievements", function()
     end)
   end)
 
+  describe("Shift+right-click in combat", function()
+    it("prints a note and opens nothing", function()
+      local opened = false
+      local ns = loadUI(function() return 10, "ready" end, {
+        OpenAchievement = function() opened = true; return true end,
+        InCombat = function() return true end,
+      })
+      eq(ns.UI.OpenMountAchievement(262), false)
+      eq(opened, false)
+      eq(ns.addon.printed[#ns.addon.printed], "Can't open achievements in combat")
+    end)
+
+    it("opens normally out of combat without printing", function()
+      local ns = loadUI(function() return 10, "ready" end, { InCombat = function() return false end })
+      eq(ns.UI.OpenMountAchievement(262), true)
+      eq(#ns.addon.printed, 0)
+    end)
+  end)
+
   describe("AchievementLines", function()
     it("is empty for other mounts and when nothing matched", function()
       local ns = loadUI(function() return nil, "none" end)
@@ -180,7 +199,11 @@ describe("ui achievements", function()
 
     it("repaints the open tooltip when the scan finishes", function()
       local status = "pending"
-      local ns = loadUI(function() if status == "ready" then return 10, "ready" end return nil, status end)
+      local ns = loadUI(function(id)
+        if id ~= 262 then return nil, "none" end
+        if status == "ready" then return 10, "ready" end
+        return nil, status
+      end)
       local tip, calls = recordingTip()
       local old = GameTooltip
       GameTooltip = tip
@@ -191,6 +214,15 @@ describe("ui achievements", function()
       ns.UI.OnAchievementsReady()
       local lines = addLines(calls)
       eq(lines[#lines], "Shift-right-click to open the achievement", "repainted with the achievement")
+      -- A recycled row now shows another mount: the repaint follows the row.
+      owner.mountID = 20
+      local before = #calls
+      ns.UI.OnAchievementsReady()
+      local after = {}
+      for i = before + 1, #calls do
+        if calls[i][1] == "AddLine" then after[#after + 1] = calls[i][2] end
+      end
+      eq(after, { "Times farmed: 0", "Lockout: —", "Ctrl-click to preview" }, "repainted for mount 20")
       -- Once hidden (or owned by something else) nothing is repainted.
       local n = #calls
       ns.UI.HideMountTooltip()

@@ -11,12 +11,25 @@ local MOUNTS = {
   [500] = { name = "Shop Mount", item = 1, tab = "misc", section = "shop" },
 }
 
--- A fake client: two categories, `filler` reward-less achievements in the
--- first, the rewarding ones in the second. Frames run by hand (runFrame).
+-- MOUNTS plus the two faction Pandaren Kites (Horde 450, Alliance 516).
+local KITE_MOUNTS = {
+  [450] = { name = "Pandaren Kite", item = 81559, tab = "misc", section = "achievement", faction = "Horde" },
+  [516] = { name = "Pandaren Kite", item = 89785, tab = "misc", section = "achievement", faction = "Alliance" },
+}
+for id, m in pairs(MOUNTS) do KITE_MOUNTS[id] = m end
+
+-- Cache key for the fake client's default build (matcher version v2).
+local KEY = "120105:70448:v2"
+
+-- A fake client: three categories, `filler` reward-less achievements in the
+-- first, the rewarding ones in the second, and the player's faction's
+-- Pandaren Ambassador (Horde 20, Alliance 21, none for Neutral) in the
+-- third. Frames run by hand (runFrame).
 local function fakeClient(opts)
   opts = opts or {}
   local c = {
     combat = false, build = opts.build or "120105:70448", queue = {}, calls = 0, catCalls = 0,
+    faction = opts.faction or "Alliance",
     items = opts.items or { [44160] = "Reins of the Red Proto-Drake" }, requested = {},
     sources = opts.sources or { [400] = "|cFFFFD200Achievement: |rMountacular" },
   }
@@ -27,15 +40,25 @@ local function fakeClient(opts)
     { id = 11, name = "Glory of the Raider", reward = "Reward: Reins of the Black Proto-Drake" },
     { id = 12, name = "Mountacular" }, -- no reward text: kept for its title
   }
+  local kites = {
+    Horde = { { id = 20, name = "Pandaren Ambassador", reward = "Reward: Pandaren Kite String" } },
+    Alliance = { { id = 21, name = "Pandaren Ambassador", reward = "Reward: Pandaren Kite String" } },
+    Neutral = {},
+  }
+  local function category(cat)
+    if cat == 3 then return kites[c.faction] end
+    return cats[cat]
+  end
   c.api = {
-    CategoryList = function() c.catCalls = c.catCalls + 1; return { 1, 2 } end,
-    NumAchievements = function(cat) return #cats[cat] end,
+    CategoryList = function() c.catCalls = c.catCalls + 1; return { 1, 2, 3 } end,
+    NumAchievements = function(cat) return #category(cat) end,
     AchievementInfo = function(cat, i)
       c.calls = c.calls + 1
       ok(not c.combat, "no achievement reads in combat")
-      local a = cats[cat][i]
+      local a = category(cat)[i]
       return a.id, a.name, a.reward
     end,
+    Faction = function() return c.faction end,
     ItemName = function(item) return c.items[item] end,
     RequestItem = function(item) c.requested[#c.requested + 1] = item end,
     InCombat = function() return c.combat end,
@@ -64,11 +87,13 @@ local function fakeClient(opts)
   return c
 end
 
-local function loadScan(client)
+-- savedMap: an achievementMap from an earlier session (shared table).
+local function loadScan(client, mounts, savedMap)
   local ns = load_addon(toc_lua_files())
   ns.addon:OnInitialize()
-  ns.Data.Mounts = MOUNTS
+  ns.Data.Mounts = mounts or MOUNTS
   ns.AchievementScan.api = client.api
+  if savedMap then ns.db.global.achievementMap = savedMap end
   return ns
 end
 
@@ -107,10 +132,10 @@ describe("achievement scan", function()
     eq({ Scan.Lookup(263) }, { 11, "ready" }, "mount name in the reward text")
     eq({ Scan.Lookup(400) }, { 12, "ready" }, "source-text title")
     eq({ Scan.Lookup(401) }, { nil, "none" }, "no match")
-    eq(ns.db.global.achievementMap, {
-      build = "120105:70448",
+    eq(ns.db.global.achievementMap, { Alliance = {
+      build = KEY,
       ids = { [262] = 10, [263] = 11, [400] = 12, [401] = false },
-    })
+    } })
   end)
 
   it("reads at most PER_FRAME achievements per frame", function()
@@ -147,7 +172,7 @@ describe("achievement scan", function()
       client:runFrame()
       ok(perFrame <= 2, "fed " .. perFrame)
     end
-    eq(fed, { 10, 11, 12 }, "reward-less filler is not fed; Mountacular is kept for its title")
+    eq(fed, { 10, 11, 12, 21 }, "reward-less filler is not fed; Mountacular is kept for its title")
     eq(ns.AchievementScan.Lookup(400), 12)
   end)
 
@@ -188,8 +213,8 @@ describe("achievement scan", function()
   it("uses the cache for the same build without scanning", function()
     local client = fakeClient()
     local ns = loadScan(client)
-    ns.db.global.achievementMap = { build = "120105:70448",
-      ids = { [262] = 77, [263] = false, [400] = 78, [401] = false } }
+    ns.db.global.achievementMap = { Alliance = { build = KEY,
+      ids = { [262] = 77, [263] = false, [400] = 78, [401] = false } } }
     eq({ ns.AchievementScan.Lookup(262) }, { 77, "ready" })
     eq({ ns.AchievementScan.Lookup(263) }, { nil, "none" })
     eq(#client.queue, 0, "no scan")
@@ -198,18 +223,65 @@ describe("achievement scan", function()
   it("rescans when the client build changed", function()
     local client = fakeClient({ build = "120105:70500" })
     local ns = loadScan(client)
+    ns.db.global.achievementMap = { Alliance = { build = KEY,
+      ids = { [262] = 77, [263] = false, [400] = 78, [401] = false } } }
+    eq({ ns.AchievementScan.Lookup(262) }, { nil, "pending" })
+    client:runAll()
+    eq(ns.db.global.achievementMap.Alliance.build, "120105:70500:v2")
+    eq(ns.AchievementScan.Lookup(262), 10)
+  end)
+
+  it("rebuilds a map saved by the first matcher (no version, not per faction) and drops it", function()
+    local client = fakeClient()
+    local ns = loadScan(client)
     ns.db.global.achievementMap = { build = "120105:70448",
       ids = { [262] = 77, [263] = false, [400] = 78, [401] = false } }
     eq({ ns.AchievementScan.Lookup(262) }, { nil, "pending" })
     client:runAll()
-    eq(ns.db.global.achievementMap.build, "120105:70500")
     eq(ns.AchievementScan.Lookup(262), 10)
+    eq(ns.db.global.achievementMap.build, nil, "old top-level keys removed")
+    eq(ns.db.global.achievementMap.ids, nil)
+    eq(ns.db.global.achievementMap.Alliance.build, KEY)
+  end)
+
+  it("keeps one map per faction: a Horde scan does not satisfy an Alliance alt", function()
+    local saved = {}
+    local horde = fakeClient({ faction = "Horde" })
+    local ns = loadScan(horde, KITE_MOUNTS, saved)
+    eq({ ns.AchievementScan.Lookup(450) }, { nil, "pending" })
+    horde:runAll()
+    eq({ ns.AchievementScan.Lookup(450) }, { 20, "ready" }, "Horde kite -> Horde achievement")
+    eq({ ns.AchievementScan.Lookup(516) }, { nil, "none" }, "the Alliance kite is not this faction's")
+    eq(#horde.queue, 0, "and starts no scan")
+    eq(saved.Horde.ids[450], 20)
+    eq(saved.Horde.ids[516], nil, "other-faction mounts are not mapped")
+
+    local alliance = fakeClient({ faction = "Alliance" })
+    ns = loadScan(alliance, KITE_MOUNTS, saved)
+    eq({ ns.AchievementScan.Lookup(516) }, { nil, "pending" }, "the Horde map does not count")
+    alliance:runAll()
+    eq({ ns.AchievementScan.Lookup(516) }, { 21, "ready" }, "Alliance kite -> Alliance achievement")
+    eq(saved.Alliance.ids[450], nil)
+    eq(saved.Horde.ids[450], 20, "the Horde map is kept")
+  end)
+
+  it("gives Neutral (unchosen Pandaren) its own map without faction mounts", function()
+    local saved = {}
+    local client = fakeClient({ faction = "Neutral" })
+    local ns = loadScan(client, KITE_MOUNTS, saved)
+    eq({ ns.AchievementScan.Lookup(450) }, { nil, "none" })
+    eq({ ns.AchievementScan.Lookup(262) }, { nil, "pending" })
+    client:runAll()
+    eq(ns.AchievementScan.Lookup(262), 10)
+    ok(saved.Neutral and saved.Neutral.build == KEY, "Neutral entry")
+    eq({ saved.Neutral.ids[450], saved.Neutral.ids[516] }, {})
+    eq(saved.Alliance, nil)
   end)
 
   it("rescans once per session when the cache lacks an achievement mount (new data)", function()
     local client = fakeClient()
     local ns = loadScan(client)
-    ns.db.global.achievementMap = { build = "120105:70448", ids = { [262] = 77, [263] = false, [400] = 78 } }
+    ns.db.global.achievementMap = { Alliance = { build = KEY, ids = { [262] = 77, [263] = false, [400] = 78 } } }
     eq({ ns.AchievementScan.Lookup(401) }, { nil, "pending" })
     client:runAll()
     eq(ns.AchievementScan.Lookup(262), 10, "fresh results")
@@ -258,7 +330,7 @@ end)
 local GLOBALS = { "GetAchievementInfo", "GetAchievementNumCriteria", "GetAchievementCriteriaInfo",
   "ShowAchievementFrameForAchievement", "OpenAchievementFrameToAchievement", "AchievementFrame",
   "AchievementFrame_SelectAchievement", "AchievementFrame_ToggleAchievementFrame", "C_AddOns",
-  "LoadAddOn", "ShowUIPanel" }
+  "LoadAddOn", "ShowUIPanel", "InCombatLockdown" }
 
 local harnessIt = it
 local function git(name, fn)
@@ -287,10 +359,32 @@ describe("game achievements", function()
     eq(loadGame().AchievementInfo(10), {
       id = 10, name = "Glory", description = "Do things.", completed = true, numCriteria = 2,
       criteria = {
-        { text = "First", completed = true, quantity = 1, required = 1 },
-        { text = "Second", completed = false, quantity = 3, required = 10 },
+        { text = "First", completed = true, quantity = 1, required = 1, progressBar = false },
+        { text = "Second", completed = false, quantity = 3, required = 10, progressBar = false },
       },
     })
+  end)
+
+  git("AchievementInfo marks progress-bar criteria (flags) and keeps quantityString", function()
+    GetAchievementInfo = function() return 7, "Rich", 0, false, nil, nil, nil, "Loot gold." end
+    GetAchievementNumCriteria = function() return 2 end
+    GetAchievementCriteriaInfo = function(_, i)
+      if i == 1 then return "Loot gold", 0, false, 1200, 100000, nil, 1, 0, "12g / 1000g" end
+      return "Plain", 0, false, 2, 5, nil, 0, 0, "2/5"
+    end
+    local info = loadGame().AchievementInfo(7)
+    eq(info.criteria[1], { text = "Loot gold", completed = false, quantity = 1200, required = 100000,
+      progressBar = true, quantityString = "12g / 1000g" })
+    eq(info.criteria[2].progressBar, false)
+    eq(info.criteria[2].quantityString, "2/5")
+  end)
+
+  git("AchievementInfo survives a failing GetAchievementNumCriteria", function()
+    GetAchievementInfo = function() return 8, "X", 0, false, nil, nil, nil, "" end
+    GetAchievementNumCriteria = function() error("boom") end
+    local info = loadGame().AchievementInfo(8)
+    eq(info.numCriteria, 0)
+    eq(info.criteria, {})
   end)
 
   git("AchievementInfo reads at most 100 criteria and survives a failing criterion", function()
@@ -312,6 +406,15 @@ describe("game achievements", function()
     GetAchievementInfo = function() return nil end
     eq(loadGame().AchievementInfo(10), nil)
     eq(loadGame().AchievementInfo(nil), nil)
+  end)
+
+  git("InCombat reads InCombatLockdown; false when missing", function()
+    InCombatLockdown = function() return true end
+    eq(loadGame().InCombat(), true)
+    InCombatLockdown = function() return nil end
+    eq(loadGame().InCombat(), false)
+    InCombatLockdown = nil
+    eq(loadGame().InCombat(), false)
   end)
 
   git("OpenAchievement prefers ShowAchievementFrameForAchievement", function()

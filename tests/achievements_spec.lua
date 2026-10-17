@@ -92,7 +92,7 @@ describe("achievements logic", function()
       eq(m:Result(), { [262] = false, [263] = 11, [400] = 12, [500] = false })
     end)
 
-    it("prefers item name over mount name over title, whatever the feed order", function()
+    it("prefers item name over source title over mount name, whatever the feed order", function()
       local m = A.NewMatcher(MOUNTS)
       m:Feed(1, "Glory of the Hero", nil)                          -- title
       m:Feed(2, "Other", "Reward: Red Proto-Drake")                 -- mount name
@@ -100,9 +100,49 @@ describe("achievements logic", function()
       m:Feed(4, "Fourth", "Reward: Reins of the Red Proto-Drake")   -- later item match loses
       eq(m:Result()[262], 3)
       local m2 = A.NewMatcher(MOUNTS)
-      m2:Feed(1, "Glory of the Hero", nil)
       m2:Feed(2, "Other", "Reward: Red Proto-Drake")
-      eq(m2:Result()[262], 2)
+      m2:Feed(1, "Glory of the Hero", nil)
+      eq(m2:Result()[262], 1, "an exact source-title match beats a mount-name match elsewhere")
+      local m3 = A.NewMatcher(MOUNTS)
+      m3:Feed(1, "Glory of the Hero", nil)
+      m3:Feed(2, "Other", "Reward: Red Proto-Drake")
+      eq(m3:Result()[262], 1, "either order")
+    end)
+
+    describe("a name inside a longer candidate name (Crimson vs Heavenly Crimson Cloud Serpent)", function()
+      local SERPENTS = {
+        { id = 472, items = {}, names = { "Crimson Cloud Serpent" } },
+        { id = 474, items = {}, names = { "Heavenly Crimson Cloud Serpent" } },
+      }
+      it("the longer name takes the reward, the shorter one is skipped", function()
+        local m = A.NewMatcher(SERPENTS)
+        m:Feed(100, "Heavenly", "Reward: Heavenly Crimson Cloud Serpent")
+        eq(m:Result(), { [472] = false, [474] = 100 })
+        m:Feed(101, "Crimson", "Reward: Crimson Cloud Serpent")
+        eq(m:Result(), { [472] = 101, [474] = 100 })
+      end)
+      it("in either feed order", function()
+        local m = A.NewMatcher(SERPENTS)
+        m:Feed(101, "Crimson", "Reward: Crimson Cloud Serpent")
+        m:Feed(100, "Heavenly", "Reward: Heavenly Crimson Cloud Serpent")
+        eq(m:Result(), { [472] = 101, [474] = 100 })
+      end)
+      it("also when the longer mount already matched by item name", function()
+        local m = A.NewMatcher({
+          { id = 472, items = {}, names = { "Crimson Cloud Serpent" } },
+          { id = 474, items = { "Reins of the Heavenly Crimson Cloud Serpent" }, names = { "Heavenly Crimson Cloud Serpent" } },
+        })
+        m:Feed(100, "Heavenly", "Reward: Reins of the Heavenly Crimson Cloud Serpent")
+        eq(m:Result(), { [472] = false, [474] = 100 })
+      end)
+      it("does not suppress two mounts with the same name", function()
+        local m = A.NewMatcher({
+          { id = 450, items = {}, names = { "Pandaren Kite" } },
+          { id = 516, items = {}, names = { "Pandaren Kite" } },
+        })
+        m:Feed(20, "Pandaren Ambassador", "Reward: Pandaren Kite String")
+        eq(m:Result(), { [450] = 20, [516] = 20 })
+      end)
     end)
 
     it("ignores missing ids and blank names", function()
@@ -177,12 +217,28 @@ describe("achievements logic", function()
         { "Achievement: X", "  C1", "  C2", "+1 more" })
     end)
 
-    it("shows a nameless counted criterion as Progress and skips nameless single steps", function()
+    it("shows a nameless counted criterion as Progress; nameless single steps count in +N more", function()
       local lines = A.TooltipLines({ name = "Collect", numCriteria = 2, criteria = {
         { text = "", completed = false, quantity = 120, required = 300 },
         { text = "", completed = false, quantity = 0, required = 1 },
       } })
-      eq(texts(lines), { "Achievement: Collect", "  Progress (120/300)" })
+      eq(texts(lines), { "Achievement: Collect", "  Progress (120/300)", "+1 more" })
+    end)
+
+    it("shows quantityString for progress-bar criteria (money, big counters)", function()
+      local lines = A.TooltipLines({ name = "Rich", numCriteria = 3, criteria = {
+        { text = "Loot gold", completed = false, quantity = 1200, required = 100000,
+          progressBar = true, quantityString = "12|TInterface\\MoneyFrame\\UI-GoldIcon:0|t / 1000|TInterface\\MoneyFrame\\UI-GoldIcon:0|t" },
+        { text = "", completed = true, quantity = 300, required = 300, progressBar = true, quantityString = "300 / 300" },
+        { text = "Bar without string", completed = false, quantity = 2, required = 5, progressBar = true },
+      } })
+      eq(texts(lines), {
+        "Achievement: Rich",
+        "  Loot gold: 12|TInterface\\MoneyFrame\\UI-GoldIcon:0|t / 1000|TInterface\\MoneyFrame\\UI-GoldIcon:0|t",
+        "  Progress: 300 / 300",
+        "  Bar without string (2/5)",
+      })
+      eq(color(lines[3]), GREEN)
     end)
 
     it("returns {} without info", function()

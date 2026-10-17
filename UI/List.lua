@@ -275,11 +275,16 @@ function UI.RowClickAction(button, ctrl, shift)
 end
 
 -- Opens the achievement that rewards the mount, when the achievement scan
--- (Integrations/AchievementScan.lua) knows it. -> true when opened.
+-- (Integrations/AchievementScan.lua) knows it. In combat it only prints a
+-- note. -> true when opened.
 function UI.OpenMountAchievement(mountID)
   local scan = ns.AchievementScan
   local id = mountID and scan and scan.Lookup(mountID) or nil
   if not id then return false end
+  if ns.Game.InCombat and ns.Game.InCombat() then
+    if ns.addon and ns.addon.Print then ns.addon:Print(L["Can't open achievements in combat"]) end
+    return false
+  end
   return ns.Game.OpenAchievement(id) == true
 end
 

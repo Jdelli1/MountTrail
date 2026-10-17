@@ -86,6 +86,7 @@ L["Achievement: looking up..."] = "Achievement: looking up..."
 L["(completed)"] = "(completed)"
 L["Progress"] = "Progress"
 L["+%d more"] = "+%d more"
+L["Can't open achievements in combat"] = "Can't open achievements in combat"
 
 -- Holidays and Misc tabs
 L["Active now"] = "Active now"
