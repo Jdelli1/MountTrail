@@ -213,6 +213,8 @@ local TEMPLATE_METHODS = {
   PortraitFrameTemplate = portraitMethods,
   PortraitFrameFlatTemplate = portraitMethods,
 }
+-- Specs may add methods for other templates (copied onto each new frame).
+STUB_TEMPLATE_METHODS = TEMPLATE_METHODS
 
 -- C_XMLUtil.GetTemplateInfo knows the templates in STUB_TEMPLATES (the
 -- classic ones plus the modern ones the UI prefers); specs remove entries to

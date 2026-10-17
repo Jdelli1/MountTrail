@@ -1,0 +1,288 @@
+-- Builds the restyled views (journal home and list, Holidays, Misc, Route)
+-- under the widget stub, plus the extra widget methods and ScrollBox / menu
+-- stand-ins below, so the widget code runs instead of being compile-checked
+-- only. Checks the Filter dropdown wiring (menu content, writes to
+-- ns.db.global.filters, reset arrow) and its checkbox-panel fallback.
+-- UI/Arrow.lua is not loaded.
+
+local UI_FILES = { "UI/Frame.lua", "UI/Tooltip.lua", "UI/List.lua", "UI/JournalHome.lua",
+  "UI/Tabs.lua", "UI/RouteView.lua" }
+
+-- Widget methods the views call that the base stub does not need.
+local probe = CreateFrame("Frame")
+local FrameMT = getmetatable(probe)
+local RegionMT = getmetatable(FrameMT).__index
+local function noop() end
+for _, name in ipairs({ "SetTexCoord", "SetJustifyH", "SetWordWrap", "SetDesaturated", "SetTextColor",
+  "SetStatusBarTexture", "SetStatusBarColor", "SetMinMaxValues", "SetValue", "SetDrawLayer",
+  "SetBackdrop", "SetBackdropColor", "SetRotation", "AddMaskTexture" }) do
+  RegionMT[name] = RegionMT[name] or noop
+end
+function RegionMT:SetFontObject(font) self.font = font end
+function RegionMT:GetStringWidth() return 60 end
+function RegionMT:GetWidth() return self.width or 0 end
+for _, name in ipairs({ "RegisterForClicks", "SetAutoFocus", "LockHighlight", "UnlockHighlight" }) do
+  FrameMT[name] = FrameMT[name] or noop
+end
+function FrameMT:SetChecked(on) self.checked = on end
+function FrameMT:GetChecked() return self.checked end
+function FrameMT:SetEnabled(on) self.enabled = on end
+function FrameMT:CreateMaskTexture() return self:CreateTexture(nil, "ARTWORK") end
+function FrameMT:SetDataProvider(provider, retain) self.provider = provider; self.retain = retain end
+
+function CreateScrollBoxListLinearView()
+  local view = {}
+  function view:SetElementExtentCalculator(fn) self.extent = fn end
+  function view:SetElementFactory(fn) self.factory = fn end
+  return view
+end
+ScrollUtil = { InitScrollBoxListWithScrollBar = function(box, bar, view) box.view = view end }
+function CreateDataProvider(rows) return { rows = rows } end
+IsControlKeyDown = function() return false end
+MenuResponse = { Refresh = 2 }
+
+-- The 11.x DropdownButton stand-in: records the generator and callbacks.
+STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate = {
+  SetupMenu = function(self, generator) self.generator = generator end,
+  SetDefaultCallback = function(self, fn) self.defaultCallback = fn end,
+  SetIsDefaultCallback = function(self, fn) self.isDefaultCallback = fn end,
+  ValidateResetState = function(self)
+    self.resetShown = self.isDefaultCallback ~= nil and not self.isDefaultCallback()
+  end,
+}
+
+-- Runs a dropdown's menu generator against a recording root description.
+local function openMenu(dropdown)
+  local calls = {}
+  local root = {}
+  function root:CreateCheckbox(text, isSelected, setSelected)
+    calls[#calls + 1] = { kind = "checkbox", text = text, isSelected = isSelected, setSelected = setSelected }
+  end
+  function root:CreateDivider() calls[#calls + 1] = { kind = "divider" } end
+  function root:CreateTitle(text) calls[#calls + 1] = { kind = "title", text = text } end
+  function root:CreateButton(text, fn) calls[#calls + 1] = { kind = "button", text = text, fn = fn } end
+  dropdown.generator(dropdown, root)
+  return calls
+end
+
+local function find(calls, text)
+  for _, c in ipairs(calls) do if c.text == text then return c end end
+end
+
+-- Lays out every element of a ScrollBox the way the client would.
+local function render(box)
+  local frames = {}
+  for _, data in ipairs(box.provider.rows) do
+    ok(type(box.view.extent(1, data)) == "number", "extent is a number")
+    box.view.factory(function(kind, init)
+      local f = CreateFrame(kind, nil, box)
+      init(f, data)
+      init(f, data) -- frames are recycled: a second init must work too
+      frames[#frames + 1] = f
+    end, data)
+  end
+  return frames
+end
+
+local function loadUI(global)
+  reset_ui_stub()
+  local files = toc_lua_files()
+  for _, f in ipairs(UI_FILES) do files[#files + 1] = f end
+  local ns = load_addon(files)
+  ns.addon:OnInitialize()
+  for k, v in pairs(global or {}) do ns.db.global[k] = v end
+  local stubGame = {
+    MountInfo = function() return nil end,
+    IsOwned = function(id) return id % 3 == 0 end,
+    Exists = function() return true end,
+    Faction = function() return "Alliance" end,
+    SavedRows = function() return {} end,
+    IsQuestDone = function() return false end,
+    IsLfgDone = function() return false end,
+    ExpansionLogo = function(i) if i == 1 then return 123 end end,
+    MountSourceText = function() return nil end,
+    ActiveHolidays = function() return { brewfest = true } end,
+    Now = function() return 1700000000 end,
+    UntilDaily = function() return 3600 end,
+    UntilWeekly = function() return 86400 end,
+    PlayerName = function() return "Tester" end,
+  }
+  for k, v in pairs(stubGame) do ns.Game[k] = v end
+  return ns
+end
+
+-- The journal list: open the window (journal tab) and click the first card.
+local function openJournalList(ns)
+  ns.ToggleWindow()
+  local content = ns.UI.frame.Inset.children[1]
+  local home = content.children[2] -- [1] is the Coming soon placeholder
+  local card = home.children[1]
+  card:RunScript("OnEnter")
+  card:RunScript("OnLeave")
+  card:RunScript("OnClick", "LeftButton")
+  local listPage = content.children[3]
+  ok(listPage:IsShown() and not home:IsShown(), "card opens the list")
+  local holder
+  for _, child in ipairs(listPage.children) do
+    local first = child.children and child.children[1]
+    if first and first.SearchBox then holder = first end
+  end
+  ok(holder, "list found")
+  return holder, home
+end
+
+describe("ui build", function()
+  it("journal home builds a card per expansion with flat edges", function()
+    local ns = loadUI()
+    ns.ToggleWindow()
+    local home = ns.UI.frame.Inset.children[1].children[2]
+    eq(#home.children, #ns.Data.Expansions)
+    local card = home.children[1]
+    ok(card.Edge and #card.Edge.edges == 4, "flat 1 px edge")
+    eq(card.Logo.texture, 123, "logo from the client")
+    ok(card.Logo:IsShown() and not card.Name:IsShown(), "logo instead of the name")
+    eq(card.Logo:GetPoint(1), "CENTER", "logo centred")
+    eq(card.Bar.height, 6, "slim bar")
+    card:RunScript("OnEnter")
+    eq(card.Edge.edges[1].color, { 1, 0.82, 0, 0.6 }, "gold edge on hover")
+    card:RunScript("OnLeave")
+    eq(card.Edge.edges[1].color, { 1, 1, 1, 0.1 })
+  end)
+
+  it("the journal list has a full-width list under the search box and Filter button", function()
+    local ns = loadUI()
+    local list = openJournalList(ns)
+    ok(list.FilterDropdown, "Filter dropdown")
+    eq(list.FilterPanel, nil, "no checkbox panel")
+    eq(list.FilterDropdown.template, "WowStyle1FilterDropdownTemplate")
+    eq({ list.FilterDropdown:GetPoint(1) }, { "LEFT", list.SearchBox, "RIGHT", 8, 0 })
+    eq({ list.ScrollBox:GetPoint(1) }, { "TOPLEFT", list, "TOPLEFT", 0, -30 }, "full width")
+    eq(list.tab, "journal")
+    local frames = render(list.ScrollBox)
+    ok(#frames > 0, "rows rendered")
+    local sawStripe, sawPlain = false, false
+    for _, f in ipairs(frames) do
+      if f.Stripe then
+        if f.Stripe:IsShown() then sawStripe = true else sawPlain = true end
+        ok(f.Name.font == "GameFontNormal" or f.Name.font == "GameFontDisable", "GameFont family")
+      end
+    end
+    ok(sawStripe and sawPlain, "every other row striped")
+  end)
+
+  it("the Filter menu writes ns.db.global.filters, refreshes and drives the reset arrow", function()
+    local ns = loadUI()
+    local list = openJournalList(ns)
+    local dd = list.FilterDropdown
+    local calls = openMenu(dd)
+    local kinds = {}
+    for _, c in ipairs(calls) do kinds[#kinds + 1] = c.kind end
+    eq(kinds, { "checkbox", "divider", "title", "checkbox", "checkbox", "checkbox", "checkbox", "checkbox",
+      "checkbox", "checkbox", "checkbox", "checkbox", "checkbox", "divider", "button", "button" })
+    eq(calls[1].text, "Collected")
+    eq(dd.resetShown, false, "defaults: no reset arrow")
+
+    local refreshed = 0
+    local realRefresh = ns.Refresh
+    ns.Refresh = function() refreshed = refreshed + 1; realRefresh() end
+
+    local raid = find(calls, "Raid drops")
+    eq(raid.isSelected(), true)
+    raid.setSelected()
+    eq(ns.db.global.filters.raid, false)
+    eq(raid.isSelected(), false, "checkbox reads the live filters")
+    eq(refreshed, 1)
+    eq(dd.resetShown, true, "reset arrow once a filter differs")
+
+    find(calls, "Collected").setSelected()
+    eq(ns.db.global.filters.collected, true)
+
+    eq(find(calls, "Uncheck all").fn(), MenuResponse.Refresh, "menu stays open")
+    eq(ns.db.global.filters.dungeon, false)
+    eq(find(calls, "Check all").fn(), MenuResponse.Refresh)
+    eq(ns.db.global.filters.dungeon, true)
+    eq(refreshed, 4)
+
+    dd.defaultCallback()
+    eq(ns.db.global.filters, ns.Journal.DefaultFilters, "reset restores the defaults")
+    eq(dd.resetShown, false)
+  end)
+
+  it("falls back to the checkbox panel without the dropdown template", function()
+    local ns = loadUI({ filters = { collected = true, raid = false } })
+    STUB_TEMPLATES.WowStyle1FilterDropdownTemplate = nil
+    local list = openJournalList(ns)
+    eq(list.FilterDropdown, nil)
+    ok(list.FilterPanel, "checkbox panel")
+    eq(list.SearchBox:GetParent(), list.FilterPanel)
+    eq(#list.SectionChecks, 10)
+    eq(list.CollectedCheck.checked, true)
+    eq(list.SectionChecks[2].checked, false, "raid unticked")
+    eq({ list.ScrollBox:GetPoint(1) }, { "TOPLEFT", list.FilterPanel, "TOPRIGHT", 4, 0 })
+    list.SectionChecks[2].checked = true
+    list.SectionChecks[2]:RunScript("OnClick")
+    eq(ns.db.global.filters.raid, true)
+    eq(ns.UI.TemplateFallbacks.WowStyle1FilterDropdownTemplate, false)
+  end)
+
+  it("falls back to the panel when the template lacks SetupMenu", function()
+    local ns = loadUI()
+    local saved = STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate
+    STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate = nil
+    local good, list = pcall(openJournalList, ns)
+    STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate = saved -- restore before any assert
+    ok(good, tostring(list))
+    eq(list.FilterDropdown, nil)
+    ok(list.FilterPanel, "checkbox panel")
+  end)
+
+  it("Holidays and Misc build their lists with a Collected-only menu", function()
+    local ns = loadUI()
+    ns.ToggleWindow()
+    for i, key in ipairs({ "holidays", "misc" }) do
+      ns.UI.SelectTab(key)
+      local content = ns.UI.frame.Inset.children[i + 1]
+      local list = content.children[2]
+      ok(list and list.FilterDropdown, key .. ": dropdown (" .. tostring(#content.children) .. " children)")
+      local calls = openMenu(list.FilterDropdown)
+      eq(#calls, 1, key .. ": Collected only")
+      render(list.ScrollBox)
+    end
+  end)
+
+  it("Route builds a flat header, a two-segment mode control and striped rows", function()
+    local ns = loadUI()
+    ns.ToggleWindow()
+    ns.UI.SelectTab("route")
+    local root = ns.UI.frame.Inset.children[4].children[2]
+    local header = root.children[1]
+    eq(header.ShowCompleted.template, "MinimalCheckboxTemplate")
+    eq(header.Name:GetText(), "Tester")
+    eq(header.ListMode.Label.font, "GameFontNormalSmall", "List selected")
+    eq(header.ArrowMode.Label.font, "GameFontDisableSmall")
+    eq(header.ListMode.Bg.color, { 1, 0.82, 0, 0.22 })
+    header.ArrowMode:RunScript("OnClick") -- no Arrow.lua loaded: stays on List, no error
+    header.ShowCompleted.checked = true
+    header.ShowCompleted:RunScript("OnClick")
+    eq(ns.db.char.showCompleted, true)
+    local box
+    for _, child in ipairs(root.children) do if child.view then box = child end end
+    local frames = render(box)
+    ok(#frames > 10, "route rows rendered")
+    local striped = 0
+    for _, f in ipairs(frames) do
+      if f.Stripe:IsShown() then striped = striped + 1 end
+      ok(f.Title.font == "GameFontNormal" or f.Title.font == "GameFontDisable", "GameFont family")
+    end
+    eq(striped, math.floor(#frames / 2), "every other row striped")
+  end)
+
+  it("Route falls back to the classic checkbox", function()
+    local ns = loadUI()
+    STUB_TEMPLATES.MinimalCheckboxTemplate = nil
+    ns.ToggleWindow()
+    ns.UI.SelectTab("route")
+    local header = ns.UI.frame.Inset.children[4].children[2].children[1]
+    eq(header.ShowCompleted.template, "UICheckButtonTemplate")
+  end)
+end)

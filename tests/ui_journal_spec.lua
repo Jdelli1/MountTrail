@@ -1,6 +1,6 @@
 -- Pure helpers of UI/Tooltip.lua and UI/List.lua (source line, icon, section
 -- headers, tooltip lines, lockout status, preview) with stubbed Game and Data.
--- The frame code (List widget, journal home) is compile-checked only.
+-- The frame code (List widget, journal home) is built in tests/ui_build_spec.lua.
 
 local UI_FILES = { "UI/Frame.lua", "UI/Tooltip.lua", "UI/List.lua", "UI/JournalHome.lua" }
 

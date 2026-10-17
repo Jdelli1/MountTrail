@@ -20,7 +20,7 @@ local ADDON, ns = ...
 -- green tag after the row's source line) }.
 -- The pure helpers above the widget code (SourceLine, MountIcon, SectionLabel,
 -- ListRows, PreviewMount, the filter menu helpers) are unit-tested; the widget
--- code is not.
+-- code is built under a stub by tests/ui_build_spec.lua.
 
 local L = ns.L
 
@@ -597,6 +597,17 @@ function UI.List(parent, getQuery, opts)
   end)
   list.SearchBox = search
   if dropdown then
+    -- Flat header strip behind the top row, with a thin rule underneath.
+    local strip = list:CreateTexture(nil, "BACKGROUND")
+    strip:SetPoint("TOPLEFT", list, "TOPLEFT", 0, 0)
+    strip:SetPoint("TOPRIGHT", list, "TOPRIGHT", 0, 0)
+    strip:SetHeight(TOP_ROW - 2)
+    strip:SetColorTexture(1, 1, 1, 0.04)
+    local rule = list:CreateTexture(nil, "BORDER")
+    rule:SetHeight(1)
+    rule:SetPoint("TOPLEFT", strip, "BOTTOMLEFT", 0, 0)
+    rule:SetPoint("TOPRIGHT", strip, "BOTTOMRIGHT", 0, 0)
+    rule:SetColorTexture(1, 1, 1, 0.1)
     search:SetSize(SEARCH_WIDTH, 20)
     search:SetPoint("TOPLEFT", list, "TOPLEFT", 10, -4)
     dropdown:SetPoint("LEFT", search, "RIGHT", 8, 0)

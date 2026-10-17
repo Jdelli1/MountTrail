@@ -8,7 +8,11 @@ local ADDON, ns = ...
 --
 -- The pure helpers (RouteContext, RouteRemaining, RouteNextStep, RouteCheck,
 -- RouteToggle, RouteRowLines, RouteFlavour, FormatDuration) are unit-tested;
--- the widget code below them is compile-checked only.
+-- the widget code below them is built under a stub by tests/ui_build_spec.lua.
+-- Look: a flat header strip, the flat minimal checkbox where the client has
+-- it (MinimalCheckboxTemplate, else UICheckButtonTemplate), a two-segment
+-- List / Arrow control and striped borderless rows, all in the GameFont
+-- families.
 
 local L = ns.L
 
@@ -248,6 +252,11 @@ local TITLE_RIGHT = MAP_RIGHT + MAP_WIDTH + 40 -- room for the "auto" tag
 local LINE_RIGHT = MAP_RIGHT + MAP_WIDTH + 8
 local KILL_TITLE_Y, TRAVEL_TITLE_Y = -6, -5
 
+-- Flat minimal checkbox of the current panels; classic one as the fallback.
+local function checkTemplate()
+  return UI.Template("MinimalCheckboxTemplate", "UICheckButtonTemplate")
+end
+
 local function rowExtent(row)
   local _, lines = UI.RouteRowLines(row)
   if row.kind == "kill" then return KILL_BASE + LINE_HEIGHT * #lines end
@@ -260,11 +269,16 @@ local function firstMount(row)
 end
 
 local function setupRow(frame)
+  -- Borderless rows: a faint stripe on every other row, soft hover highlight.
+  local stripe = frame:CreateTexture(nil, "BACKGROUND")
+  stripe:SetAllPoints(frame)
+  stripe:SetColorTexture(1, 1, 1, 0.025)
+  frame.Stripe = stripe
   local highlight = frame:CreateTexture(nil, "HIGHLIGHT")
   highlight:SetAllPoints(frame)
-  highlight:SetColorTexture(1, 1, 1, 0.06)
+  highlight:SetColorTexture(1, 1, 1, 0.07)
 
-  local check = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
+  local check = CreateFrame("CheckButton", nil, frame, checkTemplate())
   check:SetSize(CHECK_SIZE, CHECK_SIZE)
   check:SetScript("OnClick", function(self)
     local data = frame.data
@@ -340,6 +354,7 @@ local function initRow(frame, data)
   frame.data = data
   local titleText, lines = UI.RouteRowLines(data)
   local left = 6 + (data.depth or 0) * INDENT
+  frame.Stripe:SetShown(data.alt == true)
 
   frame.Title:ClearAllPoints()
   if data.kind == "kill" then
@@ -356,18 +371,17 @@ local function initRow(frame, data)
     frame.Title:SetPoint("TOPLEFT", frame.Check, "TOPRIGHT", 4, KILL_TITLE_Y + 2)
     frame.Title:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -TITLE_RIGHT, KILL_TITLE_Y)
     frame.Title:SetFontObject("GameFontNormal")
-    frame.Title:SetTextColor(1, 0.82, 0)
     frame.Auto:SetShown(auto and true or false)
     frame.Map:SetShown(firstMount(data) ~= nil)
   else
-    -- Travel hint. WoW ships no italic font, so travel rows are grey only.
+    -- Travel hint. WoW ships no italic font, so travel rows are grey only
+    -- (the GameFontDisable family).
     frame.Check:Hide()
     frame.Auto:Hide()
     frame.Map:Hide()
     frame.Title:SetPoint("TOPLEFT", frame, "TOPLEFT", left + 4, TRAVEL_TITLE_Y)
     frame.Title:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -TITLE_RIGHT, TRAVEL_TITLE_Y)
-    frame.Title:SetFontObject("GameFontHighlight")
-    frame.Title:SetTextColor(0.6, 0.6, 0.6)
+    frame.Title:SetFontObject("GameFontDisable")
   end
   frame.Title:SetText(titleText)
   for i, text in ipairs(lines) do
@@ -378,7 +392,7 @@ local function initRow(frame, data)
   for i = #lines + 1, #frame.Lines do frame.Lines[i]:Hide() end
 end
 
-local MODE_WIDTH = 64
+local MODE_WIDTH, MODE_HEIGHT = 60, 20
 
 local view = {}
 local root, header, scrollBox
@@ -387,14 +401,22 @@ local function routeMode()
   return (ns.Arrow and ns.Arrow.Mode()) or "list"
 end
 
--- The List / Arrow toggle: the active mode's button keeps its highlight.
+-- One segment of the List / Arrow control: selected = gold-tinted fill and
+-- GameFontNormalSmall, else a dark fill and GameFontDisableSmall.
+local function paintSegment(button, selected)
+  if selected then
+    button.Bg:SetColorTexture(1, 0.82, 0, 0.22)
+    button.Label:SetFontObject("GameFontNormalSmall")
+  else
+    button.Bg:SetColorTexture(0, 0, 0, 0.35)
+    button.Label:SetFontObject("GameFontDisableSmall")
+  end
+end
+
 local function paintMode()
   local arrow = routeMode() == "arrow"
-  if arrow then
-    header.ArrowMode:LockHighlight(); header.ListMode:UnlockHighlight()
-  else
-    header.ListMode:LockHighlight(); header.ArrowMode:UnlockHighlight()
-  end
+  paintSegment(header.ArrowMode, arrow)
+  paintSegment(header.ListMode, not arrow)
 end
 
 local function refresh()
@@ -402,6 +424,7 @@ local function refresh()
   local Game = ns.Game
   local ctx = UI.RouteContext(Game.Now())
   local rows = ns.Route.Build((ns.Data and ns.Data.Route) or {}, ctx)
+  for i, row in ipairs(rows) do row.alt = i % 2 == 0 end
   local name = Game.PlayerName()
 
   header.Name:SetText(name or "")
@@ -427,6 +450,16 @@ local function build(parent)
   header:SetPoint("TOPRIGHT", root, "TOPRIGHT", 0, 0)
   header:SetHeight(HEADER_HEIGHT)
 
+  -- Flat header strip with a thin rule underneath.
+  local strip = header:CreateTexture(nil, "BACKGROUND")
+  strip:SetAllPoints(header)
+  strip:SetColorTexture(1, 1, 1, 0.04)
+  local rule = header:CreateTexture(nil, "BORDER")
+  rule:SetHeight(1)
+  rule:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT", 0, 0)
+  rule:SetPoint("BOTTOMRIGHT", header, "BOTTOMRIGHT", 0, 0)
+  rule:SetColorTexture(1, 1, 1, 0.1)
+
   -- Header lines span the header with same-edge anchor pairs, each chained
   -- under the one above (the Show completed box overlays the name line's
   -- right end; the name is short and left-justified).
@@ -442,14 +475,13 @@ local function build(parent)
   resets:SetJustifyH("LEFT")
   header.Resets = resets
 
-  local flavour = header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  local flavour = header:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
   flavour:SetPoint("TOPLEFT", resets, "BOTTOMLEFT", 0, -8)
   flavour:SetPoint("TOPRIGHT", resets, "BOTTOMRIGHT", 0, -8)
   flavour:SetJustifyH("LEFT")
-  flavour:SetTextColor(0.9, 0.8, 0.55)
   header.Flavour = flavour
 
-  local show = CreateFrame("CheckButton", nil, header, "UICheckButtonTemplate")
+  local show = CreateFrame("CheckButton", nil, header, checkTemplate())
   show:SetSize(CHECK_SIZE, CHECK_SIZE)
   local showText = show.Text or show.text
   if not showText then
@@ -465,21 +497,42 @@ local function build(parent)
   end)
   header.ShowCompleted = show
 
-  -- List / Arrow toggle on the resets line's right end (ns.db.char.routeMode).
+  -- List / Arrow toggle on the resets line's right end (ns.db.char.routeMode):
+  -- a flat two-segment control in a 1 px frame.
+  local modes = CreateFrame("Frame", nil, header)
+  modes:SetSize(MODE_WIDTH * 2 + 1, MODE_HEIGHT)
+  modes:SetPoint("TOPRIGHT", header, "TOPRIGHT", -8, -30)
+  UI.FlatBorder(modes, 1, 1, 1, 0.15)
+  header.ModeControl = modes
+
   local function modeButton(mode, label)
-    local button = CreateFrame("Button", nil, header, "UIPanelButtonTemplate")
-    button:SetSize(MODE_WIDTH, 20)
-    button:SetText(L[label])
+    local button = CreateFrame("Button", nil, modes)
+    button:SetSize(MODE_WIDTH, MODE_HEIGHT)
+    local bg = button:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints(button)
+    button.Bg = bg
+    local highlight = button:CreateTexture(nil, "HIGHLIGHT")
+    highlight:SetAllPoints(button)
+    highlight:SetColorTexture(1, 1, 1, 0.08)
+    local text = button:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    text:SetPoint("CENTER", button, "CENTER", 0, 0)
+    text:SetText(L[label])
+    button.Label = text
     button:SetScript("OnClick", function()
       if ns.Arrow then ns.Arrow.SetMode(nil, mode) end
       ns.Refresh()
     end)
     return button
   end
-  header.ArrowMode = modeButton("arrow", "Arrow")
-  header.ArrowMode:SetPoint("TOPRIGHT", header, "TOPRIGHT", -8, -30)
   header.ListMode = modeButton("list", "List")
-  header.ListMode:SetPoint("TOPRIGHT", header.ArrowMode, "TOPLEFT", -2, 0)
+  header.ListMode:SetPoint("TOPLEFT", modes, "TOPLEFT", 0, 0)
+  header.ArrowMode = modeButton("arrow", "Arrow")
+  header.ArrowMode:SetPoint("TOPRIGHT", modes, "TOPRIGHT", 0, 0)
+  local divider = modes:CreateTexture(nil, "BORDER")
+  divider:SetWidth(1)
+  divider:SetPoint("TOP", modes, "TOP", 0, 0)
+  divider:SetPoint("BOTTOM", modes, "BOTTOM", 0, 0)
+  divider:SetColorTexture(1, 1, 1, 0.15)
 
   scrollBox = CreateFrame("Frame", nil, root, "WowScrollBoxList")
   scrollBox:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -2)

@@ -1,7 +1,7 @@
 -- Pure helpers of UI/RouteView.lua and UI/Tabs.lua (route context, steps
 -- left, tick boxes, row text, flavour, durations, holiday badge, trading tag),
 -- the List opts hooks (UI/List.lua) and the route-boss LockoutStatus fix.
--- The frame code (route view, Holidays/Misc views) is compile-checked only.
+-- The frame code (route view, Holidays/Misc views) is built in tests/ui_build_spec.lua.
 
 local UI_FILES = { "UI/Frame.lua", "UI/Tooltip.lua", "UI/List.lua", "UI/JournalHome.lua",
   "UI/Tabs.lua", "UI/RouteView.lua" }
