@@ -130,3 +130,16 @@ The window now follows Blizzard's current flat panel style. This section superse
 - [ ] Route tab: flat header strip with a thin line under it; Show completed is the flat minimal checkbox (`MinimalCheckboxTemplate`; if `/azt debug` reported it missing, the Settings checkbox or the classic one is used instead and should still tick, untick and grey out when disabled). List / Arrow is one framed two-segment control (the 1 px frame visible on all four sides and between the segments): the active segment is gold-tinted with gold text, the other dark with grey text; clicking switches mode as before. Route rows are borderless and striped; travel rows grey, kill rows gold; tick boxes are the same minimal checkbox, disabled ones look disabled.
 - [ ] Classic fallback (optional, only if a fallback was reported above): the window still opens with the classic stone frame, inset and bottom tabs, and/or the old left checkbox filter panel; every function still works.
 - [ ] Combat / taint: open the Filter menu and change filters in and out of combat; no "Interface action failed because of an AddOn" naming AzerothTrail.
+
+## F1: Achievements and Timewalking tabs
+
+Supersedes the four-tab notes above: there are now six tabs.
+
+- [ ] `/reload` with `/console scriptErrors 1`, `/azt`: six top tabs in this order: Journal, Holidays, Achievements, Timewalking, Misc, Route. All fit on one row right of the portrait inside the 800 px window (nothing overlaps the window's right edge); each is sized to its text with a little padding, Misc and Route no narrower than ~70 px, none wider than ~110 px. No label is truncated ("..."); if one is on this client/locale, note which.
+- [ ] Achievements tab: only achievement-reward mounts (e.g. Red Proto-Drake and Black Proto-Drake are here; Time-Lost Proto-Drake, a world rare, is not). Headers are expansion names in expansion order (Wrath of the Lich King ... Midnight); a "General" header, if any, comes last. Collected filter (Filter menu, Collected only) and search work.
+- [ ] Timewalking tab: one "Timewalking" header with the Timewalking vendor mounts (e.g. Ironbound Wraithcharger, Eclipse Dragonhawk, Yu'lei, Daughter of Jade). Collected filter and search work.
+- [ ] Holidays tab: no Timewalking header or Timewalking mounts any more; the other holiday headers and the "Active now" badge are unchanged.
+- [ ] Misc tab: headers Professions, Shop, Trading Post, Other only (no Achievements header); the "Trading Post — this month" tag is unchanged.
+- [ ] Journal home counts are unchanged from before this update (achievement and Timewalking mounts were never counted there).
+- [ ] Saved tab: select Achievements, `/reload`, `/azt`: Achievements is still selected; same for Timewalking. A saved tab key from an older version that no longer exists opens Journal.
+- [ ] Classic fallback (only if `/azt debug` reported PanelTopTabButtonTemplate missing): six bottom tabs, all clickable.

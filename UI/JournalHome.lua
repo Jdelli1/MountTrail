@@ -170,7 +170,7 @@ local function build(parent)
   holder:SetPoint("TOPLEFT", listPage, "TOPLEFT", 0, -36)
   holder:SetPoint("BOTTOMRIGHT", listPage, "BOTTOMRIGHT", 0, 0)
   list = UI.List(holder, function()
-    return { tab = "journal", exp = currentExp, sourceText = ns.Game.MountSourceText }
+    return { view = "journal", exp = currentExp, sourceText = ns.Game.MountSourceText }
   end)
 end
 

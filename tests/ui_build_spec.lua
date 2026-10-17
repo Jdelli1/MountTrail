@@ -1,4 +1,5 @@
--- Builds the restyled views (journal home and list, Holidays, Misc, Route)
+-- Builds the restyled views (journal home and list, Holidays, Achievements,
+-- Timewalking, Misc, Route)
 -- under the widget stub, plus the extra widget methods and ScrollBox / menu
 -- stand-ins below, so the widget code runs instead of being compile-checked
 -- only. Checks the Filter dropdown wiring (menu content, writes to
@@ -288,16 +289,75 @@ describe("ui build", function()
     eq(ns.addon.printed[#ns.addon.printed], "Template DropdownButton:SetupMenu missing, using checkbox panel")
   end)
 
-  it("Holidays and Misc build their lists with a Collected-only menu", function()
+  it("Holidays, Achievements, Timewalking and Misc build their lists with a Collected-only menu", function()
     local ns = loadUI()
     ns.ToggleWindow()
-    for i, key in ipairs({ "holidays", "misc" }) do
+    for i, key in ipairs({ "holidays", "achievements", "timewalking", "misc" }) do
       ns.UI.SelectTab(key)
       local list = content(ns, key).children[2]
       ok(list and list.FilterDropdown, key .. ": dropdown")
+      eq(list.tab, key, key .. ": the list knows its view")
       local calls = openMenu(list.FilterDropdown)
       eq(#calls, 1, key .. ": Collected only")
       render(list.ScrollBox)
+    end
+  end)
+
+  -- Header and mount rows of a list tab, built from the real Data/Mounts.lua.
+  local function tabRows(ns, key)
+    ns.UI.SelectTab(key)
+    local headers, mounts = {}, {}
+    for _, row in ipairs(content(ns, key).children[2].ScrollBox.provider.rows) do
+      if row.header then headers[#headers + 1] = row else mounts[#mounts + 1] = row end
+    end
+    return headers, mounts
+  end
+
+  it("each list tab shows its own mounts (real data)", function()
+    local ns = loadUI({ filters = { collected = true } })
+    ns.ToggleWindow()
+    local Journal = ns.Journal
+
+    local headers, mounts = tabRows(ns, "achievements")
+    ok(#mounts > 50, "achievement mounts listed: " .. #mounts)
+    for _, row in ipairs(mounts) do
+      eq({ row.m.tab, row.m.section }, { "misc", "achievement" }, "achievements row " .. row.id)
+    end
+    local expIndex = {}
+    for i, name in ipairs(ns.Data.Expansions) do expIndex[name] = i end
+    local last = 0
+    for _, h in ipairs(headers) do
+      local i = expIndex[h.section] or (h.section == "General" and 1000)
+      ok(i and i > last, "expansion headers in Data.Expansions order, General last: " .. tostring(h.section))
+      eq(h.text, h.section, "header names the expansion")
+      last = i
+    end
+
+    headers, mounts = tabRows(ns, "timewalking")
+    ok(#mounts > 10, "timewalking mounts listed: " .. #mounts)
+    eq(#headers, 1)
+    eq(headers[1].text, "Timewalking")
+    for _, row in ipairs(mounts) do eq(Journal.ViewOf(row.m), "timewalking", "timewalking row " .. row.id) end
+
+    headers, mounts = tabRows(ns, "holidays")
+    ok(#mounts > 10, "holiday mounts listed")
+    for _, row in ipairs(mounts) do
+      eq(Journal.ViewOf(row.m), "holidays", "holidays row " .. row.id)
+      ok(row.m.section ~= "timewalking", "no timewalking on Holidays")
+    end
+    for _, h in ipairs(headers) do
+      ok(h.section ~= "timewalking", "no Timewalking header on Holidays")
+      if h.section == "brewfest" then eq(h.badge, "Active now") end
+    end
+
+    headers, mounts = tabRows(ns, "misc")
+    ok(#mounts > 100, "misc mounts listed")
+    local allowed = { profession = 1, shop = 2, tradingpost = 3, other = 4 }
+    for _, row in ipairs(mounts) do eq(Journal.ViewOf(row.m), "misc", "misc row " .. row.id) end
+    last = 0
+    for _, h in ipairs(headers) do
+      ok(allowed[h.section] and allowed[h.section] > last, "misc header " .. tostring(h.section))
+      last = allowed[h.section]
     end
   end)
 

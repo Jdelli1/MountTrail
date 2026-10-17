@@ -1,7 +1,10 @@
 local ADDON, ns = ...
 
--- Holidays and Misc tabs: the shared mount list (UI/List.lua) on the
--- "holiday" and "misc" tabs of Data/Mounts.lua. Holiday section headers get
+-- Holidays, Achievements, Timewalking and Misc tabs: the shared mount list
+-- (UI/List.lua) on the matching Journal.Select view (Journal.ViewOf: the
+-- Achievements view takes the misc achievement section, grouped by
+-- expansion; Timewalking takes the holiday timewalking section; Holidays and
+-- Misc keep the rest of their data tabs). Holiday section headers get
 -- an "Active now" badge while the event is on the calendar; Trading Post
 -- mounts in this month's rotation get a "Trading Post — this month" tag.
 -- The two hooks are pure (UI.HolidayBadge, UI.TradingTag) and unit-tested;
@@ -34,13 +37,43 @@ UI.RegisterView("holidays", {
     holidayList = UI.List(parent, function()
       -- Read the calendar once per refresh; headerSuffix runs per header.
       activeNow = ns.Game.ActiveHolidays() or {}
-      return { tab = "holiday" }
+      return { view = "holidays" }
     end, {
       headerSuffix = function(section) return UI.HolidayBadge(section, activeNow) end,
     })
   end,
   Refresh = function()
     if holidayList then holidayList:Refresh() end
+  end,
+})
+
+-- Achievements: achievement-reward mounts grouped by expansion ---------------------
+
+local achievementList
+
+UI.RegisterView("achievements", {
+  Build = function(parent)
+    achievementList = UI.List(parent, function()
+      return { view = "achievements" }
+    end)
+  end,
+  Refresh = function()
+    if achievementList then achievementList:Refresh() end
+  end,
+})
+
+-- Timewalking -----------------------------------------------------------------------
+
+local timewalkingList
+
+UI.RegisterView("timewalking", {
+  Build = function(parent)
+    timewalkingList = UI.List(parent, function()
+      return { view = "timewalking" }
+    end)
+  end,
+  Refresh = function()
+    if timewalkingList then timewalkingList:Refresh() end
   end,
 })
 
@@ -51,7 +84,7 @@ local miscList
 UI.RegisterView("misc", {
   Build = function(parent)
     miscList = UI.List(parent, function()
-      return { tab = "misc" }
+      return { view = "misc" }
     end, { rowTag = UI.TradingTag })
   end,
   Refresh = function()

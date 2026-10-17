@@ -105,13 +105,23 @@ function UI.FlatBorder(frame, r, g, b, a, layer)
   return border
 end
 
--- Tab order is fixed; views plug in by key (Tasks 13/14).
+-- Tab order is fixed; views plug in by key. A saved key that is no longer
+-- here (an older version's tab) falls back to the first tab.
 local TABS = {
   { key = "journal", label = "Journal" },
   { key = "holidays", label = "Holidays" },
+  { key = "achievements", label = "Achievements" },
+  { key = "timewalking", label = "Timewalking" },
   { key = "misc", label = "Misc" },
   { key = "route", label = "Route" },
 }
+
+-- Tab widths for PanelTemplates_TabResize: each tab fits its text plus 12 px
+-- of extra padding (on top of the template's 20 px sides), at least 70 px so
+-- Misc / Route are not stubby, at most 110 px so a long translation
+-- truncates instead of pushing the row past the window: 6 x 110 + gaps
+-- stays inside the 800 px window from the 60 px portrait offset.
+UI.TabSize = { padding = 12, min = 70, max = 110 }
 local TAB_INDEX = {}
 for i, tab in ipairs(TABS) do TAB_INDEX[tab.key] = i end
 
@@ -146,7 +156,8 @@ local function showCurrent()
   if view.Refresh then view.Refresh() end
 end
 
--- Registers a tab view. key: "journal", "holidays", "misc" or "route".
+-- Registers a tab view. key: "journal", "holidays", "achievements",
+-- "timewalking", "misc" or "route".
 function UI.RegisterView(key, view)
   assert(TAB_INDEX[key], "AzerothTrail: unknown view key " .. tostring(key))
   assert(type(view) == "table", "AzerothTrail: view must be a table")
@@ -293,7 +304,10 @@ local function createWindow()
     else
       button:SetPoint("TOPLEFT", frame.Tabs[i - 1], "TOPRIGHT", 3, 0)
     end
-    if PanelTemplates_TabResize then PanelTemplates_TabResize(button, 0) end
+    if PanelTemplates_TabResize then
+      local size = UI.TabSize
+      PanelTemplates_TabResize(button, size.padding, nil, size.min, size.max)
+    end
     button:SetScript("OnClick", function()
       if PlaySound and SOUNDKIT and SOUNDKIT.IG_CHARACTER_INFO_TAB then
         PlaySound(SOUNDKIT.IG_CHARACTER_INFO_TAB)

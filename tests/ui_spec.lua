@@ -47,8 +47,10 @@ describe("ui", function()
     eq(f.title, "AzerothTrail")
     eq(f.portraitAsset, 132261)
     ok(f.movable and f.clamped, "movable and clamped")
-    eq(f.numTabs, 4)
-    eq(f.Tabs[4]:GetText(), "Route")
+    eq(f.numTabs, 6)
+    local labels = {}
+    for i, tab in ipairs(f.Tabs) do labels[i] = tab:GetText() end
+    eq(labels, { "Journal", "Holidays", "Achievements", "Timewalking", "Misc", "Route" })
     eq(f.Tabs[1].template, "PanelTopTabButtonTemplate", "modern top tabs")
     ok(f.topTabs and f.isFlat, "flat window with top tabs")
     eq({ f.Tabs[1]:GetPoint(1) }, { "BOTTOMLEFT", f.Inset, "TOPLEFT", 60, 0 }, "tabs sit on the content's top edge")
@@ -85,7 +87,7 @@ describe("ui", function()
     eq(route.builds, 1)
     eq(route.refreshes, 1)
     ok(route.parent:IsShown() and not journal.parent:IsShown(), "only the selected content is shown")
-    eq(ns.UI.frame.selectedTab, 4)
+    eq(ns.UI.frame.selectedTab, 6)
     eq(ns.db.global.window.tab, "route")
 
     ns.Refresh()
@@ -102,12 +104,37 @@ describe("ui", function()
 
   it("tab buttons select their tab", function()
     local ns = loadUI()
-    local misc = countingView()
-    ns.UI.RegisterView("misc", misc)
+    local views = {}
+    for _, key in ipairs({ "journal", "holidays", "achievements", "timewalking", "misc", "route" }) do
+      views[key] = countingView()
+      ns.UI.RegisterView(key, views[key])
+    end
     ns.ToggleWindow()
     ns.UI.frame.Tabs[3]:RunScript("OnClick", "LeftButton")
     eq(ns.UI.frame.selectedTab, 3)
-    eq(misc.builds, 1)
+    eq(views.achievements.builds, 1)
+    eq(ns.db.global.window.tab, "achievements")
+    ns.UI.frame.Tabs[4]:RunScript("OnClick", "LeftButton")
+    eq(views.timewalking.builds, 1)
+    eq(ns.db.global.window.tab, "timewalking")
+    ns.UI.frame.Tabs[5]:RunScript("OnClick", "LeftButton")
+    eq(views.misc.builds, 1)
+  end)
+
+  it("sizes the six tabs to their text within fixed bounds that fit the window", function()
+    local ns = loadUI()
+    ns.ToggleWindow()
+    local f = ns.UI.frame
+    local size = ns.UI.TabSize
+    eq(size, { padding = 12, min = 70, max = 110 })
+    for i, tab in ipairs(f.Tabs) do
+      eq(tab.resized, { padding = 12, minWidth = 70, maxWidth = 110 }, "tab " .. i)
+    end
+    -- Worst case (every label at the cap): the first tab starts 60 px into
+    -- the 6 px inset, tabs are 2 px apart and the last tab's right edge
+    -- texture overhangs 8 px; all of it must stay inside the 800 px window.
+    local worst = 6 + 60 + #f.Tabs * size.max + (#f.Tabs - 1) * 2 + 8
+    ok(worst <= 800, "six tabs fit: " .. worst)
   end)
 
   it("shows a Coming soon placeholder until a view is registered", function()
@@ -120,7 +147,7 @@ describe("ui", function()
       n = n + 1
       eq(content:GetParent(), ns.UI.frame.Inset, key .. " content in the inset")
     end
-    eq(n, 4, "one content frame per tab")
+    eq(n, 6, "one content frame per tab")
     local holidaysContent = contents.holidays
     ok(holidaysContent:IsShown(), "holidays content shown")
     local placeholder = holidaysContent.children[1]
@@ -138,7 +165,7 @@ describe("ui", function()
   it("restores the saved tab and position", function()
     local ns = loadUI({ window = { tab = "misc", point = "TOPLEFT", relPoint = "TOPLEFT", x = 100, y = -50 } })
     ns.ToggleWindow()
-    eq(ns.UI.frame.selectedTab, 3)
+    eq(ns.UI.frame.selectedTab, 5)
     eq({ ns.UI.frame:GetPoint(1) }, { "TOPLEFT", UIParent, "TOPLEFT", 100, -50 })
   end)
 
@@ -181,7 +208,7 @@ describe("ui", function()
       PanelTopTabButtonTemplate = "PanelTabButtonTemplate",
     })
     ns.UI.SelectTab("route")
-    eq(f.selectedTab, 4, "tabs still work")
+    eq(f.selectedTab, 6, "tabs still work")
   end)
 
   describe("Template", function()

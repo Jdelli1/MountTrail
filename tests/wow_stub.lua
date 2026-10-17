@@ -260,6 +260,9 @@ function CreateFrame(frameType, name, parent, template)
 end
 
 function PanelTemplates_SetNumTabs(frame, n) frame.numTabs = n end
+function PanelTemplates_TabResize(tab, padding, absoluteSize, minWidth, maxWidth)
+  tab.resized = { padding = padding, absoluteSize = absoluteSize, minWidth = minWidth, maxWidth = maxWidth }
+end
 function PanelTemplates_SetTab(frame, id)
   assert(frame.numTabs and id >= 1 and id <= frame.numTabs, "PanelTemplates_SetTab: bad tab id")
   frame.selectedTab = id
@@ -301,5 +304,5 @@ function reset_ui_stub()
   resetTemplates()
   wipe(STUB_ATLASES)
   AzerothTrailFrame = nil
-  for i = 1, 4 do _G["AzerothTrailFrameTab" .. i] = nil end
+  for i = 1, 8 do _G["AzerothTrailFrameTab" .. i] = nil end
 end

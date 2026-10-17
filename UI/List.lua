@@ -1,6 +1,7 @@
 local ADDON, ns = ...
 
--- Scrollable mount list shared by the Journal, Holidays and Misc tabs: a top
+-- Scrollable mount list shared by the Journal, Holidays, Achievements,
+-- Timewalking and Misc tabs: a top
 -- row with the search box and a Filter dropdown (Collected, and on the Journal
 -- tab one checkbox per source section plus Check all / Uncheck all), and a
 -- full-width ScrollBox of section headers and mount rows. Clients without the
@@ -10,8 +11,9 @@ local ADDON, ns = ...
 --   local list = ns.UI.List(parent, getQuery[, opts])
 --   list:Refresh([resetScroll])
 --
--- getQuery() returns the base query for Journal.Select ({ tab=, exp=,
--- section= }); the list fills in filters (ns.db.global.filters), the search
+-- getQuery() returns the base query for Journal.Select ({ view= (or the
+-- older tab=), exp=, section= }); list.tab is the query's view (else tab),
+-- which picks the Filter menu's items. The list fills in filters (ns.db.global.filters), the search
 -- text, isOwned, exists, faction and sourceText (Game.MountSourceText, which
 -- refines journal sections into delves / caches) unless the query already has
 -- them.
@@ -183,8 +185,8 @@ function UI.FilterChecked(filters, key)
   return filters[key] ~= false
 end
 
--- The Filter dropdown's items for a list on `tab` ("journal", "holiday",
--- "misc") -> { { kind = "checkbox", key =, label =, checked = },
+-- The Filter dropdown's items for a list on `tab` (a Journal view key such
+-- as "journal", "holidays", "achievements"; older data tab keys work too) -> { { kind = "checkbox", key =, label =, checked = },
 -- { kind = "divider" }, { kind = "title", label = },
 -- { kind = "button", action = "checkAll" | "uncheckAll", label = } }.
 -- Every tab gets Collected; the Journal tab adds the source sections and the
@@ -599,7 +601,7 @@ function UI.List(parent, getQuery, opts)
   -- Known before the first Refresh, so the Filter menu has the right items
   -- even if it is opened first.
   local initial = (getQuery and getQuery()) or {}
-  list.tab = initial.tab
+  list.tab = initial.view or initial.tab
 
   -- Top row: search box + Filter button. Fallback: the left filter panel
   -- (search box on top of it).
@@ -684,12 +686,13 @@ function UI.List(parent, getQuery, opts)
     if query.faction == nil then query.faction = ns.Game.Faction() end
     query.sourceText = memoText(query.sourceText or ns.Game.MountSourceText)
 
-    if query.tab ~= self.tab then
-      self.tab = query.tab
+    local tab = query.view or query.tab
+    if tab ~= self.tab then
+      self.tab = tab
       local dd = self.FilterDropdown
       if dd and type(dd.GenerateMenu) == "function" then dd:GenerateMenu() end
     end
-    if self.FilterPanel then refreshFilterPanel(self, filters, query.tab) end
+    if self.FilterPanel then refreshFilterPanel(self, filters, tab) end
     if self.FilterDropdown and type(self.FilterDropdown.ValidateResetState) == "function" then
       self.FilterDropdown:ValidateResetState()
     end
