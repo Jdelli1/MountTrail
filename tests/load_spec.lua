@@ -9,4 +9,33 @@ describe("load", function()
     local ns = load_addon({"Core/Locale.lua"})
     eq(ns.L["Some Unknown Key"], "Some Unknown Key")
   end)
+
+  describe("toc", function()
+    it("lists Locale first and Init last of the non-UI files", function()
+      local files = toc_lua_files()
+      eq(files[1], "Core/Locale.lua")
+      eq(files[#files], "Core/Init.lua")
+      local hasGame = false
+      for _, f in ipairs(files) do if f == "Game/API.lua" then hasGame = true end end
+      ok(hasGame, "Game/API.lua is in the toc")
+    end)
+
+    it("loads every non-UI file in toc order", function()
+      local ns = load_addon(toc_lua_files())
+      ok(ns.L and ns.Data and ns.Data.Mounts, "data loaded")
+      ok(ns.Resets and ns.Lockouts and ns.Route and ns.Journal and ns.Attempts, "logic loaded")
+      ok(ns.Game and ns.Game.SavedRows, "game adapter loaded")
+      ok(ns.addon, "addon object created")
+      eq(type(ns.Refresh), "function", "ns.Refresh defaults to a function")
+      ns.Refresh() -- no-op, must not error
+    end)
+
+    it("initialises and enables without error", function()
+      local ns = load_addon(toc_lua_files())
+      ns.addon:OnInitialize()
+      ns.addon:OnEnable()
+      ok(ns.db and ns.db.global and ns.db.char, "ns.db exposes global and char")
+      ok(ns.addon.commands.azt and ns.addon.commands.azerothtrail, "slash commands registered")
+    end)
+  end)
 end)

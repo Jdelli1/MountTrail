@@ -4,13 +4,11 @@
 ## Author: James
 ## Version: @project-version@
 ## SavedVariables: AzerothTrailDB
-## SavedVariablesPerCharacter: AzerothTrailCharDB
 ## OptionalDeps: TomTom, Rarity
 ## IconTexture: 132261
 
 embeds.xml
 Core\Locale.lua
-Core\Init.lua
 Data\Mounts.lua
 Data\Route.lua
 Data\Lockouts.lua
@@ -20,3 +18,5 @@ Logic\Lockouts.lua
 Logic\Route.lua
 Logic\Journal.lua
 Logic\Attempts.lua
+Game\API.lua
+Core\Init.lua
