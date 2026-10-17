@@ -41,6 +41,21 @@ local function stripRun(title)
   return title
 end
 
+-- Instance name of a route step title: "Run <name>" without a trailing
+-- "(...Dungeon)" / "(...Raid)" suffix; nil for anything that is not an
+-- instance run ("Kill Galleon (World Boss)", "Fly to ...").
+function UI.InstanceName(title)
+  if type(title) ~= "string" or string.sub(title, 1, 4) ~= "Run " then return nil end
+  local name = string.sub(title, 5)
+  local inner = string.match(name, "%s*%(([^()]*)%)%s*$")
+  if inner and (string.find(inner, "Dungeon", 1, true) or string.find(inner, "Raid", 1, true)) then
+    name = string.gsub(name, "%s*%([^()]*%)%s*$", "")
+  end
+  name = string.match(name, "^%s*(.-)%s*$")
+  if name == "" then return nil end
+  return name
+end
+
 local function buildRouteIndex()
   local index = {}
   local function walk(nodes)
@@ -49,7 +64,8 @@ local function buildRouteIndex()
       if type(node) == "table" then
         for _, boss in ipairs(node.bosses or {}) do
           if type(boss) == "table" and boss.mount and not index[boss.mount] then
-            index[boss.mount] = { boss = boss.boss, title = stripRun(node.title) }
+            index[boss.mount] = { boss = boss.boss, title = stripRun(node.title),
+              instance = UI.InstanceName(node.title) }
           end
         end
         walk(node.steps)
@@ -123,37 +139,231 @@ function UI.SectionLabel(section)
   return L[SECTION_NAMES[section] or tostring(section)]
 end
 
--- Journal.Select output -> ScrollBox elements: a header before each run of
--- one section (the entry's refined section, else the mount's), then
--- { id=, m=, owned= } rows. With opts (see UI.List),
--- headers get badge = opts.headerSuffix(section) and rows tag =
--- opts.rowTag(id, m) (nil when the hook returns nil or is absent).
-function UI.ListRows(selected, isOwned, opts)
-  local headerSuffix = opts and opts.headerSuffix
-  local rowTag = opts and opts.rowTag
-  local rows, last = {}, nil
-  for _, entry in ipairs(selected or {}) do
-    local section = entry.section or entry.m.section
-    if section ~= last then
-      rows[#rows + 1] = {
-        header = true, section = section, text = UI.SectionLabel(section),
-        badge = headerSuffix and headerSuffix(section) or nil,
-      }
-      last = section
+-- Sub-groups -------------------------------------------------------------------
+
+-- Sub-group key of mounts whose instance / zone / faction is unknown (sorted
+-- last, labelled L["Other"]).
+local OTHER_GROUP = "~other"
+UI.OTHER_GROUP = OTHER_GROUP
+
+-- Source text labels of the zone line. The Mount Journal's strings are
+-- localised; ZONE_COLON (a GlobalStrings entry) covers other locales when the
+-- client has it.
+local function zoneLabels()
+  local labels = { "Zone:" }
+  if type(ZONE_COLON) == "string" and ZONE_COLON ~= "" and ZONE_COLON ~= "Zone:" then
+    labels[2] = ZONE_COLON
+  end
+  return labels
+end
+
+-- The value of the first "Zone:" line of a Mount Journal source string
+-- (Game.MountSourceText), with colour codes, textures and |n line breaks
+-- handled; nil when there is none (or it is empty).
+function UI.SourceZone(text)
+  if type(text) ~= "string" then return nil end
+  text = string.gsub(text, "|c%x%x%x%x%x%x%x%x", "")
+  text = string.gsub(text, "|r", "")
+  text = string.gsub(text, "|T.-|t", "")
+  text = string.gsub(text, "|n", "\n")
+  local labels = zoneLabels()
+  for line in string.gmatch(text .. "\n", "([^\n]*)\n") do
+    line = string.match(line, "^%s*(.-)%s*$")
+    for _, label in ipairs(labels) do
+      if string.sub(line, 1, #label) == label then
+        local value = string.match(string.sub(line, #label + 1), "^%s*(.-)%s*$")
+        if value ~= "" then return value end
+      end
     end
-    rows[#rows + 1] = {
-      id = entry.id, m = entry.m, owned = (isOwned and isOwned(entry.id)) and true or false,
-      tag = rowTag and rowTag(entry.id, entry.m) or nil,
-    }
+  end
+  return nil
+end
+
+-- How each section is split: dungeon / raid by instance, world by zone,
+-- reputation by faction group. Other sections are flat.
+local GROUPED = { dungeon = "instance", raid = "instance", world = "zone", reputation = "faction" }
+
+-- Sub-group of a mount listed under `section` -> key, label, or nil when the
+-- section is flat. Instance: the route step ("Run <name> (Dungeon)"), then
+-- the source text's "Zone:", then the name of the data's coords map.
+-- Zone: the source text's "Zone:", then the coords map name. Faction: the
+-- data's group. Unknown -> OTHER_GROUP, L["Other"]. ctx (optional):
+-- { sourceText = fn(id) -> string|nil, mapName = fn(mapID) -> string|nil }.
+-- Keys are the names themselves, so they are stable across refreshes.
+function UI.SubGroup(id, m, section, ctx)
+  local kind = GROUPED[section]
+  if not kind then return nil end
+  m = m or {}
+  local name
+  if kind == "faction" then
+    if type(m.group) == "string" and m.group ~= "" then name = m.group end
+  else
+    if kind == "instance" then
+      local entry = routeEntry(id)
+      name = entry and entry.instance or nil
+    end
+    if not name and ctx and ctx.sourceText then
+      name = UI.SourceZone(ctx.sourceText(id))
+    end
+    local coords = m.coords
+    if not name and ctx and ctx.mapName and type(coords) == "table" and coords.m then
+      local mapName = ctx.mapName(coords.m)
+      if type(mapName) == "string" and mapName ~= "" then name = mapName end
+    end
+  end
+  if name then return name, name end
+  return OTHER_GROUP, L["Other"]
+end
+
+-- Saved collapse key of a header: "<view>|<exp or ''>|<section>" for a
+-- section, plus "|<sub-group key>" for a sub-header.
+function UI.CollapseKey(view, exp, section, group)
+  local key = table.concat({ view or "", exp or "", tostring(section) }, "|")
+  if group then key = key .. "|" .. group end
+  return key
+end
+
+-- Flips header `key` in `store` (ns.db.global.collapsed), which holds only
+-- collapsed = true (absent = expanded). -> the new collapsed state.
+function UI.ToggleCollapsed(store, key)
+  if store[key] then
+    store[key] = nil
+    return false
+  end
+  store[key] = true
+  return true
+end
+
+local function groupOrder(a, b)
+  if (a.key == OTHER_GROUP) ~= (b.key == OTHER_GROUP) then return b.key == OTHER_GROUP end
+  local la, lb = string.lower(a.label), string.lower(b.label)
+  if la ~= lb then return la < lb end
+  return a.key < b.key
+end
+
+-- Journal.Select output -> ScrollBox elements, a tree: a section header
+-- (the entry's refined section, else the mount's; sections in Select order),
+-- then for split sections (UI.SubGroup) a sub-header per instance / zone /
+-- faction (by name, Other last), then { id=, m=, owned= } mount rows (Select
+-- order). A section whose only sub-group is Other stays flat.
+-- Headers: { header = true, depth = 1 | 2, section =, group = (sub-headers),
+-- key = UI.CollapseKey(...), text =, badge = (sections only), owned =,
+-- total =, collapsed = }. owned / total count every selected mount under the
+-- header, including owned ones hidden by opts.hideOwned and children of a
+-- collapsed header. Headers with no shown mount are left out; a collapsed
+-- header's children are left out.
+-- opts (all optional): headerSuffix = fn(section) -> badge, rowTag =
+-- fn(id, m) -> tag, view =, exp = (collapse keys), collapsed = { [key] = true },
+-- hideOwned = true (drop owned mount rows: the Collected filter is off),
+-- sourceText = fn(id), mapName = fn(mapID) (UI.SubGroup's ctx).
+function UI.ListRows(selected, isOwned, opts)
+  opts = opts or {}
+  local headerSuffix, rowTag = opts.headerSuffix, opts.rowTag
+  local collapsed = opts.collapsed or {}
+  local hideOwned = opts.hideOwned == true
+  local ctx = { sourceText = opts.sourceText, mapName = opts.mapName }
+
+  local sections, bySection = {}, {}
+  for _, entry in ipairs(selected or {}) do
+    local section = entry.section or entry.m.section or "other"
+    local sec = bySection[section]
+    if not sec then
+      sec = { key = section, items = {}, groups = {}, byGroup = {} }
+      bySection[section] = sec
+      sections[#sections + 1] = sec
+    end
+    local item = { entry = entry, owned = (isOwned and isOwned(entry.id)) and true or false }
+    sec.items[#sec.items + 1] = item
+    local gkey, glabel = UI.SubGroup(entry.id, entry.m, section, ctx)
+    if gkey then
+      local group = sec.byGroup[gkey]
+      if not group then
+        group = { key = gkey, label = glabel, items = {} }
+        sec.byGroup[gkey] = group
+        sec.groups[#sec.groups + 1] = group
+      end
+      group.items[#group.items + 1] = item
+    end
+  end
+
+  local rows = {}
+  local function tally(items)
+    local owned, shown = 0, 0
+    for _, item in ipairs(items) do
+      if item.owned then owned = owned + 1 end
+      if not (hideOwned and item.owned) then shown = shown + 1 end
+    end
+    return owned, #items, shown
+  end
+  local function addMounts(items)
+    for _, item in ipairs(items) do
+      if not (hideOwned and item.owned) then
+        local entry = item.entry
+        rows[#rows + 1] = {
+          id = entry.id, m = entry.m, owned = item.owned,
+          tag = rowTag and rowTag(entry.id, entry.m) or nil,
+        }
+      end
+    end
+  end
+
+  for _, sec in ipairs(sections) do
+    local owned, total, shown = tally(sec.items)
+    if shown > 0 then
+      local key = UI.CollapseKey(opts.view, opts.exp, sec.key)
+      local isCollapsed = collapsed[key] == true
+      rows[#rows + 1] = {
+        header = true, depth = 1, section = sec.key, key = key, text = UI.SectionLabel(sec.key),
+        badge = headerSuffix and headerSuffix(sec.key) or nil,
+        owned = owned, total = total, collapsed = isCollapsed,
+      }
+      if not isCollapsed then
+        local groups = sec.groups
+        if #groups == 0 or (#groups == 1 and groups[1].key == OTHER_GROUP) then
+          addMounts(sec.items)
+        else
+          table.sort(groups, groupOrder)
+          for _, group in ipairs(groups) do
+            local gOwned, gTotal, gShown = tally(group.items)
+            if gShown > 0 then
+              local gkey = UI.CollapseKey(opts.view, opts.exp, sec.key, group.key)
+              local gCollapsed = collapsed[gkey] == true
+              rows[#rows + 1] = {
+                header = true, depth = 2, section = sec.key, group = group.key, key = gkey,
+                text = group.label, owned = gOwned, total = gTotal, collapsed = gCollapsed,
+              }
+              if not gCollapsed then addMounts(group.items) end
+            end
+          end
+        end
+      end
+    end
   end
   return rows
 end
 
 local GREEN = "|cff33ff99"
+local GREY = "|cff9d9d9d"
 
--- Header label: section name, plus the badge in green.
+-- Collapse indicator of a header: the quest log's campaign header atlas when
+-- the client has it (UI.AtlasExists), and the text fallback ("+" collapsed,
+-- an en dash expanded: the default font has no U+2212 minus).
+-- -> atlas|nil, text.
+local ICON_OPEN, ICON_CLOSED = "campaign_headericon_open", "campaign_headericon_closed"
+function UI.HeaderIcon(collapsed)
+  local atlas = collapsed and ICON_CLOSED or ICON_OPEN
+  local text = collapsed and "+" or "\226\128\147"
+  if UI.AtlasExists and UI.AtlasExists(atlas) then return atlas, text end
+  return nil, text
+end
+
+-- Header label: section / sub-group name, "(owned/total)" in grey when
+-- counted, then the badge in green.
 function UI.HeaderText(row)
   local text = row.text or ""
+  if row.total then
+    text = text .. "  " .. GREY .. "(" .. (row.owned or 0) .. "/" .. row.total .. ")|r"
+  end
   if row.badge and row.badge ~= "" then
     text = text .. "  " .. GREEN .. row.badge .. "|r"
   end

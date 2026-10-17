@@ -436,9 +436,11 @@ describe("ui route", function()
         rowTag = ns.UI.TradingTag,
       })
       eq(rows, {
-        { header = true, section = "brewfest", text = "Brewfest", badge = "Active now" },
+        { header = true, depth = 1, section = "brewfest", key = "||brewfest", text = "Brewfest",
+          badge = "Active now", owned = 0, total = 1, collapsed = false },
         { id = 1, m = a, owned = false },
-        { header = true, section = "darkmoon", text = "Darkmoon Faire" },
+        { header = true, depth = 1, section = "darkmoon", key = "||darkmoon", text = "Darkmoon Faire",
+          owned = 0, total = 2, collapsed = false },
         { id = 2, m = b, owned = false, tag = "Trading Post — this month" },
         { id = 3, m = c, owned = false },
       })

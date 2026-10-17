@@ -129,12 +129,15 @@ describe("ui journal", function()
       local rows = ns.UI.ListRows({ { id = 1, m = a }, { id = 2, m = b }, { id = 3, m = c }, { id = 4, m = d } },
         function(id) return id == 2 end)
       eq(rows, {
-        { header = true, section = "dungeon", text = "Dungeon drops" },
+        { header = true, depth = 1, section = "dungeon", key = "||dungeon", text = "Dungeon drops",
+          owned = 1, total = 2, collapsed = false },
         { id = 1, m = a, owned = false },
         { id = 2, m = b, owned = true },
-        { header = true, section = "raid", text = "Raid drops" },
+        { header = true, depth = 1, section = "raid", key = "||raid", text = "Raid drops",
+          owned = 0, total = 1, collapsed = false },
         { id = 3, m = c, owned = false },
-        { header = true, section = "brewfest", text = "Brewfest" },
+        { header = true, depth = 1, section = "brewfest", key = "||brewfest", text = "Brewfest",
+          owned = 0, total = 1, collapsed = false },
         { id = 4, m = d, owned = false },
       })
       eq(ns.UI.ListRows({}), {})
@@ -146,9 +149,11 @@ describe("ui journal", function()
       local b = { section = "world" }
       local rows = ns.UI.ListRows({ { id = 1, m = a, section = "world" }, { id = 2, m = b, section = "delve" } })
       eq(rows, {
-        { header = true, section = "world", text = "World drops / rares" },
+        { header = true, depth = 1, section = "world", key = "||world", text = "World drops / rares",
+          owned = 0, total = 1, collapsed = false },
         { id = 1, m = a, owned = false },
-        { header = true, section = "delve", text = "Delves" },
+        { header = true, depth = 1, section = "delve", key = "||delve", text = "Delves",
+          owned = 0, total = 1, collapsed = false },
         { id = 2, m = b, owned = false },
       })
     end)
@@ -455,6 +460,194 @@ describe("ui journal", function()
     it("does nothing when neither exists", function()
       local ns = loadUI()
       ns.UI.PreviewMount(395) -- must not error
+    end)
+  end)
+  describe("collapsible groups", function()
+    it("SourceZone reads the first Zone: line without colour codes", function()
+      local ns = loadUI()
+      local SZ = ns.UI.SourceZone
+      eq(SZ("|cFFFFD200Drop:|r Baron Rivendare|n|cFFFFD200Zone: |rStratholme"), "Stratholme")
+      eq(SZ("|cFFFFD200Drop:|r Baron Rivendare\n|cFFFFD200Zone:|r  Stratholme  \n|cFFFFD200Zone:|r Elsewhere"),
+        "Stratholme", "first Zone line, trimmed, real newlines")
+      eq(SZ("Zone: |cff00ff00Icecrown|r"), "Icecrown", "colour inside the value")
+      eq(SZ("|cFFFFD200Vendor:|r Someone"), nil)
+      eq(SZ("Zone:   "), nil, "empty value")
+      eq(SZ(nil), nil)
+      eq(SZ(5), nil)
+    end)
+
+    it("InstanceName strips Run and the (Dungeon)/(Raid) suffix, only for instance runs", function()
+      local ns = loadUI()
+      local IN = ns.UI.InstanceName
+      eq(IN("Run Vortex Pinnacle (Dungeon)"), "Vortex Pinnacle")
+      eq(IN("Run Throne of the Four Winds (Raid)"), "Throne of the Four Winds")
+      eq(IN("Run Magister's Terrace (Midnight Dungeon)"), "Magister's Terrace")
+      eq(IN("Run Firelands"), "Firelands")
+      eq(IN("Kill Galleon (World Boss)"), nil, "not an instance run")
+      eq(IN("Run "), nil)
+      eq(IN(nil), nil)
+    end)
+
+    it("SubGroup: instance for dungeons/raids, zone for world, faction group for reputation", function()
+      local ns = loadUI(nil, { Route = ROUTE })
+      local texts = {
+        [1] = "|cFFFFD200Drop:|r Boss|n|cFFFFD200Zone:|r Stratholme",
+        [395] = "Zone: Skywall",
+        [4] = "Zone: Feralas",
+      }
+      local ctx = {
+        sourceText = function(id) return texts[id] end,
+        mapName = function(mapID)
+          if mapID == 317 then return "Stratholme Map" end
+          if mapID == 70 then return "Dustwallow" end
+        end,
+      }
+      local SG = ns.UI.SubGroup
+      eq({ SG(395, {}, "dungeon", ctx) }, { "Vortex Pinnacle", "Vortex Pinnacle" }, "route step first")
+      eq({ SG(515, {}, "raid", ctx) }, { "~other", "Other" }, "a Kill step is no instance")
+      eq({ SG(1, { coords = { m = 317 } }, "dungeon", ctx) }, { "Stratholme", "Stratholme" }, "then source Zone:")
+      eq({ SG(2, { coords = { m = 317 } }, "raid", ctx) }, { "Stratholme Map", "Stratholme Map" }, "then coords map")
+      eq({ SG(3, {}, "dungeon", ctx) }, { "~other", "Other" })
+      eq({ SG(4, { coords = { m = 70 } }, "world", ctx) }, { "Feralas", "Feralas" }, "world: Zone: first")
+      eq({ SG(5, { coords = { m = 70 } }, "world", ctx) }, { "Dustwallow", "Dustwallow" }, "world: coords map")
+      eq({ SG(6, {}, "world", ctx) }, { "~other", "Other" })
+      eq({ SG(7, { group = "Netherwing" }, "reputation", ctx) }, { "Netherwing", "Netherwing" })
+      eq({ SG(8, { group = "" }, "reputation", ctx) }, { "~other", "Other" })
+      eq(SG(9, { group = "x" }, "delve", ctx), nil, "other sections are flat")
+      eq(SG(9, { group = "x" }, "brewfest", ctx), nil)
+      eq({ SG(1, {}, "dungeon", nil) }, { "~other", "Other" }, "no ctx")
+    end)
+
+    it("CollapseKey and ToggleCollapsed store only collapsed=true", function()
+      local ns = loadUI()
+      eq(ns.UI.CollapseKey("journal", "Classic", "dungeon"), "journal|Classic|dungeon")
+      eq(ns.UI.CollapseKey("journal", "Classic", "dungeon", "Stratholme"), "journal|Classic|dungeon|Stratholme")
+      eq(ns.UI.CollapseKey("misc", nil, "shop"), "misc||shop")
+      local store = {}
+      eq(ns.UI.ToggleCollapsed(store, "a"), true)
+      eq(store, { a = true })
+      eq(ns.UI.ToggleCollapsed(store, "a"), false)
+      eq(store, {}, "expanded = absent")
+    end)
+
+    -- A journal-view selection: dungeon (three instances + one unknown),
+    -- world (one zone) and a flat delve section, in Select order.
+    local function sample()
+      local m = {
+        [10] = { name = "A", section = "dungeon" }, [11] = { name = "B", section = "dungeon" },
+        [12] = { name = "C", section = "dungeon" }, [13] = { name = "D", section = "dungeon" },
+        [20] = { name = "E", section = "world" }, [30] = { name = "F", section = "delve" },
+      }
+      local texts = { [10] = "Zone: Zul'Farrak", [11] = "Zone: Blackrock Depths", [12] = "Zone: zul'Aman",
+        [20] = "Zone: Feralas" }
+      local selected = {}
+      for _, id in ipairs({ 10, 11, 12, 13, 20, 30 }) do
+        selected[#selected + 1] = { id = id, m = m[id], section = m[id].section }
+      end
+      return selected, m, function(id) return texts[id] end
+    end
+
+    it("builds section -> sub-group -> mounts with counts; sub-groups sorted, Other last", function()
+      local ns = loadUI()
+      local selected, m, text = sample()
+      local rows = ns.UI.ListRows(selected, function(id) return id == 11 end,
+        { view = "journal", exp = "Classic", sourceText = text, mapName = function() return nil end })
+      eq(rows, {
+        { header = true, depth = 1, section = "dungeon", key = "journal|Classic|dungeon", text = "Dungeon drops",
+          owned = 1, total = 4, collapsed = false },
+        { header = true, depth = 2, section = "dungeon", group = "Blackrock Depths",
+          key = "journal|Classic|dungeon|Blackrock Depths", text = "Blackrock Depths", owned = 1, total = 1, collapsed = false },
+        { id = 11, m = m[11], owned = true },
+        { header = true, depth = 2, section = "dungeon", group = "zul'Aman",
+          key = "journal|Classic|dungeon|zul'Aman", text = "zul'Aman", owned = 0, total = 1, collapsed = false },
+        { id = 12, m = m[12], owned = false },
+        { header = true, depth = 2, section = "dungeon", group = "Zul'Farrak",
+          key = "journal|Classic|dungeon|Zul'Farrak", text = "Zul'Farrak", owned = 0, total = 1, collapsed = false },
+        { id = 10, m = m[10], owned = false },
+        { header = true, depth = 2, section = "dungeon", group = "~other",
+          key = "journal|Classic|dungeon|~other", text = "Other", owned = 0, total = 1, collapsed = false },
+        { id = 13, m = m[13], owned = false },
+        { header = true, depth = 1, section = "world", key = "journal|Classic|world", text = "World drops / rares",
+          owned = 0, total = 1, collapsed = false },
+        { header = true, depth = 2, section = "world", group = "Feralas",
+          key = "journal|Classic|world|Feralas", text = "Feralas", owned = 0, total = 1, collapsed = false },
+        { id = 20, m = m[20], owned = false },
+        { header = true, depth = 1, section = "delve", key = "journal|Classic|delve", text = "Delves",
+          owned = 0, total = 1, collapsed = false },
+        { id = 30, m = m[30], owned = false },
+      })
+    end)
+
+    it("collapsing a section hides its sub-headers and mounts; a sub-group hides its mounts", function()
+      local ns = loadUI()
+      local selected, _, text = sample()
+      local collapsed = { ["journal|Classic|dungeon"] = true, ["journal|Classic|world|Feralas"] = true }
+      local rows = ns.UI.ListRows(selected, nil,
+        { view = "journal", exp = "Classic", sourceText = text, collapsed = collapsed })
+      local keys = {}
+      for _, row in ipairs(rows) do
+        keys[#keys + 1] = row.header and (row.key .. (row.collapsed and "+" or "-")) or row.id
+      end
+      eq(keys, { "journal|Classic|dungeon+", "journal|Classic|world-", "journal|Classic|world|Feralas+",
+        "journal|Classic|delve-", 30 })
+      eq(rows[1].total, 4, "a collapsed header still counts its mounts")
+    end)
+
+    it("hideOwned drops owned rows but counts them; groups with nothing shown are left out", function()
+      local ns = loadUI()
+      local selected, _, text = sample()
+      local owned = { [11] = true, [20] = true, [10] = true }
+      local rows = ns.UI.ListRows(selected, function(id) return owned[id] end,
+        { view = "journal", exp = "Classic", sourceText = text, hideOwned = true })
+      local got = {}
+      for _, row in ipairs(rows) do
+        got[#got + 1] = row.header and (row.text .. " " .. row.owned .. "/" .. row.total) or row.id
+      end
+      eq(got, { "Dungeon drops 2/4", "zul'Aman 0/1", 12, "Other 0/1", 13, "Delves 0/1", 30 })
+    end)
+
+    it("a section whose only sub-group is Other stays flat", function()
+      local ns = loadUI()
+      local a, b = { name = "A", section = "raid" }, { name = "B", section = "raid" }
+      local rows = ns.UI.ListRows({ { id = 1, m = a, section = "raid" }, { id = 2, m = b, section = "raid" } }, nil,
+        { view = "journal" })
+      eq(#rows, 3)
+      eq(rows[1].depth, 1)
+      eq({ rows[2].id, rows[3].id }, { 1, 2 })
+    end)
+
+    it("orders sub-groups independently of input order and badges only top-level headers", function()
+      local ns = loadUI()
+      local selected, _, text = sample()
+      local opts = { view = "journal", sourceText = text,
+        headerSuffix = function(s) return s == "dungeon" and "!" or nil end }
+      local first = ns.UI.ListRows(selected, nil, opts)
+      eq(ns.UI.ListRows(selected, nil, opts), first, "same input, same rows")
+      eq(first[1].badge, "!")
+      for _, row in ipairs(first) do
+        if row.header and row.depth == 2 then eq(row.badge, nil, "no badge on " .. row.text) end
+      end
+      local function subs(rows)
+        local out = {}
+        for _, row in ipairs(rows) do if row.depth == 2 then out[#out + 1] = row.key end end
+        return out
+      end
+      -- Same mounts, one section, reversed inside it: same sub-group order.
+      local swapped = { selected[4], selected[3], selected[2], selected[1], selected[5], selected[6] }
+      eq(subs(ns.UI.ListRows(swapped, nil, opts)), subs(first))
+    end)
+
+    it("HeaderText adds (owned/total) before the badge; HeaderIcon picks the atlas or text", function()
+      local ns = loadUI()
+      eq(ns.UI.HeaderText({ text = "Raid drops", owned = 2, total = 5 }), "Raid drops  |cff9d9d9d(2/5)|r")
+      eq(ns.UI.HeaderText({ text = "Brewfest", owned = 0, total = 1, badge = "Active now" }),
+        "Brewfest  |cff9d9d9d(0/1)|r  |cff33ff99Active now|r")
+      eq({ ns.UI.HeaderIcon(false) }, { nil, "\226\128\147" }, "no atlas: an en dash when expanded (no U+2212 in the default font)")
+      eq({ ns.UI.HeaderIcon(true) }, { nil, "+" })
+      STUB_ATLASES["campaign_headericon_open"] = true
+      STUB_ATLASES["campaign_headericon_closed"] = true
+      eq({ ns.UI.HeaderIcon(false) }, { "campaign_headericon_open", "\226\128\147" })
+      eq({ ns.UI.HeaderIcon(true) }, { "campaign_headericon_closed", "+" })
     end)
   end)
 end)
