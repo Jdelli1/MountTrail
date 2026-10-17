@@ -23,6 +23,8 @@ function RegionMT:SetFontObject(font) self.font = font end
 function RegionMT:GetStringWidth() return 60 end
 function RegionMT:GetWidth() return self.width or 0 end
 function FrameMT:RegisterForClicks(...) self.clickButtons = { ... } end
+-- Under the mouse unless a spec says otherwise (a click implies the mouse).
+function FrameMT:IsMouseOver() return self.mouseOver ~= false end
 for _, name in ipairs({ "SetAutoFocus", "LockHighlight", "UnlockHighlight" }) do
   FrameMT[name] = FrameMT[name] or noop
 end
@@ -524,6 +526,55 @@ describe("ui build", function()
     for _, row in ipairs(rows) do
       if row.header and row.depth == 1 then eq(shown[row.key], row.total, row.key .. ": all shown") end
     end
+  end)
+
+  -- The init function the list's ScrollBox factory picks for `data`.
+  local function initFor(box, data)
+    local got
+    box.view.factory(function(_, init) got = init end, data)
+    return got
+  end
+
+  it("a header toggles only when the mouse is still over it, and recycled headers reset their hover", function()
+    local ns = loadUI()
+    local list = openJournalList(ns)
+    local rows = list.ScrollBox.provider.rows
+    local header = render(list.ScrollBox)[1]
+    header.mouseOver = false
+    header:RunScript("OnMouseUp", "LeftButton")
+    eq(ns.db.global.collapsed, {}, "released outside: no toggle")
+    header.mouseOver = true
+    header:RunScript("OnMouseUp", "LeftButton")
+    eq(ns.db.global.collapsed[rows[1].key], true, "released over it: toggles")
+
+    header:RunScript("OnEnter")
+    ok(header.Hover:IsShown(), "hover band")
+    header.mouseOver = false
+    initFor(list.ScrollBox, rows[1])(header, rows[1])
+    ok(not header.Hover:IsShown(), "recycled away from the mouse: no stale hover")
+    header.mouseOver = true
+    initFor(list.ScrollBox, rows[1])(header, rows[1])
+    ok(header.Hover:IsShown(), "recycled under the mouse: hover shown")
+  end)
+
+  it("mount rows under a sub-header are indented to the sub-header's inset", function()
+    local ns = loadUI()
+    ns.Game.MountSourceText = function(id) return "|cFFFFD200Zone:|r Zone " .. (id % 2) end
+    local list = openJournalList(ns)
+    local rows = list.ScrollBox.provider.rows
+    local frames = render(list.ScrollBox)
+    local subHeader, nested
+    for i, row in ipairs(rows) do
+      if row.header and row.depth == 2 and not subHeader then subHeader = frames[i] end
+      if not row.header and row.depth == 2 and not nested then nested = i end
+    end
+    ok(subHeader and nested, "a nested mount row")
+    local inset = select(4, subHeader.Indicator:GetPoint(1))
+    eq(select(4, frames[nested].Icon:GetPoint(1)), inset, "icon lines up with the sub-header indicator")
+    -- The same frame recycled for a flat row goes back to the normal inset.
+    local flat = { id = rows[nested].id, m = rows[nested].m, owned = false }
+    initFor(list.ScrollBox, flat)(frames[nested], flat)
+    eq(select(4, frames[nested].Icon:GetPoint(1)), 4)
   end)
 
   it("other tabs collapse their (flat) sections under their own view key", function()

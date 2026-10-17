@@ -472,6 +472,11 @@ describe("ui journal", function()
       eq(SZ("Zone: |cff00ff00Icecrown|r"), "Icecrown", "colour inside the value")
       eq(SZ("|cFFFFD200Vendor:|r Someone"), nil)
       eq(SZ("Zone:   "), nil, "empty value")
+      eq(SZ("|cnNORMAL_FONT_COLOR:Zone:|r Stratholme"), "Stratholme", "named colour codes")
+      eq(SZ("Zone: |A:raceicon-dwarf-male:16:16|aBlackrock Depths"), "Blackrock Depths", "atlas markup")
+      eq(SZ("Zone: |Hmapzone:107|hNagrand|h"), "Nagrand", "link markup, link text kept")
+      eq(SZ("|cnNORMAL_FONT_COLOR:Drop:|r |Hunit:1|hBoss|h|n|cnNORMAL_FONT_COLOR:Zone:|r |cnWHITE_FONT_COLOR:Icecrown|r"),
+        "Icecrown")
       eq(SZ(nil), nil)
       eq(SZ(5), nil)
     end)
@@ -488,12 +493,13 @@ describe("ui journal", function()
       eq(IN(nil), nil)
     end)
 
-    it("SubGroup: instance for dungeons/raids, zone for world, faction group for reputation", function()
+    it("SubGroup: client instance name first, route last; zone for world; faction group for reputation", function()
       local ns = loadUI(nil, { Route = ROUTE })
       local texts = {
         [1] = "|cFFFFD200Drop:|r Boss|n|cFFFFD200Zone:|r Stratholme",
         [395] = "Zone: Skywall",
         [4] = "Zone: Feralas",
+        [10] = "Zone: The Vortex Pinnacle",
       }
       local ctx = {
         sourceText = function(id) return texts[id] end,
@@ -503,19 +509,35 @@ describe("ui journal", function()
         end,
       }
       local SG = ns.UI.SubGroup
-      eq({ SG(395, {}, "dungeon", ctx) }, { "Vortex Pinnacle", "Vortex Pinnacle" }, "route step first")
+      eq({ SG(395, {}, "dungeon", ctx) }, { "skywall", "Skywall", true }, "client Zone: beats the route")
+      eq({ SG(395, { coords = { m = 317 } }, "dungeon", { mapName = ctx.mapName }) },
+        { "stratholme map", "Stratholme Map", true }, "coords map name beats the route")
+      eq({ SG(395, {}, "dungeon", {}) }, { "vortex pinnacle", "Vortex Pinnacle", false }, "route as the last resort")
+      eq({ SG(395, {}, "dungeon", nil) }, { "vortex pinnacle", "Vortex Pinnacle", false }, "no ctx")
+      eq({ SG(10, {}, "dungeon", ctx) }, { "vortex pinnacle", "The Vortex Pinnacle", true }, "a leading The is ignored in the key")
       eq({ SG(515, {}, "raid", ctx) }, { "~other", "Other" }, "a Kill step is no instance")
-      eq({ SG(1, { coords = { m = 317 } }, "dungeon", ctx) }, { "Stratholme", "Stratholme" }, "then source Zone:")
-      eq({ SG(2, { coords = { m = 317 } }, "raid", ctx) }, { "Stratholme Map", "Stratholme Map" }, "then coords map")
+      eq({ SG(1, { coords = { m = 317 } }, "dungeon", ctx) }, { "stratholme", "Stratholme", true }, "Zone: before coords")
+      eq({ SG(2, { coords = { m = 317 } }, "raid", ctx) }, { "stratholme map", "Stratholme Map", true })
       eq({ SG(3, {}, "dungeon", ctx) }, { "~other", "Other" })
-      eq({ SG(4, { coords = { m = 70 } }, "world", ctx) }, { "Feralas", "Feralas" }, "world: Zone: first")
-      eq({ SG(5, { coords = { m = 70 } }, "world", ctx) }, { "Dustwallow", "Dustwallow" }, "world: coords map")
+      eq({ SG(4, { coords = { m = 70 } }, "world", ctx) }, { "feralas", "Feralas", true }, "world: Zone: first")
+      eq({ SG(5, { coords = { m = 70 } }, "world", ctx) }, { "dustwallow", "Dustwallow", true }, "world: coords map")
+      eq({ SG(395, {}, "world", {}) }, { "~other", "Other" }, "world never uses the route")
       eq({ SG(6, {}, "world", ctx) }, { "~other", "Other" })
-      eq({ SG(7, { group = "Netherwing" }, "reputation", ctx) }, { "Netherwing", "Netherwing" })
+      eq({ SG(7, { group = "Netherwing" }, "reputation", ctx) }, { "netherwing", "Netherwing", true })
       eq({ SG(8, { group = "" }, "reputation", ctx) }, { "~other", "Other" })
+      for _, generic in ipairs({ "Reputation", "Renown", "Paragon Reputation", "reputation" }) do
+        eq({ SG(8, { group = generic }, "reputation", ctx) }, { "~other", "Other" }, "generic group " .. generic)
+      end
       eq(SG(9, { group = "x" }, "delve", ctx), nil, "other sections are flat")
       eq(SG(9, { group = "x" }, "brewfest", ctx), nil)
-      eq({ SG(1, {}, "dungeon", nil) }, { "~other", "Other" }, "no ctx")
+    end)
+
+    it("GroupKey lower-cases, trims and drops a leading The", function()
+      local ns = loadUI()
+      eq(ns.UI.GroupKey("The Vortex Pinnacle"), "vortex pinnacle")
+      eq(ns.UI.GroupKey("  the  Underrot "), "underrot")
+      eq(ns.UI.GroupKey("Theramore"), "theramore", "only the word The")
+      eq(ns.UI.GroupKey("Throne of the Four Winds"), "throne of the four winds")
     end)
 
     it("CollapseKey and ToggleCollapsed store only collapsed=true", function()
@@ -555,40 +577,110 @@ describe("ui journal", function()
       eq(rows, {
         { header = true, depth = 1, section = "dungeon", key = "journal|Classic|dungeon", text = "Dungeon drops",
           owned = 1, total = 4, collapsed = false },
-        { header = true, depth = 2, section = "dungeon", group = "Blackrock Depths",
-          key = "journal|Classic|dungeon|Blackrock Depths", text = "Blackrock Depths", owned = 1, total = 1, collapsed = false },
-        { id = 11, m = m[11], owned = true },
-        { header = true, depth = 2, section = "dungeon", group = "zul'Aman",
-          key = "journal|Classic|dungeon|zul'Aman", text = "zul'Aman", owned = 0, total = 1, collapsed = false },
-        { id = 12, m = m[12], owned = false },
-        { header = true, depth = 2, section = "dungeon", group = "Zul'Farrak",
-          key = "journal|Classic|dungeon|Zul'Farrak", text = "Zul'Farrak", owned = 0, total = 1, collapsed = false },
-        { id = 10, m = m[10], owned = false },
+        { header = true, depth = 2, section = "dungeon", group = "blackrock depths",
+          key = "journal|Classic|dungeon|blackrock depths", text = "Blackrock Depths", owned = 1, total = 1, collapsed = false },
+        { id = 11, m = m[11], owned = true, depth = 2 },
+        { header = true, depth = 2, section = "dungeon", group = "zul'aman",
+          key = "journal|Classic|dungeon|zul'aman", text = "zul'Aman", owned = 0, total = 1, collapsed = false },
+        { id = 12, m = m[12], owned = false, depth = 2 },
+        { header = true, depth = 2, section = "dungeon", group = "zul'farrak",
+          key = "journal|Classic|dungeon|zul'farrak", text = "Zul'Farrak", owned = 0, total = 1, collapsed = false },
+        { id = 10, m = m[10], owned = false, depth = 2 },
         { header = true, depth = 2, section = "dungeon", group = "~other",
           key = "journal|Classic|dungeon|~other", text = "Other", owned = 0, total = 1, collapsed = false },
-        { id = 13, m = m[13], owned = false },
+        { id = 13, m = m[13], owned = false, depth = 2 },
         { header = true, depth = 1, section = "world", key = "journal|Classic|world", text = "World drops / rares",
           owned = 0, total = 1, collapsed = false },
-        { header = true, depth = 2, section = "world", group = "Feralas",
-          key = "journal|Classic|world|Feralas", text = "Feralas", owned = 0, total = 1, collapsed = false },
-        { id = 20, m = m[20], owned = false },
+        { header = true, depth = 2, section = "world", group = "feralas",
+          key = "journal|Classic|world|feralas", text = "Feralas", owned = 0, total = 1, collapsed = false },
+        { id = 20, m = m[20], owned = false, depth = 2 },
         { header = true, depth = 1, section = "delve", key = "journal|Classic|delve", text = "Delves",
           owned = 0, total = 1, collapsed = false },
         { id = 30, m = m[30], owned = false },
       })
     end)
 
+    it("merges an instance named by the route and by the client, labelled with the client name", function()
+      local route = {
+        { title = "Run Vortex Pinnacle (Dungeon)", bosses = { { mount = 395, boss = "Altairus" } } },
+        { title = "Run Firelands (Raid)", bosses = { { mount = 700, boss = "Ragnaros" } } },
+      }
+      local ns = loadUI(nil, { Route = route })
+      local a = { name = "A", section = "dungeon" }
+      local b = { name = "B", section = "dungeon" }
+      local c = { name = "C", section = "raid" }
+      local texts = { [50] = "|cFFFFD200Zone:|r The Vortex Pinnacle" }
+      -- The route-named mount comes first in Select order.
+      local rows = ns.UI.ListRows({ { id = 395, m = a, section = "dungeon" }, { id = 50, m = b, section = "dungeon" },
+        { id = 700, m = c, section = "raid" } }, nil,
+        { view = "journal", exp = "Cataclysm", sourceText = function(id) return texts[id] end })
+      eq(rows, {
+        { header = true, depth = 1, section = "dungeon", key = "journal|Cataclysm|dungeon", text = "Dungeon drops",
+          owned = 0, total = 2, collapsed = false },
+        { header = true, depth = 2, section = "dungeon", group = "vortex pinnacle",
+          key = "journal|Cataclysm|dungeon|vortex pinnacle", text = "The Vortex Pinnacle", owned = 0, total = 2,
+          collapsed = false },
+        { id = 395, m = a, owned = false, depth = 2 },
+        { id = 50, m = b, owned = false, depth = 2 },
+        { header = true, depth = 1, section = "raid", key = "journal|Cataclysm|raid", text = "Raid drops",
+          owned = 0, total = 1, collapsed = false },
+        { header = true, depth = 2, section = "raid", group = "firelands",
+          key = "journal|Cataclysm|raid|firelands", text = "Firelands", owned = 0, total = 1, collapsed = false },
+        { id = 700, m = c, owned = false, depth = 2 },
+      })
+    end)
+
+    it("stays flat when Other is the only sub-group with a shown mount", function()
+      local ns = loadUI()
+      local a = { name = "A", section = "dungeon" }
+      local b = { name = "B", section = "dungeon" }
+      local texts = { [1] = "Zone: Stratholme" }
+      local selected = { { id = 1, m = a, section = "dungeon" }, { id = 2, m = b, section = "dungeon" } }
+      local function owned(id) return id == 1 end
+      local rows = ns.UI.ListRows(selected, owned,
+        { view = "journal", sourceText = function(id) return texts[id] end, hideOwned = true })
+      eq(rows, {
+        { header = true, depth = 1, section = "dungeon", key = "journal||dungeon", text = "Dungeon drops",
+          owned = 1, total = 2, collapsed = false },
+        { id = 2, m = b, owned = false },
+      })
+      -- Collected on: Stratholme has a shown mount again, so both sub-groups.
+      rows = ns.UI.ListRows(selected, owned, { view = "journal", sourceText = function(id) return texts[id] end })
+      local labels = {}
+      for _, row in ipairs(rows) do if row.header then labels[#labels + 1] = row.text end end
+      eq(labels, { "Dungeon drops", "Stratholme", "Other" })
+    end)
+
+    it("generic reputation groups are not sub-headers", function()
+      local ns = loadUI()
+      local function rep(name, group) return { name = name, section = "reputation", group = group } end
+      local flat = ns.UI.ListRows({
+        { id = 1, m = rep("A", "Reputation"), section = "reputation" },
+        { id = 2, m = rep("B", "Renown"), section = "reputation" },
+        { id = 3, m = rep("C", "Paragon Reputation"), section = "reputation" },
+      }, nil, { view = "journal" })
+      eq(#flat, 4, "header + three flat rows")
+      eq(flat[2].depth, nil)
+      local split = ns.UI.ListRows({
+        { id = 1, m = rep("A", "Renown"), section = "reputation" },
+        { id = 2, m = rep("B", "Netherwing"), section = "reputation" },
+      }, nil, { view = "journal" })
+      local got = {}
+      for _, row in ipairs(split) do got[#got + 1] = row.header and row.text or row.id end
+      eq(got, { "Reputation", "Netherwing", 2, "Other", 1 })
+    end)
+
     it("collapsing a section hides its sub-headers and mounts; a sub-group hides its mounts", function()
       local ns = loadUI()
       local selected, _, text = sample()
-      local collapsed = { ["journal|Classic|dungeon"] = true, ["journal|Classic|world|Feralas"] = true }
+      local collapsed = { ["journal|Classic|dungeon"] = true, ["journal|Classic|world|feralas"] = true }
       local rows = ns.UI.ListRows(selected, nil,
         { view = "journal", exp = "Classic", sourceText = text, collapsed = collapsed })
       local keys = {}
       for _, row in ipairs(rows) do
         keys[#keys + 1] = row.header and (row.key .. (row.collapsed and "+" or "-")) or row.id
       end
-      eq(keys, { "journal|Classic|dungeon+", "journal|Classic|world-", "journal|Classic|world|Feralas+",
+      eq(keys, { "journal|Classic|dungeon+", "journal|Classic|world-", "journal|Classic|world|feralas+",
         "journal|Classic|delve-", 30 })
       eq(rows[1].total, 4, "a collapsed header still counts its mounts")
     end)

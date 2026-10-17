@@ -165,13 +165,18 @@ local function zoneLabels()
 end
 
 -- The value of the first "Zone:" line of a Mount Journal source string
--- (Game.MountSourceText), with colour codes, textures and |n line breaks
--- handled; nil when there is none (or it is empty).
+-- (Game.MountSourceText), nil when there is none (or it is empty). Markup
+-- is removed first: hyperlinks (|H...|h text |h keep their text), named
+-- (|cnNAME:) and hex (|cAARRGGBB) colour codes, |r, textures (|T...|t),
+-- atlases (|A...|a); |n is a line break.
 function UI.SourceZone(text)
   if type(text) ~= "string" then return nil end
+  text = string.gsub(text, "|H.-|h(.-)|h", "%1")
+  text = string.gsub(text, "|cn[^:|]*:", "")
   text = string.gsub(text, "|c%x%x%x%x%x%x%x%x", "")
   text = string.gsub(text, "|r", "")
   text = string.gsub(text, "|T.-|t", "")
+  text = string.gsub(text, "|A.-|a", "")
   text = string.gsub(text, "|n", "\n")
   local labels = zoneLabels()
   for line in string.gmatch(text .. "\n", "([^\n]*)\n") do
@@ -186,30 +191,47 @@ function UI.SourceZone(text)
   return nil
 end
 
+-- Grouping key of a sub-group name: lower case, trimmed, single spaces, a
+-- leading "The " dropped, so "The Vortex Pinnacle" and "Vortex Pinnacle"
+-- are one group.
+function UI.GroupKey(name)
+  local key = string.lower(tostring(name))
+  key = string.gsub(key, "%s+", " ")
+  key = string.match(key, "^%s*(.-)%s*$")
+  key = string.gsub(key, "^the ", "")
+  return key
+end
+
 -- How each section is split: dungeon / raid by instance, world by zone,
 -- reputation by faction group. Other sections are flat.
 local GROUPED = { dungeon = "instance", raid = "instance", world = "zone", reputation = "faction" }
 
--- Sub-group of a mount listed under `section` -> key, label, or nil when the
--- section is flat. Instance: the route step ("Run <name> (Dungeon)"), then
--- the source text's "Zone:", then the name of the data's coords map.
--- Zone: the source text's "Zone:", then the coords map name. Faction: the
--- data's group. Unknown -> OTHER_GROUP, L["Other"]. ctx (optional):
--- { sourceText = fn(id) -> string|nil, mapName = fn(mapID) -> string|nil }.
--- Keys are the names themselves, so they are stable across refreshes.
+-- SimpleArmory's catch-all reputation groups (lower case): not a faction.
+local GENERIC_FACTION = { reputation = true, renown = true, ["paragon reputation"] = true }
+
+-- Sub-group of a mount listed under `section` -> key, label, fromClient, or
+-- nil when the section is flat. Instance: the client's name first (the
+-- source text's "Zone:", then the name of the data's coords map), the route
+-- step ("Run <name> (Dungeon)") only as the last resort. Zone: "Zone:", then
+-- the coords map name. Faction: the data's group, unless it is a catch-all
+-- ("Reputation", "Renown", "Paragon Reputation" or the section's own label).
+-- Unknown -> OTHER_GROUP, L["Other"]. key is UI.GroupKey(label); fromClient
+-- is true unless the label came from the route (ListRows then prefers a
+-- client label for the group). ctx (optional): { sourceText = fn(id) ->
+-- string|nil, mapName = fn(mapID) -> string|nil }.
 function UI.SubGroup(id, m, section, ctx)
   local kind = GROUPED[section]
   if not kind then return nil end
   m = m or {}
-  local name
+  local name, fromClient = nil, true
   if kind == "faction" then
-    if type(m.group) == "string" and m.group ~= "" then name = m.group end
-  else
-    if kind == "instance" then
-      local entry = routeEntry(id)
-      name = entry and entry.instance or nil
+    local group = m.group
+    if type(group) == "string" and group ~= "" then
+      local lower = string.lower(group)
+      if not GENERIC_FACTION[lower] and lower ~= string.lower(UI.SectionLabel(section)) then name = group end
     end
-    if not name and ctx and ctx.sourceText then
+  else
+    if ctx and ctx.sourceText then
       name = UI.SourceZone(ctx.sourceText(id))
     end
     local coords = m.coords
@@ -217,8 +239,16 @@ function UI.SubGroup(id, m, section, ctx)
       local mapName = ctx.mapName(coords.m)
       if type(mapName) == "string" and mapName ~= "" then name = mapName end
     end
+    if not name and kind == "instance" then
+      local entry = routeEntry(id)
+      name = entry and entry.instance or nil
+      fromClient = false
+    end
   end
-  if name then return name, name end
+  if name then
+    local key = UI.GroupKey(name)
+    if key ~= "" then return key, name, fromClient end
+  end
   return OTHER_GROUP, L["Other"]
 end
 
@@ -243,16 +273,16 @@ end
 
 local function groupOrder(a, b)
   if (a.key == OTHER_GROUP) ~= (b.key == OTHER_GROUP) then return b.key == OTHER_GROUP end
-  local la, lb = string.lower(a.label), string.lower(b.label)
-  if la ~= lb then return la < lb end
-  return a.key < b.key
+  return a.key < b.key -- UI.GroupKey: case-insensitive, a leading "The " ignored
 end
 
 -- Journal.Select output -> ScrollBox elements, a tree: a section header
 -- (the entry's refined section, else the mount's; sections in Select order),
 -- then for split sections (UI.SubGroup) a sub-header per instance / zone /
--- faction (by name, Other last), then { id=, m=, owned= } mount rows (Select
--- order). A section whose only sub-group is Other stays flat.
+-- faction (by UI.GroupKey, Other last; labelled with a client-provided name
+-- when any of its mounts has one, else the route's), then { id=, m=, owned= }
+-- mount rows (Select order; depth = 2 under a sub-header). A section stays
+-- flat when Other is its only sub-group with a shown mount.
 -- Headers: { header = true, depth = 1 | 2, section =, group = (sub-headers),
 -- key = UI.CollapseKey(...), text =, badge = (sections only), owned =,
 -- total =, collapsed = }. owned / total count every selected mount under the
@@ -281,13 +311,16 @@ function UI.ListRows(selected, isOwned, opts)
     end
     local item = { entry = entry, owned = (isOwned and isOwned(entry.id)) and true or false }
     sec.items[#sec.items + 1] = item
-    local gkey, glabel = UI.SubGroup(entry.id, entry.m, section, ctx)
+    local gkey, glabel, fromClient = UI.SubGroup(entry.id, entry.m, section, ctx)
     if gkey then
       local group = sec.byGroup[gkey]
       if not group then
-        group = { key = gkey, label = glabel, items = {} }
+        group = { key = gkey, label = glabel, client = fromClient == true, items = {} }
         sec.byGroup[gkey] = group
         sec.groups[#sec.groups + 1] = group
+      elseif fromClient and not group.client then
+        -- A client name (source text / map) beats a route step title.
+        group.label, group.client = glabel, true
       end
       group.items[#group.items + 1] = item
     end
@@ -302,12 +335,12 @@ function UI.ListRows(selected, isOwned, opts)
     end
     return owned, #items, shown
   end
-  local function addMounts(items)
+  local function addMounts(items, depth)
     for _, item in ipairs(items) do
       if not (hideOwned and item.owned) then
         local entry = item.entry
         rows[#rows + 1] = {
-          id = entry.id, m = entry.m, owned = item.owned,
+          id = entry.id, m = entry.m, owned = item.owned, depth = depth,
           tag = rowTag and rowTag(entry.id, entry.m) or nil,
         }
       end
@@ -325,22 +358,27 @@ function UI.ListRows(selected, isOwned, opts)
         owned = owned, total = total, collapsed = isCollapsed,
       }
       if not isCollapsed then
-        local groups = sec.groups
-        if #groups == 0 or (#groups == 1 and groups[1].key == OTHER_GROUP) then
+        -- Sub-groups with at least one shown mount decide the shape.
+        local shownGroups = {}
+        for _, group in ipairs(sec.groups) do
+          local gOwned, gTotal, gShown = tally(group.items)
+          if gShown > 0 then
+            group.owned, group.total = gOwned, gTotal
+            shownGroups[#shownGroups + 1] = group
+          end
+        end
+        if #shownGroups == 0 or (#shownGroups == 1 and shownGroups[1].key == OTHER_GROUP) then
           addMounts(sec.items)
         else
-          table.sort(groups, groupOrder)
-          for _, group in ipairs(groups) do
-            local gOwned, gTotal, gShown = tally(group.items)
-            if gShown > 0 then
-              local gkey = UI.CollapseKey(opts.view, opts.exp, sec.key, group.key)
-              local gCollapsed = collapsed[gkey] == true
-              rows[#rows + 1] = {
-                header = true, depth = 2, section = sec.key, group = group.key, key = gkey,
-                text = group.label, owned = gOwned, total = gTotal, collapsed = gCollapsed,
-              }
-              if not gCollapsed then addMounts(group.items) end
-            end
+          table.sort(shownGroups, groupOrder)
+          for _, group in ipairs(shownGroups) do
+            local gkey = UI.CollapseKey(opts.view, opts.exp, sec.key, group.key)
+            local gCollapsed = collapsed[gkey] == true
+            rows[#rows + 1] = {
+              header = true, depth = 2, section = sec.key, group = group.key, key = gkey,
+              text = group.label, owned = group.owned, total = group.total, collapsed = gCollapsed,
+            }
+            if not gCollapsed then addMounts(group.items, 2) end
           end
         end
       end
@@ -528,7 +566,8 @@ local TOP_ROW = 30 -- search box + Filter button above the list
 local HEADER_HEIGHT = 24
 local SUB_HEADER_HEIGHT = 20
 local INDICATOR_SIZE = 14
-local SUB_INDENT = 22 -- sub-header indicator inset (section headers: 6)
+local SUB_INDENT = 22 -- sub-header indicator inset (section headers: 6); icons of rows under it
+local ROW_ICON_LEFT = 4 -- icon inset of other mount rows
 local ROW_HEIGHT = 40
 local ICON_SIZE = 32
 local CHECK_SIZE = 24
@@ -627,11 +666,17 @@ local function initHeader(frame, data)
     frame:SetScript("OnEnter", function(self) self.Hover:Show() end)
     frame:SetScript("OnLeave", function(self) self.Hover:Hide() end)
     frame:SetScript("OnMouseUp", function(self, button)
-      if button == "LeftButton" and self.key and self.onToggle then self.onToggle(self.key) end
+      -- Only a release over the header counts (pressing, then dragging off
+      -- it cancels, as with buttons).
+      if button ~= "LeftButton" or not (self.key and self.onToggle) then return end
+      if type(self.IsMouseOver) == "function" and not self:IsMouseOver() then return end
+      self.onToggle(self.key)
     end)
   end
   local sub = data.depth == 2
   frame.key = data.key
+  -- Recycled frames: the hover band follows the mouse, not the last use.
+  frame.Hover:SetShown(type(frame.IsMouseOver) == "function" and frame:IsMouseOver() == true)
   frame.Bg:SetColorTexture(1, 1, 1, sub and 0.025 or 0.05)
   frame.Rule:SetColorTexture(1, 0.82, 0, sub and 0.1 or 0.25)
   frame.Indicator:ClearAllPoints()
@@ -676,7 +721,7 @@ local function setupRow(row)
 
   local icon = row:CreateTexture(nil, "ARTWORK")
   icon:SetSize(ICON_SIZE, ICON_SIZE)
-  icon:SetPoint("LEFT", row, "LEFT", 4, 0)
+  icon:SetPoint("LEFT", row, "LEFT", ROW_ICON_LEFT, 0)
   UI.StyleIcon(row, icon)
   row.Icon = icon
 
@@ -727,6 +772,8 @@ end
 local function initRow(row, data)
   if not row.Icon then setupRow(row) end
   row.mountID = data.id
+  -- Under a sub-header the icon lines up with the sub-header's indicator.
+  row.Icon:SetPoint("LEFT", row, "LEFT", data.depth == 2 and SUB_INDENT or ROW_ICON_LEFT, 0)
   local name = ns.Game.MountInfo(data.id)
   row.Icon:SetTexture(UI.MountIcon(data.id))
   row.Name:SetText(name or data.m.name or tostring(data.id))
