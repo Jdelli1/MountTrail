@@ -8,6 +8,11 @@
     {"info": "Currently on the Trading Post.", "name": "Trading Post: October", "items": [
       {"ID": 532, "icon": "inv_ghostlycharger", "itemId": 93671, "name": "Ghastly Charger", "spellid": 136505}
     ]},
+    {"info": "Season.", "name": "Midnight: Season 2", "items": [
+      {"ID": 3002, "icon": "inv_viciouslightbloomboar_blue", "itemId": 275433, "name": "Vicious Lightbloom Boar", "side": "A", "spellid": 1296670},
+      {"ID": 901, "icon": "inv_test_gone", "itemId": 901, "name": "Gone Everywhere", "notObtainable": true, "spellid": 901},
+      {"ID": 900, "icon": "inv_test_partly", "itemId": 900, "name": "Gone Here Only", "notObtainable": true, "spellid": 900}
+    ]},
     {"info": "Seasonal.", "name": "Vendor", "items": [
       {"ID": 3137, "icon": "8262534", "itemId": 282414, "name": "Sporebearer Fungal Strider", "spellid": 1313788}
     ]}
@@ -52,6 +57,12 @@
       {"ID": 151, "icon": "ability_mount_ridingelekk", "itemId": "29745", "name": "Great Blue Elekk", "side": "A", "spellid": 35713}
     ]}
   ]},
+  {"id": "wod", "name": "Warlords of Draenor", "subcats": [
+    {"id": "rep", "name": "Reputation", "items": [
+      {"ID": 768, "icon": "inv_felboarmount", "itemId": 128526, "name": "Deathtusk Felboar", "side": "H", "spellid": 190977},
+      {"ID": 768, "icon": "inv_felboarmount", "itemId": 128527, "name": "Deathtusk Felboar", "side": "A", "spellid": 190977}
+    ]}
+  ]},
   {"id": "professions", "name": "Professions", "subcats": [
     {"id": "tailoring", "name": "Tailoring", "items": [
       {"ID": 285, "icon": "inv_misc_flyingcarpet", "itemId": 44554, "name": "Flying Carpet", "spellid": 61451}
@@ -59,7 +70,10 @@
   ]},
   {"id": "pvp", "name": "PVP", "subcats": [
     {"id": "vicious", "name": "Vicious Saddle", "items": [
-      {"ID": 3002, "icon": "inv_viciouslightbloomboar_blue", "itemId": 275433, "name": "Vicious Lightbloom Boar", "side": "A", "spellid": 1296670}
+      {"ID": 3002, "icon": "inv_viciouslightbloomboar_blue", "itemId": 275433, "name": "Vicious Lightbloom Boar", "side": "A", "spellid": 1296670},
+      {"ID": 3003, "icon": "inv_viciouslightbloomboar_red", "itemId": 275432, "name": "Vicious Lightbloom Boar", "side": "H", "spellid": 1296672},
+      {"ID": 901, "icon": "inv_test_gone", "itemId": 901, "name": "Gone Everywhere", "notObtainable": true, "spellid": 901},
+      {"ID": 900, "icon": "inv_test_partly", "itemId": 900, "name": "Gone Here Only", "spellid": 900}
     ]}
   ]},
   {"id": "worldevents", "name": "World Events", "subcats": [

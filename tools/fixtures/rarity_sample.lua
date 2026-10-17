@@ -43,6 +43,27 @@ local sampleMounts = {
 		itemId = 2,
 		chance = 5,
 	},
+	["Reins of the Drake of the South Wind"] = {
+		spellId = 88744,
+		itemId = 63041,
+		chance = 100,
+		coords = {
+			{ m = CONSTANTS.UIMAPIDS.NONE },
+			{ m = CONSTANTS.UIMAPIDS.NOT_A_REAL_ZONE, x = 5.0, y = 6.0 },
+			{ m = CONSTANTS.UIMAPIDS.SKYWALL, i = true },
+			{ m = 203 },
+		},
+	},
+	["Numeric Map Only"] = {
+		spellId = 3,
+		chance = 50,
+		coords = { { m = 504 }, { m = 505, i = true } },
+	},
+	["Anywhere Only"] = {
+		spellId = 4,
+		chance = 50,
+		coords = { { m = CONSTANTS.UIMAPIDS.NONE } },
+	},
 }
 
 return sampleMounts

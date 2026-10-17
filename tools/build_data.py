@@ -25,6 +25,7 @@ DATA = os.path.join(ROOT, "Data")
 
 SA_FILES = ("static/data/mounts.json", "static/data/planner.json", "LICENSE")
 RARITY_DIR = "DB/Mounts/"
+RARITY_CONSTANTS = "DB/SharedConstants.lua"
 
 EXPANSIONS = [
     "Classic",
@@ -69,6 +70,8 @@ JOURNAL_SECTIONS = {
     "Vendor": "vendor",
     "Kun-Lai Vendor": "vendor",
 }
+
+FACTIONS = {"A": "Alliance", "H": "Horde"}
 
 HOLIDAYS = {
     "Hallow's End": "hallowsend",
@@ -206,25 +209,57 @@ def _first_int(pattern, body):
     return int(m.group(1)) if m else None
 
 
-def _first_coords(body):
+def parse_map_ids(text):
+    """Parses `C.UIMAPIDS = { NAME = N, ... }` from Rarity's DB/SharedConstants.lua into {NAME: N}."""
+    m = re.search(r"\bUIMAPIDS\s*=\s*\{", text)
+    if not m:
+        return {}
+    body = text[m.end():_match_brace(text, m.end())]
+    body = re.sub(r"--[^\n]*", "", body)
+    return {k: int(v) for k, v in re.findall(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(\d+)", body)}
+
+
+_MAP_CONST = "CONSTANTS.UIMAPIDS."
+
+
+def _resolve_map(token, map_ids):
+    """Map token (digits or CONSTANTS.UIMAPIDS.NAME) -> uiMapID, or None. 0 (Rarity's 'anywhere') is None."""
+    if token.isdigit():
+        value = int(token)
+    elif token.startswith(_MAP_CONST):
+        value = (map_ids or {}).get(token[len(_MAP_CONST):])
+    else:
+        value = None
+    return value or None
+
+
+def _first_coords(body, map_ids=None):
+    """First coord entry with a resolvable map and x/y; else {"m": first resolvable map}; else None."""
     m = re.search(r"\bcoords\s*=\s*\{", body)
     if not m:
         return None
     end = _match_brace(body, m.end())
     inner = body[m.end():end]
+    map_only = None
     for blk in re.finditer(r"\{([^{}]*)\}", inner):
         fields = blk.group(1)
-        mm = re.search(r"\bm\s*=\s*(\d+)\s*(?:,|$)", fields)
+        mm = re.search(r"\bm\s*=\s*([A-Za-z_][A-Za-z0-9_.]*|\d+)", fields)
+        mapid = _resolve_map(mm.group(1), map_ids) if mm else None
+        if mapid is None:
+            continue
         mx = re.search(r"\bx\s*=\s*(\d+(?:\.\d+)?)", fields)
         my = re.search(r"\by\s*=\s*(\d+(?:\.\d+)?)", fields)
-        if mm and mx and my:
-            return {"m": int(mm.group(1)), "x": float(mx.group(1)), "y": float(my.group(1))}
-    return None
+        if mx and my:
+            return {"m": mapid, "x": float(mx.group(1)), "y": float(my.group(1))}
+        if map_only is None:
+            map_only = {"m": mapid}
+    return map_only
 
 
-def parse_rarity(lua_texts):
+def parse_rarity(lua_texts, map_ids=None):
     """Parses Rarity DB/Mounts/*.lua texts into {spell_id: {chance, quest, coords, item, rarityName}}.
 
+    `map_ids` ({NAME: uiMapID}, see parse_map_ids) resolves CONSTANTS.UIMAPIDS.NAME map references.
     The first entry seen for a spell ID wins.
     """
     out = {}
@@ -243,7 +278,7 @@ def parse_rarity(lua_texts):
             quest = _first_int(r"\bquestId\s*=\s*\{?\s*(\d+)", body)
             if quest is not None:
                 rec["quest"] = quest
-            coords = _first_coords(body)
+            coords = _first_coords(body, map_ids)
             if coords:
                 rec["coords"] = coords
             out[spell] = rec
@@ -259,9 +294,15 @@ def _categories(sa):
 def build_mounts(sa, rarity, stats=None):
     """Returns {mountID: mount dict}. Duplicates: a later sighting replaces an earlier one only when
     the earlier one is misc/other (or flagged `dupe`) and the later one is not; tradingNow is kept
-    if any sighting is a current Trading Post entry."""
+    if any sighting is a current Trading Post entry.
+
+    Flags merged across all sightings: `unobtainable=true` only if every sighting is notObtainable;
+    `faction` only if every sighting carries the same `side` (a sighting without `side` counts as
+    both factions)."""
     mounts = {}
     chosen_weak = {}
+    sides = {}
+    obtainable = {}
     for cat in _categories(sa):
         cname = cat.get("name") or ""
         for sub in cat.get("subcats") or []:
@@ -283,6 +324,9 @@ def build_mounts(sa, rarity, stats=None):
                 }
                 trading_now = cname == "Limited Time" and section == "tradingpost"
                 weak = (tab, section) == ("misc", "other") or bool(item.get("dupe"))
+                side = FACTIONS.get(item.get("side"))
+                sides.setdefault(mid, set()).update([side] if side else FACTIONS.values())
+                obtainable[mid] = obtainable.get(mid, False) or not item.get("notObtainable")
                 if mid in mounts:
                     if stats is not None:
                         stats["duplicates"] = stats.get("duplicates", 0) + 1
@@ -301,6 +345,12 @@ def build_mounts(sa, rarity, stats=None):
                     rec["tradingNow"] = True
                 mounts[mid] = rec
                 chosen_weak[mid] = weak
+
+    for mid, rec in mounts.items():
+        if not obtainable[mid]:
+            rec["unobtainable"] = True
+        if len(sides[mid]) == 1:
+            rec["faction"] = next(iter(sides[mid]))
 
     joined = 0
     for rec in mounts.values():
@@ -375,7 +425,7 @@ _LUA_KEYWORDS = {
 }
 # Field order for mount records; anything else follows alphabetically.
 _MOUNT_ORDER = ["name", "spell", "item", "icon", "exp", "tab", "section", "group", "tradingNow",
-                "chance", "quest", "coords"]
+                "faction", "unobtainable", "chance", "quest", "coords"]
 _NODE_ORDER = ["title", "type", "capital", "alliance", "horde", "unavailable", "notes",
                "mount", "boss", "note", "m", "x", "y", "bosses", "steps"]
 
@@ -448,17 +498,26 @@ def lua_value(v, indent="", order=_NODE_ORDER):
     raise TypeError("cannot emit %r" % (v,))
 
 
-def _header(sources):
+def license_copyright(license_text):
+    """The first 'Copyright ...' line of a license text, or None."""
+    for line in license_text.splitlines():
+        if line.strip().lower().startswith("copyright"):
+            return line.strip()
+    return None
+
+
+def _header(sources, copyright=None):
     sources = sources or {}
     sa = sources.get("simplearmory", {})
     ra = sources.get("rarity", {})
+    mit = "MIT License, " + copyright if copyright else "MIT License"
     return (
         "-- GENERATED by tools/build_data.py — do not edit\n"
         "-- Source: SimpleArmory https://github.com/%s commit %s\n"
-        "--   MIT License, Copyright (c) 2021 Kevin Clement (full text: Data/LICENSE-SimpleArmory.txt)\n"
+        "--   %s (full text: Data/LICENSE-SimpleArmory.txt)\n"
         "-- Source: Rarity https://github.com/%s commit %s\n"
         "--   GPL-2.0 (drop chances, quest IDs, coordinates from DB/Mounts/*.lua)\n"
-        % (sa.get("repo", "kevinclement/SimpleArmory"), sa.get("commit", "unknown"),
+        % (sa.get("repo", "kevinclement/SimpleArmory"), sa.get("commit", "unknown"), mit,
            ra.get("repo", "WowRarity/Rarity"), ra.get("commit", "unknown"))
     )
 
@@ -472,9 +531,10 @@ def _mount_line(mid, rec):
     return "  [%d] = { %s },\n" % (mid, ", ".join(fields))
 
 
-def emit_lua(mounts=None, route=None, sources=None):
-    """Full Lua file text for Data/Mounts.lua (mounts=...) or Data/Route.lua (route=...)."""
-    out = [_header(sources), "\n", "local ADDON, ns = ...\n", "ns.Data = ns.Data or {}\n", "\n"]
+def emit_lua(mounts=None, route=None, sources=None, copyright=None):
+    """Full Lua file text for Data/Mounts.lua (mounts=...) or Data/Route.lua (route=...).
+    `copyright` is SimpleArmory's copyright line (see license_copyright) for the header."""
+    out = [_header(sources, copyright), "\n", "local ADDON, ns = ...\n", "ns.Data = ns.Data or {}\n", "\n"]
     if mounts is not None:
         out.append("ns.Data.Expansions = " + lua_value(EXPANSIONS) + "\n\n")
         out.append("ns.Data.Mounts = {\n")
@@ -487,6 +547,13 @@ def emit_lua(mounts=None, route=None, sources=None):
 
 
 # --- network / main ---------------------------------------------------------------------
+
+def _should_retry(code, headers):
+    """Retry 429, and 403 only when it is a rate limit (X-RateLimit-Remaining is "0")."""
+    if code == 429:
+        return True
+    return code == 403 and (headers or {}).get("X-RateLimit-Remaining") == "0"
+
 
 def _http_get(url, accept=None):
     headers = {"User-Agent": "AzerothTrail-build-data"}
@@ -501,7 +568,7 @@ def _http_get(url, accept=None):
             with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=60) as resp:
                 return resp.read()
         except urllib.error.HTTPError as exc:
-            if exc.code in (403, 429) and attempt < 5:
+            if _should_retry(exc.code, exc.headers) and attempt < 5:
                 reset = exc.headers.get("X-RateLimit-Reset")
                 wait = delay
                 if reset and reset.isdigit():
@@ -572,34 +639,52 @@ def main(argv=None):
     if args.update:
         for key in ("simplearmory", "rarity"):
             sources[key]["commit"] = resolve_master(sources[key]["repo"])
-        with open(SOURCES_PATH, "w", encoding="utf-8", newline="\n") as fh:
-            json.dump(sources, fh, indent=2)
-            fh.write("\n")
-        print("pinned %s" % ", ".join("%s@%s" % (v["repo"], v["commit"]) for v in sources.values()))
     for key in ("simplearmory", "rarity"):
         if not sources.get(key, {}).get("commit"):
             sys.exit("no commit pinned for %s; run with --update" % key)
 
+    generate(sources)
+
+    if args.update:
+        # Only pin the new commits once the data built from them was written successfully.
+        with open(SOURCES_PATH, "w", encoding="utf-8", newline="\n") as fh:
+            json.dump(sources, fh, indent=2)
+            fh.write("\n")
+        print("pinned %s" % ", ".join("%s@%s" % (v["repo"], v["commit"]) for v in sources.values()))
+    return 0
+
+
+def generate(sources):
+    """Downloads (cached) the pinned sources and writes Data/Mounts.lua, Data/Route.lua and
+    Data/LICENSE-SimpleArmory.txt."""
     sa_repo, sa_commit = sources["simplearmory"]["repo"], sources["simplearmory"]["commit"]
     ra_repo, ra_commit = sources["rarity"]["repo"], sources["rarity"]["commit"]
     mounts_path, planner_path, license_path = (_cached(sa_repo, sa_commit, p) for p in SA_FILES)
     sa = load_sa(mounts_path, planner_path)
+    with open(license_path, encoding="utf-8") as fh:
+        license_text = fh.read()
+    copyright = license_copyright(license_text)
+    if not copyright:
+        raise RuntimeError("no copyright line in SimpleArmory LICENSE at %s" % sa_commit)
 
+    with open(_cached(ra_repo, ra_commit, RARITY_CONSTANTS), encoding="utf-8") as fh:
+        map_ids = parse_map_ids(fh.read())
+    if not map_ids:
+        raise RuntimeError("no UIMAPIDS found in %s at %s" % (RARITY_CONSTANTS, ra_commit))
     texts = []
     rarity_files = _rarity_paths(ra_repo, ra_commit)
     for p in rarity_files:
         with open(_cached(ra_repo, ra_commit, p), encoding="utf-8") as fh:
             texts.append(fh.read())
-    rarity = parse_rarity(texts)
+    rarity = parse_rarity(texts, map_ids)
 
     stats = {}
     mounts = build_mounts(sa, rarity, stats)
     route = build_route(sa["planner"])
 
-    _write(os.path.join(DATA, "Mounts.lua"), emit_lua(mounts=mounts, sources=sources))
-    _write(os.path.join(DATA, "Route.lua"), emit_lua(route=route, sources=sources))
-    with open(license_path, encoding="utf-8") as fh:
-        _write(os.path.join(DATA, "LICENSE-SimpleArmory.txt"), fh.read())
+    _write(os.path.join(DATA, "Mounts.lua"), emit_lua(mounts=mounts, sources=sources, copyright=copyright))
+    _write(os.path.join(DATA, "Route.lua"), emit_lua(route=route, sources=sources, copyright=copyright))
+    _write(os.path.join(DATA, "LICENSE-SimpleArmory.txt"), license_text)
 
     counts = {}
     for rec in mounts.values():
@@ -608,9 +693,14 @@ def main(argv=None):
     print("mounts: %d (duplicate sightings merged: %d)" % (len(mounts), stats.get("duplicates", 0)))
     for (tab, section), c in sorted(counts.items()):
         print("  %-8s %-14s %d" % (tab, section, c))
-    print("rarity: %d files, %d entries, %d joined, %d unmatched"
-          % (len(rarity_files), stats["rarity_entries"], stats["joined"], stats["rarity_unmatched"]))
-    return 0
+    coords = [r["coords"] for r in mounts.values() if "coords" in r]
+    print("rarity: %d files, %d map constants, %d entries, %d joined, %d unmatched"
+          % (len(rarity_files), len(map_ids), stats["rarity_entries"], stats["joined"], stats["rarity_unmatched"]))
+    print("coords: %d full, %d map-only" % (sum("x" in c for c in coords), sum("x" not in c for c in coords)))
+    print("unobtainable: %d; faction: %d Alliance, %d Horde" % (
+        sum(1 for r in mounts.values() if r.get("unobtainable")),
+        sum(1 for r in mounts.values() if r.get("faction") == "Alliance"),
+        sum(1 for r in mounts.values() if r.get("faction") == "Horde")))
 
 
 if __name__ == "__main__":
