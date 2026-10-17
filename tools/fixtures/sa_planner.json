@@ -1,0 +1,49 @@
+{
+  "steps": [
+    {
+      "capital": true,
+      "startStep": true,
+      "notes": "Set Hearthstone to Faction Capital",
+      "title": "Start in ",
+      "steps": [
+        {
+          "title": "Portal to Uldum",
+          "steps": [
+            {
+              "title": "Run Vortex Pinnacle (Dungeon)",
+              "type": "Dungeon",
+              "bosses": [
+                {"ID": "395", "epic": true, "icon": "inv_misc_stormdragonpale", "itemId": 63040, "mount": "Drake of the North Wind", "name": "Altairus", "note": "You can run Heroic once per day", "spellId": 88742}
+              ]
+            }
+          ]
+        },
+        {
+          "capital": true,
+          "isAlliance": true,
+          "notes": "Take the boat",
+          "title": "Boat to Northrend",
+          "steps": [
+            {
+              "title": "Run Ulduar (Raid)",
+              "type": "Raid",
+              "bosses": [
+                {"ID": "304", "epic": true, "icon": "inv_misc_enggizmos_03", "itemId": 45693, "mount": "Mimiron's Head", "name": "Yogg-Saron", "note": "25 player, no keepers", "spellId": 63796},
+                {"ID": "999", "epic": true, "icon": "x", "isHorde": true, "itemId": 1, "mount": "Horde Only", "name": "Somebody"}
+              ]
+            }
+          ]
+        },
+        {},
+        {
+          "title": "Run Windrunner Spire (Dungeon)",
+          "type": "Dungeon",
+          "unavailable": true,
+          "bosses": [
+            {"ID": "2805", "epic": true, "icon": "inv_white_hawkstrider", "itemId": 262914, "mount": "Spectral Hawkstrider", "name": "The Restless Heart", "note": "Mythic only", "spellId": 1263635}
+          ]
+        }
+      ]
+    }
+  ]
+}

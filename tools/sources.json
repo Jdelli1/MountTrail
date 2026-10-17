@@ -1,0 +1,10 @@
+{
+  "simplearmory": {
+    "repo": "kevinclement/SimpleArmory",
+    "commit": "e45dc3ccb2712209fb904fe46d967a34fea77884"
+  },
+  "rarity": {
+    "repo": "WowRarity/Rarity",
+    "commit": "af5be85bbee86992621b9372efff92fbf5d5c115"
+  }
+}

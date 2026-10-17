@@ -11,3 +11,5 @@
 embeds.xml
 Core\Locale.lua
 Core\Init.lua
+Data\Mounts.lua
+Data\Route.lua
