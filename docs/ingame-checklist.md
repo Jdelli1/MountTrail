@@ -49,3 +49,18 @@ Map.Show has no slash command; test it with the Map button once the mount list (
 - [ ] Drag the window by its title bar, pick a tab other than Journal, `/reload`, `/azt`: same position and same tab. The window cannot be dragged off screen.
 - [ ] Minimap button appears with the addon icon; left-click toggles the window; tooltip shows "AzerothTrail" and "Left-click: open/close" (plus "Route: N steps left" once Task 14 is in).
 - [ ] Visual check: tabs sit flush under the frame and are sized to their text (PanelTemplates_TabResize); the inset starts below the portrait; content is not hidden behind the portrait or the close button.
+
+## Task 13: journal home, mount list, tooltip
+
+- [ ] `/reload` with `/console scriptErrors 1`, `/azt`: the Journal tab shows a 4 x 3 grid of expansion cards in Data.Expansions order (Classic first, Midnight last), each with its logo (or the expansion name when the client has no logo), `owned / total` and a green progress bar. Counts look right for this character's faction (faction-only mounts of the other faction are not counted).
+- [ ] Click the Cataclysm card: the list opens with Back and the title "Cataclysm"; rows are grouped under headers in the order Dungeons, Raids, World, Reputation, Vendor, Other (empty sections have no header). Back returns to the grid.
+- [ ] Untick Raids in the left panel: raid rows and the Raids header disappear; tick again and they return. The setting survives `/reload` (`/dump AzerothTrailDB.global.filters`).
+- [ ] Collected off (default): owned mounts are hidden. Collected on: owned mounts appear with a grey name, a line through the name and a desaturated icon.
+- [ ] Type `drake` in the search box: only rows whose name or source group contains "drake" stay; the clear (x) button restores the list.
+- [ ] Row: icon (from the mount journal), name, and a grey source line, e.g. Drake of the North Wind reads `Dungeon Drop · Altairus (Vortex Pinnacle (Dungeon))`.
+- [ ] Hover a row: tooltip shows the name, `~1 in N (approx.)` for mounts with a drop rate, `Times farmed: N`, `Rarity: N` when Rarity is installed and tracks the item, `Lockout: Saved/Available/Manual/—` (save to a tracked instance and check it flips to Saved after the lockout data arrives), and "Ctrl-click to preview".
+- [ ] Ctrl+left-click a row opens the dressing room on the mount; a plain click does nothing.
+- [ ] Map button on a row behaves as in the Task 11 checks (pin / entrance / open / "No map location").
+- [ ] ScrollBox: the list scrolls with the mouse wheel and the minimal scroll bar; header rows (24 px) and mount rows (40 px) do not overlap. If the list stays empty or errors with a template message, check that `factory("Frame", ...)` / `factory("Button", ...)` (frame types, no template) are accepted by this client's ScrollBox element factory.
+- [ ] Filter panel: the checkbox labels render (UICheckButtonTemplate `.Text`/`.text`); the search box shows its "Search" placeholder.
+- [ ] While the window is open on a list, killing a tracked boss (UPDATE_INSTANCE_INFO) refreshes the list without resetting the scroll position.

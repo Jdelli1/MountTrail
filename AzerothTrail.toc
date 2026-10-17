@@ -23,3 +23,6 @@ Integrations\Map.lua
 Integrations\Rarity.lua
 Core\Init.lua
 UI\Frame.lua
+UI\Tooltip.lua
+UI\List.lua
+UI\JournalHome.lua
