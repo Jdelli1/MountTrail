@@ -80,6 +80,12 @@ L["Available"] = "Available"
 L["Manual"] = "Manual"
 L["—"] = "—"
 L["Ctrl-click to preview"] = "Ctrl-click to preview"
+L["Shift-right-click to open the achievement"] = "Shift-right-click to open the achievement"
+L["Achievement: %s"] = "Achievement: %s"
+L["Achievement: looking up..."] = "Achievement: looking up..."
+L["(completed)"] = "(completed)"
+L["Progress"] = "Progress"
+L["+%d more"] = "+%d more"
 
 -- Holidays and Misc tabs
 L["Active now"] = "Active now"
