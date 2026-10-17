@@ -1,6 +1,6 @@
 local ADDON, ns = ...
 
--- Mount tooltip: name, approximate drop rate, times farmed (ours, plus
+-- Mount tooltip: name, flavor text, approximate drop rate, times farmed (ours, plus
 -- Rarity's when readable), this character's lockout state and a preview hint.
 -- The text is built by pure helpers (UI.TooltipLines, UI.LockoutStatus) so it
 -- can be tested without a client; UI.ShowMountTooltip only paints GameTooltip.
@@ -64,13 +64,24 @@ function UI.TooltipLines(mountID)
   return lines
 end
 
--- Shows the mount tooltip anchored to `owner` (a list row).
+-- The mount's flavor text from the client's Mount Journal, or nil.
+function UI.TooltipFlavor(mountID)
+  local describe = ns.Game.MountDescription
+  return describe and describe(mountID) or nil
+end
+
+-- Shows the mount tooltip anchored to `owner` (a list row): name, the
+-- wrapped flavor text, then the farming lines.
 function UI.ShowMountTooltip(owner, mountID)
   local tip = GameTooltip
   if not (tip and mountID) then return end
   local lines = UI.TooltipLines(mountID)
   tip:SetOwner(owner, "ANCHOR_RIGHT")
   tip:SetText(lines[1], 1, 1, 1)
+  local flavor = UI.TooltipFlavor(mountID)
+  if flavor then
+    tip:AddLine(flavor, 0.9, 0.9, 0.9, true)
+  end
   for i = 2, #lines - 1 do
     tip:AddLine(lines[i], 1, 0.82, 0)
   end

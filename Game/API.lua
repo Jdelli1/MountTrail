@@ -54,6 +54,16 @@ function Game.MountSourceText(mountID)
   return nil
 end
 
+-- The mount's flavor text as the Mount Journal shows it (2nd return of
+-- GetMountInfoExtraByID), nil when missing or empty.
+function Game.MountDescription(mountID)
+  local journal = C_MountJournal
+  if not (journal and journal.GetMountInfoExtraByID and mountID) then return nil end
+  local description = select(2, journal.GetMountInfoExtraByID(mountID))
+  if type(description) == "string" and description ~= "" then return description end
+  return nil
+end
+
 -- Saved instances this character is locked to:
 -- { {name=, instance=<instanceId, return 14>, difficulty=<difficultyId>,
 --    bosses={ {name=, killed=bool} }} }. Unlocked (expired) rows are skipped.

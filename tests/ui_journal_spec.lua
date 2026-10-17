@@ -271,6 +271,42 @@ describe("ui journal", function()
     end)
   end)
 
+  describe("flavor text", function()
+    local function paint(ns, id)
+      local calls, tip = {}, {}
+      function tip:SetOwner() end
+      function tip:SetText(text) calls[#calls + 1] = { "SetText", text } end
+      function tip:AddLine(text, r, g, b, wrap) calls[#calls + 1] = { "AddLine", text, wrap } end
+      function tip:Show() end
+      local old = GameTooltip
+      GameTooltip = tip
+      ns.UI.ShowMountTooltip({}, id)
+      GameTooltip = old
+      return calls
+    end
+
+    it("TooltipFlavor returns the client's mount description", function()
+      local ns = loadUI({ MountDescription = function(id) if id == 20 then return "Swift as the wind." end end })
+      eq(ns.UI.TooltipFlavor(20), "Swift as the wind.")
+      eq(ns.UI.TooltipFlavor(21), nil)
+    end)
+
+    it("paints the description wrapped, right under the name", function()
+      local ns = loadUI({ MountDescription = function() return "Swift as the wind." end },
+        { Mounts = { [20] = { name = "Vendor Mount" } } })
+      local calls = paint(ns, 20)
+      eq(calls[1], { "SetText", "Vendor Mount" })
+      eq(calls[2], { "AddLine", "Swift as the wind.", true })
+      eq(calls[3], { "AddLine", "Times farmed: 0", nil })
+    end)
+
+    it("adds nothing when there is no description", function()
+      local ns = loadUI({ MountDescription = function() return nil end },
+        { Mounts = { [20] = { name = "Vendor Mount" } } })
+      eq(paint(ns, 20)[2], { "AddLine", "Times farmed: 0", nil })
+    end)
+  end)
+
   describe("PreviewMount", function()
     it("calls DressUpMount with the mount ID", function()
       local ns = loadUI()
