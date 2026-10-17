@@ -57,7 +57,7 @@ local function buildBosses(src, ctx)
         mount = b.mount,
         boss = b.boss,
         note = b.note,
-        state = (ctx.stateOf and ctx.stateOf(b.mount)) or "open",
+        state = (ctx.stateOf and ctx.stateOf(b.mount, b.boss)) or "open",
         locked = locked,
         lockedText = lockedText,
       }
@@ -132,6 +132,8 @@ end
 
 -- tree: ns.Data.Route-shaped node list; ctx: see docs in the plan (faction,
 -- isOwned, isQuestDone, stateOf, showCompleted, holidaySteps).
+-- ctx.stateOf(mountID, bossName) gets the route boss name (nil on holiday
+-- steps) so per-boss specs (Data.BossLockouts) can govern the state.
 -- -> depth-first rows; active holiday steps first at depth 0 (keys "h<i>").
 function Route.Build(tree, ctx)
   ctx = ctx or {}

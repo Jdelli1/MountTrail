@@ -64,3 +64,20 @@ Map.Show has no slash command; test it with the Map button once the mount list (
 - [ ] ScrollBox: the list scrolls with the mouse wheel and the minimal scroll bar; header rows (24 px) and mount rows (40 px) do not overlap. If the list stays empty or errors with a template message, check that `factory("Frame", ...)` / `factory("Button", ...)` (frame types, no template) are accepted by this client's ScrollBox element factory.
 - [ ] Filter panel: the checkbox labels render (UICheckButtonTemplate `.Text`/`.text`); the search box shows its "Search" placeholder.
 - [ ] While the window is open on a list, killing a tracked boss (UPDATE_INSTANCE_INFO) refreshes the list without resetting the scroll position.
+
+## Task 14: Holidays, Misc and Route tabs
+
+- [ ] `/reload` with `/console scriptErrors 1`, `/azt`: the Holidays, Misc and Route tabs build without Lua errors (no "Coming soon" left on any tab).
+- [ ] Holidays tab: mounts grouped under holiday titles (Hallow's End, Brewfest, Love is in the Air, ...); the header of a holiday that is on today reads `<title>  Active now` in green (the calendar loads asynchronously: the badge may appear a moment after the first open).
+- [ ] Misc tab: headers Achievements / Professions / Shop / Trading Post / Other; this month's Trading Post mounts (`tradingNow` in Data/Mounts.lua) show `· Trading Post — this month` in green after the source line.
+- [ ] Route tab header: character name, `Weekly reset in ...` and `Daily reset in ...` (SecondsToTime text matching the in-game calendar resets), a "Show completed" box (state survives `/reload`: `/dump AzerothTrailDB.char`), and `You have N lockouts left. Saddle up?` where N matches the minimap tooltip's `Route: N steps left`.
+- [ ] Horde character: the first step reads "Start in Orgrimmar"; Alliance character: "Start in Stormwind". Faction-only steps of the other faction are absent.
+- [ ] Rows are indented by depth; travel rows are grey with no box (WoW ships no italic font, so they are not italic); kill rows show `<boss> → <mount>` lines with notes in grey, a box and a Map button.
+- [ ] A saved raid (e.g. a cleared Vault of Archavon watcher) shows its row ticked, greyed (disabled) and tagged green "auto" with Show completed on, and is hidden with it off. Open instance rows have an unticked, disabled box.
+- [ ] Manual row (e.g. a Midnight `manual` mount): click the box, it ticks and the row disappears (Show completed off) or stays ticked (on); `/reload` keeps it ticked (`/dump AzerothTrailDB.char` -> `ticks[<mountID>]` = expiry); after the daily (or weekly, per the spec's `reset`) reset it is unticked again. Clicking a ticked manual row unticks it.
+- [ ] Steps whose mounts are all owned are hidden.
+- [ ] During an active holiday (Hallow's End / Brewfest / Love is in the Air) its queue step is the first route row; after the holiday boss is done today it is hidden (Show completed off).
+- [ ] Boss with an unlock requirement (spec `requires`) shows its text in grey after the boss line.
+- [ ] Hover a kill row: mount tooltip of its first mount; Koralon/Emalon/Toravon and Chrono-Lord Deios mounts show `Lockout: Saved` once that boss is killed this week (BossLockouts). Ctrl+click previews the mount.
+- [ ] With every step done: `<Name> has reached Oregon. Nothing left to farm until reset.`
+- [ ] ScrollBox: rows with several boss lines do not overlap (row height = 28 + 14 per detail line); scroll position is kept when ticking a manual row.

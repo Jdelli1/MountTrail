@@ -23,10 +23,12 @@ local function mountData(mountID)
   return mounts and mounts[mountID] or nil
 end
 
--- This character's lockout state for the mount's own spec:
+-- This character's lockout state for the spec that governs the mount's first
+-- route boss (Data.BossLockouts, e.g. Koralon), else the mount's own spec:
 -- "saved" | "available" | "manual" | nil (not tracked).
 function UI.LockoutStatus(mountID)
-  local spec = ns.Lockouts.SpecFor(mountID)
+  local routeBoss = UI.RouteBoss and UI.RouteBoss(mountID) or nil
+  local spec = ns.Lockouts.SpecFor(mountID, routeBoss)
   if not spec then return nil end
   local Game = ns.Game
   local snap = ns.Lockouts.Snapshot(Game.SavedRows())

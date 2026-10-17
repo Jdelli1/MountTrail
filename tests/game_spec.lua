@@ -142,6 +142,12 @@ describe("game adapter", function()
       GetNormalizedRealmName = function() return "Proudmoore" end
       eq(loadGame().Game.CharKey(), "Jaina-Proudmoore")
     end)
+    it("PlayerName is the character name, nil when unknown", function()
+      UnitName = function(unit) if unit == "player" then return "Jaina" end end
+      eq(loadGame().Game.PlayerName(), "Jaina")
+      UnitName = nil
+      eq(loadGame().Game.PlayerName(), nil)
+    end)
   end)
 
   describe("ActiveHolidays", function()

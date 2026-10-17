@@ -310,4 +310,16 @@ describe("route", function()
       eq(#load().Route.Build({}, c), 0)
     end)
   end)
+
+  describe("stateOf", function()
+    it("receives the mount and the route boss name (nil on holiday steps)", function()
+      local calls = {}
+      local c = ctx({
+        stateOf = function(id, boss) calls[#calls + 1] = { id, boss }; return "open" end,
+        holidaySteps = { { title = "Holiday", mounts = { 5 } } },
+      })
+      load().Route.Build({ kill("VoA", { { mount = 286, boss = "Koralon" } }) }, c)
+      eq(calls, { { 5, nil }, { 286, "Koralon" } })
+    end)
+  end)
 end)

@@ -66,3 +66,17 @@ L["Available"] = "Available"
 L["Manual"] = "Manual"
 L["—"] = "—"
 L["Ctrl-click to preview"] = "Ctrl-click to preview"
+
+-- Holidays and Misc tabs
+L["Active now"] = "Active now"
+L["Trading Post — this month"] = "Trading Post — this month"
+
+-- Route tab
+L["Weekly reset in %s"] = "Weekly reset in %s"
+L["Daily reset in %s"] = "Daily reset in %s"
+L["Show completed"] = "Show completed"
+L["You have %d lockouts left. Saddle up?"] = "You have %d lockouts left. Saddle up?"
+L["%s has reached Oregon. Nothing left to farm until reset."] = "%s has reached Oregon. Nothing left to farm until reset."
+L["Your party"] = "Your party"
+L["auto"] = "auto"
+L["Locked"] = "Locked"

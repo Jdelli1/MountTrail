@@ -26,3 +26,5 @@ UI\Frame.lua
 UI\Tooltip.lua
 UI\List.lua
 UI\JournalHome.lua
+UI\Tabs.lua
+UI\RouteView.lua

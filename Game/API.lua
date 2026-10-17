@@ -146,3 +146,10 @@ function Game.CharKey()
     or (GetRealmName and GetRealmName()) or "?"
   return name .. "-" .. realm
 end
+
+-- This character's name (no realm), or nil when unknown.
+function Game.PlayerName()
+  local name = UnitName and UnitName("player")
+  if type(name) == "string" and name ~= "" then return name end
+  return nil
+end

@@ -4,12 +4,15 @@ local ADDON, ns = ...
 -- a left filter panel (search box, Collected, and on the Journal tab one box
 -- per source section) and a ScrollBox of section headers and mount rows.
 --
---   local list = ns.UI.List(parent, getQuery)
+--   local list = ns.UI.List(parent, getQuery[, opts])
 --   list:Refresh([resetScroll])
 --
 -- getQuery() returns the base query for Journal.Select ({ tab=, exp=,
 -- section= }); the list fills in filters (ns.db.global.filters), the search
 -- text, isOwned, exists and faction unless the query already has them.
+-- opts (optional): { headerSuffix = fn(sectionKey) -> string|nil (a green
+-- badge after the header text), rowTag = fn(mountID, m) -> string|nil (a
+-- green tag after the row's source line) }.
 -- The pure helpers above the widget code (SourceLine, MountIcon, SectionLabel,
 -- ListRows, PreviewMount) are unit-tested; the widget code is not.
 
@@ -52,6 +55,12 @@ end
 local function routeEntry(mountID)
   routeIndex = routeIndex or buildRouteIndex()
   return routeIndex[mountID]
+end
+
+-- Boss name of the mount's first route row (Data.Route order), or nil.
+function UI.RouteBoss(mountID)
+  local entry = routeEntry(mountID)
+  return entry and entry.boss or nil
 end
 
 local function mountData(mountID)
@@ -105,18 +114,49 @@ function UI.SectionLabel(section)
 end
 
 -- Journal.Select output -> ScrollBox elements: a header before each run of
--- one section, then { id=, m=, owned= } rows.
-function UI.ListRows(selected, isOwned)
+-- one section, then { id=, m=, owned= } rows. With opts (see UI.List),
+-- headers get badge = opts.headerSuffix(section) and rows tag =
+-- opts.rowTag(id, m) (nil when the hook returns nil or is absent).
+function UI.ListRows(selected, isOwned, opts)
+  local headerSuffix = opts and opts.headerSuffix
+  local rowTag = opts and opts.rowTag
   local rows, last = {}, nil
   for _, entry in ipairs(selected or {}) do
     local section = entry.m.section
     if section ~= last then
-      rows[#rows + 1] = { header = true, section = section, text = UI.SectionLabel(section) }
+      rows[#rows + 1] = {
+        header = true, section = section, text = UI.SectionLabel(section),
+        badge = headerSuffix and headerSuffix(section) or nil,
+      }
       last = section
     end
-    rows[#rows + 1] = { id = entry.id, m = entry.m, owned = (isOwned and isOwned(entry.id)) and true or false }
+    rows[#rows + 1] = {
+      id = entry.id, m = entry.m, owned = (isOwned and isOwned(entry.id)) and true or false,
+      tag = rowTag and rowTag(entry.id, entry.m) or nil,
+    }
   end
   return rows
+end
+
+local GREEN = "|cff33ff99"
+
+-- Header label: section name, plus the badge in green.
+function UI.HeaderText(row)
+  local text = row.text or ""
+  if row.badge and row.badge ~= "" then
+    text = text .. "  " .. GREEN .. row.badge .. "|r"
+  end
+  return text
+end
+
+-- Row source line: UI.SourceLine, plus the tag in green.
+function UI.RowSourceText(row)
+  local text = UI.SourceLine(row.id)
+  if row.tag and row.tag ~= "" then
+    local tag = GREEN .. row.tag .. "|r"
+    text = (text ~= "") and (text .. " · " .. tag) or tag
+  end
+  return text
 end
 
 -- Ctrl+left-click: open the dressing room on the mount.
@@ -175,7 +215,7 @@ local function initHeader(frame, data)
     label:SetJustifyH("LEFT")
     frame.Label = label
   end
-  frame.Label:SetText(data.text)
+  frame.Label:SetText(UI.HeaderText(data))
 end
 
 local function setupRow(row)
@@ -238,7 +278,7 @@ local function initRow(row, data)
   local name = ns.Game.MountInfo(data.id)
   row.Icon:SetTexture(UI.MountIcon(data.id))
   row.Name:SetText(name or data.m.name or tostring(data.id))
-  row.Source:SetText(UI.SourceLine(data.id))
+  row.Source:SetText(UI.RowSourceText(data))
   if data.owned then
     row.Name:SetTextColor(0.5, 0.5, 0.5)
     row.Icon:SetDesaturated(true)
@@ -268,7 +308,7 @@ local function makeCheck(panel, label, onClick)
   return cb
 end
 
-function UI.List(parent, getQuery)
+function UI.List(parent, getQuery, opts)
   local list = CreateFrame("Frame", nil, parent)
   list:SetAllPoints(parent)
   list.searchText = ""
@@ -375,7 +415,7 @@ function UI.List(parent, getQuery)
     end
 
     local selected = ns.Journal.Select((ns.Data and ns.Data.Mounts) or {}, query)
-    local rows = UI.ListRows(selected, query.isOwned)
+    local rows = UI.ListRows(selected, query.isOwned, opts)
     local provider = CreateDataProvider(rows)
     if resetScroll or not ScrollBoxConstants then
       scrollBox:SetDataProvider(provider)
