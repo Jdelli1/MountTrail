@@ -1,4 +1,6 @@
 """Unit tests for tools/build_data.py. Run: python -m unittest tools/test_build_data.py -v"""
+import contextlib
+import io
 import os
 import sys
 import unittest
@@ -326,8 +328,10 @@ class BuildDataTests(unittest.TestCase):
                 self.assertEqual(fh.read(), original)
             with mock.patch.object(build_data, "SOURCES_PATH", path), \
                     mock.patch.object(build_data, "resolve_master", return_value="newsha"), \
-                    mock.patch.object(build_data, "generate", return_value=None) as gen:
+                    mock.patch.object(build_data, "generate", return_value=None) as gen, \
+                    contextlib.redirect_stdout(io.StringIO()) as out:
                 build_data.main(["--update"])
+            self.assertEqual(out.getvalue().strip(), "pinned a/b@newsha, c/d@newsha")
             self.assertEqual(gen.call_args[0][0]["rarity"]["commit"], "newsha")
             with open(path, encoding="utf-8") as fh:
                 self.assertIn("newsha", fh.read())
