@@ -2,7 +2,8 @@ local ADDON, ns = ...
 
 -- Mount tooltip: the mount item's own tooltip (or name + flavor text when the
 -- mount has no item), then approximate drop rate, times farmed (ours, plus
--- Rarity's when readable), this character's lockout state and a preview hint.
+-- Rarity's when readable), this character's lockout state, for achievement
+-- mounts the achievement with its criteria, and the click hints.
 -- The text is built by pure helpers (UI.TooltipLines, UI.LockoutStatus) so it
 -- can be tested without a client; UI.ShowMountTooltip only paints GameTooltip.
 
@@ -65,6 +66,24 @@ function UI.TooltipLines(mountID)
   return lines
 end
 
+local GREY = { 0.6, 0.6, 0.6 }
+
+-- Achievement block for achievement mounts (Achievements.TooltipLines of
+-- the achievement the scan mapped the mount to; "looking up..." while the
+-- scan runs) -> lines { { text=, r=, g=, b=, wrap= } }, achievementID or nil.
+-- Other mounts and mounts without a match -> {}.
+function UI.AchievementLines(mountID)
+  local scan = ns.AchievementScan
+  if not (scan and mountID) then return {} end
+  local id, status = scan.Lookup(mountID)
+  if status == "pending" then
+    return { { text = L["Achievement: looking up..."], r = GREY[1], g = GREY[2], b = GREY[3] } }
+  end
+  if not id then return {} end
+  local info = ns.Game.AchievementInfo and ns.Game.AchievementInfo(id) or nil
+  return ns.Achievements.TooltipLines(info), id
+end
+
 -- The mount's flavor text from the client's Mount Journal, or nil.
 function UI.TooltipFlavor(mountID)
   local describe = ns.Game.MountDescription
@@ -73,12 +92,16 @@ end
 
 -- Shows the mount tooltip anchored to `owner` (a list row). Mounts taught by
 -- an item show that item's own tooltip (as when hovering the Reins in your
--- bags); others show the name and the wrapped flavor text. The farming lines
--- follow either way.
+-- bags); others show the name and the wrapped flavor text. The farming lines,
+-- the achievement block (UI.AchievementLines) and the hints follow either way.
+local shownOwner, shownMount
+
 function UI.ShowMountTooltip(owner, mountID)
   local tip = GameTooltip
   if not (tip and mountID) then return end
+  shownOwner, shownMount = owner, mountID
   local lines = UI.TooltipLines(mountID)
+  local achievementLines, achievementID = UI.AchievementLines(mountID)
   local item = (mountData(mountID) or {}).item
   tip:SetOwner(owner, "ANCHOR_RIGHT")
   if item and tip.SetItemByID then
@@ -94,11 +117,30 @@ function UI.ShowMountTooltip(owner, mountID)
   for i = 2, #lines - 1 do
     tip:AddLine(lines[i], 1, 0.82, 0)
   end
+  for _, line in ipairs(achievementLines) do
+    tip:AddLine(line.text, line.r, line.g, line.b, line.wrap)
+  end
   tip:AddLine(lines[#lines], 0.5, 0.9, 0.5)
+  if achievementID then
+    tip:AddLine(L["Shift-right-click to open the achievement"], 0.5, 0.9, 0.5)
+  end
   tip:Show()
 end
 
+-- Repaints the mount tooltip if it is still showing (the achievement scan
+-- finished while the row was hovered).
+function UI.OnAchievementsReady()
+  local tip = GameTooltip
+  if not (shownOwner and tip and tip.IsOwned and tip:IsOwned(shownOwner)) then return end
+  UI.ShowMountTooltip(shownOwner, shownMount)
+end
+
+if ns.AchievementScan then
+  ns.AchievementScan.OnDone(function() UI.OnAchievementsReady() end)
+end
+
 function UI.HideMountTooltip()
+  shownOwner, shownMount = nil, nil
   if GameTooltip_Hide then
     GameTooltip_Hide()
   elseif GameTooltip then

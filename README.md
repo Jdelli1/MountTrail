@@ -6,7 +6,7 @@ AzerothTrail is a World of Warcraft Retail (Midnight 12.x) addon that tracks whi
 
 - **Journal by expansion**: browse every farmable mount grouped by expansion, with filters, search, a Map button that jumps to the mount's location, a tooltip with drop details and your attempt count, and Ctrl-click to preview the mount.
 - **Holidays**: holiday mounts, with the ones whose event is currently running highlighted.
-- **Achievements**: achievement-reward mounts, grouped by expansion.
+- **Achievements**: achievement-reward mounts, grouped by expansion. Hovering one shows the achievement that rewards it with its criteria progress; Shift-right-click the row to open that achievement in the Achievements window.
 - **Timewalking**: mounts from the Timewalking vendors.
 - **Misc**: profession, shop, Trading Post and other mounts that do not belong to an expansion or holiday.
 - **Per-character Route**: an ordered farming route for the character you are logged in on, with automatic ticks when a lockout or quest flag shows a kill, manual ticks for anything the game does not report (or to mark an open lockout done by hand until the next reset), and reset timers for the daily and weekly lockouts.

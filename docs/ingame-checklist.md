@@ -143,3 +143,15 @@ Supersedes the four-tab notes above: there are now six tabs.
 - [ ] Journal home counts are unchanged from before this update (achievement and Timewalking mounts were never counted there).
 - [ ] Saved tab: select Achievements, `/reload`, `/azt`: Achievements is still selected; same for Timewalking. A saved tab key from an older version that no longer exists opens Journal.
 - [ ] Classic fallback (only if `/azt debug` reported PanelTopTabButtonTemplate missing): six bottom tabs, all clickable.
+
+## F2: Achievement hover and Shift+right-click
+
+The mount -> achievement map is built in the background the first time an achievement mount is hovered or the Achievements tab is opened, and saved per client build (`/dump AzerothTrailDB.global.achievementMap`).
+
+- [ ] Fresh map: `/run AzerothTrailDB.global.achievementMap = {}` then `/reload`, `/azt`, open the Achievements tab. No hitch or freeze (the scan reads at most 200 achievements per frame); within a few seconds `/dump AzerothTrailDB.global.achievementMap.build` shows `120105:<build>` and `ids` lists the achievement mounts (an achievement ID, or `false` for none found). Note any obviously wrong pairs.
+- [ ] Hover (Achievements tab), e.g. Red Proto-Drake: after the item tooltip and the farming lines comes `Achievement: Glory of the Hero` (gold; green with "(completed)" when earned), its description (white, wrapped), then up to 8 criteria (completed green, others grey; counted ones show `(n/m)`), then `+N more` when there are more, then `Ctrl-click to preview` and `Shift-right-click to open the achievement`. Check a meta achievement (e.g. Glory of the Raider) and a counter achievement (e.g. Mountacular, `Progress (n/m)` or a named criterion).
+- [ ] First hover before the map exists: clear it as above, `/reload`, `/azt`, open the Achievements tab and hover a row at once (keep the mouse on it): the tooltip shows `Achievement: looking up...`, then repaints with the achievement when the scan finishes.
+- [ ] Shift+right-click an achievement mount row: the Achievements window opens on that achievement (loads Blizzard_AchievementUI if it was not loaded). Plain right-click and Shift+left-click do nothing; Ctrl+left-click still previews. Route rows behave the same.
+- [ ] Combat: clear the map, `/reload`, enter combat (training dummy), open the Achievements tab and hover a row: `looking up...` stays until combat ends, then the scan runs (no achievement reads in combat). Shift+right-click in combat: note any "Interface action failed because of an AddOn" naming AzerothTrail.
+- [ ] Cache: `/reload` again: hovering shows the achievement immediately (no `looking up...`), and the map is not rebuilt (same table). After a client patch the build changes and the map is rebuilt once.
+- [ ] Other tabs: hovering a non-achievement mount (Journal, Misc, Holidays, Timewalking) shows no achievement lines and no Shift-right-click hint.

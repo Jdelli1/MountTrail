@@ -266,6 +266,37 @@ function UI.PreviewMount(mountID)
   end
 end
 
+-- Row clicks: Ctrl+left-click -> "preview", Shift+right-click ->
+-- "achievement", anything else -> nil (plain clicks are reserved).
+function UI.RowClickAction(button, ctrl, shift)
+  if button == "LeftButton" and ctrl then return "preview" end
+  if button == "RightButton" and shift then return "achievement" end
+  return nil
+end
+
+-- Opens the achievement that rewards the mount, when the achievement scan
+-- (Integrations/AchievementScan.lua) knows it. -> true when opened.
+function UI.OpenMountAchievement(mountID)
+  local scan = ns.AchievementScan
+  local id = mountID and scan and scan.Lookup(mountID) or nil
+  if not id then return false end
+  return ns.Game.OpenAchievement(id) == true
+end
+
+-- OnClick of a mount row (lists and Route): reads the modifier keys and
+-- runs UI.RowClickAction's action for `mountID`.
+function UI.HandleRowClick(mountID, button)
+  if not mountID then return end
+  local ctrl = type(IsControlKeyDown) == "function" and IsControlKeyDown() and true or false
+  local shift = type(IsShiftKeyDown) == "function" and IsShiftKeyDown() and true or false
+  local action = UI.RowClickAction(button, ctrl, shift)
+  if action == "preview" then
+    UI.PreviewMount(mountID)
+  elseif action == "achievement" then
+    UI.OpenMountAchievement(mountID)
+  end
+end
+
 -- Widgets ----------------------------------------------------------------------------
 
 local FILTER_WIDTH = 150 -- fallback filter panel
@@ -364,7 +395,7 @@ function UI.StyleIcon(owner, icon)
 end
 
 local function setupRow(row)
-  row:RegisterForClicks("LeftButtonUp")
+  row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   -- Modern list rows: no borders, a faint stripe on every other row and a
   -- soft hover highlight.
   local stripe = row:CreateTexture(nil, "BACKGROUND")
@@ -419,10 +450,9 @@ local function setupRow(row)
   end)
   row:SetScript("OnLeave", function() UI.HideMountTooltip() end)
   row:SetScript("OnClick", function(self, button)
-    if button == "LeftButton" and IsControlKeyDown() and self.mountID then
-      UI.PreviewMount(self.mountID)
-    end
-    -- Plain click: nothing in v1.
+    -- Ctrl+left-click preview, Shift+right-click achievement; plain clicks
+    -- do nothing in v1.
+    UI.HandleRowClick(self.mountID, button)
   end)
 end
 

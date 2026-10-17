@@ -317,15 +317,14 @@ local function setupRow(frame)
   -- height from rowExtent always matches what is drawn.
   frame.Lines = {}
 
-  frame:RegisterForClicks("LeftButtonUp")
+  frame:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   frame:SetScript("OnEnter", function(self)
     local id = self.data and firstMount(self.data)
     if id then UI.ShowMountTooltip(self, id) end
   end)
   frame:SetScript("OnLeave", function() UI.HideMountTooltip() end)
   frame:SetScript("OnClick", function(self, button)
-    local id = self.data and firstMount(self.data)
-    if button == "LeftButton" and IsControlKeyDown() and id then UI.PreviewMount(id) end
+    UI.HandleRowClick(self.data and firstMount(self.data), button)
   end)
 end
 

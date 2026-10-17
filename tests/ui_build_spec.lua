@@ -22,7 +22,8 @@ end
 function RegionMT:SetFontObject(font) self.font = font end
 function RegionMT:GetStringWidth() return 60 end
 function RegionMT:GetWidth() return self.width or 0 end
-for _, name in ipairs({ "RegisterForClicks", "SetAutoFocus", "LockHighlight", "UnlockHighlight" }) do
+function FrameMT:RegisterForClicks(...) self.clickButtons = { ... } end
+for _, name in ipairs({ "SetAutoFocus", "LockHighlight", "UnlockHighlight" }) do
   FrameMT[name] = FrameMT[name] or noop
 end
 function FrameMT:SetChecked(on) self.checked = on end
@@ -401,6 +402,46 @@ describe("ui build", function()
       ok(f.Title.font == "GameFontNormal" or f.Title.font == "GameFontDisable", "GameFont family")
     end
     eq(striped, math.floor(#frames / 2), "every other row striped")
+  end)
+
+  it("mount rows (lists and Route) take left and right clicks and dispatch through HandleRowClick", function()
+    local ns = loadUI()
+    ns.ToggleWindow()
+    local got = {}
+    ns.UI.HandleRowClick = function(id, button) got[#got + 1] = { id, button } end
+    ns.UI.SelectTab("achievements")
+    local row
+    for _, f in ipairs(render(content(ns, "achievements").children[2].ScrollBox)) do
+      if f.mountID and not row then row = f end
+    end
+    ok(row, "achievement row rendered")
+    eq(row.clickButtons, { "LeftButtonUp", "RightButtonUp" })
+    row:RunScript("OnClick", "RightButton")
+    eq(got[1], { row.mountID, "RightButton" })
+
+    ns.UI.SelectTab("route")
+    local root = content(ns, "route").children[2]
+    local box
+    for _, child in ipairs(root.children) do if child.view then box = child end end
+    local routeRow
+    for _, f in ipairs(render(box)) do
+      if f.clickButtons and not routeRow then routeRow = f end
+    end
+    ok(routeRow, "route row rendered")
+    eq(routeRow.clickButtons, { "LeftButtonUp", "RightButtonUp" })
+    routeRow:RunScript("OnClick", "RightButton")
+    eq(got[2][2], "RightButton")
+    ok(got[2][1] ~= nil, "route row passes its first mount")
+  end)
+
+  it("opening the Achievements tab starts the achievement scan", function()
+    local ns = loadUI()
+    local ensured = 0
+    ns.AchievementScan.Ensure = function() ensured = ensured + 1 end
+    ns.ToggleWindow()
+    eq(ensured, 0, "not on the Journal tab")
+    ns.UI.SelectTab("achievements")
+    ok(ensured >= 1, "started")
   end)
 
   it("Route falls back to the classic checkbox", function()

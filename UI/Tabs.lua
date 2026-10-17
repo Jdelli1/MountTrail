@@ -58,6 +58,9 @@ UI.RegisterView("achievements", {
     end)
   end,
   Refresh = function()
+    -- Opening the tab starts the mount -> achievement scan (spread over
+    -- frames, never in combat), so hovers are ready sooner.
+    if ns.AchievementScan then ns.AchievementScan.Ensure() end
     if achievementList then achievementList:Refresh() end
   end,
 })
