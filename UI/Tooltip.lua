@@ -227,7 +227,8 @@ end
 -- follow either way (double lines via AddDoubleLine; one joined line when the
 -- tooltip has none). When the item's data is not cached yet, the client
 -- rebuilds the item tooltip once it arrives, wiping our lines: we wait for
--- the data (Game.OnItemLoad) and repaint, once per owner and mount, and
+-- the data (Game.OnItemLoad) and repaint a frame later (C_Timer.After(0)),
+-- once per owner and mount, and
 -- never for an item that has loaded before.
 local shownOwner, shownMount
 local waiting = {} -- owner -> { [mountID] = true } while a callback is pending
@@ -255,7 +256,14 @@ local function waitForItem(owner, mountID, item)
     loadedItems[item] = true
     forOwner[mountID] = nil
     if next(forOwner) == nil and waiting[owner] == forOwner then waiting[owner] = nil end
-    repaint(owner)
+    -- The client rebuilds the item tooltip on the same event: repaint a
+    -- frame later so ours comes last.
+    local timer = C_Timer
+    if type(timer) == "table" and type(timer.After) == "function" then
+      timer.After(0, function() repaint(owner) end)
+    else
+      repaint(owner)
+    end
   end)
   if not registered then
     forOwner[mountID] = nil

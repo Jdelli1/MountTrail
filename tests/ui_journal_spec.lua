@@ -554,11 +554,12 @@ describe("ui journal", function()
       eq(calls[4], { "AddLine", "Attempts  0", 1, 0.82, 0 })
     end)
 
-    it("item data not cached yet: repaints once it loads, one callback per owner and mount", function()
+    it("item data not cached yet: repaints a frame after it loads, one callback per owner and mount", function()
       local ns = loadUI(nil, { Mounts = { [20] = { name = "Rare Mount", item = 87771 },
-        [21] = { name = "Other", item = 99 } } })
-      local oldItem, oldCItem, oldTip = Item, C_Item, GameTooltip
-      local cached, waiting = {}, {}
+        [21] = { name = "Other", item = 99 }, [22] = { name = "Third", item = 77 } } })
+      local oldItem, oldCItem, oldTip, oldTimer = Item, C_Item, GameTooltip, C_Timer
+      local cached, waiting, timers = {}, {}, {}
+      C_Timer = { After = function(seconds, fn) timers[#timers + 1] = { seconds = seconds, fn = fn } end }
       C_Item = { IsItemDataCachedByID = function(id) return cached[id] == true end }
       Item = { CreateFromItemID = function(_, id)
         return { ContinueOnItemLoad = function(_, fn) waiting[#waiting + 1] = { id = id, fn = fn } end }
@@ -577,8 +578,14 @@ describe("ui journal", function()
       eq(waiting[1].id, 87771)
       cached[87771] = true
       waiting[1].fn()
-      eq(count("SetItemByID", 87771), 3, "repainted once")
-      eq(count("AddLine", "Ctrl-click to preview"), 3, "our block painted again")
+      eq(count("SetItemByID", 87771), 2, "not repainted in the load callback itself")
+      eq(#timers, 1)
+      eq(timers[1].seconds, 0, "next frame")
+      ns.UI.ShowMountTooltip(row, 20) -- hovered again in between: loaded, no new callback
+      eq(#waiting, 1)
+      timers[1].fn()
+      eq(count("SetItemByID", 87771), 4, "repainted once, a frame later")
+      eq(count("AddLine", "Ctrl-click to preview"), 4, "our block painted again")
       eq(#waiting, 1, "cached now: no new callback")
 
       -- Hidden (or owned by something else) before the data arrives: no repaint.
@@ -587,19 +594,28 @@ describe("ui journal", function()
       ns.UI.HideMountTooltip()
       local before = #calls
       waiting[2].fn()
+      timers[2].fn()
       eq(#calls, before, "not repainted after hide")
+
+      -- No C_Timer: repainted directly in the callback.
+      C_Timer = nil
+      local third = { mountID = 22 }
+      ns.UI.ShowMountTooltip(third, 22)
+      eq(#waiting, 3)
+      waiting[3].fn()
+      eq(count("SetItemByID", 77), 2, "repainted at once")
 
       -- Cached from the start, or no Item mixin / C_Item: no waiting, no error.
       cached[99] = true
       ns.UI.ShowMountTooltip(row, 21)
-      eq(#waiting, 2)
+      eq(#waiting, 3)
       Item = nil
       cached[99] = nil
       ns.UI.ShowMountTooltip({}, 21)
       C_Item = nil
       ns.UI.ShowMountTooltip({}, 21)
-      eq(#waiting, 2)
-      Item, C_Item, GameTooltip = oldItem, oldCItem, oldTip
+      eq(#waiting, 3)
+      Item, C_Item, GameTooltip, C_Timer = oldItem, oldCItem, oldTip, oldTimer
     end)
 
     it("TooltipFlavor returns the client's mount description", function()
