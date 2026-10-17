@@ -102,6 +102,22 @@ function Game.MapInfo(mapID)
   return { name = info.name, mapType = info.mapType, parentMapID = info.parentMapID }
 end
 
+-- C_Map.GetMapChildrenInfo(mapID, nil, true) (every descendant, any type;
+-- UiMapDetails) -> { { mapID=, mapType= } }; {} when none, unknown or the API
+-- is missing / errors.
+function Game.MapChildren(mapID)
+  local out = {}
+  if type(mapID) ~= "number" then return out end
+  local list = call(C_Map, "GetMapChildrenInfo", mapID, nil, true)
+  if type(list) ~= "table" then return out end
+  for _, child in ipairs(list) do
+    if type(child) == "table" and type(child.mapID) == "number" then
+      out[#out + 1] = { mapID = child.mapID, mapType = child.mapType }
+    end
+  end
+  return out
+end
+
 -- C_EncounterJournal.GetDungeonEntrancesForMap(mapID) (DungeonEntranceMapInfo:
 -- areaPoiID, position, name, description, atlasName, journalInstanceID) ->
 -- { { journalInstanceID=, name= } } for entrances with a journal instance;

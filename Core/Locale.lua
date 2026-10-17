@@ -25,6 +25,7 @@ L["/azt help - this list"] = "/azt help - this list"
 L["/azt arrow - switch the route between list and arrow"] = "/azt arrow - switch the route between list and arrow"
 L["Route mode: %s"] = "Route mode: %s"
 L["/azt debug - show or hide caught map and arrow errors"] = "/azt debug - show or hide caught map and arrow errors"
+L["/azt zone - show or hide the zone panel (mounts in your current zone)"] = "/azt zone - show or hide the zone panel (mounts in your current zone)"
 L["Debug: on (caught map and arrow errors go to the error handler)"] = "Debug: on (caught map and arrow errors go to the error handler)"
 L["Debug: off"] = "Debug: off"
 L["Template %s missing, using %s"] = "Template %s missing, using %s"
@@ -42,6 +43,13 @@ L["Route"] = "Route"
 L["Coming soon"] = "Coming soon"
 L["Left-click: open/close"] = "Left-click: open/close"
 L["Route: %d steps left"] = "Route: %d steps left"
+
+-- Zone side panel
+L["Mounts in %s"] = "Mounts in %s"
+L["this zone"] = "this zone"
+L["Nothing left to collect here"] = "Nothing left to collect here"
+L["Zone panel"] = "Zone panel"
+L["Mounts you can still get in your current zone"] = "Mounts you can still get in your current zone"
 
 -- Journal home and mount list
 L["Back"] = "Back"

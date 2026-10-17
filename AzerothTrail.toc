@@ -34,3 +34,4 @@ UI\JournalHome.lua
 UI\Tabs.lua
 UI\RouteView.lua
 UI\Arrow.lua
+UI\ZonePanel.lua

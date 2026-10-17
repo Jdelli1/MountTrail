@@ -872,6 +872,9 @@ local function memoText(fn)
   end
 end
 
+-- Shared with the zone panel (UI/ZonePanel.lua).
+UI.Memo, UI.MemoText = memo, memoText
+
 local function collapsedDB()
   local global = ns.db and ns.db.global
   if not global then return nil end
@@ -1057,6 +1060,13 @@ local function initRow(row, data)
     row.Strike:Hide()
   end
 end
+
+-- The mount row look, shared by other mount lists (the zone panel): a
+-- ScrollBox element initializer for "Button" frames. data: { id=, m=,
+-- owned=, depth= (2: indented), desc= (UI.RowDescription), tag=, alt=
+-- (striped), pin= (UI.HasLocation) }. Rows are UI.MOUNT_ROW_HEIGHT tall.
+UI.InitMountRow = initRow
+UI.MOUNT_ROW_HEIGHT = ROW_HEIGHT
 
 local function makeCheck(panel, label, onClick)
   local cb = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")

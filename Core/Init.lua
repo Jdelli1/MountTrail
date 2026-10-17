@@ -147,6 +147,7 @@ function addon:OnInitialize()
       arrow = {}, -- route arrow frame position (UI\Arrow.lua)
       debug = false, -- /azt debug: show caught map / arrow errors
       achievementMap = {}, -- { build=, ids={[mountID]=achievementID|false} } (Integrations\AchievementScan.lua)
+      zonePanel = { open = false }, -- zone side panel shown with the window (UI\ZonePanel.lua)
       collapsed = {}, -- list headers the player collapsed: { ["<view>|<exp>|<section>[|<sub-group>]"] = true } (UI\List.lua)
     },
     char = {
@@ -240,6 +241,12 @@ function addon:OnSlash(input)
     else
       self:Print(L["The window is not available yet. Type /azt help for commands."])
     end
+  elseif cmd == "zone" then
+    if ns.ToggleZonePanel then
+      ns.ToggleZonePanel()
+    else
+      self:Print(L["The window is not available yet. Type /azt help for commands."])
+    end
   elseif cmd == "debug" then
     ns.db.global.debug = not ns.db.global.debug
     self:Print(ns.db.global.debug and L["Debug: on (caught map and arrow errors go to the error handler)"]
@@ -260,6 +267,7 @@ function addon:OnSlash(input)
     self:Print(L["/azt - show or hide the window"])
     self:Print(L["/azt dump - list saved instances (instance ID, difficulty ID, bosses)"])
     self:Print(L["/azt arrow - switch the route between list and arrow"])
+    self:Print(L["/azt zone - show or hide the zone panel (mounts in your current zone)"])
     self:Print(L["/azt debug - show or hide caught map and arrow errors"])
     self:Print(L["/azt help - this list"])
   end

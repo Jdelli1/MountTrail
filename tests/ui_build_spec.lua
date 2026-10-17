@@ -7,7 +7,7 @@
 -- UI/Arrow.lua is not loaded.
 
 local UI_FILES = { "UI/Frame.lua", "UI/Tooltip.lua", "UI/List.lua", "UI/JournalHome.lua",
-  "UI/Tabs.lua", "UI/RouteView.lua" }
+  "UI/Tabs.lua", "UI/RouteView.lua", "UI/ZonePanel.lua" }
 
 -- Widget methods the views call that the base stub does not need.
 local probe = CreateFrame("Frame")
@@ -656,6 +656,159 @@ describe("ui build", function()
     eq(ensured, 0, "not on the Journal tab")
     ns.UI.SelectTab("achievements")
     ok(ensured >= 1, "started")
+  end)
+
+  -- Zone panel (F6) ------------------------------------------------------------
+
+  local ZONE_MAPS = {
+    [12] = { name = "Kalimdor", mapType = 2 },
+    [71] = { name = "Tanaris", mapType = 3, parentMapID = 12 },
+    [249] = { name = "Uldum", mapType = 3, parentMapID = 12 },
+    [900] = { name = "Empty Isle", mapType = 3, parentMapID = 12 },
+  }
+
+  -- Real mount data; the player stands on `map.id` (Tanaris unless changed);
+  -- mounts whose ID is a multiple of 7 say "Zone: Tanaris", of 11 "Zone: Uldum".
+  local function loadZoneUI(global)
+    local ns = loadUI(global)
+    local map = { id = 71 }
+    ns.Game.PlayerMap = function() return map.id end
+    ns.Game.MapInfo = function(id) return ZONE_MAPS[id] end
+    ns.Game.DungeonEntrances = function() return {} end
+    ns.Game.MapChildren = function() return {} end
+    ns.Game.InstanceForMap = function() return nil end
+    ns.Game.JournalInstanceName = function() return nil end
+    ns.Game.MountSourceText = function(id)
+      if id % 7 == 0 then return "|cFFFFD200Zone:|r Tanaris" end
+      if id % 11 == 0 then return "|cFFFFD200Zone:|r Uldum" end
+      return nil
+    end
+    ns.Map.CoordsFor = function() return nil end
+    local computed = 0
+    local real = ns.Zone.MountsFor
+    ns.Zone.MountsFor = function(...) computed = computed + 1; return real(...) end
+    return ns, map, function() return computed end
+  end
+
+  it("zone panel: docked right of the window, toggled by the title-bar button, state saved", function()
+    local ns = loadZoneUI()
+    eq(ns.db.global.zonePanel, { open = false }, "AceDB default")
+    ns.ToggleWindow()
+    local frame, panel = ns.UI.frame, ns.UI.zonePanel
+    ok(panel and frame.ZoneButton, "panel and toggle built with the window")
+    eq(panel:GetParent(), frame, "child of the window: shown only with it")
+    eq({ panel:GetPoint(1) }, { "TOPLEFT", frame, "TOPRIGHT", 2, 0 })
+    eq({ panel:GetPoint(2) }, { "BOTTOMLEFT", frame, "BOTTOMRIGHT", 2, 0 })
+    eq(panel.width, 260)
+    ok(not panel:IsShown(), "closed by default")
+    eq({ frame.DragHandle:GetPoint(2) }, { "TOPRIGHT", frame, "TOPRIGHT", -52, 0 }, "drag handle leaves room")
+
+    frame.ZoneButton:RunScript("OnClick")
+    eq(ns.db.global.zonePanel.open, true)
+    ok(panel:IsShown(), "opened")
+    ok(frame.ZoneButton.Selected:IsShown(), "toggle shows the open state")
+    local title = panel.Title:GetText()
+    ok(title:find("^Mounts in Tanaris  "), title)
+    local rows = panel.ScrollBox.provider.rows
+    ok(#rows > 0, "mounts listed")
+    ok(title:find("(" .. #rows .. ")", 1, true), "count in the title")
+    ok(not panel.Empty:IsShown(), "no empty line")
+    for _, row in ipairs(rows) do
+      eq(row.id % 7, 0, "Tanaris mount " .. row.id)
+      ok(row.id % 3 ~= 0, "owned mounts hidden")
+      ok(row.m.faction == nil or row.m.faction == "Alliance", "other faction hidden")
+    end
+
+    -- Rows are the mount list's rows: tooltip, pin, click dispatch.
+    local got = {}
+    ns.UI.HandleRowClick = function(id, button) got[#got + 1] = { id, button } end
+    local frames = render(panel.ScrollBox)
+    eq(#frames, #rows)
+    ok(frames[1].Name and frames[1].Pin and frames[1].Source, "mount row look")
+    eq(frames[1].clickButtons, { "LeftButtonUp", "RightButtonUp" })
+    frames[1]:RunScript("OnClick", "LeftButton")
+    eq(got[1], { rows[1].id, "LeftButton" })
+    ok(frames[2] == nil or frames[2].Stripe:IsShown(), "second row striped")
+
+    frame.ZoneButton:RunScript("OnClick")
+    eq(ns.db.global.zonePanel.open, false)
+    ok(not panel:IsShown() and not frame.ZoneButton.Selected:IsShown(), "closed")
+    panel.CloseButton:RunScript("OnClick")
+    eq(ns.db.global.zonePanel.open, false, "its close button closes too")
+  end)
+
+  it("zone panel: reopens with the saved state; Collected shows owned mounts", function()
+    local ns = loadZoneUI({ zonePanel = { open = true }, filters = { collected = true } })
+    ns.ToggleWindow()
+    ok(ns.UI.zonePanel:IsShown(), "open after a reload")
+    local owned = 0
+    for _, row in ipairs(ns.UI.zonePanel.ScrollBox.provider.rows) do if row.owned then owned = owned + 1 end end
+    ok(owned > 0, "owned mounts listed with Collected on")
+  end)
+
+  it("zone panel: rebuilds on a zone change (only when the map changed) and on ns.Refresh", function()
+    local ns, map, computed = loadZoneUI({ zonePanel = { open = true } })
+    ns.ToggleWindow()
+    local panel = ns.UI.zonePanel
+    local n = computed()
+    eq(n, 1, "built once when the window opened")
+    fire_frame_event("ZONE_CHANGED")
+    eq(computed(), n, "same map: nothing to do")
+    map.id = 249
+    fire_frame_event("ZONE_CHANGED_NEW_AREA")
+    eq(computed(), n + 1)
+    ok(panel.Title:GetText():find("^Mounts in Uldum"), "new zone")
+    for _, row in ipairs(panel.ScrollBox.provider.rows) do eq(row.id % 11, 0) end
+    ns.Refresh()
+    eq(computed(), n + 2, "data refresh rebuilds")
+    fire_frame_event("PLAYER_ENTERING_WORLD")
+    eq(computed(), n + 2)
+
+    ns.ToggleWindow() -- hide
+    map.id = 71
+    fire_frame_event("ZONE_CHANGED_NEW_AREA")
+    ns.Refresh()
+    eq(computed(), n + 2, "hidden: nothing computed")
+    ns.ToggleWindow() -- show
+    eq(computed(), n + 3, "rebuilt on show")
+    ok(panel.Title:GetText():find("^Mounts in Tanaris"))
+  end)
+
+  it("zone panel: empty state line", function()
+    local ns, map = loadZoneUI({ zonePanel = { open = true } })
+    map.id = 900
+    ns.ToggleWindow()
+    local panel = ns.UI.zonePanel
+    eq(#panel.ScrollBox.provider.rows, 0)
+    ok(panel.Empty:IsShown(), "empty line shown")
+    eq(panel.Empty:GetText(), "Nothing left to collect here")
+    eq(panel.Title:GetText(), "Mounts in Empty Isle  |cff9d9d9d(0)|r")
+    map.id = nil
+    ns.Refresh()
+    eq(panel.Title:GetText(), "Mounts in this zone  |cff9d9d9d(0)|r", "no map known")
+  end)
+
+  it("/azt zone opens the window with the panel, then toggles the panel; help lists it", function()
+    local ns, _, computed = loadZoneUI()
+    run_slash(ns.addon, "azt", "zone")
+    ok(ns.UI.frame:IsShown(), "window opened")
+    ok(ns.UI.zonePanel:IsShown(), "panel opened")
+    eq(ns.db.global.zonePanel.open, true)
+    eq(computed(), 1, "one build")
+    ok(ns.UI.frame.ZoneButton.Selected:IsShown())
+    run_slash(ns.addon, "azt", "zone")
+    ok(ns.UI.frame:IsShown(), "window stays")
+    ok(not ns.UI.zonePanel:IsShown(), "panel closed")
+    eq(ns.db.global.zonePanel.open, false)
+    run_slash(ns.addon, "azt", "zone")
+    ok(ns.UI.zonePanel:IsShown(), "and open again")
+    ns.ToggleWindow()
+    run_slash(ns.addon, "azt", "zone")
+    ok(ns.UI.frame:IsShown() and ns.UI.zonePanel:IsShown(), "window closed: opens both")
+    run_slash(ns.addon, "azt", "help")
+    local found = false
+    for _, line in ipairs(ns.addon.printed) do if line:find("^/azt zone") then found = true end end
+    ok(found, "help lists /azt zone")
   end)
 
   it("Route falls back to the classic checkbox", function()

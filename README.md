@@ -6,6 +6,7 @@ AzerothTrail is a World of Warcraft Retail (Midnight 12.x) addon that tracks whi
 
 - **Journal by expansion**: browse every farmable mount grouped by expansion, with filters, search, a tooltip with drop details and your attempt count, and Ctrl-click to preview the mount.
 - **Click a row for a waypoint**: left-click a mount row (on any tab, or a Route step) to set the game's waypoint at the mount's location or its dungeon / raid entrance, plus a TomTom waypoint when TomTom is installed (the previous AzerothTrail one is replaced). Chat confirms the place, e.g. `Waypoint: The Vortex Pinnacle (entrance)`. Shift-left-click opens the world map there instead (not in combat). Rows with a known location show a small pin on the right.
+- **Zone panel**: a slim side panel docked to the window's right edge (the pin button in the title bar, or `/azt zone`) listing "Mounts in <zone>": every mount you can still get whose location is your current zone, by its map coordinates, the Mount Journal's `Zone:` line, or a dungeon / raid whose entrance is in the zone (inside an instance: that instance's mounts). Owned and other-faction mounts are hidden unless the Collected filter is on. Rows behave like the lists (click for a waypoint, hover for the tooltip); it updates as you change zones. The open state is saved.
 - **Holidays**: holiday mounts, with the ones whose event is currently running highlighted.
 - **Achievements**: achievement-reward mounts, grouped by expansion. Hovering one shows the achievement that rewards it with its criteria progress; Shift-right-click the row to open that achievement in the Achievements window.
 - **Timewalking**: mounts from the Timewalking vendors.
@@ -35,6 +36,7 @@ The junction is created at `<WowPath>\_retail_\Interface\AddOns\AzerothTrail`. T
 | `/azt` | Show or hide the window |
 | `/azt dump` | List saved instances (instance ID, difficulty ID, bosses) for checking `Data/Lockouts.lua` |
 | `/azt arrow` | Switch the route between the list and the arrow frame |
+| `/azt zone` | Show or hide the zone panel (opens the window too when it is closed) |
 | `/azt debug` | Toggle debug mode: errors AzerothTrail catches around maps, waypoints and the arrow go to the error handler (off by default) |
 | `/azt help` | List the commands |
 | `/azerothtrail` | Same as `/azt` |

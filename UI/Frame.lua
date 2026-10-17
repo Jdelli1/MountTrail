@@ -217,6 +217,17 @@ end
 local TITLE_HEIGHT = 24 -- title bar of the portrait frame
 local PORTRAIT_RIGHT = 60 -- the portrait covers the top-left corner up to here
 local CONTENT_TOP = -60 -- content starts below the portrait
+local TITLE_BUTTONS_RIGHT = 52 -- close button + one 20 px title-bar button
+
+-- Window hooks: fn(frame) runs once the main window is built (right away
+-- when it already is), for UI that docks to it (UI/ZonePanel.lua).
+local windowHooks = {}
+
+function UI.AddWindowHook(fn)
+  assert(type(fn) == "function", "AzerothTrail: window hook must be a function")
+  windowHooks[#windowHooks + 1] = fn
+  if UI.frame then fn(UI.frame) end
+end
 
 local function createWindow()
   local frameTemplate = UI.Template("PortraitFrameFlatTemplate", "PortraitFrameTemplate")
@@ -235,10 +246,11 @@ local function createWindow()
   restorePosition(frame)
 
   -- Drag handle over the title bar (right of the portrait, left of the close
-  -- button). We save the position ourselves, so opt out of the layout cache.
+  -- button and the title-bar buttons such as the zone panel toggle). We save
+  -- the position ourselves, so opt out of the layout cache.
   local drag = CreateFrame("Frame", nil, frame)
   drag:SetPoint("TOPLEFT", frame, "TOPLEFT", PORTRAIT_RIGHT, 0)
-  drag:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -28, 0)
+  drag:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -TITLE_BUTTONS_RIGHT, 0)
   drag:SetHeight(TITLE_HEIGHT)
   drag:EnableMouse(true)
   drag:RegisterForDrag("LeftButton")
@@ -322,6 +334,8 @@ local function createWindow()
 
   -- Esc closes the window.
   tinsert(UISpecialFrames, frame:GetName())
+
+  for _, fn in ipairs(windowHooks) do fn(frame) end
 
   local db = windowDB()
   UI.SelectTab(db and db.tab)

@@ -293,6 +293,23 @@ describe("game adapter", function()
       eq(loadGame().Game.MapInfo(71), nil, "no GetMapInfo")
     end)
 
+    it("MapChildren lists every descendant's mapID and mapType; {} otherwise", function()
+      C_Map = { GetMapChildrenInfo = function(id, mapType, all)
+        eq({ mapType, all }, { nil, true }, "all descendants, any type")
+        if id == 71 then
+          return { { mapID = 74, name = "Caverns of Time", mapType = 5, parentMapID = 71 }, { name = "no id" } }
+        end
+        if id == 4 then error("boom") end
+      end }
+      local G = loadGame().Game
+      eq(G.MapChildren(71), { { mapID = 74, mapType = 5 } })
+      eq(G.MapChildren(5), {})
+      eq(G.MapChildren(4), {}, "error caught")
+      eq(G.MapChildren(nil), {})
+      C_Map = nil
+      eq(loadGame().Game.MapChildren(71), {})
+    end)
+
     it("DungeonEntrances keeps journalInstanceID and name of each entrance; {} otherwise", function()
       C_EncounterJournal = { GetDungeonEntrancesForMap = function(id)
         if id == 249 then
