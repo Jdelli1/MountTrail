@@ -152,10 +152,15 @@ class BuildDataTests(unittest.TestCase):
         self.assertNotIn("coords", r[1])
         self.assertNotIn("quest", r[1])
 
+    def test_route_keeps_start_step(self):
+        root = self.route[0]
+        self.assertIs(root["startStep"], True)
+        self.assertEqual(root["title"], "Start in ")
+        self.assertNotIn("startStep", root["steps"][0])
+
     def test_route_drops_empty_and_keeps_flags(self):
         root = self.route[0]
         self.assertEqual(len(root["steps"]), 3)  # the empty {} node is dropped
-        self.assertNotIn("startStep", root)
         ulduar = root["steps"][1]["steps"][0]
         self.assertEqual([b["mount"] for b in ulduar["bosses"]], [304, 999])
         self.assertIs(ulduar["bosses"][1]["horde"], True)

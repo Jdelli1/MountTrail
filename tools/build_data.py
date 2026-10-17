@@ -373,6 +373,7 @@ _NODE_KEYS = (
     ("title", "title"),
     ("type", "type"),
     ("capital", "capital"),
+    ("startStep", "startStep"),
     ("isAlliance", "alliance"),
     ("isHorde", "horde"),
     ("notes", "notes"),
@@ -426,7 +427,7 @@ _LUA_KEYWORDS = {
 # Field order for mount records; anything else follows alphabetically.
 _MOUNT_ORDER = ["name", "spell", "item", "icon", "exp", "tab", "section", "group", "tradingNow",
                 "faction", "unobtainable", "chance", "quest", "coords"]
-_NODE_ORDER = ["title", "type", "capital", "alliance", "horde", "unavailable", "notes",
+_NODE_ORDER = ["title", "type", "capital", "startStep", "alliance", "horde", "unavailable", "notes",
                "mount", "boss", "note", "m", "x", "y", "bosses", "steps"]
 
 

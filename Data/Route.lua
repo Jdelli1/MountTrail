@@ -11,6 +11,7 @@ ns.Data.Route = {
   {
     title = "Start in ",
     capital = true,
+    startStep = true,
     notes = "Set Hearthstone to Faction Capital",
     steps = {
       {
