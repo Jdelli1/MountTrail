@@ -19,3 +19,4 @@ Logic\Resets.lua
 Logic\Lockouts.lua
 Logic\Route.lua
 Logic\Journal.lua
+Logic\Attempts.lua
