@@ -126,9 +126,9 @@ describe("ui", function()
     ns.ToggleWindow()
     local f = ns.UI.frame
     local size = ns.UI.TabSize
-    eq(size, { padding = 12, min = 70, max = 110 })
+    eq(size, { padding = 10, min = 70, max = 116 })
     for i, tab in ipairs(f.Tabs) do
-      eq(tab.resized, { padding = 12, minWidth = 70, maxWidth = 110 }, "tab " .. i)
+      eq(tab.resized, { padding = 10, minWidth = 70, maxWidth = 116 }, "tab " .. i)
     end
     -- Worst case (every label at the cap): the first tab starts 60 px into
     -- the 6 px inset, tabs are 2 px apart and the last tab's right edge

@@ -135,7 +135,7 @@ The window now follows Blizzard's current flat panel style. This section superse
 
 Supersedes the four-tab notes above: there are now six tabs.
 
-- [ ] `/reload` with `/console scriptErrors 1`, `/azt`: six top tabs in this order: Journal, Holidays, Achievements, Timewalking, Misc, Route. All fit on one row right of the portrait inside the 800 px window (nothing overlaps the window's right edge); each is sized to its text with a little padding, Misc and Route no narrower than ~70 px, none wider than ~110 px. No label is truncated ("..."); if one is on this client/locale, note which.
+- [ ] `/reload` with `/console scriptErrors 1`, `/azt`: six top tabs in this order: Journal, Holidays, Achievements, Timewalking, Misc, Route. All fit on one row right of the portrait inside the 800 px window (nothing overlaps the window's right edge); each is sized to its text with a little padding, Misc and Route no narrower than ~70 px, none wider than ~116 px. No label is truncated ("..."); if one is on this client/locale, note which.
 - [ ] Achievements tab: only achievement-reward mounts (e.g. Red Proto-Drake and Black Proto-Drake are here; Time-Lost Proto-Drake, a world rare, is not). Headers are expansion names in expansion order (Wrath of the Lich King ... Midnight); a "General" header, if any, comes last. Collected filter (Filter menu, Collected only) and search work.
 - [ ] Timewalking tab: one "Timewalking" header with the Timewalking vendor mounts (e.g. Ironbound Wraithcharger, Eclipse Dragonhawk, Yu'lei, Daughter of Jade). Collected filter and search work.
 - [ ] Holidays tab: no Timewalking header or Timewalking mounts any more; the other holiday headers and the "Active now" badge are unchanged.

@@ -116,12 +116,12 @@ local TABS = {
   { key = "route", label = "Route" },
 }
 
--- Tab widths for PanelTemplates_TabResize: each tab fits its text plus 12 px
+-- Tab widths for PanelTemplates_TabResize: each tab fits its text plus 10 px
 -- of extra padding (on top of the template's 20 px sides), at least 70 px so
--- Misc / Route are not stubby, at most 110 px so a long translation
--- truncates instead of pushing the row past the window: 6 x 110 + gaps
+-- Misc / Route are not stubby, at most 116 px so a long translation
+-- truncates instead of pushing the row past the window: 6 x 116 + gaps
 -- stays inside the 800 px window from the 60 px portrait offset.
-UI.TabSize = { padding = 12, min = 70, max = 110 }
+UI.TabSize = { padding = 10, min = 70, max = 116 }
 local TAB_INDEX = {}
 for i, tab in ipairs(TABS) do TAB_INDEX[tab.key] = i end
 
