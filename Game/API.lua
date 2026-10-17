@@ -54,6 +54,22 @@ function Game.MountSourceText(mountID)
   return nil
 end
 
+-- C_Map.GetMapInfo(mapID).name, or nil when the map is unknown, has no name,
+-- the API is missing or errors (Game.ReportError).
+function Game.MapName(mapID)
+  if type(mapID) ~= "number" then return nil end
+  local map = C_Map
+  if not (type(map) == "table" and type(map.GetMapInfo) == "function") then return nil end
+  local good, info = pcall(map.GetMapInfo, mapID)
+  if not good then
+    Game.ReportError(info)
+    return nil
+  end
+  local name = type(info) == "table" and info.name or nil
+  if type(name) == "string" and name ~= "" then return name end
+  return nil
+end
+
 -- The mount's flavor text as the Mount Journal shows it (2nd return of
 -- GetMountInfoExtraByID), nil when missing or empty.
 function Game.MountDescription(mountID)

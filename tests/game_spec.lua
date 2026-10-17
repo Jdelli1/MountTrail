@@ -5,7 +5,7 @@ local API_GLOBALS = {
   "GetNumSavedInstances", "GetSavedInstanceInfo", "GetSavedInstanceEncounterInfo",
   "C_DateAndTime", "C_Calendar", "GetExpansionDisplayInfo", "C_MountJournal",
   "C_QuestLog", "GetLFGDungeonRewards", "RequestRaidInfo", "RequestLFDPlayerLockInfo",
-  "GetServerTime", "geterrorhandler", "GetStatistic", "InCombatLockdown",
+  "GetServerTime", "geterrorhandler", "GetStatistic", "InCombatLockdown", "C_Map",
 }
 local ORIGINAL = {}
 for _, name in ipairs(API_GLOBALS) do ORIGINAL[name] = _G[name] end
@@ -204,6 +204,29 @@ describe("game adapter", function()
       eq(G.MountSourceText(7), nil)
       eq(G.MountSourceText(8), nil)
       eq(G.MountSourceText(nil), nil)
+    end)
+  end)
+
+  describe("MapName", function()
+    it("is C_Map.GetMapInfo(id).name; nil when missing, empty, unknown or erroring", function()
+      C_Map = { GetMapInfo = function(id)
+        if id == 317 then return { mapID = 317, name = "Stratholme" } end
+        if id == 2 then return { mapID = 2, name = "" } end
+        if id == 3 then return { mapID = 3 } end
+        if id == 4 then error("boom") end
+      end }
+      local G = loadGame().Game
+      eq(G.MapName(317), "Stratholme")
+      eq(G.MapName(2), nil, "empty name")
+      eq(G.MapName(3), nil, "no name")
+      eq(G.MapName(4), nil, "error caught")
+      eq(G.MapName(5), nil, "unknown map")
+      eq(G.MapName(nil), nil)
+      eq(G.MapName("x"), nil, "not a number")
+      C_Map = nil
+      eq(loadGame().Game.MapName(317), nil, "no C_Map")
+      C_Map = {}
+      eq(loadGame().Game.MapName(317), nil, "no GetMapInfo")
     end)
   end)
 
