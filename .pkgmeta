@@ -4,3 +4,6 @@ ignore:
   - tools
   - tests
   - docs
+  - .superpowers
+  - .gitignore
+  - .pkgmeta
