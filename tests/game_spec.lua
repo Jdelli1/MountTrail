@@ -468,13 +468,19 @@ describe("init", function()
       eq(ns.db.global.stats["Me-Realm"][6], 7)
     end)
 
-    it("keeps the last value of a statistic that gives no reading", function()
+    it("keeps the last value when a statistic gives no reading or a lower one", function()
       local ns, w = withStats()
       fire_event(ns.addon, "PLAYER_ENTERING_WORLD")
       w.values[71] = nil
-      w.values[61], w.values[62] = 10, nil
+      w.values[61], w.values[62] = 10, nil -- partial: mount 6 is not read
       fire_event(ns.addon, "UPDATE_INSTANCE_INFO")
-      eq(ns.db.global.stats["Me-Realm"], { [6] = 10, [7] = 0 })
+      eq(ns.db.global.stats["Me-Realm"], { [6] = 5, [7] = 0 })
+      w.values[61], w.values[62] = 0, 0 -- "--" before the data loads
+      fire_event(ns.addon, "UPDATE_INSTANCE_INFO")
+      eq(ns.db.global.stats["Me-Realm"][6], 5)
+      w.values[61], w.values[62] = 4, 3
+      fire_event(ns.addon, "UPDATE_INSTANCE_INFO")
+      eq(ns.db.global.stats["Me-Realm"][6], 7)
     end)
 
     it("waits for the end of combat before reading", function()
@@ -485,11 +491,15 @@ describe("init", function()
       eq(w.reads(), 0, "nothing read in combat")
       eq(ns.db.global.stats, {})
       w.setCombat(false)
+      local refreshed = 0
+      ns.Refresh = function() refreshed = refreshed + 1 end
       fire_event(ns.addon, "PLAYER_REGEN_ENABLED")
       eq(ns.db.global.stats, { ["Me-Realm"] = { [6] = 5, [7] = 0 } })
+      eq(refreshed, 1, "refreshes after the deferred read")
       local after = w.reads()
       fire_event(ns.addon, "PLAYER_REGEN_ENABLED")
       eq(w.reads(), after, "leaving combat again reads nothing new")
+      eq(refreshed, 1, "and does not refresh")
     end)
   end)
 

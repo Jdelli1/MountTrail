@@ -188,9 +188,9 @@ function addon:OnLockoutEvent(event)
   ns.Refresh()
 end
 
--- Reads the kill statistics a combat-time event had to skip.
+-- Reads the kill statistics a combat-time event had to skip, then refreshes.
 function addon:OnCombatEnd()
-  if statsPending then ns.UpdateStats() end
+  if statsPending and ns.UpdateStats() then ns.Refresh() end
 end
 
 function addon:OnKill()

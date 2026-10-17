@@ -13,14 +13,15 @@ local Stats = {}
 ns.Stats = Stats
 
 -- Sum of `statistic(id)` over a mount's statistic IDs (e.g. one per
--- difficulty). IDs with no reading (nil) are skipped. -> number, or nil
--- when no ID gave a number.
+-- difficulty). -> number, or nil (unread) unless every ID gave a number, so
+-- a partial sum never replaces a full one.
 function Stats.Read(ids, statistic)
-  if type(ids) ~= "table" then return nil end
-  local total
+  if type(ids) ~= "table" or #ids == 0 then return nil end
+  local total = 0
   for _, id in ipairs(ids) do
     local n = statistic(id)
-    if type(n) == "number" then total = (total or 0) + n end
+    if type(n) ~= "number" then return nil end
+    total = total + n
   end
   return total
 end
@@ -38,14 +39,20 @@ function Stats.Collect(mounts, statistic)
 end
 
 -- Writes `readings` into store[charKey]; mounts not read this time keep
--- their earlier value. -> store[charKey].
+-- their earlier value. Kill statistics only increase, so a reading below the
+-- stored one is ignored: that covers "--" (0) read before the client's
+-- statistics load. Tradeoff: a character deleted and recreated with the same
+-- name and realm keeps the old character's (higher) count. -> store[charKey].
 function Stats.Merge(store, charKey, readings)
   local mine = store[charKey]
   if type(mine) ~= "table" then
     mine = {}
     store[charKey] = mine
   end
-  for mountID, n in pairs(readings or {}) do mine[mountID] = n end
+  for mountID, n in pairs(readings or {}) do
+    local old = mine[mountID]
+    if type(old) ~= "number" or n > old then mine[mountID] = n end
+  end
   return mine
 end
 
