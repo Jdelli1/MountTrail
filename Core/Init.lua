@@ -60,10 +60,19 @@ end
 local ready = { instances = false, lfg = false }
 
 -- Current observation { snap=, quests={[id]=true}, lfg={[id]=true} }; only
--- true flags are stored to keep the saved variables small.
-local function observe(prev)
+-- true flags are stored to keep the saved variables small. The saved-instance
+-- snapshot is re-read only when `freshInstances` (UPDATE_INSTANCE_INFO);
+-- other events reuse prev.snap, so a saved list that is transiently
+-- incomplete while they fire can neither drop a kill nor count it later.
+local function observe(prev, freshInstances)
   local t = tracking()
-  local curr = { snap = ns.Lockouts.Snapshot(ns.Game.SavedRows()), quests = {}, lfg = {} }
+  local snap
+  if freshInstances or not (prev and prev.snap) then
+    snap = ns.Lockouts.Snapshot(ns.Game.SavedRows())
+  else
+    snap = copyTable(prev.snap)
+  end
+  local curr = { snap = snap, quests = {}, lfg = {} }
   for _, questID in ipairs(t.quests) do
     if ns.Game.IsQuestDone(questID) then curr.quests[questID] = true end
   end
@@ -85,12 +94,14 @@ end
 -- attempts of unowned mounts (Attempts.Newly: one per newly satisfied
 -- difficulty group, or per quest / LFG flag going open -> done). Returns the
 -- mountIDs counted (a mount once per attempt). Does nothing until
--- saved-instance data has arrived.
-function ns.UpdateAttempts()
+-- saved-instance data has arrived. freshInstances: true on
+-- UPDATE_INSTANCE_INFO (re-read the saved instances), else the last snapshot
+-- is kept and only quest / LFG flags are refreshed.
+function ns.UpdateAttempts(freshInstances)
   if not (ns.db and ready.instances) then return {} end
   local char, global = ns.db.char, ns.db.global
   local prev = char.last
-  local curr = observe(prev)
+  local curr = observe(prev, freshInstances)
   local newly = ns.Attempts.Newly(prev, curr, tracking().mounts, specFor,
     function(mountID) return ns.Game.IsOwned(mountID) end)
   for _, mountID in ipairs(newly) do ns.Attempts.Add(global.attempts, mountID) end
@@ -145,7 +156,7 @@ end
 function addon:OnLockoutEvent(event)
   if event == "UPDATE_INSTANCE_INFO" then ready.instances = true end
   if event == "LFG_UPDATE_RANDOM_INFO" then ready.lfg = true end
-  ns.UpdateAttempts()
+  ns.UpdateAttempts(event == "UPDATE_INSTANCE_INFO")
   ns.Refresh()
 end
 

@@ -285,6 +285,35 @@ describe("init", function()
     eq(ns.db.global.attempts, {})
   end)
 
+  it("only UPDATE_INSTANCE_INFO re-reads saved instances; other events reuse the last snapshot", function()
+    local ns, w = setup()
+    w.kill()
+    fire_event(ns.addon, "UPDATE_INSTANCE_INFO")
+    fire_event(ns.addon, "LFG_UPDATE_RANDOM_INFO")
+    -- The saved list is transiently incomplete while other events fire.
+    w.rows[1] = nil
+    w.quests[900] = true
+    fire_event(ns.addon, "QUEST_TURNED_IN", 900)
+    fire_event(ns.addon, "LFG_UPDATE_RANDOM_INFO")
+    fire_event(ns.addon, "NEW_MOUNT_ADDED", 7)
+    eq(ns.db.char.last.snap, { [532] = { [3] = { ["Attumen the Huntsman"] = true } } }, "snapshot kept")
+    eq(ns.db.char.last.quests, { [900] = true }, "quest flags refreshed")
+    -- The full list comes back: the kill is not counted as new.
+    w.kill()
+    fire_event(ns.addon, "UPDATE_INSTANCE_INFO")
+    eq(ns.db.global.attempts, { [4] = 1 }, "only the quest counted")
+  end)
+
+  it("a kill is counted on UPDATE_INSTANCE_INFO, not on another event", function()
+    local ns, w = setup()
+    fire_event(ns.addon, "UPDATE_INSTANCE_INFO")
+    w.kill()
+    fire_event(ns.addon, "QUEST_TURNED_IN", 1)
+    eq(ns.db.global.attempts, {})
+    fire_event(ns.addon, "UPDATE_INSTANCE_INFO")
+    eq(ns.db.global.attempts, { [1] = 1 })
+  end)
+
   it("an lfg done last session is not recounted when lfg data arrives late", function()
     local ns, w = setup()
     ns.db.char.last = { snap = {}, quests = {}, lfg = { [285] = true } }
