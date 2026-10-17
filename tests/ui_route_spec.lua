@@ -373,6 +373,21 @@ describe("ui route", function()
     end)
   end)
 
+  describe("RouteTargetMount", function()
+    it("is the first boss not done (by the game or by hand), else the first; nil without bosses", function()
+      local ns = loadUI()
+      local t = ns.UI.RouteTargetMount
+      eq(t({ kind = "kill", bosses = { { mount = 1, state = "open" }, { mount = 2, state = "open" } } }), 1)
+      eq(t({ kind = "kill", bosses = { { mount = 1, state = "done" }, { mount = 2, state = "manual-done" },
+        { mount = 3, state = "manual-open" } } }), 3)
+      eq(t({ kind = "kill", bosses = { { mount = 1, state = "done" }, { mount = 2, state = "done" } } }), 1,
+        "all done: the first")
+      eq(t({ kind = "travel", bosses = {} }), nil)
+      eq(t({ kind = "travel" }), nil)
+      eq(t(nil), nil)
+    end)
+  end)
+
   describe("RouteRowLines", function()
     it("shows boss -> mount, notes in grey and locked text in grey", function()
       local ns = loadUI({ MountInfo = function(id) if id == 1 then return "Client Mount" end end },

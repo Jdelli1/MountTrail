@@ -2,12 +2,14 @@ local ADDON, ns = ...
 
 -- Route tab: this character's farming route (Logic/Route.lua rows) with the
 -- reset timers, a "Show completed" box, a List / Arrow mode toggle,
--- Oregon-Trail flavour lines, a tick box per kill row and a Map button. Also
+-- Oregon-Trail flavour lines, a tick box per kill row and a location pin
+-- (clicks as on the mount lists, aimed at UI.RouteTargetMount). Also
 -- defines ns.UI.RouteRemaining for the minimap tooltip and ns.UI.RouteNextStep
 -- for the route arrow (UI\Arrow.lua).
 --
 -- The pure helpers (RouteContext, RouteRemaining, RouteNextStep, RouteCheck,
--- RouteToggle, RouteRowLines, RouteFlavour, FormatDuration) are unit-tested;
+-- RouteToggle, RouteTargetMount, RouteRowLines, RouteFlavour, FormatDuration)
+-- are unit-tested;
 -- the widget code below them is built under a stub by tests/ui_build_spec.lua.
 -- Look: a flat header strip, the flat minimal checkbox where the client has
 -- it (MinimalCheckboxTemplate, else SettingsCheckboxTemplate, else
@@ -187,6 +189,18 @@ function UI.RouteToggle(row, store, now, untilDaily, untilWeekly)
   return true
 end
 
+-- The mount a route row's clicks, pin and tooltip are about: the first boss
+-- not done by the game or by hand (as the route arrow targets), else the
+-- first boss; nil for rows without bosses.
+function UI.RouteTargetMount(row)
+  local bosses = type(row) == "table" and row.bosses or nil
+  if not (type(bosses) == "table" and bosses[1]) then return nil end
+  for _, b in ipairs(bosses) do
+    if b.state ~= "done" and b.state ~= "manual-done" then return b.mount end
+  end
+  return bosses[1].mount
+end
+
 local function mountName(mountID)
   local name = ns.Game.MountInfo(mountID)
   if name then return name end
@@ -248,9 +262,9 @@ local LINE_HEIGHT = 14
 local TRAVEL_HEIGHT = 22
 local KILL_BASE = 28
 local CHECK_SIZE = 22
-local MAP_WIDTH, MAP_RIGHT = 56, 6
-local TITLE_RIGHT = MAP_RIGHT + MAP_WIDTH + 40 -- room for the "auto" tag
-local LINE_RIGHT = MAP_RIGHT + MAP_WIDTH + 8
+local PIN_ROOM = UI.PIN_ROOM or 32 -- the location pin (UI.CreatePin) and a gap
+local TITLE_RIGHT = PIN_ROOM + 32 -- room for the "auto" tag
+local LINE_RIGHT = PIN_ROOM
 local KILL_TITLE_Y, TRAVEL_TITLE_Y = -6, -5
 
 -- Flat minimal checkbox of the current panels, else the Settings one, else
@@ -263,11 +277,6 @@ local function rowExtent(row)
   local _, lines = UI.RouteRowLines(row)
   if row.kind == "kill" then return KILL_BASE + LINE_HEIGHT * #lines end
   return TRAVEL_HEIGHT + LINE_HEIGHT * #lines
-end
-
-local function firstMount(row)
-  local b = row.bosses and row.bosses[1]
-  return b and b.mount or nil
 end
 
 local function setupRow(frame)
@@ -293,15 +302,10 @@ local function setupRow(frame)
   end)
   frame.Check = check
 
-  local map = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-  map:SetSize(MAP_WIDTH, 22)
-  map:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -MAP_RIGHT, -3)
-  map:SetText(L["Map"])
-  map:SetScript("OnClick", function()
-    local id = frame.data and firstMount(frame.data)
-    if id and ns.Map then ns.Map.Show(id) end
-  end)
-  frame.Map = map
+  -- Location pin, level with the tick box (kill rows with a location only).
+  local pin = UI.CreatePin(frame)
+  pin:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -(UI.PIN_RIGHT or 8), -5)
+  frame.Pin = pin
 
   local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   title:SetJustifyH("LEFT")
@@ -319,12 +323,15 @@ local function setupRow(frame)
 
   frame:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   frame:SetScript("OnEnter", function(self)
-    local id = self.data and firstMount(self.data)
+    local id = UI.RouteTargetMount(self.data)
     if id then UI.ShowMountTooltip(self, id) end
   end)
   frame:SetScript("OnLeave", function() UI.HideMountTooltip() end)
   frame:SetScript("OnClick", function(self, button)
-    UI.HandleRowClick(self.data and firstMount(self.data), button)
+    -- As on the mount lists (UI.RowClickAction): left-click waypoint,
+    -- Shift+left-click world map, Ctrl+left-click preview,
+    -- Shift+right-click achievement.
+    UI.HandleRowClick(UI.RouteTargetMount(self.data), button)
   end)
 end
 
@@ -337,7 +344,7 @@ local function detailLine(frame, i)
     line:SetHeight(LINE_HEIGHT)
     -- Same-edge anchor pairs only (a RIGHT anchor would also pin the
     -- vertical centre). Line 1 hangs under the title and reaches further
-    -- right (to the Map button) than the title, which leaves room for "auto".
+    -- right (to the pin) than the title, which leaves room for "auto".
     if i == 1 then
       line:SetPoint("TOPLEFT", frame.Title, "BOTTOMLEFT", 0, -3)
       line:SetPoint("TOPRIGHT", frame.Title, "BOTTOMRIGHT", TITLE_RIGHT - LINE_RIGHT, -3)
@@ -373,13 +380,13 @@ local function initRow(frame, data)
     frame.Title:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -TITLE_RIGHT, KILL_TITLE_Y)
     frame.Title:SetFontObject("GameFontNormal")
     frame.Auto:SetShown(auto and true or false)
-    frame.Map:SetShown(firstMount(data) ~= nil)
+    frame.Pin:SetShown(data.pin == true)
   else
     -- Travel hint. WoW ships no italic font, so travel rows are grey only
     -- (the GameFontDisable family).
     frame.Check:Hide()
     frame.Auto:Hide()
-    frame.Map:Hide()
+    frame.Pin:Hide()
     frame.Title:SetPoint("TOPLEFT", frame, "TOPLEFT", left + 4, TRAVEL_TITLE_Y)
     frame.Title:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -TITLE_RIGHT, TRAVEL_TITLE_Y)
     frame.Title:SetFontObject("GameFontDisable")
@@ -425,7 +432,16 @@ local function refresh()
   local Game = ns.Game
   local ctx = UI.RouteContext(Game.Now())
   local rows = ns.Route.Build((ns.Data and ns.Data.Route) or {}, ctx)
-  for i, row in ipairs(rows) do row.alt = i % 2 == 0 end
+  -- Each target mount's location is resolved once per refresh (the pin).
+  local kinds = {}
+  for i, row in ipairs(rows) do
+    row.alt = i % 2 == 0
+    local id = row.kind == "kill" and UI.RouteTargetMount(row) or nil
+    if id then
+      kinds[id] = kinds[id] or UI.LocationKind(id)
+      row.pin = UI.ShowsPin(kinds[id])
+    end
+  end
   local name = Game.PlayerName()
 
   header.Name:SetText(name or "")

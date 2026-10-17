@@ -436,6 +436,73 @@ describe("ui build", function()
     ok(got[2][1] ~= nil, "route row passes its first mount")
   end)
 
+  it("mount rows have no Map button and show a pin only where Map.Resolve finds a location (once per refresh)", function()
+    local ns = loadUI()
+    local asked = {}
+    ns.Map.Resolve = function(id)
+      asked[id] = (asked[id] or 0) + 1
+      if id % 2 == 0 then return { map = 1, x = 1, y = 2, kind = "pin" } end
+      if id % 5 == 0 then return { map = 1, kind = "open" } end
+      return { kind = "none" }
+    end
+    local list = openJournalList(ns)
+    for id, n in pairs(asked) do eq(n, 1, "Resolve once for " .. id) end
+    local rows = list.ScrollBox.provider.rows
+    local frames = render(list.ScrollBox)
+    local pins, bare = 0, 0
+    for i, row in ipairs(rows) do
+      local f = frames[i]
+      if not row.header then
+        eq(f.Map, nil, "no Map button")
+        local want = row.id % 2 == 0 or row.id % 5 == 0
+        eq(f.Pin:IsShown(), want, "pin for " .. row.id)
+        if want then pins = pins + 1 else bare = bare + 1 end
+      end
+    end
+    ok(pins > 0 and bare > 0, "both kinds of rows rendered")
+    for id in pairs(asked) do asked[id] = 0 end
+    list:Refresh()
+    for id, n in pairs(asked) do ok(n <= 1, "Resolve at most once per refresh for " .. id) end
+
+    -- The pin is the map-pin atlas when the client has it.
+    STUB_ATLASES["Waypoint-MapPin-ChatIcon"] = true
+    local f
+    for i, row in ipairs(rows) do if not row.header and row.id % 2 == 0 and not f then f = render(list.ScrollBox)[i] end end
+    eq(f.Pin.atlas, "Waypoint-MapPin-ChatIcon")
+  end)
+
+  it("route rows: pin and click target the first boss not done", function()
+    local ns = loadUI()
+    ns.Map.Resolve = function() return { map = 1, x = 1, y = 2, kind = "pin" } end
+    local got = {}
+    ns.UI.HandleRowClick = function(id, button) got[#got + 1] = { id, button } end
+    ns.ToggleWindow()
+    ns.UI.SelectTab("route")
+    local root = content(ns, "route").children[2]
+    local box
+    for _, child in ipairs(root.children) do if child.view then box = child end end
+    local rows = box.provider.rows
+    local frames = render(box)
+    local kills = 0
+    for i, row in ipairs(rows) do
+      local f = frames[i]
+      eq(f.Map, nil, "no Map button")
+      if row.kind == "kill" and ns.UI.RouteTargetMount(row) then
+        kills = kills + 1
+        ok(f.Pin:IsShown(), "kill row pin")
+      else
+        ok(not f.Pin:IsShown(), "travel row: no pin")
+      end
+    end
+    ok(kills > 0, "kill rows rendered")
+    -- A row whose first boss is done targets the next one.
+    local data = { kind = "kill", title = "Run X", bosses = { { mount = 11, state = "done" }, { mount = 22, state = "open" } } }
+    local f = frames[1]
+    box.view.factory(function(_, init) init(f, data) end, data)
+    f:RunScript("OnClick", "LeftButton")
+    eq(got[#got], { 22, "LeftButton" })
+  end)
+
   -- Mount rows under each section header of a provider -> { [key] = n }.
   local function shownPerSection(rows)
     local shown, key = {}, nil

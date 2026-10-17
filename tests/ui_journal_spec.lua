@@ -119,6 +119,45 @@ describe("ui journal", function()
     end)
   end)
 
+  describe("row waypoints", function()
+    it("LocationKind asks Map.Resolve, and is 'none' without it or on an error", function()
+      local ns = loadUI()
+      local asked = {}
+      ns.Map.Resolve = function(id)
+        asked[#asked + 1] = id
+        return ({ [1] = { kind = "pin" }, [2] = { kind = "entrance" }, [3] = { kind = "open" } })[id] or { kind = "none" }
+      end
+      eq(ns.UI.LocationKind(1), "pin")
+      eq(ns.UI.LocationKind(2), "entrance")
+      eq(ns.UI.LocationKind(3), "open")
+      eq(ns.UI.LocationKind(4), "none")
+      eq(asked, { 1, 2, 3, 4 })
+      ns.Map.Resolve = function() error("boom") end
+      eq(ns.UI.LocationKind(1), "none")
+      ns.Map.Resolve = function() return nil end
+      eq(ns.UI.LocationKind(1), "none")
+      ns.Map = nil
+      eq(ns.UI.LocationKind(1), "none")
+    end)
+
+    it("ShowsPin is true for pin, entrance and open only", function()
+      local ns = loadUI()
+      eq(ns.UI.ShowsPin("pin"), true)
+      eq(ns.UI.ShowsPin("entrance"), true)
+      eq(ns.UI.ShowsPin("open"), true)
+      eq(ns.UI.ShowsPin("none"), false)
+      eq(ns.UI.ShowsPin(nil), false)
+    end)
+
+    it("PinIcon: the map-pin chat atlas when the client has it, else a map icon texture", function()
+      local ns = loadUI()
+      eq({ ns.UI.PinIcon() }, { nil, "Interface\\Icons\\INV_Misc_Map_01" })
+      STUB_ATLASES["Waypoint-MapPin-ChatIcon"] = true
+      eq({ ns.UI.PinIcon() }, { "Waypoint-MapPin-ChatIcon", "Interface\\Icons\\INV_Misc_Map_01" })
+      STUB_ATLASES["Waypoint-MapPin-ChatIcon"] = nil
+    end)
+  end)
+
   describe("ListRows", function()
     it("puts a header before each section run and marks owned rows", function()
       local ns = loadUI(nil, { Holidays = { brewfest = { title = "Brewfest" } } })
@@ -322,7 +361,7 @@ describe("ui journal", function()
         line("(this character: 20)", GREY),
         double("Chance so far", "26.03%"),
         line("Lockout: —", GOLD),
-        line("Ctrl-click to preview", HINT),
+        line("Click: waypoint · Shift-click: map · Ctrl-click: preview", HINT),
       })
     end)
 
@@ -358,7 +397,7 @@ describe("ui journal", function()
       ns.db.global.attempts[10] = 7
       local rarity = 42
       ns.RarityBridge.Attempts = function(item) if item == 5555 then return rarity end end
-      eq(lefts(ns.UI.TooltipLines(10)), { "Mount", "Attempts=42", "Lockout: Available", "Ctrl-click to preview" },
+      eq(lefts(ns.UI.TooltipLines(10)), { "Mount", "Attempts=42", "Lockout: Available", "Click: waypoint · Shift-click: map · Ctrl-click: preview" },
         "no chance: Attempts only")
       rarity = 3
       eq(lefts(ns.UI.TooltipLines(10))[2], "Attempts=7")
@@ -376,7 +415,7 @@ describe("ui journal", function()
       ns.db.global.attempts[40] = 2
       ns.db.global.stats = { ["Me-Realm"] = { [40] = 3 } }
       eq(lefts(ns.UI.TooltipLines(40)), { "Mount", "1 in 20 chance", "Lucky if you obtain in 14 or less",
-        "Attempts=3", "Chance so far=14.26%", "Lockout: —", "Ctrl-click to preview" })
+        "Attempts=3", "Chance so far=14.26%", "Lockout: —", "Click: waypoint · Shift-click: map · Ctrl-click: preview" })
       ns.db.global.stats = { ["Alt-Realm"] = { [40] = 4 } }
       eq(lefts(ns.UI.TooltipLines(40))[4], "Attempts=4", "no reading for this character: no split")
       eq(lefts(ns.UI.TooltipLines(40))[5], "Chance so far=18.55%")
@@ -405,7 +444,7 @@ describe("ui journal", function()
       ns.Data.Route = { { title = "Kill Galleon", bosses = { { mount = 21, boss = "Galleon" } } } }
       ns.db.global.attempts[20] = 3
       ns.RarityBridge.Attempts = function() return 8 end
-      eq(lefts(ns.UI.TooltipLines(20)), { "Mount", "In-game shop", "Lockout: —", "Ctrl-click to preview" })
+      eq(lefts(ns.UI.TooltipLines(20)), { "Mount", "In-game shop", "Lockout: —", "Click: waypoint · Shift-click: map · Ctrl-click: preview" })
       eq(lefts(ns.UI.TooltipLines(21))[4], "Attempts=0", "route boss with a BossLockouts spec")
       eq(lefts(ns.UI.TooltipLines(22))[3], "Attempts=0", "own lockout spec")
     end)
@@ -413,7 +452,7 @@ describe("ui journal", function()
     it("a chance with no attempts yet shows 0.00%", function()
       local ns = loadUI(nil, { Mounts = { [30] = { name = "A", chance = 33.4 } } })
       eq(lefts(ns.UI.TooltipLines(30)), { "Mount", "1 in 33 chance", "Lucky if you obtain in 23 or less",
-        "Attempts=0", "Chance so far=0.00%", "Lockout: —", "Ctrl-click to preview" })
+        "Attempts=0", "Chance so far=0.00%", "Lockout: —", "Click: waypoint · Shift-click: map · Ctrl-click: preview" })
     end)
 
     it("expansion badges", function()
@@ -518,7 +557,7 @@ describe("ui journal", function()
         { "AddDoubleLine", "Attempts", "0", 1, 0.82, 0, 1, 1, 1 },
         { "AddDoubleLine", "Chance so far", "0.00%", 1, 0.82, 0, 1, 1, 1 },
         { "AddLine", "Lockout: —", 1, 0.82, 0 },
-        { "AddLine", "Ctrl-click to preview", 0.5, 0.9, 0.5 },
+        { "AddLine", "Click: waypoint · Shift-click: map · Ctrl-click: preview", 0.5, 0.9, 0.5 },
         { "Show" },
       })
     end)
@@ -538,7 +577,7 @@ describe("ui journal", function()
         { "AddLine", " " },
         { "AddLine", "Mount", 1, 1, 1 },
         { "AddLine", "Lockout: —", 1, 0.82, 0 },
-        { "AddLine", "Ctrl-click to preview", 0.5, 0.9, 0.5 },
+        { "AddLine", "Click: waypoint · Shift-click: map · Ctrl-click: preview", 0.5, 0.9, 0.5 },
         { "Show" },
       })
     end)
@@ -585,7 +624,7 @@ describe("ui journal", function()
       eq(#waiting, 1)
       timers[1].fn()
       eq(count("SetItemByID", 87771), 4, "repainted once, a frame later")
-      eq(count("AddLine", "Ctrl-click to preview"), 4, "our block painted again")
+      eq(count("AddLine", "Click: waypoint · Shift-click: map · Ctrl-click: preview"), 4, "our block painted again")
       eq(#waiting, 1, "cached now: no new callback")
 
       -- Hidden (or owned by something else) before the data arrives: no repaint.

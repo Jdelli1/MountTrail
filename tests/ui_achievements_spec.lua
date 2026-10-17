@@ -81,11 +81,14 @@ describe("ui achievements", function()
       eq(act("RightButton", false, true), "achievement")
       eq(act("RightButton", true, true), "achievement")
     end)
-    it("plain clicks do nothing", function()
-      eq(act("LeftButton", false, false), nil)
+    it("left-click sets a waypoint, Shift+left-click opens the map", function()
+      eq(act("LeftButton", false, false), "waypoint")
+      eq(act("LeftButton", false, true), "map")
+    end)
+    it("plain and Ctrl right-clicks are reserved", function()
       eq(act("RightButton", false, false), nil)
-      eq(act("LeftButton", false, true), nil)
       eq(act("RightButton", true, false), nil)
+      eq(act("MiddleButton", false, false), nil)
     end)
   end)
 
@@ -126,6 +129,32 @@ describe("ui achievements", function()
       ns.UI.HandleRowClick(nil, "LeftButton") -- no mount: must not error
       IsControlKeyDown, IsShiftKeyDown = nil, nil
       ns.UI.HandleRowClick(262, "RightButton") -- missing APIs: must not error
+    end)
+
+    it("left-click sets the waypoint, Shift+left-click opens the map", function()
+      local ns = loadUI(function() return nil, "none" end)
+      local got = {}
+      ns.Map = {
+        SetWaypoint = function(id) got[#got + 1] = { "waypoint", id } end,
+        OpenMap = function(id) got[#got + 1] = { "map", id } end,
+      }
+      local shift = false
+      IsControlKeyDown = function() return false end
+      IsShiftKeyDown = function() return shift end
+      ns.UI.HandleRowClick(262, "LeftButton")
+      shift = true
+      ns.UI.HandleRowClick(263, "LeftButton")
+      shift = false
+      ns.UI.HandleRowClick(264, "RightButton")
+      eq(got, { { "waypoint", 262 }, { "map", 263 } })
+      ns.Map = nil
+      ns.UI.HandleRowClick(262, "LeftButton") -- no Map module: must not error
+      ns.Map = { SetWaypoint = function() error("boom") end }
+      local reported = {}
+      ns.Game.ReportError = function(err) reported[#reported + 1] = tostring(err) end
+      ns.UI.HandleRowClick(262, "LeftButton") -- an error is reported, not raised
+      eq(#reported, 1)
+      IsControlKeyDown, IsShiftKeyDown = nil, nil
     end)
   end)
 
@@ -181,7 +210,7 @@ describe("ui achievements", function()
       eq(addLines(calls), {
         "Mount", "Achievement reward", "Lockout: —",
         "Achievement: Glory of the Hero", "Heroic feats.", "  Done one", "  Open one",
-        "Ctrl-click to preview", "Shift-right-click to open the achievement",
+        "Click: waypoint · Shift-click: map · Ctrl-click: preview", "Shift-right-click to open the achievement",
       })
       local byText = {}
       for _, c in ipairs(calls) do if c[1] == "AddLine" then byText[c[2]] = c end end
@@ -198,7 +227,7 @@ describe("ui achievements", function()
       GameTooltip = tip
       ns.UI.ShowMountTooltip({}, 20)
       GameTooltip = old
-      eq(addLines(calls), { "Mount", "Lockout: —", "Ctrl-click to preview" })
+      eq(addLines(calls), { "Mount", "Lockout: —", "Click: waypoint · Shift-click: map · Ctrl-click: preview" })
     end)
 
     it("repaints the open tooltip when the scan finishes", function()
@@ -225,7 +254,7 @@ describe("ui achievements", function()
       local slice = {}
       for i = before + 1, #calls do slice[#slice + 1] = calls[i] end
       local after = addLines(slice)
-      eq(after, { "Mount", "Lockout: —", "Ctrl-click to preview" }, "repainted for mount 20")
+      eq(after, { "Mount", "Lockout: —", "Click: waypoint · Shift-click: map · Ctrl-click: preview" }, "repainted for mount 20")
       -- Once hidden (or owned by something else) nothing is repainted.
       local n = #calls
       ns.UI.HideMountTooltip()

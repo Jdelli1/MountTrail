@@ -30,11 +30,15 @@ local ADDON, ns = ...
 -- "<view>|<exp>|<section>[|<sub-group>]" (only collapsed = true is stored).
 -- Each mount row's grey line is UI.RowDescription (the most specific source:
 -- "Drop: Ultraxion · Dragon Soul", "Achievement: ...", the route boss, else
--- the category), computed once per refresh.
+-- the category), computed once per refresh. Left-click sets a waypoint
+-- (Map.SetWaypoint), Shift+left-click opens the world map there (Map.OpenMap);
+-- rows with a location (UI.LocationKind, resolved once per refresh) show a
+-- small pin on the right.
 -- The pure helpers above the widget code (SourceLine, RowDescription,
 -- StripMarkup, SourcePairs, MountIcon, SectionLabel,
 -- ListRows, SubGroup, SourceZone, InstanceName, CollapseKey, ToggleCollapsed,
--- HeaderIcon, PreviewMount, the filter menu helpers) are unit-tested; the widget
+-- HeaderIcon, PreviewMount, RowClickAction, LocationKind, ShowsPin, PinIcon,
+-- the filter menu helpers) are unit-tested; the widget
 -- code is built under a stub by tests/ui_build_spec.lua.
 
 local L = ns.L
@@ -722,12 +726,48 @@ function UI.PreviewMount(mountID)
   end
 end
 
--- Row clicks: Ctrl+left-click -> "preview", Shift+right-click ->
--- "achievement", anything else -> nil (plain clicks are reserved).
+-- Row clicks: left-click -> "waypoint" (Map.SetWaypoint), Shift+left-click
+-- -> "map" (Map.OpenMap), Ctrl+left-click -> "preview" (Ctrl wins over
+-- Shift), Shift+right-click -> "achievement", anything else -> nil (plain
+-- right-clicks are reserved).
 function UI.RowClickAction(button, ctrl, shift)
-  if button == "LeftButton" and ctrl then return "preview" end
+  if button == "LeftButton" then
+    if ctrl then return "preview" end
+    if shift then return "map" end
+    return "waypoint"
+  end
   if button == "RightButton" and shift then return "achievement" end
   return nil
+end
+
+-- Where a mount's waypoint would go: Map.Resolve's kind ("pin", "entrance",
+-- "open", "none"); "none" without ns.Map or when Resolve errors.
+function UI.LocationKind(mountID)
+  local map = ns.Map
+  if not (mountID and map and type(map.Resolve) == "function") then return "none" end
+  local good, target = pcall(map.Resolve, mountID)
+  if not good then
+    if ns.Game and ns.Game.ReportError then ns.Game.ReportError(target) end
+    return "none"
+  end
+  return type(target) == "table" and type(target.kind) == "string" and target.kind or "none"
+end
+
+-- Whether a row shows the pin icon: a location to point at (a pin, a dungeon
+-- entrance, or at least a map to open).
+local PIN_KINDS = { pin = true, entrance = true, open = true }
+function UI.ShowsPin(kind)
+  return PIN_KINDS[kind] == true
+end
+
+-- The row pin icon: the chat map-pin atlas (the icon of the client's own map
+-- pin links, 9.0+) when the client has it (UI.AtlasExists), and the classic
+-- map item icon as the fallback texture. -> atlas|nil, texture.
+local PIN_ATLAS = "Waypoint-MapPin-ChatIcon"
+local PIN_TEXTURE = "Interface\\Icons\\INV_Misc_Map_01"
+function UI.PinIcon()
+  if UI.AtlasExists and UI.AtlasExists(PIN_ATLAS) then return PIN_ATLAS, PIN_TEXTURE end
+  return nil, PIN_TEXTURE
 end
 
 -- Opens the achievement that rewards the mount, when the achievement scan
@@ -744,6 +784,15 @@ function UI.OpenMountAchievement(mountID)
   return ns.Game.OpenAchievement(id) == true
 end
 
+-- Calls ns.Map[method](mountID); an error goes to Game.ReportError (/azt
+-- debug) instead of breaking the click.
+local function mapAction(method, mountID)
+  local map = ns.Map
+  if not (map and type(map[method]) == "function") then return end
+  local good, err = pcall(map[method], mountID)
+  if not good and ns.Game and ns.Game.ReportError then ns.Game.ReportError(err) end
+end
+
 -- OnClick of a mount row (lists and Route): reads the modifier keys and
 -- runs UI.RowClickAction's action for `mountID`.
 function UI.HandleRowClick(mountID, button)
@@ -751,7 +800,11 @@ function UI.HandleRowClick(mountID, button)
   local ctrl = type(IsControlKeyDown) == "function" and IsControlKeyDown() and true or false
   local shift = type(IsShiftKeyDown) == "function" and IsShiftKeyDown() and true or false
   local action = UI.RowClickAction(button, ctrl, shift)
-  if action == "preview" then
+  if action == "waypoint" then
+    mapAction("SetWaypoint", mountID)
+  elseif action == "map" then
+    mapAction("OpenMap", mountID)
+  elseif action == "preview" then
     UI.PreviewMount(mountID)
   elseif action == "achievement" then
     UI.OpenMountAchievement(mountID)
@@ -772,7 +825,7 @@ local ROW_ICON_LEFT = 4 -- icon inset of other mount rows
 local ROW_HEIGHT = 40
 local ICON_SIZE = 32
 local CHECK_SIZE = 24
-local MAP_WIDTH, MAP_RIGHT = 56, 6
+local PIN_SIZE, PIN_RIGHT = 16, 8 -- the location pin on a row's right end
 -- Rounded icon mask of the current action bars; used only when the client
 -- has it (UI.AtlasExists). Icons are also cropped past their baked-in edge.
 local ICON_MASK = "UI-HUD-ActionBar-IconFrame-Mask"
@@ -908,6 +961,26 @@ function UI.StyleIcon(owner, icon)
   end
 end
 
+-- A row's location pin (UI.PinIcon): a small texture on `owner`, hidden
+-- until the row has a location (UI.ShowsPin).
+function UI.CreatePin(owner)
+  local pin = owner:CreateTexture(nil, "OVERLAY")
+  pin:SetSize(PIN_SIZE, PIN_SIZE)
+  local atlas, texture = UI.PinIcon()
+  if atlas then
+    pin:SetAtlas(atlas)
+  else
+    pin:SetTexture(texture)
+    pin:SetTexCoord(ICON_CROP, 1 - ICON_CROP, ICON_CROP, 1 - ICON_CROP)
+  end
+  pin:Hide()
+  return pin
+end
+
+-- Room a row leaves on its right for the pin (PIN_RIGHT + PIN_SIZE + a gap).
+UI.PIN_RIGHT = PIN_RIGHT
+UI.PIN_ROOM = PIN_RIGHT + PIN_SIZE + 8
+
 local function setupRow(row)
   row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   -- Modern list rows: no borders, a faint stripe on every other row and a
@@ -926,21 +999,17 @@ local function setupRow(row)
   UI.StyleIcon(row, icon)
   row.Icon = icon
 
-  local map = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-  map:SetSize(MAP_WIDTH, 22)
-  map:SetPoint("RIGHT", row, "RIGHT", -MAP_RIGHT, 0)
-  map:SetText(L["Map"])
-  map:SetScript("OnClick", function()
-    if row.mountID and ns.Map then ns.Map.Show(row.mountID) end
-  end)
-  row.Map = map
+  -- Location pin on the right end (rows with a waypoint target only).
+  local pin = UI.CreatePin(row)
+  pin:SetPoint("RIGHT", row, "RIGHT", -PIN_RIGHT, 0)
+  row.Pin = pin
 
   local name = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   -- Same-edge anchor pairs only (a RIGHT anchor would also pin the vertical
   -- centre). The 32 px icon is centred in the 40 px row, so its top is at -4
-  -- and the name's at -6; the right edge stops 8 px left of the Map button.
+  -- and the name's at -6; the right edge stops 8 px left of the pin.
   name:SetPoint("TOPLEFT", icon, "TOPRIGHT", 8, -2)
-  name:SetPoint("TOPRIGHT", row, "TOPRIGHT", -(MAP_RIGHT + MAP_WIDTH + 8), -((ROW_HEIGHT - 32) / 2 + 2))
+  name:SetPoint("TOPRIGHT", row, "TOPRIGHT", -UI.PIN_ROOM, -((ROW_HEIGHT - 32) / 2 + 2))
   name:SetJustifyH("LEFT")
   name:SetWordWrap(false)
   row.Name = name
@@ -964,8 +1033,8 @@ local function setupRow(row)
   end)
   row:SetScript("OnLeave", function() UI.HideMountTooltip() end)
   row:SetScript("OnClick", function(self, button)
-    -- Ctrl+left-click preview, Shift+right-click achievement; plain clicks
-    -- do nothing in v1.
+    -- Left-click waypoint, Shift+left-click world map, Ctrl+left-click
+    -- preview, Shift+right-click achievement (UI.RowClickAction).
     UI.HandleRowClick(self.mountID, button)
   end)
 end
@@ -980,6 +1049,7 @@ local function initRow(row, data)
   row.Name:SetText(name or data.m.name or tostring(data.id))
   row.Source:SetText(UI.RowSourceText(data))
   row.Stripe:SetShown(data.alt == true)
+  row.Pin:SetShown(data.pin == true)
   if data.owned then
     row.Name:SetFontObject("GameFontDisable")
     row.Icon:SetDesaturated(true)
@@ -1277,9 +1347,10 @@ function UI.List(parent, getQuery, opts)
     })
     -- Stripe every other mount row, restarting under each header; describe
     -- each shown mount once per refresh (UI.RowDescription over the memoised
-    -- source text).
+    -- source text) and resolve its location once (UI.LocationKind) for the pin.
     local sourceText = query.sourceText
     local describe = memoText(function(id) return UI.RowDescription(id, sourceText(id)) end)
+    local locationKind = memoText(UI.LocationKind)
     local n = 0
     for _, row in ipairs(rows) do
       if row.header then
@@ -1288,6 +1359,7 @@ function UI.List(parent, getQuery, opts)
         n = n + 1
         row.alt = n % 2 == 0
         row.desc = describe(row.id)
+        row.pin = UI.ShowsPin(locationKind(row.id))
       end
     end
     local provider = CreateDataProvider(rows)

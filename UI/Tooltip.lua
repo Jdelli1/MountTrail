@@ -192,7 +192,7 @@ function UI.TooltipLines(mountID)
   for _, a in ipairs(achievementLines) do
     lines[#lines + 1] = { left = a.text, r = a.r, g = a.g, b = a.b, wrap = a.wrap }
   end
-  lines[#lines + 1] = line(L["Ctrl-click to preview"], HINT)
+  lines[#lines + 1] = line(L["Click: waypoint · Shift-click: map · Ctrl-click: preview"], HINT)
   if achievementID then
     lines[#lines + 1] = line(L["Shift-right-click to open the achievement"], HINT)
   end
