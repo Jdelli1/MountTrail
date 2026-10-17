@@ -1,8 +1,11 @@
 local ADDON, ns = ...
 
--- Scrollable mount list shared by the Journal, Holidays and Misc tabs:
--- a left filter panel (search box, Collected, and on the Journal tab one box
--- per source section) and a ScrollBox of section headers and mount rows.
+-- Scrollable mount list shared by the Journal, Holidays and Misc tabs: a top
+-- row with the search box and a Filter dropdown (Collected, and on the Journal
+-- tab one checkbox per source section plus Check all / Uncheck all), and a
+-- full-width ScrollBox of section headers and mount rows. Clients without the
+-- 11.x dropdown (WowStyle1FilterDropdownTemplate / SetupMenu) get the older
+-- left filter panel of checkboxes instead.
 --
 --   local list = ns.UI.List(parent, getQuery[, opts])
 --   list:Refresh([resetScroll])
@@ -16,7 +19,8 @@ local ADDON, ns = ...
 -- badge after the header text), rowTag = fn(mountID, m) -> string|nil (a
 -- green tag after the row's source line) }.
 -- The pure helpers above the widget code (SourceLine, MountIcon, SectionLabel,
--- ListRows, PreviewMount) are unit-tested; the widget code is not.
+-- ListRows, PreviewMount, the filter menu helpers) are unit-tested; the widget
+-- code is not.
 
 local L = ns.L
 
@@ -164,6 +168,82 @@ function UI.RowSourceText(row)
   return text
 end
 
+-- Filter menu --------------------------------------------------------------------
+
+-- Source filters of the Journal tab, in menu order (Journal.Select's order).
+local SECTION_FILTERS = { "dungeon", "raid", "world", "delve", "treasure", "quest", "activity",
+  "reputation", "vendor", "other" }
+
+-- Whether filter `key` is on: "collected" only when true (default off); a
+-- source section unless false (a missing key means shown, as in
+-- Journal.Select).
+function UI.FilterChecked(filters, key)
+  filters = filters or {}
+  if key == "collected" then return filters.collected == true end
+  return filters[key] ~= false
+end
+
+-- The Filter dropdown's items for a list on `tab` ("journal", "holiday",
+-- "misc") -> { { kind = "checkbox", key =, label =, checked = },
+-- { kind = "divider" }, { kind = "title", label = },
+-- { kind = "button", action = "checkAll" | "uncheckAll", label = } }.
+-- Every tab gets Collected; the Journal tab adds the source sections and the
+-- Check all / Uncheck all buttons for them.
+function UI.FilterMenuItems(tab, filters)
+  local items = {
+    { kind = "checkbox", key = "collected", label = L["Collected"], checked = UI.FilterChecked(filters, "collected") },
+  }
+  if tab ~= "journal" then return items end
+  items[#items + 1] = { kind = "divider" }
+  items[#items + 1] = { kind = "title", label = L["Sources"] }
+  for _, key in ipairs(SECTION_FILTERS) do
+    items[#items + 1] = { kind = "checkbox", key = key, label = UI.SectionLabel(key),
+      checked = UI.FilterChecked(filters, key) }
+  end
+  items[#items + 1] = { kind = "divider" }
+  items[#items + 1] = { kind = "button", action = "checkAll", label = L["Check all"] }
+  items[#items + 1] = { kind = "button", action = "uncheckAll", label = L["Uncheck all"] }
+  return items
+end
+
+-- Flips filter `key` in `filters` (ns.db.global.filters) -> its new state.
+function UI.ToggleFilter(filters, key)
+  local on = not UI.FilterChecked(filters, key)
+  filters[key] = on
+  return on
+end
+
+-- Keys the Filter dropdown shows on `tab`.
+local function menuKeys(tab)
+  local keys = { "collected" }
+  if tab == "journal" then
+    for _, key in ipairs(SECTION_FILTERS) do keys[#keys + 1] = key end
+  end
+  return keys
+end
+
+-- "checkAll" / "uncheckAll": every source section on / off. "reset": the
+-- keys the dropdown shows on `tab` back to Journal.DefaultFilters (the
+-- dropdown's reset arrow).
+function UI.ApplyFilterAction(filters, action, tab)
+  if action == "checkAll" or action == "uncheckAll" then
+    for _, key in ipairs(SECTION_FILTERS) do filters[key] = action == "checkAll" end
+  elseif action == "reset" then
+    local defaults = ns.Journal.DefaultFilters
+    for _, key in ipairs(menuKeys(tab)) do filters[key] = defaults[key] end
+  end
+end
+
+-- True when the keys the dropdown shows on `tab` match
+-- Journal.DefaultFilters (no reset arrow).
+function UI.FiltersAreDefault(filters, tab)
+  local defaults = ns.Journal.DefaultFilters
+  for _, key in ipairs(menuKeys(tab)) do
+    if UI.FilterChecked(filters, key) ~= UI.FilterChecked(defaults, key) then return false end
+  end
+  return true
+end
+
 -- Ctrl+left-click: open the dressing room on the mount.
 function UI.PreviewMount(mountID)
   if type(DressUpMount) == "function" then
@@ -186,13 +266,19 @@ end
 
 -- Widgets ----------------------------------------------------------------------------
 
-local FILTER_WIDTH = 150
+local FILTER_WIDTH = 150 -- fallback filter panel
+local SEARCH_WIDTH = 220
+local FILTER_BUTTON_WIDTH, FILTER_BUTTON_HEIGHT = 93, 22 -- the Mount Journal's Filter button
+local TOP_ROW = 30 -- search box + Filter button above the list
 local HEADER_HEIGHT = 24
 local ROW_HEIGHT = 40
+local ICON_SIZE = 32
 local CHECK_SIZE = 24
 local MAP_WIDTH, MAP_RIGHT = 56, 6
-local SECTION_FILTERS = { "dungeon", "raid", "world", "delve", "treasure", "quest", "activity",
-  "reputation", "vendor", "other" }
+-- Rounded icon mask of the current action bars; used only when the client
+-- has it (UI.AtlasExists). Icons are also cropped past their baked-in edge.
+local ICON_MASK = "UI-HUD-ActionBar-IconFrame-Mask"
+local ICON_CROP = 0.08
 
 local function filtersDB()
   return ns.db and ns.db.global and ns.db.global.filters or nil
@@ -227,10 +313,17 @@ end
 
 local function initHeader(frame, data)
   if not frame.Label then
+    -- Flat section header: a faint band with a thin gold rule underneath.
     local bg = frame:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints(frame)
-    bg:SetColorTexture(1, 1, 1, 0.06)
+    bg:SetColorTexture(1, 1, 1, 0.05)
     frame.Bg = bg
+    local rule = frame:CreateTexture(nil, "BORDER")
+    rule:SetHeight(1)
+    rule:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
+    rule:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
+    rule:SetColorTexture(1, 0.82, 0, 0.25)
+    frame.Rule = rule
     local label = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     label:SetPoint("LEFT", frame, "LEFT", 8, 0)
     label:SetJustifyH("LEFT")
@@ -239,15 +332,34 @@ local function initHeader(frame, data)
   frame.Label:SetText(UI.HeaderText(data))
 end
 
+-- Crops `icon` past its baked-in edge and, when the client has the modern
+-- rounded icon mask, masks it.
+function UI.StyleIcon(owner, icon)
+  icon:SetTexCoord(ICON_CROP, 1 - ICON_CROP, ICON_CROP, 1 - ICON_CROP)
+  if UI.AtlasExists(ICON_MASK) and owner.CreateMaskTexture and icon.AddMaskTexture then
+    local mask = owner:CreateMaskTexture()
+    mask:SetAtlas(ICON_MASK)
+    mask:SetAllPoints(icon)
+    icon:AddMaskTexture(mask)
+  end
+end
+
 local function setupRow(row)
   row:RegisterForClicks("LeftButtonUp")
+  -- Modern list rows: no borders, a faint stripe on every other row and a
+  -- soft hover highlight.
+  local stripe = row:CreateTexture(nil, "BACKGROUND")
+  stripe:SetAllPoints(row)
+  stripe:SetColorTexture(1, 1, 1, 0.025)
+  row.Stripe = stripe
   local highlight = row:CreateTexture(nil, "HIGHLIGHT")
   highlight:SetAllPoints(row)
-  highlight:SetColorTexture(1, 1, 1, 0.08)
+  highlight:SetColorTexture(1, 1, 1, 0.07)
 
   local icon = row:CreateTexture(nil, "ARTWORK")
-  icon:SetSize(32, 32)
+  icon:SetSize(ICON_SIZE, ICON_SIZE)
   icon:SetPoint("LEFT", row, "LEFT", 4, 0)
+  UI.StyleIcon(row, icon)
   row.Icon = icon
 
   local map = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
@@ -276,12 +388,11 @@ local function setupRow(row)
   strike:SetColorTexture(0.6, 0.6, 0.6, 0.9)
   row.Strike = strike
 
-  local source = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  local source = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
   source:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -3)
   source:SetPoint("TOPRIGHT", name, "BOTTOMRIGHT", 0, -3)
   source:SetJustifyH("LEFT")
   source:SetWordWrap(false)
-  source:SetTextColor(0.7, 0.7, 0.7)
   row.Source = source
 
   row:SetScript("OnEnter", function(self)
@@ -303,8 +414,9 @@ local function initRow(row, data)
   row.Icon:SetTexture(UI.MountIcon(data.id))
   row.Name:SetText(name or data.m.name or tostring(data.id))
   row.Source:SetText(UI.RowSourceText(data))
+  row.Stripe:SetShown(data.alt == true)
   if data.owned then
-    row.Name:SetTextColor(0.5, 0.5, 0.5)
+    row.Name:SetFontObject("GameFontDisable")
     row.Icon:SetDesaturated(true)
     local width = row.Name:GetStringWidth() or 0
     local max = row.Name:GetWidth() or 0
@@ -312,7 +424,7 @@ local function initRow(row, data)
     row.Strike:SetWidth(math.max(width, 1))
     row.Strike:Show()
   else
-    row.Name:SetTextColor(1, 0.82, 0)
+    row.Name:SetFontObject("GameFontNormal")
     row.Icon:SetDesaturated(false)
     row.Strike:Hide()
   end
@@ -332,30 +444,22 @@ local function makeCheck(panel, label, onClick)
   return cb
 end
 
-function UI.List(parent, getQuery, opts)
-  local list = CreateFrame("Frame", nil, parent)
-  list:SetAllPoints(parent)
-  list.searchText = ""
-
-  -- Filter panel ---------------------------------------------------------------
+-- Fallback filter panel (clients without the 11.x dropdown menus): a column
+-- of checkboxes left of the list, under the search box.
+local function buildFilterPanel(list)
   local panel = CreateFrame("Frame", nil, list)
   panel:SetPoint("TOPLEFT", list, "TOPLEFT", 0, 0)
   panel:SetPoint("BOTTOMLEFT", list, "BOTTOMLEFT", 0, 0)
   panel:SetWidth(FILTER_WIDTH)
   list.FilterPanel = panel
+  return panel
+end
 
-  local search = CreateFrame("EditBox", nil, panel, "SearchBoxTemplate")
+-- Search box and checkboxes of the fallback filter panel.
+local function layoutFilterPanel(list, search)
+  local panel = list.FilterPanel
   search:SetSize(FILTER_WIDTH - 16, 20)
   search:SetPoint("TOPLEFT", panel, "TOPLEFT", 10, -4)
-  search:SetAutoFocus(false)
-  search:HookScript("OnTextChanged", function(self)
-    local text = self:GetText() or ""
-    if text ~= list.searchText then
-      list.searchText = text
-      list:Refresh(true)
-    end
-  end)
-  list.SearchBox = search
 
   local collected = makeCheck(panel, L["Collected"], function(self)
     local filters = filtersDB()
@@ -387,10 +491,126 @@ function UI.List(parent, getQuery, opts)
     list.SectionChecks[i] = cb
     anchor = cb
   end
+end
+
+local function refreshFilterPanel(list, filters, tab)
+  list.CollectedCheck:SetChecked(filters.collected == true)
+  local showSections = tab == "journal"
+  list.SectionsTitle:SetShown(showSections)
+  for _, cb in ipairs(list.SectionChecks) do
+    cb:SetChecked(filters[cb.filterKey] ~= false)
+    cb:SetShown(showSections)
+  end
+end
+
+-- The Mount Journal's Filter button (11.x menu API) with UI.FilterMenuItems as
+-- its menu, or nil when this client lacks the template or SetupMenu. Every
+-- change writes ns.db.global.filters and calls ns.Refresh().
+local function createFilterDropdown(list)
+  local template = UI.Template("WowStyle1FilterDropdownTemplate", nil)
+  if not template then return nil end
+  local good, dropdown = pcall(CreateFrame, "DropdownButton", nil, list, template)
+  if not (good and type(dropdown) == "table") then return nil end
+  if type(dropdown.SetupMenu) ~= "function" then
+    dropdown:Hide()
+    if ns.Game and ns.Game.ReportError then
+      ns.Game.ReportError("DropdownButton:SetupMenu missing, using the filter panel")
+    end
+    return nil
+  end
+  dropdown:SetSize(FILTER_BUTTON_WIDTH, FILTER_BUTTON_HEIGHT)
+  if dropdown.Text and dropdown.Text.SetText then dropdown.Text:SetText(L["Filter"]) end
+
+  local function isChecked(key)
+    local filters = filtersDB()
+    return filters ~= nil and UI.FilterChecked(filters, key)
+  end
+  local function toggle(key)
+    local filters = filtersDB()
+    if not filters then return end
+    UI.ToggleFilter(filters, key)
+    ns.Refresh()
+  end
+  local function act(action)
+    local filters = filtersDB()
+    if filters then
+      UI.ApplyFilterAction(filters, action, list.tab)
+      ns.Refresh()
+    end
+    -- Keep the menu open and redraw its checkboxes.
+    return MenuResponse and MenuResponse.Refresh or nil
+  end
+
+  dropdown:SetupMenu(function(_, root)
+    for _, item in ipairs(UI.FilterMenuItems(list.tab, filtersDB() or ns.Journal.DefaultFilters)) do
+      if item.kind == "checkbox" then
+        root:CreateCheckbox(item.label, function() return isChecked(item.key) end,
+          function() toggle(item.key) end)
+      elseif item.kind == "divider" then
+        root:CreateDivider()
+      elseif item.kind == "title" then
+        root:CreateTitle(item.label)
+      elseif item.kind == "button" then
+        root:CreateButton(item.label, function() return act(item.action) end)
+      end
+    end
+  end)
+
+  -- The reset arrow next to the button while the filters differ from the
+  -- defaults (WowStyle1FilterDropdownMixin).
+  if type(dropdown.SetDefaultCallback) == "function" and type(dropdown.SetIsDefaultCallback) == "function" then
+    dropdown:SetIsDefaultCallback(function()
+      local filters = filtersDB()
+      return filters == nil or UI.FiltersAreDefault(filters, list.tab)
+    end)
+    dropdown:SetDefaultCallback(function()
+      local filters = filtersDB()
+      if filters then
+        UI.ApplyFilterAction(filters, "reset", list.tab)
+        ns.Refresh()
+      end
+    end)
+  end
+  return dropdown
+end
+
+function UI.List(parent, getQuery, opts)
+  local list = CreateFrame("Frame", nil, parent)
+  list:SetAllPoints(parent)
+  list.searchText = ""
+
+  -- Top row: search box + Filter button. Fallback: the left filter panel
+  -- (search box on top of it).
+  local dropdown = createFilterDropdown(list)
+  list.FilterDropdown = dropdown
+  local searchParent = list
+  if not dropdown then searchParent = buildFilterPanel(list) end
+
+  local search = CreateFrame("EditBox", nil, searchParent, "SearchBoxTemplate")
+  search:SetAutoFocus(false)
+  search:HookScript("OnTextChanged", function(self)
+    local text = self:GetText() or ""
+    if text ~= list.searchText then
+      list.searchText = text
+      list:Refresh(true)
+    end
+  end)
+  list.SearchBox = search
+  if dropdown then
+    search:SetSize(SEARCH_WIDTH, 20)
+    search:SetPoint("TOPLEFT", list, "TOPLEFT", 10, -4)
+    dropdown:SetPoint("LEFT", search, "RIGHT", 8, 0)
+  else
+    layoutFilterPanel(list, search)
+  end
 
   -- Scroll list ----------------------------------------------------------------
   local scrollBox = CreateFrame("Frame", nil, list, "WowScrollBoxList")
-  scrollBox:SetPoint("TOPLEFT", panel, "TOPRIGHT", 4, 0)
+  if list.FilterPanel then
+    scrollBox:SetPoint("TOPLEFT", list.FilterPanel, "TOPRIGHT", 4, 0)
+  else
+    scrollBox:SetPoint("TOPLEFT", list, "TOPLEFT", 0, -TOP_ROW) -- full width
+  end
   scrollBox:SetPoint("BOTTOMRIGHT", list, "BOTTOMRIGHT", -20, 0)
   list.ScrollBox = scrollBox
 
@@ -431,16 +651,24 @@ function UI.List(parent, getQuery, opts)
     if query.faction == nil then query.faction = ns.Game.Faction() end
     query.sourceText = memoText(query.sourceText or ns.Game.MountSourceText)
 
-    collected:SetChecked(filters.collected == true)
-    local showSections = query.tab == "journal"
-    sectionsTitle:SetShown(showSections)
-    for _, cb in ipairs(self.SectionChecks) do
-      cb:SetChecked(filters[cb.filterKey] ~= false)
-      cb:SetShown(showSections)
+    self.tab = query.tab
+    if self.FilterPanel then refreshFilterPanel(self, filters, query.tab) end
+    if self.FilterDropdown and type(self.FilterDropdown.ValidateResetState) == "function" then
+      self.FilterDropdown:ValidateResetState()
     end
 
     local selected = ns.Journal.Select((ns.Data and ns.Data.Mounts) or {}, query)
     local rows = UI.ListRows(selected, query.isOwned, opts)
+    -- Stripe every other mount row, restarting under each header.
+    local n = 0
+    for _, row in ipairs(rows) do
+      if row.header then
+        n = 0
+      else
+        n = n + 1
+        row.alt = n % 2 == 0
+      end
+    end
     local provider = CreateDataProvider(rows)
     if resetScroll or not ScrollBoxConstants then
       scrollBox:SetDataProvider(provider)

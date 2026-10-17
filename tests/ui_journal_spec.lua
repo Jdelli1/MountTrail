@@ -66,7 +66,8 @@ describe("ui journal", function()
   it("loads the UI files and registers the journal view without building it", function()
     local ns = loadUI()
     for _, name in ipairs({ "ShowMountTooltip", "LockoutStatus", "TooltipLines", "List",
-      "SourceLine", "MountIcon", "SectionLabel", "ListRows", "PreviewMount" }) do
+      "SourceLine", "MountIcon", "SectionLabel", "ListRows", "PreviewMount", "FilterMenuItems",
+      "FilterChecked", "ToggleFilter", "ApplyFilterAction", "FiltersAreDefault", "StyleIcon" }) do
       eq(type(ns.UI[name]), "function", name)
     end
     eq(ns.UI.frame, nil, "no window until toggled")
@@ -167,6 +168,76 @@ describe("ui journal", function()
       eq(ns.UI.SectionLabel("tradingpost"), "Trading Post")
       eq(ns.UI.SectionLabel("timewalking"), "Timewalking")
       eq(ns.UI.SectionLabel("mystery"), "mystery")
+    end)
+  end)
+
+  describe("filter menu", function()
+    local SOURCES = { "dungeon", "raid", "world", "delve", "treasure", "quest", "activity",
+      "reputation", "vendor", "other" }
+    local LABELS = { "Dungeon drops", "Raid drops", "World drops / rares", "Delves", "Treasures & caches",
+      "Quests", "Zone activities", "Reputation", "Vendors", "Other" }
+
+    it("Journal tab: Collected, a divider, the ten sources, then Check all / Uncheck all", function()
+      local ns = loadUI()
+      local items = ns.UI.FilterMenuItems("journal", { collected = true, raid = false, quest = false })
+      local want = {
+        { kind = "checkbox", key = "collected", label = "Collected", checked = true },
+        { kind = "divider" },
+        { kind = "title", label = "Sources" },
+      }
+      for i, key in ipairs(SOURCES) do
+        want[#want + 1] = { kind = "checkbox", key = key, label = LABELS[i],
+          checked = key ~= "raid" and key ~= "quest" }
+      end
+      want[#want + 1] = { kind = "divider" }
+      want[#want + 1] = { kind = "button", action = "checkAll", label = "Check all" }
+      want[#want + 1] = { kind = "button", action = "uncheckAll", label = "Uncheck all" }
+      eq(items, want)
+    end)
+
+    it("other tabs get Collected only; missing keys follow Journal.Select", function()
+      local ns = loadUI()
+      eq(ns.UI.FilterMenuItems("holiday", {}),
+        { { kind = "checkbox", key = "collected", label = "Collected", checked = false } })
+      eq(ns.UI.FilterMenuItems("misc", { collected = true })[1].checked, true)
+      eq(#ns.UI.FilterMenuItems(nil, nil), 1, "no tab, no filters")
+      local journal = ns.UI.FilterMenuItems("journal", {})
+      eq(journal[4].checked, true, "a missing source key means shown")
+    end)
+
+    it("ToggleFilter flips one key and returns the new state", function()
+      local ns = loadUI()
+      local f = { collected = false }
+      eq(ns.UI.ToggleFilter(f, "collected"), true)
+      eq(ns.UI.ToggleFilter(f, "raid"), false, "missing source key was on")
+      eq(ns.UI.ToggleFilter(f, "raid"), true)
+      eq(f, { collected = true, raid = true })
+    end)
+
+    it("Check all / Uncheck all set every source and leave Collected alone", function()
+      local ns = loadUI()
+      local f = { collected = true, raid = false }
+      ns.UI.ApplyFilterAction(f, "uncheckAll", "journal")
+      for _, key in ipairs(SOURCES) do eq(f[key], false, key) end
+      eq(f.collected, true)
+      ns.UI.ApplyFilterAction(f, "checkAll", "journal")
+      for _, key in ipairs(SOURCES) do eq(f[key], true, key) end
+      eq(f.collected, true)
+    end)
+
+    it("reset and the default check cover only what the tab's menu shows", function()
+      local ns = loadUI()
+      local f = { collected = true, raid = false }
+      eq(ns.UI.FiltersAreDefault(f, "journal"), false)
+      eq(ns.UI.FiltersAreDefault({ collected = false, raid = false }, "holiday"), true,
+        "sources are not in the Holidays menu")
+      ns.UI.ApplyFilterAction(f, "reset", "holiday")
+      eq(f, { collected = false, raid = false }, "Holidays reset: Collected only")
+      ns.UI.ApplyFilterAction(f, "reset", "journal")
+      eq(f, ns.Journal.DefaultFilters)
+      eq(ns.UI.FiltersAreDefault(f, "journal"), true)
+      eq(ns.UI.FiltersAreDefault({}, "journal"), true, "an empty table reads as the defaults")
+      ok(f ~= ns.Journal.DefaultFilters, "the saved table is updated, not replaced")
     end)
   end)
 
