@@ -18,3 +18,4 @@ Data\Holidays.lua
 Logic\Resets.lua
 Logic\Lockouts.lua
 Logic\Route.lua
+Logic\Journal.lua
