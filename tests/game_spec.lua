@@ -6,7 +6,7 @@ local API_GLOBALS = {
   "C_DateAndTime", "C_Calendar", "GetExpansionDisplayInfo", "C_MountJournal",
   "C_QuestLog", "GetLFGDungeonRewards", "RequestRaidInfo", "RequestLFDPlayerLockInfo",
   "GetServerTime", "geterrorhandler", "GetStatistic", "InCombatLockdown", "C_Map",
-  "C_Item", "Item",
+  "C_Item", "Item", "C_EncounterJournal", "EJ_GetInstanceInfo",
 }
 local ORIGINAL = {}
 for _, name in ipairs(API_GLOBALS) do ORIGINAL[name] = _G[name] end
@@ -264,6 +264,80 @@ describe("game adapter", function()
       eq(loadGame().Game.MapName(317), nil, "no C_Map")
       C_Map = {}
       eq(loadGame().Game.MapName(317), nil, "no GetMapInfo")
+    end)
+  end)
+
+  describe("zone lookups (F6)", function()
+    it("PlayerMap is GetBestMapForUnit('player'); nil when missing, erroring or not a number", function()
+      C_Map = { GetBestMapForUnit = function(unit) eq(unit, "player"); return 71 end }
+      eq(loadGame().Game.PlayerMap(), 71)
+      C_Map = { GetBestMapForUnit = function() return nil end }
+      eq(loadGame().Game.PlayerMap(), nil)
+      C_Map = { GetBestMapForUnit = function() error("boom") end }
+      eq(loadGame().Game.PlayerMap(), nil, "error caught")
+      C_Map = nil
+      eq(loadGame().Game.PlayerMap(), nil, "no C_Map")
+    end)
+
+    it("MapInfo copies name, mapType and parentMapID; nil when unknown or erroring", function()
+      C_Map = { GetMapInfo = function(id)
+        if id == 71 then return { mapID = 71, name = "Tanaris", mapType = 3, parentMapID = 12, flags = 4 } end
+        if id == 4 then error("boom") end
+      end }
+      local G = loadGame().Game
+      eq(G.MapInfo(71), { name = "Tanaris", mapType = 3, parentMapID = 12 })
+      eq(G.MapInfo(5), nil)
+      eq(G.MapInfo(4), nil, "error caught")
+      eq(G.MapInfo(nil), nil)
+      C_Map = {}
+      eq(loadGame().Game.MapInfo(71), nil, "no GetMapInfo")
+    end)
+
+    it("DungeonEntrances keeps journalInstanceID and name of each entrance; {} otherwise", function()
+      C_EncounterJournal = { GetDungeonEntrancesForMap = function(id)
+        if id == 249 then
+          return { { areaPoiID = 1, journalInstanceID = 68, name = "The Vortex Pinnacle", position = {} },
+            { name = "no id" }, "junk" }
+        end
+        if id == 4 then error("boom") end
+      end }
+      local G = loadGame().Game
+      eq(G.DungeonEntrances(249), { { journalInstanceID = 68, name = "The Vortex Pinnacle" } })
+      eq(G.DungeonEntrances(5), {})
+      eq(G.DungeonEntrances(4), {}, "error caught")
+      eq(G.DungeonEntrances(nil), {})
+      C_EncounterJournal = nil
+      eq(loadGame().Game.DungeonEntrances(249), {}, "no C_EncounterJournal")
+    end)
+
+    it("InstanceForMap is GetInstanceForGameMap; 0, nil and errors -> nil", function()
+      C_EncounterJournal = { GetInstanceForGameMap = function(id)
+        if id == 325 then return 68 end
+        if id == 71 then return 0 end
+        if id == 4 then error("boom") end
+      end }
+      local G = loadGame().Game
+      eq(G.InstanceForMap(325), 68)
+      eq(G.InstanceForMap(71), nil, "0 means none")
+      eq(G.InstanceForMap(5), nil)
+      eq(G.InstanceForMap(4), nil)
+      C_EncounterJournal = nil
+      eq(loadGame().Game.InstanceForMap(325), nil)
+    end)
+
+    it("JournalInstanceName is EJ_GetInstanceInfo's name; nil when empty, missing or erroring", function()
+      EJ_GetInstanceInfo = function(id)
+        if id == 68 then return "The Vortex Pinnacle", "desc", 1 end
+        if id == 2 then return "" end
+        if id == 4 then error("boom") end
+      end
+      local G = loadGame().Game
+      eq(G.JournalInstanceName(68), "The Vortex Pinnacle")
+      eq(G.JournalInstanceName(2), nil)
+      eq(G.JournalInstanceName(4), nil)
+      eq(G.JournalInstanceName(nil), nil, "never the selected instance")
+      EJ_GetInstanceInfo = nil
+      eq(loadGame().Game.JournalInstanceName(68), nil)
     end)
   end)
 

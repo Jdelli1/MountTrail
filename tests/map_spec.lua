@@ -470,6 +470,24 @@ describe("Map.HasLocation", function()
   end)
 end)
 
+describe("Map.CoordsFor", function()
+  it("is the mount's coords, its holiday's when it has some, else nil (the zone panel's lookup)", function()
+    local Map = loadMap({
+      [517] = SERPENT, [6] = { name = "Brown Horse" },
+      [226] = { name = "Great Brewfest Kodo", tab = "holiday", section = "brewfest", coords = { m = 1 } },
+      [227] = { name = "Bare Holiday", tab = "holiday", section = "noblegarden", coords = { m = 2 } },
+    }, {
+      brewfest = { title = "Brewfest", coords = { m = 242, x = 46.6, y = 60.0 } },
+      noblegarden = { title = "Noblegarden" },
+    })
+    eq(Map.CoordsFor(517), SERPENT.coords)
+    eq(Map.CoordsFor(226).m, 242, "holiday coords win")
+    eq(Map.CoordsFor(227), { m = 2 }, "holiday without coords: the mount's own")
+    eq(Map.CoordsFor(6), nil)
+    eq(Map.CoordsFor(nil), nil)
+  end)
+end)
+
 describe("integrations toc", function()
   it("lists Integrations after Game/API.lua and before Core/Init.lua", function()
     local files = toc_lua_files()

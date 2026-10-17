@@ -70,6 +70,74 @@ function Game.MapName(mapID)
   return nil
 end
 
+-- Zone side panel (UI/ZonePanel.lua) -------------------------------------------
+
+-- Calls lib[method](...) under pcall -> the results, or nothing when the
+-- function is missing or errors (Game.ReportError).
+local function call(lib, method, ...)
+  if type(lib) ~= "table" or type(lib[method]) ~= "function" then return end
+  return (function(good, ...)
+    if not good then
+      Game.ReportError((...))
+      return
+    end
+    return ...
+  end)(pcall(lib[method], ...))
+end
+
+-- The player's map: C_Map.GetBestMapForUnit("player"), nil when unknown
+-- (loading screens, some instances) or the API is missing / errors.
+function Game.PlayerMap()
+  local id = call(C_Map, "GetBestMapForUnit", "player")
+  if type(id) == "number" then return id end
+  return nil
+end
+
+-- C_Map.GetMapInfo(mapID) -> { name=, mapType= (Enum.UIMapType), parentMapID= }
+-- (a copy of those fields), nil when unknown or the API is missing / errors.
+function Game.MapInfo(mapID)
+  if type(mapID) ~= "number" then return nil end
+  local info = call(C_Map, "GetMapInfo", mapID)
+  if type(info) ~= "table" then return nil end
+  return { name = info.name, mapType = info.mapType, parentMapID = info.parentMapID }
+end
+
+-- C_EncounterJournal.GetDungeonEntrancesForMap(mapID) (DungeonEntranceMapInfo:
+-- areaPoiID, position, name, description, atlasName, journalInstanceID) ->
+-- { { journalInstanceID=, name= } } for entrances with a journal instance;
+-- {} when none, unknown or the API is missing / errors.
+function Game.DungeonEntrances(mapID)
+  local out = {}
+  if type(mapID) ~= "number" then return out end
+  local list = call(C_EncounterJournal, "GetDungeonEntrancesForMap", mapID)
+  if type(list) ~= "table" then return out end
+  for _, entrance in ipairs(list) do
+    if type(entrance) == "table" and type(entrance.journalInstanceID) == "number" then
+      out[#out + 1] = { journalInstanceID = entrance.journalInstanceID, name = entrance.name }
+    end
+  end
+  return out
+end
+
+-- C_EncounterJournal.GetInstanceForGameMap(mapID) -> the journal instance
+-- the map belongs to, nil for none (0), unknown or a missing / erroring API.
+function Game.InstanceForMap(mapID)
+  if type(mapID) ~= "number" then return nil end
+  local id = call(C_EncounterJournal, "GetInstanceForGameMap", mapID)
+  if type(id) == "number" and id ~= 0 then return id end
+  return nil
+end
+
+-- EJ_GetInstanceInfo(journalInstanceID)'s name, nil when empty, unknown or
+-- the API is missing / errors. Never called without an ID (that would read
+-- the Encounter Journal's selected instance).
+function Game.JournalInstanceName(journalInstanceID)
+  if type(journalInstanceID) ~= "number" then return nil end
+  local name = call(_G, "EJ_GetInstanceInfo", journalInstanceID)
+  if type(name) == "string" and name ~= "" then return name end
+  return nil
+end
+
 -- The mount's flavor text as the Mount Journal shows it (2nd return of
 -- GetMountInfoExtraByID), nil when missing or empty.
 function Game.MountDescription(mountID)

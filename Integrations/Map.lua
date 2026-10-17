@@ -82,6 +82,13 @@ local function coordsFor(mountID)
   return nil
 end
 
+-- The mount's location as coordsFor picks it ({ m=, x=, y= }, the holiday's
+-- when it has one), or nil. Read-only; the zone panel (UI/ZonePanel.lua)
+-- matches mounts to the player's zone with it.
+function Map.CoordsFor(mountID)
+  return coordsFor(mountID)
+end
+
 local function positionXY(position)
   if type(position) ~= "table" then return nil end
   local x, y = position.x, position.y
