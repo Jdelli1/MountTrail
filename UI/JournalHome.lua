@@ -2,6 +2,8 @@ local ADDON, ns = ...
 
 -- Journal tab: a home grid of expansion cards (logo, owned / total, progress
 -- bar); clicking a card opens that expansion's mount list, and Back returns.
+-- Cards follow the current flat panel style: a dark flat fill with a 1 px
+-- edge that turns gold on hover, the logo centred above a slim progress bar.
 
 local L = ns.L
 
@@ -13,6 +15,10 @@ local CARD_W, CARD_H = 182, 146
 local GAP = 10
 local LEFT, TOP = 12, -12
 local LOGO_W, LOGO_H = 160, 80
+local BAR_HEIGHT = 6
+local BAR_TEXTURE = "Interface\\Buttons\\WHITE8X8" -- flat fill, tinted below
+local EDGE = { 1, 1, 1, 0.1 }
+local EDGE_HOVER = { 1, 0.82, 0, 0.6 }
 
 local home, listPage, list, title
 local cards = {}
@@ -81,15 +87,20 @@ local function createCard(i, name)
 
   local bg = card:CreateTexture(nil, "BACKGROUND")
   bg:SetAllPoints(card)
-  bg:SetColorTexture(0, 0, 0, 0.35)
+  bg:SetColorTexture(0.06, 0.06, 0.07, 0.85)
+  card.Bg = bg
+
+  local edge = UI.FlatBorder(card, unpack(EDGE))
+  card.Edge = edge
 
   local highlight = card:CreateTexture(nil, "HIGHLIGHT")
   highlight:SetAllPoints(card)
-  highlight:SetColorTexture(1, 1, 1, 0.08)
+  highlight:SetColorTexture(1, 1, 1, 0.05)
 
+  -- Logo centred in the space above the count and bar.
   local logo = card:CreateTexture(nil, "ARTWORK")
   logo:SetSize(LOGO_W, LOGO_H)
-  logo:SetPoint("TOP", card, "TOP", 0, -8)
+  logo:SetPoint("CENTER", card, "CENTER", 0, 14)
   card.Logo = logo
 
   -- Fallback when the client has no logo for this expansion.
@@ -99,22 +110,25 @@ local function createCard(i, name)
   label:SetText(L[name])
   card.Name = label
 
+  -- Slim flat progress bar on a faint track.
   local bar = CreateFrame("StatusBar", nil, card)
-  bar:SetSize(CARD_W - 24, 12)
+  bar:SetSize(CARD_W - 28, BAR_HEIGHT)
   bar:SetPoint("BOTTOM", card, "BOTTOM", 0, 12)
-  bar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
-  bar:SetStatusBarColor(0.2, 0.75, 0.2)
+  bar:SetStatusBarTexture(BAR_TEXTURE)
+  bar:SetStatusBarColor(0.25, 0.78, 0.35)
   bar:SetMinMaxValues(0, 1)
   bar:SetValue(0)
   local barBg = bar:CreateTexture(nil, "BACKGROUND")
   barBg:SetAllPoints(bar)
-  barBg:SetColorTexture(0, 0, 0, 0.6)
+  barBg:SetColorTexture(1, 1, 1, 0.08)
   card.Bar = bar
 
-  local count = card:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  count:SetPoint("BOTTOM", bar, "TOP", 0, 6)
+  local count = card:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  count:SetPoint("BOTTOM", bar, "TOP", 0, 5)
   card.Count = count
 
+  card:SetScript("OnEnter", function() edge:SetColor(unpack(EDGE_HOVER)) end)
+  card:SetScript("OnLeave", function() edge:SetColor(unpack(EDGE)) end)
   card:SetScript("OnClick", function() showList(name) end)
   return card
 end
@@ -130,6 +144,19 @@ local function build(parent)
   listPage:SetAllPoints(parent)
   listPage:Hide()
 
+  -- Flat header strip: Back (UIPanelButtonTemplate, which carries the
+  -- current red button art since Dragonflight) and the expansion name.
+  local strip = listPage:CreateTexture(nil, "BACKGROUND")
+  strip:SetPoint("TOPLEFT", listPage, "TOPLEFT", 0, 0)
+  strip:SetPoint("TOPRIGHT", listPage, "TOPRIGHT", 0, 0)
+  strip:SetHeight(30)
+  strip:SetColorTexture(1, 1, 1, 0.04)
+  local rule = listPage:CreateTexture(nil, "BORDER")
+  rule:SetHeight(1)
+  rule:SetPoint("TOPLEFT", strip, "BOTTOMLEFT", 0, 0)
+  rule:SetPoint("TOPRIGHT", strip, "BOTTOMRIGHT", 0, 0)
+  rule:SetColorTexture(1, 1, 1, 0.1)
+
   local back = CreateFrame("Button", nil, listPage, "UIPanelButtonTemplate")
   back:SetSize(80, 22)
   back:SetPoint("TOPLEFT", listPage, "TOPLEFT", 4, -4)
@@ -140,7 +167,7 @@ local function build(parent)
   title:SetPoint("LEFT", back, "RIGHT", 12, 0)
 
   local holder = CreateFrame("Frame", nil, listPage)
-  holder:SetPoint("TOPLEFT", listPage, "TOPLEFT", 0, -32)
+  holder:SetPoint("TOPLEFT", listPage, "TOPLEFT", 0, -36)
   holder:SetPoint("BOTTOMRIGHT", listPage, "BOTTOMRIGHT", 0, 0)
   list = UI.List(holder, function()
     return { tab = "journal", exp = currentExp, sourceText = ns.Game.MountSourceText }
