@@ -2,7 +2,7 @@
 -- Source: SimpleArmory https://github.com/kevinclement/SimpleArmory commit e45dc3ccb2712209fb904fe46d967a34fea77884
 --   MIT License, Copyright (c) 2021 Kevin Clement (full text: Data/LICENSE-SimpleArmory.txt)
 -- Source: Rarity https://github.com/WowRarity/Rarity commit af5be85bbee86992621b9372efff92fbf5d5c115
---   GPL-2.0 (drop chances, quest IDs, coordinates from DB/Mounts/*.lua)
+--   GPL-2.0 (drop chances, quest IDs, coordinates, statistic IDs from DB/Mounts/*.lua)
 
 local ADDON, ns = ...
 ns.Data = ns.Data or {}

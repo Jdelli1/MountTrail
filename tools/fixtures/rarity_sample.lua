@@ -27,6 +27,7 @@ local sampleMounts = {
 		itemId = 63040,
 		questId = { 52001, 52002 },
 		chance = 100,
+		statisticId = { 5970, 5971 },
 		coords = {
 			{ m = CONSTANTS.UIMAPIDS.ULDUM, x = 1.0, y = 2.0 },
 			{ m = 325 },
@@ -42,6 +43,7 @@ local sampleMounts = {
 		spellId = 1,
 		itemId = 2,
 		chance = 5,
+		statisticId = {},
 	},
 	["Reins of the Drake of the South Wind"] = {
 		spellId = 88744,

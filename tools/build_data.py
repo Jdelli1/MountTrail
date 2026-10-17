@@ -323,8 +323,38 @@ def _first_coords(body, map_ids=None):
     return map_only
 
 
+def _strip_comments(text):
+    """Lua text with every comment replaced by a space (strings kept as they are)."""
+    out, i, n = [], 0, len(text)
+    while i < n:
+        j = _skip_code_noise(text, i)
+        if j is None:
+            out.append(text[i])
+            i += 1
+        elif text.startswith("--", i):
+            out.append(" ")
+            i = j
+        else:
+            out.append(text[i:j])
+            i = j
+    return "".join(out)
+
+
+def _statistic_ids(body):
+    """The numeric IDs of `statisticId = { ... }` in Rarity's order (comments ignored), or None
+    when there is no such field or it holds no plain numbers."""
+    body = _strip_comments(body)
+    m = re.search(r"\bstatisticId\s*=\s*\{", body)
+    if not m:
+        return None
+    inner = body[m.end():_match_brace(body, m.end())]
+    ids = [int(t.strip()) for t in inner.split(",") if t.strip().isdigit()]
+    return ids or None
+
+
 def parse_rarity(lua_texts, map_ids=None):
-    """Parses Rarity DB/Mounts/*.lua texts into {spell_id: {chance, quest, coords, item, rarityName}}.
+    """Parses Rarity DB/Mounts/*.lua texts into
+    {spell_id: {chance, quest, coords, stats, item, rarityName}} (stats: every statisticId).
 
     `map_ids` ({NAME: uiMapID}, see parse_map_ids) resolves CONSTANTS.UIMAPIDS.NAME map references.
     The first entry seen for a spell ID wins.
@@ -348,6 +378,9 @@ def parse_rarity(lua_texts, map_ids=None):
             coords = _first_coords(body, map_ids)
             if coords:
                 rec["coords"] = coords
+            stats = _statistic_ids(body)
+            if stats:
+                rec["stats"] = stats
             out[spell] = rec
     return out
 
@@ -425,7 +458,7 @@ def build_mounts(sa, rarity, stats=None):
         if not r:
             continue
         joined += 1
-        for key in ("chance", "quest", "coords"):
+        for key in ("chance", "quest", "coords", "stats"):
             if key in r:
                 rec[key] = r[key]
     if stats is not None:
@@ -493,7 +526,7 @@ _LUA_KEYWORDS = {
 }
 # Field order for mount records; anything else follows alphabetically.
 _MOUNT_ORDER = ["name", "spell", "item", "icon", "exp", "tab", "section", "group", "tradingNow",
-                "faction", "unobtainable", "chance", "quest", "coords"]
+                "faction", "unobtainable", "chance", "quest", "coords", "stats"]
 _NODE_ORDER = ["title", "type", "capital", "startStep", "alliance", "horde", "unavailable", "notes",
                "mount", "boss", "note", "m", "x", "y", "bosses", "steps"]
 
@@ -584,7 +617,7 @@ def _header(sources, copyright=None):
         "-- Source: SimpleArmory https://github.com/%s commit %s\n"
         "--   %s (full text: Data/LICENSE-SimpleArmory.txt)\n"
         "-- Source: Rarity https://github.com/%s commit %s\n"
-        "--   GPL-2.0 (drop chances, quest IDs, coordinates from DB/Mounts/*.lua)\n"
+        "--   GPL-2.0 (drop chances, quest IDs, coordinates, statistic IDs from DB/Mounts/*.lua)\n"
         % (sa.get("repo", "kevinclement/SimpleArmory"), sa.get("commit", "unknown"), mit,
            ra.get("repo", "WowRarity/Rarity"), ra.get("commit", "unknown"))
     )
@@ -765,6 +798,7 @@ def generate(sources):
     print("rarity: %d files, %d map constants, %d entries, %d joined, %d unmatched"
           % (len(rarity_files), len(map_ids), stats["rarity_entries"], stats["joined"], stats["rarity_unmatched"]))
     print("coords: %d full, %d map-only" % (sum("x" in c for c in coords), sum("x" not in c for c in coords)))
+    print("statistics: %d mounts" % sum(1 for r in mounts.values() if r.get("stats")))
     print("unobtainable: %d; faction: %d Alliance, %d Horde" % (
         sum(1 for r in mounts.values() if r.get("unobtainable")),
         sum(1 for r in mounts.values() if r.get("faction") == "Alliance"),

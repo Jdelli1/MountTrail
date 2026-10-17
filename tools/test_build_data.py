@@ -196,6 +196,43 @@ class BuildDataTests(unittest.TestCase):
         self.assertNotIn("coords", r[1])
         self.assertNotIn("quest", r[1])
 
+    # --- F3: kill statistics ----------------------------------------------------------
+
+    def test_parse_rarity_statistic_ids(self):
+        r = self.rarity
+        self.assertEqual(r[127158]["stats"], [6989])
+        self.assertEqual(r[88742]["stats"], [5970, 5971])  # every ID, in Rarity's order
+        self.assertNotIn("stats", r[1])  # `statisticId = {}` carries nothing
+        self.assertNotIn("stats", r[88744])
+
+    def test_statistic_ids_joined_and_emitted(self):
+        self.assertEqual(self.mounts[473]["stats"], [6989])
+        self.assertEqual(self.mounts[395]["stats"], [5970, 5971])
+        self.assertNotIn("stats", self.mounts[396])
+        text = build_data.emit_lua(mounts={395: self.mounts[395]})
+        self.assertIn("stats = { 5970, 5971 }", text)
+        self.assertLess(text.index("chance = 100"), text.index("stats = {"))
+
+    def test_statistic_ids_ignore_comments_and_nested_tables(self):
+        text = (
+            '["A"] = {\n'
+            '  spellId = 10,\n'
+            '  -- statisticId = { 1 },\n'
+            '  statisticId = {\n'
+            '    7, -- normal\n'
+            '    8,\n'
+            '  },\n'
+            '},\n'
+            '["B"] = { spellId = 11, statisticId = { CONSTANTS.SOMETHING } },\n'
+        )
+        r = build_data.parse_rarity([text])
+        self.assertEqual(r[10]["stats"], [7, 8])
+        self.assertNotIn("stats", r[11])
+
+    def test_header_mentions_statistic_ids(self):
+        head = build_data.emit_lua(mounts={1: {"name": "a"}}).split("local ADDON", 1)[0]
+        self.assertIn("statistic IDs", head)
+
     def test_route_keeps_start_step(self):
         root = self.route[0]
         self.assertIs(root["startStep"], True)
