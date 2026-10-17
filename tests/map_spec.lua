@@ -10,7 +10,9 @@ end
 
 -- A fake WoW API. opts.canSet: set of map IDs that take a user waypoint.
 -- opts.parents: map ID -> parent map ID. opts.journal: map ID -> journal
--- instance. opts.entrances: map ID -> list of entrance records.
+-- instance. opts.entrances: map ID -> list of entrance records. opts.names:
+-- map ID -> GetMapInfo name. TomTom (unless opts.tomtom == false) hands out
+-- uids "uid1", "uid2", ... and records RemoveWaypoint as "TomTomRemove".
 local function fakeApi(opts)
   opts = opts or {}
   local log = {}
@@ -20,9 +22,9 @@ local function fakeApi(opts)
     C_Map = {
       CanSetUserWaypointOnMap = function(m) return (opts.canSet or {})[m] == true end,
       GetMapInfo = function(m)
-        local parent = (opts.parents or {})[m]
-        if parent == nil then return nil end
-        return { mapID = m, parentMapID = parent }
+        local parent, name = (opts.parents or {})[m], (opts.names or {})[m]
+        if parent == nil and name == nil then return nil end
+        return { mapID = m, parentMapID = parent, name = name }
       end,
       SetUserWaypoint = function(point) rec("SetUserWaypoint", point) end,
     },
@@ -36,7 +38,15 @@ local function fakeApi(opts)
     Print = function(msg) rec("Print", msg) end,
   }
   if opts.tomtom ~= false then
-    api.TomTom = { AddWaypoint = function(self, m, x, y, o) rec("TomTom", m, x, y, o) end }
+    local n = 0
+    api.TomTom = {
+      AddWaypoint = function(self, m, x, y, o)
+        rec("TomTom", m, x, y, o)
+        n = n + 1
+        return "uid" .. n
+      end,
+      RemoveWaypoint = function(self, uid) rec("TomTomRemove", uid) end,
+    }
   end
   return api
 end
@@ -246,6 +256,199 @@ describe("Map.Show", function()
     ns.addon = { Print = function(self, msg) printed[#printed + 1] = msg end }
     Map.Show(7)
     eq(printed, { "No map location for 7" })
+  end)
+end)
+
+-- Log entries named `what`, in order.
+local function logOf(api, what)
+  local out = {}
+  for _, entry in ipairs(api.log) do if entry[1] == what then out[#out + 1] = entry end end
+  return out
+end
+
+-- Log entry names, in order (to check call order).
+local function names(api)
+  local out = {}
+  for _, entry in ipairs(api.log) do out[#out + 1] = entry[1] end
+  return out
+end
+
+local SERPENT = { name = "Heavenly Onyx Cloud Serpent", coords = { m = 379, x = 53.6, y = 64.4 } }
+local DRAKE = { name = "Drake of the North Wind", coords = { m = 325 } }
+local TANK = { name = "Red Qiraji Battle Tank", coords = { m = 319 } }
+
+local function drakeApi(names_)
+  return fakeApi({
+    canSet = { [249] = true, [379] = true }, journal = { [325] = 68 }, parents = { [325] = 249 },
+    entrances = { [249] = { { journalInstanceID = 68, position = { x = 0.5, y = 0.25 } } } },
+    names = names_,
+  })
+end
+
+describe("Map.SetWaypoint", function()
+  it("pin: sets and super-tracks the waypoint, adds TomTom, prints the zone, never opens the map", function()
+    local Map = loadMap({ [517] = SERPENT })
+    local api = fakeApi({ canSet = { [379] = true }, names = { [379] = "Kun-Lai Summit" } })
+    local place, kind = Map.SetWaypoint(517, api)
+    eq(place, "Kun-Lai Summit")
+    eq(kind, "pin")
+    local wp = logOf(api, "SetUserWaypoint")
+    eq(#wp, 1)
+    eq(wp[1][2].uiMapID, 379)
+    ok(near(wp[1][2].x, 0.536) and near(wp[1][2].y, 0.644), "0-1 coordinates")
+    eq(logOf(api, "SuperTrack"), { { "SuperTrack", true } })
+    eq(#logOf(api, "OpenWorldMap"), 0, "the world map is not opened")
+    local tt = logOf(api, "TomTom")
+    eq(#tt, 1)
+    eq(tt[1][2], 379)
+    eq(tt[1][5], { title = "Heavenly Onyx Cloud Serpent", persistent = false })
+    eq(logOf(api, "Print"), { { "Print", "Waypoint: Kun-Lai Summit" } })
+  end)
+
+  it("pin: falls back to the source text's Zone:, then the mount name", function()
+    local Map, ns = loadMap({ [517] = SERPENT })
+    ns.Game = { MountSourceText = function(id) return id == 517 and "Drop: Sha of Anger|nZone: Kun-Lai Summit" or nil end }
+    ns.UI = { SourceZone = function(text) return text and text:match("Zone: (.+)$") or nil end }
+    local api = fakeApi({ canSet = { [379] = true } })
+    eq(Map.SetWaypoint(517, api), "Kun-Lai Summit")
+    eq(logOf(api, "Print"), { { "Print", "Waypoint: Kun-Lai Summit" } })
+    ns.Game.MountSourceText = function() return nil end
+    api = fakeApi({ canSet = { [379] = true } })
+    eq(Map.SetWaypoint(517, api), "Heavenly Onyx Cloud Serpent")
+  end)
+
+  it("entrance: pins the entrance and names the instance", function()
+    local Map = loadMap({ [395] = DRAKE })
+    local api = drakeApi({ [325] = "The Vortex Pinnacle", [249] = "Uldum" })
+    local place, kind = Map.SetWaypoint(395, api)
+    eq(place, "The Vortex Pinnacle (entrance)")
+    eq(kind, "entrance")
+    eq(logOf(api, "SetUserWaypoint")[1][2], { uiMapID = 249, x = 0.5, y = 0.25 })
+    eq(logOf(api, "TomTom")[1], { "TomTom", 249, 0.5, 0.25, { title = "Drake of the North Wind", persistent = false } })
+    eq(#logOf(api, "OpenWorldMap"), 0)
+    eq(logOf(api, "Print"), { { "Print", "Waypoint: The Vortex Pinnacle (entrance)" } })
+  end)
+
+  it("entrance: instance name from the source Zone:, else the instance map, else the route, else the parent", function()
+    local Map, ns = loadMap({ [395] = DRAKE })
+    ns.Game = { MountSourceText = function() return "Zone: Vortex Pinnacle" end }
+    ns.UI = { SourceZone = function(text) return text and text:match("Zone: (.+)$") or nil end,
+              RouteEntry = function() return { boss = "Altairus", instance = "The Vortex Pinnacle (route)" } end }
+    eq(Map.SetWaypoint(395, drakeApi({ [325] = "The Vortex Pinnacle", [249] = "Uldum" })),
+      "Vortex Pinnacle (entrance)", "source Zone: first, as UI.SubGroup")
+    ns.Game.MountSourceText = function() return nil end
+    eq(Map.SetWaypoint(395, drakeApi({ [325] = "The Vortex Pinnacle", [249] = "Uldum" })),
+      "The Vortex Pinnacle (entrance)", "instance map name")
+    eq(Map.SetWaypoint(395, drakeApi({ [249] = "Uldum" })), "The Vortex Pinnacle (route) (entrance)", "route instance")
+    ns.UI.RouteEntry = function() return nil end
+    eq(Map.SetWaypoint(395, drakeApi({ [249] = "Uldum" })), "Uldum (entrance)", "parent map")
+  end)
+
+  it("open: opens the world map there, no pin, prints Opened map", function()
+    local Map = loadMap({ [118] = TANK })
+    local api = fakeApi({ names = { [319] = "Ahn'Qiraj" } })
+    local place, kind = Map.SetWaypoint(118, api)
+    eq(place, "Ahn'Qiraj")
+    eq(kind, "open")
+    eq(logOf(api, "OpenWorldMap"), { { "OpenWorldMap", 319 } })
+    eq(#logOf(api, "SetUserWaypoint"), 0)
+    eq(#logOf(api, "TomTom"), 0)
+    eq(logOf(api, "Print"), { { "Print", "Opened map: Ahn'Qiraj" } })
+  end)
+
+  it("none: prints the no-location message and returns nil", function()
+    local Map = loadMap({ [6] = { name = "Brown Horse" } })
+    local api = fakeApi({})
+    local place, kind = Map.SetWaypoint(6, api)
+    eq(place, nil)
+    eq(kind, "none")
+    eq(api.log, { { "Print", "No map location for Brown Horse" } })
+  end)
+
+  it("replaces the previous AzerothTrail TomTom waypoint", function()
+    local Map = loadMap({ [517] = SERPENT, [395] = DRAKE, [118] = TANK, [6] = { name = "Brown Horse" } })
+    local api = drakeApi({ [379] = "Kun-Lai Summit" })
+    Map.SetWaypoint(517, api)
+    eq(#logOf(api, "TomTomRemove"), 0, "nothing to remove the first time")
+    Map.SetWaypoint(395, api)
+    eq(logOf(api, "TomTomRemove"), { { "TomTomRemove", "uid1" } })
+    local order = names(api)
+    local removeAt, addAt
+    for i, n in ipairs(order) do
+      if n == "TomTomRemove" then removeAt = i end
+      if n == "TomTom" then addAt = i end
+    end
+    ok(removeAt < addAt, "removed before the new one is added")
+    Map.SetWaypoint(118, api) -- open: no new waypoint, the old one stays
+    Map.SetWaypoint(6, api) -- none: the old one stays
+    eq(#logOf(api, "TomTomRemove"), 1)
+    Map.SetWaypoint(517, api)
+    eq(logOf(api, "TomTomRemove"), { { "TomTomRemove", "uid1" }, { "TomTomRemove", "uid2" } })
+  end)
+
+  it("survives TomTom errors and a missing TomTom", function()
+    local Map, ns = loadMap({ [517] = SERPENT })
+    local reported = {}
+    ns.Game = { ReportError = function(err) reported[#reported + 1] = tostring(err) end }
+    local api = fakeApi({ canSet = { [379] = true }, tomtom = false })
+    api.TomTom = { AddWaypoint = function() error("add broke") end, RemoveWaypoint = function() error("remove broke") end }
+    eq(Map.SetWaypoint(517, api), "Heavenly Onyx Cloud Serpent")
+    Map.SetWaypoint(517, api) -- failed add left no uid: nothing to remove
+    eq(#reported, 2)
+    ok(reported[1]:find("add broke", 1, true), reported[1])
+    local n = 0
+    api.TomTom = {
+      AddWaypoint = function() n = n + 1; return "u" .. n end,
+      RemoveWaypoint = function() error("remove broke") end,
+    }
+    Map.SetWaypoint(517, api)
+    Map.SetWaypoint(517, api) -- remove errors, the new one is still added
+    eq(n, 2)
+    ok(reported[#reported]:find("remove broke", 1, true), reported[#reported])
+    api = fakeApi({ canSet = { [379] = true }, tomtom = false })
+    eq(Map.SetWaypoint(517, api), "Heavenly Onyx Cloud Serpent")
+    eq(#logOf(api, "SetUserWaypoint"), 1)
+  end)
+
+  it("Map.Show's TomTom waypoint is tracked too", function()
+    local Map = loadMap({ [517] = SERPENT })
+    local api = fakeApi({ canSet = { [379] = true } })
+    Map.Show(517, api)
+    Map.SetWaypoint(517, api)
+    eq(logOf(api, "TomTomRemove"), { { "TomTomRemove", "uid1" } })
+  end)
+
+  it("does not error with missing APIs and prints through ns.addon by default", function()
+    local Map, ns = loadMap({ [517] = SERPENT })
+    local printed = {}
+    ns.addon = { Print = function(self, msg) printed[#printed + 1] = msg end }
+    -- No C_Map: the mount resolves to "open"; the label falls back to the
+    -- mount name.
+    eq(Map.SetWaypoint(517, {}), "Heavenly Onyx Cloud Serpent")
+    eq(Map.SetWaypoint(517), "Heavenly Onyx Cloud Serpent")
+    eq(printed, { "Opened map: Heavenly Onyx Cloud Serpent", "Opened map: Heavenly Onyx Cloud Serpent" })
+  end)
+end)
+
+describe("Map.OpenMap", function()
+  it("opens the world map at the target without a waypoint or TomTom", function()
+    local Map = loadMap({ [517] = SERPENT, [395] = DRAKE, [118] = TANK })
+    local api = drakeApi({})
+    eq(Map.OpenMap(517, api).kind, "pin")
+    eq(Map.OpenMap(395, api).kind, "entrance")
+    eq(Map.OpenMap(118, api).kind, "open")
+    eq(logOf(api, "OpenWorldMap"), { { "OpenWorldMap", 379 }, { "OpenWorldMap", 249 }, { "OpenWorldMap", 319 } })
+    eq(#logOf(api, "SetUserWaypoint"), 0)
+    eq(#logOf(api, "SuperTrack"), 0)
+    eq(#logOf(api, "TomTom"), 0)
+    eq(#logOf(api, "Print"), 0)
+  end)
+
+  it("prints the no-location message for a mount without one", function()
+    local Map = loadMap({ [6] = { name = "Brown Horse" } })
+    local api = fakeApi({})
+    eq(Map.OpenMap(6, api).kind, "none")
+    eq(api.log, { { "Print", "No map location for Brown Horse" } })
   end)
 end)
 
