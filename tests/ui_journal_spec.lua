@@ -300,6 +300,29 @@ describe("ui journal", function()
       eq(calls[3], { "AddLine", "Times farmed: 0", nil })
     end)
 
+    it("shows the mount item's own tooltip, then our lines, when the mount has an item", function()
+      local ns = loadUI({ MountDescription = function() return "Swift as the wind." end },
+        { Mounts = { [20] = { name = "Vendor Mount", item = 87771 } } })
+      local calls, tip = {}, {}
+      function tip:SetOwner() end
+      function tip:SetItemByID(id) calls[#calls + 1] = { "SetItemByID", id } end
+      function tip:SetText(text) calls[#calls + 1] = { "SetText", text } end
+      function tip:AddLine(text) calls[#calls + 1] = { "AddLine", text } end
+      function tip:Show() calls[#calls + 1] = { "Show" } end
+      local old = GameTooltip
+      GameTooltip = tip
+      ns.UI.ShowMountTooltip({}, 20)
+      GameTooltip = old
+      eq(calls, {
+        { "SetItemByID", 87771 },
+        { "AddLine", " " },
+        { "AddLine", "Times farmed: 0" },
+        { "AddLine", "Lockout: —" },
+        { "AddLine", "Ctrl-click to preview" },
+        { "Show" },
+      })
+    end)
+
     it("adds nothing when there is no description", function()
       local ns = loadUI({ MountDescription = function() return nil end },
         { Mounts = { [20] = { name = "Vendor Mount" } } })
