@@ -7,7 +7,8 @@ AzerothTrail is a World of Warcraft Retail (Midnight 12.x) addon that tracks whi
 - **Journal by expansion**: browse every farmable mount grouped by expansion, with filters, search, a Map button that jumps to the mount's location, a tooltip with drop details and your attempt count, and Ctrl-click to preview the mount.
 - **Holidays**: holiday mounts, with the ones whose event is currently running highlighted.
 - **Misc**: mounts that do not belong to an expansion or holiday.
-- **Per-character Route**: an ordered farming route for the character you are logged in on, with automatic ticks when a lockout or quest flag shows a kill, manual ticks for anything the game does not report, and reset timers for the daily and weekly lockouts.
+- **Per-character Route**: an ordered farming route for the character you are logged in on, with automatic ticks when a lockout or quest flag shows a kill, manual ticks for anything the game does not report (or to mark an open lockout done by hand until the next reset), and reset timers for the daily and weekly lockouts.
+- **Route arrow mode**: switch the Route tab (or `/azt arrow`) from the list to a small movable frame that shows the next step, the travel steps leading to it and an arrow with the distance to the target. It sets the game's waypoint (and a TomTom waypoint) for each new step, follows the route while the main window is closed, and can skip a step for the session.
 - **Optional integrations**: [TomTom](https://www.curseforge.com/wow/addons/tomtom) waypoints and [Rarity](https://github.com/WowRarity/Rarity) attempt counts are used when those addons are installed. Neither is required.
 
 ## Install
@@ -18,7 +19,7 @@ CurseForge and Wago packages will follow once in-game verification is done. For 
 
 `tools/link_addon.ps1` creates a directory junction from your WoW AddOns folder to this repository, so edits show up after `/reload`:
 
-```bash
+```powershell
 powershell -ExecutionPolicy Bypass -File tools/link_addon.ps1 -WowPath "C:\Program Files (x86)\World of Warcraft"
 ```
 
@@ -30,6 +31,8 @@ The junction is created at `<WowPath>\_retail_\Interface\AddOns\AzerothTrail`. T
 | --- | --- |
 | `/azt` | Show or hide the window |
 | `/azt dump` | List saved instances (instance ID, difficulty ID, bosses) for checking `Data/Lockouts.lua` |
+| `/azt arrow` | Switch the route between the list and the arrow frame |
+| `/azt debug` | Toggle debug mode: errors AzerothTrail catches around maps, waypoints and the arrow go to the error handler (off by default) |
 | `/azt help` | List the commands |
 | `/azerothtrail` | Same as `/azt` |
 

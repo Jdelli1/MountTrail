@@ -1,5 +1,7 @@
 # In-game verification checklist
 
+- [ ] Run `/dump (select(4, GetBuildInfo()))`; put that number in AzerothTrail.toc's `## Interface:` line (add it to the list). Until it is listed, enable "Load out of date AddOns" on the character screen for this first login.
+
 ## FIRST: risk check — attempt counting
 
 Spec risk #1: attempt counting via lockout/flag transitions under Midnight restrictions. Do this before relying on any UI work. **If the count does not move, stop and report before UI work continues.**
@@ -53,8 +55,8 @@ Map.Show has no slash command; test it with the Map button once the mount list (
 ## Task 13: journal home, mount list, tooltip
 
 - [ ] `/reload` with `/console scriptErrors 1`, `/azt`: the Journal tab shows a 4 x 3 grid of expansion cards in Data.Expansions order (Classic first, Midnight last), each with its logo (or the expansion name when the client has no logo), `owned / total` and a green progress bar. Counts look right for this character's faction (faction-only mounts of the other faction are not counted).
-- [ ] Click the Cataclysm card: the list opens with Back and the title "Cataclysm"; rows are grouped under headers in the order Dungeons, Raids, World, Reputation, Vendor, Other (empty sections have no header). Back returns to the grid.
-- [ ] Untick Raids in the left panel: raid rows and the Raids header disappear; tick again and they return. The setting survives `/reload` (`/dump AzerothTrailDB.global.filters`).
+- [ ] Click the Cataclysm card: the list opens with Back and the title "Cataclysm"; rows are grouped under headers in the order Dungeon drops, Raid drops, World drops / rares, Delves, Treasures & caches, Quests, Zone activities, Reputation, Vendors, Other (empty sections have no header). Back returns to the grid.
+- [ ] Untick Raid drops in the left panel's Sources list: raid rows and the Raid drops header disappear; tick again and they return. The setting survives `/reload` (`/dump AzerothTrailDB.global.filters`).
 - [ ] Collected off (default): owned mounts are hidden. Collected on: owned mounts appear with a grey name, a line through the name and a desaturated icon.
 - [ ] Type `drake` in the search box: only rows whose name or source group contains "drake" stay; the clear (x) button restores the list.
 - [ ] Row: icon (from the mount journal), name, and a grey source line, e.g. Drake of the North Wind reads `Dungeon Drop · Altairus (Vortex Pinnacle (Dungeon))`.
@@ -73,7 +75,7 @@ Map.Show has no slash command; test it with the Map button once the mount list (
 - [ ] Route tab header: character name, `Weekly reset in ...` and `Daily reset in ...` (SecondsToTime text matching the in-game calendar resets), a "Show completed" box (state survives `/reload`: `/dump AzerothTrailDB.char`), and `You have N lockouts left. Saddle up?` where N matches the minimap tooltip's `Route: N steps left`.
 - [ ] Horde character: the first step reads "Start in Orgrimmar"; Alliance character: "Start in Stormwind". Faction-only steps of the other faction are absent.
 - [ ] Rows are indented by depth; travel rows are grey with no box (WoW ships no italic font, so they are not italic); kill rows show `<boss> → <mount>` lines with notes in grey, a box and a Map button.
-- [ ] A saved raid (e.g. a cleared Vault of Archavon watcher) shows its row ticked, greyed (disabled) and tagged green "auto" with Show completed on, and is hidden with it off. Open instance rows have an unticked, disabled box.
+- [ ] A saved raid (e.g. a cleared Vault of Archavon watcher) shows its row ticked, greyed (disabled) and tagged green "auto" with Show completed on, and is hidden with it off. Open instance rows have an unticked box that can be ticked by hand (manual override, see "Final review fixes").
 - [ ] Manual row (e.g. a Midnight `manual` mount): click the box, it ticks and the row disappears (Show completed off) or stays ticked (on); `/reload` keeps it ticked (`/dump AzerothTrailDB.char` -> `ticks[<mountID>]` = expiry); after the daily (or weekly, per the spec's `reset`) reset it is unticked again. Clicking a ticked manual row unticks it.
 - [ ] Steps whose mounts are all owned are hidden.
 - [ ] During an active holiday (Hallow's End / Brewfest / Love is in the Air) its queue step is the first route row; after the holiday boss is done today it is hidden (Show completed off).
@@ -81,6 +83,12 @@ Map.Show has no slash command; test it with the Map button once the mount list (
 - [ ] Hover a kill row: mount tooltip of its first mount; Koralon/Emalon/Toravon and Chrono-Lord Deios mounts show `Lockout: Saved` once that boss is killed this week (BossLockouts). Ctrl+click previews the mount.
 - [ ] With every step done: `<Name> has reached Oregon. Nothing left to farm until reset.`
 - [ ] ScrollBox: rows with several boss lines do not overlap (row height = 28 + 14 per detail line); scroll position is kept when ticking a manual row.
+
+## Task 16: delve, treasure, quest and activity sources
+
+- [ ] Journal list (e.g. The War Within): the left panel's Sources list shows all ten boxes (Dungeon drops, Raid drops, World drops / rares, Delves, Treasures & caches, Quests, Zone activities, Reputation, Vendors, Other), each label fully visible and none clipped by the panel's bottom edge or overlapping the scroll list; each box filters its section and survives `/reload`.
+- [ ] A Delves header appears for a known delve mount through the game's source text (e.g. Delver's Dirigible, 2144: generated as a quest mount, listed under Delves when `/dump C_MountJournal.GetMountInfoExtraByID(2144)` 3rd return mentions "Delve").
+- [ ] A mount whose source text mentions a cache (and not a delve) is listed under Treasures & caches; note which mount was checked here.
 
 ## Task 17: route arrow mode
 
@@ -95,4 +103,13 @@ Map.Show has no slash command; test it with the Map button once the mount list (
 - [ ] Skip moves to the next step; `/reload` brings the skipped step back (session only).
 - [ ] With every step done or skipped: the Oregon line, no arrow, no buttons.
 - [ ] Drag the frame, `/reload`: same position (`/dump AzerothTrailDB.global.arrow`). It cannot be dragged off screen.
-- [ ] Map button on the arrow frame opens the world map at the step (as the list's Map button).
+- [ ] Map button on the arrow frame opens the world map at the arrow's current target and does not add a second TomTom waypoint (`/way list` still shows one AzerothTrail waypoint).
+- [ ] A row with several bosses where the first is already done (e.g. a Vault of Archavon row after killing Archavon): the arrow, its detail line and the waypoint point at the first boss that is not done.
+
+## Final review fixes
+
+- [ ] Map in combat: click a Map button (Journal list, Route list and the arrow frame) while in combat and again after combat, then click quest and map pins on the world map. Watch chat and the error frame for "Interface action failed because of an AddOn" / "action blocked"; note any that name AzerothTrail.
+- [ ] Manual override: on an open instance row (e.g. Eye of Eternity, Malygos), click the box: it ticks, the row counts as done (hidden with Show completed off, `Route: N steps left` drops by one) and `/dump AzerothTrailDB.char` shows `ticks[<mountID>]` with the spec's reset (weekly here). The attempt count (`/dump AzerothTrailDB.global.attempts`) does not move. Click again to untick. After the boss is really killed, the row shows the green "auto" tag and a disabled box (the game wins). A Dawn of the Infinites (Chrono-Lord Deios) tick is stored as `ticks["<mountID>@Chrono-Lord Deios"]` and does not tick the same mounts' own dungeon rows.
+- [ ] `/azt debug`: prints `Debug: on ...`; `/azt help` lists it; the setting survives `/reload` (`/dump AzerothTrailDB.global.debug`). With it on, a caught map / arrow error (e.g. a Map click in combat, or the arrow inside an instance) shows in the error frame / BugSack prefixed `AzerothTrail:`; with it off (default) nothing shows.
+- [ ] Attempts per difficulty group: on a mount listing separate difficulties (e.g. 2219 Sureki Skyrazor, Queen Ansurek {14,15,16}), a Heroic-only kill adds +1; a Mythic kill the same week adds +1 more. On an any-of raid (e.g. Al'Akir, {{3,4,5,6}}) a second size the same week does not add another.
+- [ ] Quest turn-ins and dungeon-finder updates right after login do not count instance attempts (only `UPDATE_INSTANCE_INFO` reads the saved-instance list).
