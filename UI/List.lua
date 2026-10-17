@@ -26,7 +26,11 @@ local ADDON, ns = ...
 -- owned ones included even while Collected is off; left-clicking one
 -- collapses or expands it, saved in ns.db.global.collapsed under
 -- "<view>|<exp>|<section>[|<sub-group>]" (only collapsed = true is stored).
--- The pure helpers above the widget code (SourceLine, MountIcon, SectionLabel,
+-- Each mount row's grey line is UI.RowDescription (the most specific source:
+-- "Drop: Ultraxion · Dragon Soul", "Achievement: ...", the route boss, else
+-- the category), computed once per refresh.
+-- The pure helpers above the widget code (SourceLine, RowDescription,
+-- StripMarkup, SourcePairs, MountIcon, SectionLabel,
 -- ListRows, SubGroup, SourceZone, InstanceName, CollapseKey, ToggleCollapsed,
 -- HeaderIcon, PreviewMount, the filter menu helpers) are unit-tested; the widget
 -- code is built under a stub by tests/ui_build_spec.lua.
@@ -86,6 +90,12 @@ end
 local function routeEntry(mountID)
   routeIndex = routeIndex or buildRouteIndex()
   return routeIndex[mountID]
+end
+
+-- The mount's first route row (Data.Route order): { boss=, title= (step
+-- title without "Run "), instance= (UI.InstanceName) }, or nil. Read-only.
+function UI.RouteEntry(mountID)
+  return routeEntry(mountID)
 end
 
 -- Boss name of the mount's first route row (Data.Route order), or nil.
@@ -153,23 +163,12 @@ end
 local OTHER_GROUP = "~other"
 UI.OTHER_GROUP = OTHER_GROUP
 
--- Source text labels of the zone line. The Mount Journal's strings are
--- localised; ZONE_COLON (a GlobalStrings entry) covers other locales when the
--- client has it.
-local function zoneLabels()
-  local labels = { "Zone:" }
-  if type(ZONE_COLON) == "string" and ZONE_COLON ~= "" and ZONE_COLON ~= "Zone:" then
-    labels[2] = ZONE_COLON
-  end
-  return labels
-end
-
--- The value of the first "Zone:" line of a Mount Journal source string
--- (Game.MountSourceText), nil when there is none (or it is empty). Markup
--- is removed first: hyperlinks (|H...|h text |h keep their text), named
--- (|cnNAME:) and hex (|cAARRGGBB) colour codes, |r, textures (|T...|t),
--- atlases (|A...|a); |n is a line break.
-function UI.SourceZone(text)
+-- Plain text of a Mount Journal source string (Game.MountSourceText), the
+-- one sanitiser for every reader of it: hyperlinks (|H...|h text |h keep
+-- their text), named (|cnNAME:) and hex (|cAARRGGBB) colour codes, |r,
+-- textures (|T...|t) and atlases (|A...|a) are removed; |n and CRLF become
+-- "\n". nil for non-strings.
+function UI.StripMarkup(text)
   if type(text) ~= "string" then return nil end
   text = string.gsub(text, "|H.-|h(.-)|h", "%1")
   text = string.gsub(text, "|cn[^:|]*:", "")
@@ -178,17 +177,168 @@ function UI.SourceZone(text)
   text = string.gsub(text, "|T.-|t", "")
   text = string.gsub(text, "|A.-|a", "")
   text = string.gsub(text, "|n", "\n")
-  local labels = zoneLabels()
+  text = string.gsub(text, "\r\n?", "\n")
+  return text
+end
+
+local FULLWIDTH_COLON = "\239\188\154" -- U+FF1A, zhCN / zhTW labels
+local MAX_LABEL = 40 -- bytes; longer "labels" are sentences with a colon
+
+-- "<label>: <value>" -> label (with its colon), value; nil when the line has
+-- no short, digit-free label before its first colon.
+local function splitLabel(line)
+  local label, value = string.match(line, "^([^:]-:)%s*(.*)$")
+  local wide, wideValue = string.match(line, "^(.-" .. FULLWIDTH_COLON .. ")%s*(.*)$")
+  if wide and (not label or #wide < #label) then label, value = wide, wideValue end
+  if not label or #label > MAX_LABEL or string.find(label, "%d") then return nil end
+  if not string.find(label, "[^%s:]") then return nil end
+  return label, value
+end
+
+-- The source string's lines (UI.StripMarkup) -> { { label = "Drop:", value =
+-- "Ultraxion" }, { value = "<unlabelled line>" }, ... } in order. Labels are
+-- the client's own (localised) text with the colon; lines and values are
+-- trimmed; empty lines and labels with an empty value are left out.
+function UI.SourcePairs(text)
+  local out = {}
+  text = UI.StripMarkup(text)
+  if not text then return out end
   for line in string.gmatch(text .. "\n", "([^\n]*)\n") do
     line = string.match(line, "^%s*(.-)%s*$")
-    for _, label in ipairs(labels) do
-      if string.sub(line, 1, #label) == label then
-        local value = string.match(string.sub(line, #label + 1), "^%s*(.-)%s*$")
-        if value ~= "" then return value end
+    if line ~= "" then
+      local label, value = splitLabel(line)
+      if label then
+        value = string.match(value, "^%s*(.-)%s*$")
+        if value ~= "" then
+          out[#out + 1] = { label = string.match(label, "^%s*(.-)%s*$"), value = value }
+        end
+      else
+        out[#out + 1] = { value = line }
       end
     end
   end
+  return out
+end
+
+-- Comparable form of a label: lower case, without the colon and spaces.
+local function labelKey(label)
+  if type(label) ~= "string" then return nil end
+  label = string.gsub(label, FULLWIDTH_COLON, "")
+  label = string.gsub(label, ":", "")
+  label = string.match(label, "^%s*(.-)%s*$")
+  if label == "" then return nil end
+  return string.lower(label)
+end
+
+-- Label kinds of the source text: English words plus the client's own
+-- (GlobalStrings: BATTLE_PET_SOURCE_n are the Mount Journal's source names,
+-- ZONE_COLON / LOCATION_COLON) for other locales. Read on each call, so a
+-- client without them still works.
+local KIND_WORDS = {
+  { "drop", "Drop", "BATTLE_PET_SOURCE_1" },
+  { "quest", "Quest", "BATTLE_PET_SOURCE_2" },
+  { "vendor", "Vendor", "BATTLE_PET_SOURCE_3" },
+  { "achievement", "Achievement", "BATTLE_PET_SOURCE_6" },
+  { "zone", "Zone", "ZONE_COLON", "Location", "LOCATION_COLON" },
+}
+
+local function labelKinds()
+  local kinds = {}
+  for _, entry in ipairs(KIND_WORDS) do
+    for i = 2, #entry do
+      local word = entry[i]
+      if string.find(word, "_") then word = _G[word] end
+      local key = labelKey(word)
+      if key and not kinds[key] then kinds[key] = entry[1] end
+    end
+  end
+  return kinds
+end
+
+-- Kind of a source label: "drop" | "quest" | "vendor" | "achievement" |
+-- "zone" (Zone / Location) | nil.
+function UI.SourceLabelKind(label, kinds)
+  local key = labelKey(label)
+  return key and (kinds or labelKinds())[key] or nil
+end
+
+-- True for the label of the zone line: "Zone:", or ZONE_COLON (a
+-- GlobalStrings entry) for other locales when the client has it. "Location:"
+-- is not a sub-group source (UI.SourceLabelKind counts it as a zone).
+local function isZoneLabel(label)
+  local key = labelKey(label)
+  return key ~= nil and (key == "zone" or key == labelKey(ZONE_COLON))
+end
+
+-- The value of the first "Zone:" line of a Mount Journal source string
+-- (Game.MountSourceText; UI.SourcePairs), nil when there is none.
+function UI.SourceZone(text)
+  for _, pair in ipairs(UI.SourcePairs(text)) do
+    if pair.label and isZoneLabel(pair.label) then return pair.value end
+  end
   return nil
+end
+
+-- Name of the achievement the achievement scan mapped the mount to, or nil
+-- (not an achievement mount, not known yet, or no match).
+local function scannedAchievementName(mountID)
+  local scan = ns.AchievementScan
+  local id = scan and scan.Lookup and scan.Lookup(mountID) or nil
+  if not id then return nil end
+  local name = ns.Game.AchievementName and ns.Game.AchievementName(id) or nil
+  if type(name) == "string" and name ~= "" then return name end
+  return nil
+end
+
+-- The grey line under a mount row's name: the most specific source the
+-- client's source text (Game.MountSourceText, passed in) or our data gives,
+-- one line:
+--   "Drop: Ultraxion · Dragon Soul" (Drop, plus Zone / Location),
+--   "Achievement: <name>" (source text, else the achievement scan's name),
+--   "Vendor: <name> · <zone>", "Quest: <name>",
+--   another labelled line ("Treasure: <name> · <zone>"),
+--   the route's "<boss> (<instance>)",
+--   a lone "Zone: <name>", an unlabelled line,
+--   else UI.SourceLine (the category text; "" when there is none).
+-- Labels are the client's own.
+function UI.RowDescription(mountID, sourceText)
+  local kinds = labelKinds()
+  local first, zone, unlabelled, other = {}, nil, nil, nil
+  for _, pair in ipairs(UI.SourcePairs(sourceText)) do
+    if pair.label then
+      local kind = UI.SourceLabelKind(pair.label, kinds)
+      if kind == "zone" then
+        zone = zone or pair
+      elseif kind then
+        first[kind] = first[kind] or pair
+      else
+        other = other or pair
+      end
+    else
+      unlabelled = unlabelled or pair.value
+    end
+  end
+  local function text(pair, withZone)
+    local out = pair.label .. " " .. pair.value
+    if withZone and zone then out = out .. " · " .. zone.value end
+    return out
+  end
+
+  if first.drop then return text(first.drop, true) end
+  if first.achievement then return text(first.achievement) end
+  local achievement = scannedAchievementName(mountID)
+  if achievement then return string.format(L["Achievement: %s"], achievement) end
+  if first.vendor then return text(first.vendor, true) end
+  if first.quest then return text(first.quest) end
+  if other then return text(other, true) end
+  local entry = routeEntry(mountID)
+  if entry and entry.boss then
+    if entry.instance then return entry.boss .. " (" .. entry.instance .. ")" end
+    return entry.boss
+  end
+  if zone then return text(zone) end
+  if unlabelled then return unlabelled end
+  return UI.SourceLine(mountID)
 end
 
 -- Grouping key of a sub-group name: lower case, trimmed, single spaces, a
@@ -415,9 +565,10 @@ function UI.HeaderText(row)
   return text
 end
 
--- Row source line: UI.SourceLine, plus the tag in green.
+-- Row source line: the row's description (UI.RowDescription, set per
+-- refresh as row.desc), else UI.SourceLine, plus the tag in green.
 function UI.RowSourceText(row)
-  local text = UI.SourceLine(row.id)
+  local text = row.desc or UI.SourceLine(row.id)
   if row.tag and row.tag ~= "" then
     local tag = GREEN .. row.tag .. "|r"
     text = (text ~= "") and (text .. " · " .. tag) or tag
@@ -1073,7 +1224,11 @@ function UI.List(parent, getQuery, opts)
       sourceText = query.sourceText,
       mapName = ns.Game.MapName and memoText(ns.Game.MapName) or nil,
     })
-    -- Stripe every other mount row, restarting under each header.
+    -- Stripe every other mount row, restarting under each header; describe
+    -- each shown mount once per refresh (UI.RowDescription over the memoised
+    -- source text).
+    local sourceText = query.sourceText
+    local describe = memoText(function(id) return UI.RowDescription(id, sourceText(id)) end)
     local n = 0
     for _, row in ipairs(rows) do
       if row.header then
@@ -1081,6 +1236,7 @@ function UI.List(parent, getQuery, opts)
       else
         n = n + 1
         row.alt = n % 2 == 0
+        row.desc = describe(row.id)
       end
     end
     local provider = CreateDataProvider(rows)

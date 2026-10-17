@@ -53,6 +53,7 @@ local function recordingTip()
   function tip:AddLine(text, r, g, b, wrap)
     calls[#calls + 1] = { "AddLine", text, r, g, b, wrap }
   end
+  function tip:AddDoubleLine(left, right) calls[#calls + 1] = { "AddDoubleLine", left, right } end
   function tip:Show() calls[#calls + 1] = { "Show" } end
   function tip:IsOwned(owner) return self.owner == owner end
   function tip:Hide() self.owner = nil end
@@ -61,7 +62,10 @@ end
 
 local function addLines(calls)
   local out = {}
-  for _, c in ipairs(calls) do if c[1] == "AddLine" then out[#out + 1] = c[2] end end
+  for _, c in ipairs(calls) do
+    if c[1] == "AddLine" then out[#out + 1] = c[2] end
+    if c[1] == "AddDoubleLine" then out[#out + 1] = c[2] .. "=" .. c[3] end
+  end
   return out
 end
 
@@ -175,7 +179,7 @@ describe("ui achievements", function()
       ns.UI.ShowMountTooltip({}, 262)
       GameTooltip = old
       eq(addLines(calls), {
-        "Times farmed: 0", "Lockout: —",
+        "Mount", "Achievement reward", "Attempts=0", "Lockout: —",
         "Achievement: Glory of the Hero", "Heroic feats.", "  Done one", "  Open one",
         "Ctrl-click to preview", "Shift-right-click to open the achievement",
       })
@@ -194,7 +198,7 @@ describe("ui achievements", function()
       GameTooltip = tip
       ns.UI.ShowMountTooltip({}, 20)
       GameTooltip = old
-      eq(addLines(calls), { "Times farmed: 0", "Lockout: —", "Ctrl-click to preview" })
+      eq(addLines(calls), { "Mount", "Attempts=0", "Lockout: —", "Ctrl-click to preview" })
     end)
 
     it("repaints the open tooltip when the scan finishes", function()
@@ -209,7 +213,7 @@ describe("ui achievements", function()
       GameTooltip = tip
       local owner = {}
       ns.UI.ShowMountTooltip(owner, 262)
-      ok(addLines(calls)[3] == "Achievement: looking up...", "pending line")
+      ok(addLines(calls)[5] == "Achievement: looking up...", "pending line")
       status = "ready"
       ns.UI.OnAchievementsReady()
       local lines = addLines(calls)
@@ -218,11 +222,10 @@ describe("ui achievements", function()
       owner.mountID = 20
       local before = #calls
       ns.UI.OnAchievementsReady()
-      local after = {}
-      for i = before + 1, #calls do
-        if calls[i][1] == "AddLine" then after[#after + 1] = calls[i][2] end
-      end
-      eq(after, { "Times farmed: 0", "Lockout: —", "Ctrl-click to preview" }, "repainted for mount 20")
+      local slice = {}
+      for i = before + 1, #calls do slice[#slice + 1] = calls[i] end
+      local after = addLines(slice)
+      eq(after, { "Mount", "Attempts=0", "Lockout: —", "Ctrl-click to preview" }, "repainted for mount 20")
       -- Once hidden (or owned by something else) nothing is repainted.
       local n = #calls
       ns.UI.HideMountTooltip()

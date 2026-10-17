@@ -254,6 +254,16 @@ function Game.AchievementInfo(achievementID)
   return info
 end
 
+-- The achievement's name alone (GetAchievementInfo's 2nd return; no
+-- criteria reads, cheap enough for list rows). nil when unknown, empty, the
+-- API is missing or errors.
+function Game.AchievementName(achievementID)
+  if not (achievementID and type(GetAchievementInfo) == "function") then return nil end
+  local good, _, name = pcall(GetAchievementInfo, achievementID)
+  if good and type(name) == "string" and name ~= "" then return name end
+  return nil
+end
+
 -- GetStatistic(id) gives this character's statistic as a display string:
 -- "--" when never done (-> 0), digits maybe with thousands separators (",",
 -- ".", spaces) -> the number. Anything else (money with coin icons, text),

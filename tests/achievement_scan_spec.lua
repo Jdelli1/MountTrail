@@ -408,6 +408,25 @@ describe("game achievements", function()
     eq(loadGame().AchievementInfo(nil), nil)
   end)
 
+  git("AchievementName is GetAchievementInfo's name only, guarded", function()
+    local criteriaRead = false
+    GetAchievementInfo = function(id)
+      if id == 10 then return 10, "Glory of the Raider", 25, false end
+      if id == 11 then return 11, "" end
+      if id == 12 then error("boom") end
+    end
+    GetAchievementNumCriteria = function() criteriaRead = true; return 3 end
+    local G = loadGame()
+    eq(G.AchievementName(10), "Glory of the Raider")
+    eq(criteriaRead, false, "no criteria reads")
+    eq(G.AchievementName(11), nil, "empty name")
+    eq(G.AchievementName(12), nil, "error caught")
+    eq(G.AchievementName(13), nil, "unknown")
+    eq(G.AchievementName(nil), nil)
+    GetAchievementInfo = nil
+    eq(loadGame().AchievementName(10), nil, "no API")
+  end)
+
   git("InCombat reads InCombatLockdown; false when missing", function()
     InCombatLockdown = function() return true end
     eq(loadGame().InCombat(), true)

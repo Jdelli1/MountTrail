@@ -284,156 +284,256 @@ describe("ui journal", function()
   end)
 
   describe("TooltipLines", function()
-    it("shows rate, attempts, Rarity count, lockout and the hint", function()
+    local WHITE, GOLD, BLUE, GREY, HINT = { 1, 1, 1 }, { 1, 0.82, 0 }, { 0.4, 0.78, 1 }, { 0.6, 0.6, 0.6 },
+      { 0.5, 0.9, 0.5 }
+    local function line(left, c, wrap) return { left = left, r = c[1], g = c[2], b = c[3], wrap = wrap } end
+    local function double(left, right)
+      return { double = true, left = left, right = right, r = GOLD[1], g = GOLD[2], b = GOLD[3],
+        rr = WHITE[1], rg = WHITE[2], rb = WHITE[3] }
+    end
+    local function lefts(lines)
+      local out = {}
+      for i, l in ipairs(lines) do out[i] = l.right and (l.left .. "=" .. l.right) or l.left end
+      return out
+    end
+    local DS_ROUTE = {
+      { title = "Run Dragon Soul (Raid)", bosses = { { mount = 445, boss = "Ultraxion" } } },
+      { title = "Kill Galleon (World Boss)", bosses = { { mount = 515, boss = "Galleon" } } },
+    }
+    local EXPERIMENT = { name = "Experiment 12-B", item = 78919, exp = "Cataclysm", tab = "journal",
+      section = "raid", chance = 100, stats = { 6161, 6162 } }
+
+    it("Rarity style: badge, source kind, source lines, odds, attempts, lockout, hint", function()
       local ns = loadUI({
-        MountInfo = function(id) if id == 10 then return "Client Name", 1, 2 end end,
-        IsQuestDone = function() return true end,
-      }, { Mounts = { [10] = { name = "Data Name", chance = 33.4, item = 5555, quest = 111 } } })
+        CharKey = function() return "Me-Realm" end,
+        MountSourceText = function() return "|cFFFFD200Drop:|r Ultraxion|n|cFFFFD200Zone:|r Dragon Soul" end,
+      }, { Mounts = { [445] = EXPERIMENT }, Route = DS_ROUTE })
+      ns.db.global.stats = { ["Me-Realm"] = { [445] = 20 }, ["Alt-Realm"] = { [445] = 10 } }
+      ns.db.global.attempts[445] = 99 -- statistics win over our counter
+      ns.RarityBridge.Attempts = function() return 500 end -- and over Rarity's
+      eq(ns.UI.TooltipLines(445), {
+        line("Mount |cffffd100[CATA]|r", WHITE),
+        line("Drops from NPC(s)", BLUE),
+        line("|cffffd100Drop:|r Ultraxion", WHITE, true),
+        line("|cffffd100Zone:|r Dragon Soul", WHITE, true),
+        line("1 in 100 chance", WHITE),
+        line("Lucky if you obtain in 69 or less", GREY),
+        double("Attempts", "30"),
+        line("(this character: 20)", GREY),
+        double("Chance so far", "26.03%"),
+        line("Lockout: —", GOLD),
+        line("Ctrl-click to preview", HINT),
+      })
+    end)
+
+    it("adds 'Dropped by <boss> in <instance>' unless a source line names the boss", function()
+      local texts = {}
+      local ns = loadUI({ MountSourceText = function(id) return texts[id] end }, { Mounts = {
+        [445] = { name = "Experiment 12-B", tab = "journal", section = "raid" },
+        [515] = { name = "Son of Galleon", tab = "journal", section = "world" },
+      }, Route = DS_ROUTE })
+      local function dropped(id)
+        for _, l in ipairs(ns.UI.TooltipLines(id)) do
+          if l.left:find("^Dropped by") then return l end
+        end
+      end
+      eq(dropped(445), line("Dropped by Ultraxion in Dragon Soul", WHITE, true), "no source text: the route's instance")
+      texts[445] = "Drop: Ultraxion|nZone: Dragon Soul"
+      eq(dropped(445), nil, "the Drop line names the boss")
+      texts[445] = "Drop: ULTRAXION and friends"
+      eq(dropped(445), nil, "case-insensitive")
+      texts[445] = "Drop: Someone Else"
+      eq(dropped(445).left, "Dropped by Ultraxion in Dragon Soul")
+      texts[445] = "Zone: Dragon Soul"
+      eq(lefts(ns.UI.TooltipLines(445))[3], "|cffffd100Zone:|r Dragon Soul")
+      eq(lefts(ns.UI.TooltipLines(445))[4], "Dropped by Ultraxion in Dragon Soul", "right after the source lines")
+      eq(dropped(515).left, "Dropped by Galleon", "no instance, no zone")
+      texts[515] = "Zone: Valley of the Four Winds"
+      eq(dropped(515).left, "Dropped by Galleon in Valley of the Four Winds", "zone when the route has no instance")
+      eq(dropped(9999), nil, "no route entry")
+    end)
+
+    it("Attempts without statistics: the larger of our counter and Rarity's", function()
+      local ns = loadUI(nil, { Mounts = { [10] = { name = "M", item = 5555 } } })
       ns.db.global.attempts[10] = 7
-      ns.RarityBridge.Attempts = function(item) if item == 5555 then return 42 end end
-      eq(ns.UI.TooltipLines(10), {
-        "Client Name",
-        "~1 in 33 (approx.)",
-        "Times farmed: 7",
-        "Rarity: 42",
-        "Lockout: Saved",
-        "Ctrl-click to preview",
-      })
+      local rarity = 42
+      ns.RarityBridge.Attempts = function(item) if item == 5555 then return rarity end end
+      eq(lefts(ns.UI.TooltipLines(10)), { "Mount", "Attempts=42", "Lockout: —", "Ctrl-click to preview" },
+        "no chance: Attempts only")
+      rarity = 3
+      eq(lefts(ns.UI.TooltipLines(10))[2], "Attempts=7")
+      rarity = nil
+      eq(lefts(ns.UI.TooltipLines(10))[2], "Attempts=7", "Rarity unreadable")
+      ns.db.global.attempts[10] = nil
+      eq(lefts(ns.UI.TooltipLines(10))[2], "Attempts=0")
     end)
 
-    it("leaves out rate and Rarity when unknown and shows a dash for untracked mounts", function()
-      local ns = loadUI(nil, { Mounts = { [20] = { name = "Vendor Mount", item = 1 } } })
-      ns.RarityBridge.Attempts = function() return nil end
-      eq(ns.UI.TooltipLines(20), {
-        "Vendor Mount",
-        "Times farmed: 0",
-        "Lockout: —",
-        "Ctrl-click to preview",
-      })
-    end)
-
-    it("shows kill statistics instead of the attempt counter for mounts with stats", function()
-      local ns = loadUI({ CharKey = function() return "Me-Realm" end },
-        { Mounts = { [40] = { name = "Stat Mount", item = 7777, stats = { 1, 2 } } } })
-      ns.db.global.attempts[40] = 2
-      ns.db.global.stats = { ["Me-Realm"] = { [40] = 3 }, ["Alt-Realm"] = { [40] = 4 } }
-      ns.RarityBridge.Attempts = function() return 11 end
-      eq(ns.UI.TooltipLines(40), {
-        "Stat Mount",
-        "Kills: 7 (this character: 3)",
-        "Rarity: 11",
-        "Lockout: —",
-        "Ctrl-click to preview",
-      })
-      ns.db.global.stats = { ["Me-Realm"] = { [40] = 3 } }
-      eq(ns.UI.TooltipLines(40)[2], "Kills: 3", "only this character has data")
-    end)
-
-    it("keeps the attempt counter for mounts with stats but no reading yet, and without stats", function()
+    it("statistics: every character's total; this character's split only with several", function()
       local ns = loadUI({ CharKey = function() return "Me-Realm" end }, { Mounts = {
-        [40] = { name = "Stat Mount", stats = { 1 } },
-        [41] = { name = "Plain Mount" },
+        [40] = { name = "Stat Mount", item = 7777, stats = { 1, 2 }, chance = 20 },
       } })
-      ns.RarityBridge.Attempts = function() return nil end
-      ns.db.global.attempts[40], ns.db.global.attempts[41] = 2, 5
-      ns.db.global.stats = { ["Me-Realm"] = { [41] = 9 } } -- stale reading for a mount without stats
-      eq(ns.UI.TooltipLines(40)[2], "Times farmed: 2")
-      eq(ns.UI.TooltipLines(41)[2], "Times farmed: 5")
+      ns.RarityBridge.Attempts = function() return 11 end
+      ns.db.global.attempts[40] = 2
+      ns.db.global.stats = { ["Me-Realm"] = { [40] = 3 } }
+      eq(lefts(ns.UI.TooltipLines(40)), { "Mount", "1 in 20 chance", "Lucky if you obtain in 14 or less",
+        "Attempts=3", "Chance so far=14.26%", "Lockout: —", "Ctrl-click to preview" })
+      ns.db.global.stats = { ["Alt-Realm"] = { [40] = 4 } }
+      eq(lefts(ns.UI.TooltipLines(40))[4], "Attempts=4", "no reading for this character: no split")
+      eq(lefts(ns.UI.TooltipLines(40))[5], "Chance so far=18.55%")
+      ns.db.global.stats = { ["Me-Realm"] = { [41] = 9 } }
+      eq(lefts(ns.UI.TooltipLines(40))[4], "Attempts=11", "no reading yet: counter / Rarity")
       ns.db.global.stats = nil
-      eq(ns.UI.TooltipLines(40)[2], "Times farmed: 2", "no stats table at all")
+      eq(lefts(ns.UI.TooltipLines(40))[4], "Attempts=11", "no stats table at all")
     end)
 
-    it("shows Available and Manual states", function()
+    it("statistics are ignored for mounts without stats (stale readings)", function()
+      local ns = loadUI({ CharKey = function() return "Me-Realm" end }, { Mounts = { [41] = { name = "Plain" } } })
+      ns.RarityBridge.Attempts = function() return nil end
+      ns.db.global.attempts[41] = 5
+      ns.db.global.stats = { ["Me-Realm"] = { [41] = 9 } }
+      eq(lefts(ns.UI.TooltipLines(41))[2], "Attempts=5")
+    end)
+
+    it("a chance with no attempts yet shows 0.00%", function()
+      local ns = loadUI(nil, { Mounts = { [30] = { name = "A", chance = 33.4 } } })
+      eq(lefts(ns.UI.TooltipLines(30)), { "Mount", "1 in 33 chance", "Lucky if you obtain in 23 or less",
+        "Attempts=0", "Chance so far=0.00%", "Lockout: —", "Ctrl-click to preview" })
+    end)
+
+    it("expansion badges", function()
+      local tags = {
+        Classic = "CLASSIC", ["The Burning Crusade"] = "TBC", ["Wrath of the Lich King"] = "WOTLK",
+        Cataclysm = "CATA", ["Mists of Pandaria"] = "MOP", ["Warlords of Draenor"] = "WOD", Legion = "LEGION",
+        ["Battle for Azeroth"] = "BFA", Shadowlands = "SL", Dragonflight = "DF", ["The War Within"] = "TWW",
+        Midnight = "MID",
+      }
+      local ns = loadUI()
+      for exp, tag in pairs(tags) do eq(ns.UI.ExpansionTag(exp), tag, exp) end
+      eq(ns.UI.ExpansionTag("Unknown"), nil)
+      eq(ns.UI.ExpansionTag(nil), nil)
+      ns.Data.Mounts = { [1] = { name = "x", exp = "Unknown" }, [2] = { name = "y", exp = "Legion" } }
+      eq(ns.UI.TooltipLines(1)[1], line("Mount", WHITE), "unknown expansion: no badge")
+      eq(ns.UI.TooltipLines(2)[1].left, "Mount |cffffd100[LEGION]|r")
+    end)
+
+    it("SourceKind maps the (refined) source to a kind line; unknown -> nil", function()
+      local ns = loadUI()
+      local SK = ns.UI.SourceKind
+      local cases = {
+        { { tab = "journal", section = "dungeon" }, "Drops from NPC(s)" },
+        { { tab = "journal", section = "raid" }, "Drops from NPC(s)" },
+        { { tab = "journal", section = "world" }, "Drops from NPC(s)" },
+        { { tab = "journal", section = "treasure" }, "Found in a treasure / cache" },
+        { { tab = "journal", section = "delve" }, "Delve reward" },
+        { { tab = "journal", section = "quest" }, "Quest reward" },
+        { { tab = "journal", section = "activity" }, "Zone activity reward" },
+        { { tab = "journal", section = "reputation" }, "Reputation reward" },
+        { { tab = "journal", section = "vendor" }, "Sold by a vendor" },
+        { { tab = "journal", section = "other" }, nil },
+        { { tab = "misc", section = "achievement" }, "Achievement reward" },
+        { { tab = "misc", section = "profession" }, "Crafted by a profession" },
+        { { tab = "misc", section = "shop" }, "In-game shop" },
+        { { tab = "misc", section = "tradingpost" }, "Trading Post" },
+        { { tab = "misc", section = "other" }, nil },
+        { { tab = "holiday", section = "brewfest" }, "Holiday event" },
+        { { tab = "holiday", section = "timewalking" }, "Holiday event" },
+        { {}, nil },
+      }
+      for i, c in ipairs(cases) do eq(SK(1, c[1]), c[2], tostring(i)) end
+      eq(SK(1, { tab = "journal", section = "world" }, "Delve: Fungal Folly"), "Delve reward", "refined to delve")
+      eq(SK(1, { tab = "journal", section = "world" }, function() return "Cache of Treasure" end),
+        "Found in a treasure / cache", "refined to treasure")
+      eq(SK(1, nil), nil)
+    end)
+
+    it("shows Available and Manual lockout states", function()
       local ns = loadUI(nil, {
-        Mounts = { [30] = { name = "A", quest = 1, chance = 100 }, [31] = { name = "M" } },
+        Mounts = { [30] = { name = "A", quest = 1 }, [31] = { name = "M" } },
         Lockouts = { [31] = { manual = true, reset = "weekly" } },
       })
-      local a, m = ns.UI.TooltipLines(30), ns.UI.TooltipLines(31)
-      eq(a[2], "~1 in 100 (approx.)")
-      eq(a[4], "Lockout: Available")
+      local a, m = lefts(ns.UI.TooltipLines(30)), lefts(ns.UI.TooltipLines(31))
+      eq(a[3], "Lockout: Available")
       eq(m[3], "Lockout: Manual")
-    end)
-
-    it("paints GameTooltip: title, body lines, hint", function()
-      local ns = loadUI(nil, { Mounts = { [20] = { name = "Vendor Mount" } } })
-      local calls = {}
-      local tip = {}
-      function tip:SetOwner(owner, anchor) calls[#calls + 1] = { "SetOwner", owner, anchor } end
-      function tip:SetText(text) calls[#calls + 1] = { "SetText", text } end
-      function tip:AddLine(text) calls[#calls + 1] = { "AddLine", text } end
-      function tip:Show() calls[#calls + 1] = { "Show" } end
-      local old = GameTooltip
-      GameTooltip = tip
-      local owner = {}
-      ns.UI.ShowMountTooltip(owner, 20)
-      GameTooltip = old
-      eq(calls, {
-        { "SetOwner", owner, "ANCHOR_RIGHT" },
-        { "SetText", "Vendor Mount" },
-        { "AddLine", "Times farmed: 0" },
-        { "AddLine", "Lockout: —" },
-        { "AddLine", "Ctrl-click to preview" },
-        { "Show" },
-      })
     end)
   end)
 
-  describe("flavor text", function()
-    local function paint(ns, id)
+  describe("ShowMountTooltip", function()
+    -- A recording GameTooltip -> tip, calls.
+    local function recordingTip(withItem)
       local calls, tip = {}, {}
-      function tip:SetOwner() end
-      function tip:SetText(text) calls[#calls + 1] = { "SetText", text } end
-      function tip:AddLine(text, r, g, b, wrap) calls[#calls + 1] = { "AddLine", text, wrap } end
-      function tip:Show() end
+      function tip:SetOwner(owner, anchor) calls[#calls + 1] = { "SetOwner", owner, anchor } end
+      if withItem then
+        function tip:SetItemByID(id) calls[#calls + 1] = { "SetItemByID", id } end
+      end
+      function tip:SetText(text, r, g, b) calls[#calls + 1] = { "SetText", text, r, g, b } end
+      function tip:AddLine(text, r, g, b, wrap) calls[#calls + 1] = { "AddLine", text, r, g, b, wrap } end
+      function tip:AddDoubleLine(left, right, r, g, b, rr, rg, rb)
+        calls[#calls + 1] = { "AddDoubleLine", left, right, r, g, b, rr, rg, rb }
+      end
+      function tip:Show() calls[#calls + 1] = { "Show" } end
+      return tip, calls
+    end
+    local function paint(ns, id, withItem)
+      local tip, calls = recordingTip(withItem)
       local old = GameTooltip
       GameTooltip = tip
-      ns.UI.ShowMountTooltip({}, id)
+      ns.UI.ShowMountTooltip("owner", id)
       GameTooltip = old
       return calls
     end
+
+    it("no item: name, wrapped flavor, then the structured lines (double lines as such)", function()
+      local ns = loadUI({ MountDescription = function() return "Swift as the wind." end },
+        { Mounts = { [20] = { name = "Vendor Mount", tab = "journal", section = "vendor", exp = "Legion" } } })
+      eq(paint(ns, 20), {
+        { "SetOwner", "owner", "ANCHOR_RIGHT" },
+        { "SetText", "Vendor Mount", 1, 1, 1 },
+        { "AddLine", "Swift as the wind.", 0.9, 0.9, 0.9, true },
+        { "AddLine", "Mount |cffffd100[LEGION]|r", 1, 1, 1 },
+        { "AddLine", "Sold by a vendor", 0.4, 0.78, 1 },
+        { "AddDoubleLine", "Attempts", "0", 1, 0.82, 0, 1, 1, 1 },
+        { "AddLine", "Lockout: —", 1, 0.82, 0 },
+        { "AddLine", "Ctrl-click to preview", 0.5, 0.9, 0.5 },
+        { "Show" },
+      })
+    end)
+
+    it("no flavor text: nothing between the name and the lines", function()
+      local ns = loadUI({ MountDescription = function() return nil end }, { Mounts = { [20] = { name = "Vendor Mount" } } })
+      local calls = paint(ns, 20)
+      eq(calls[3], { "AddLine", "Mount", 1, 1, 1 })
+    end)
+
+    it("item mounts: the item's own tooltip, a spacer, then the lines", function()
+      local ns = loadUI({ MountDescription = function() return "Swift as the wind." end },
+        { Mounts = { [20] = { name = "Vendor Mount", item = 87771 } } })
+      eq(paint(ns, 20, true), {
+        { "SetOwner", "owner", "ANCHOR_RIGHT" },
+        { "SetItemByID", 87771 },
+        { "AddLine", " " },
+        { "AddLine", "Mount", 1, 1, 1 },
+        { "AddDoubleLine", "Attempts", "0", 1, 0.82, 0, 1, 1, 1 },
+        { "AddLine", "Lockout: —", 1, 0.82, 0 },
+        { "AddLine", "Ctrl-click to preview", 0.5, 0.9, 0.5 },
+        { "Show" },
+      })
+    end)
+
+    it("a tooltip without AddDoubleLine gets one joined line", function()
+      local ns = loadUI(nil, { Mounts = { [20] = { name = "Vendor Mount" } } })
+      local tip, calls = recordingTip()
+      tip.AddDoubleLine = nil
+      local old = GameTooltip
+      GameTooltip = tip
+      ns.UI.ShowMountTooltip("owner", 20)
+      GameTooltip = old
+      eq(calls[4], { "AddLine", "Attempts  0", 1, 0.82, 0 })
+    end)
 
     it("TooltipFlavor returns the client's mount description", function()
       local ns = loadUI({ MountDescription = function(id) if id == 20 then return "Swift as the wind." end end })
       eq(ns.UI.TooltipFlavor(20), "Swift as the wind.")
       eq(ns.UI.TooltipFlavor(21), nil)
-    end)
-
-    it("paints the description wrapped, right under the name", function()
-      local ns = loadUI({ MountDescription = function() return "Swift as the wind." end },
-        { Mounts = { [20] = { name = "Vendor Mount" } } })
-      local calls = paint(ns, 20)
-      eq(calls[1], { "SetText", "Vendor Mount" })
-      eq(calls[2], { "AddLine", "Swift as the wind.", true })
-      eq(calls[3], { "AddLine", "Times farmed: 0", nil })
-    end)
-
-    it("shows the mount item's own tooltip, then our lines, when the mount has an item", function()
-      local ns = loadUI({ MountDescription = function() return "Swift as the wind." end },
-        { Mounts = { [20] = { name = "Vendor Mount", item = 87771 } } })
-      local calls, tip = {}, {}
-      function tip:SetOwner() end
-      function tip:SetItemByID(id) calls[#calls + 1] = { "SetItemByID", id } end
-      function tip:SetText(text) calls[#calls + 1] = { "SetText", text } end
-      function tip:AddLine(text) calls[#calls + 1] = { "AddLine", text } end
-      function tip:Show() calls[#calls + 1] = { "Show" } end
-      local old = GameTooltip
-      GameTooltip = tip
-      ns.UI.ShowMountTooltip({}, 20)
-      GameTooltip = old
-      eq(calls, {
-        { "SetItemByID", 87771 },
-        { "AddLine", " " },
-        { "AddLine", "Times farmed: 0" },
-        { "AddLine", "Lockout: —" },
-        { "AddLine", "Ctrl-click to preview" },
-        { "Show" },
-      })
-    end)
-
-    it("adds nothing when there is no description", function()
-      local ns = loadUI({ MountDescription = function() return nil end },
-        { Mounts = { [20] = { name = "Vendor Mount" } } })
-      eq(paint(ns, 20)[2], { "AddLine", "Times farmed: 0", nil })
     end)
   end)
 
@@ -740,6 +840,122 @@ describe("ui journal", function()
       STUB_ATLASES["campaign_headericon_closed"] = true
       eq({ ns.UI.HeaderIcon(false) }, { "campaign_headericon_open", "\226\128\147" })
       eq({ ns.UI.HeaderIcon(true) }, { "campaign_headericon_closed", "+" })
+    end)
+  end)
+
+  describe("source text", function()
+    it("StripMarkup removes colours, links, textures and atlases; |n breaks lines", function()
+      local ns = loadUI()
+      local SM = ns.UI.StripMarkup
+      eq(SM("|cFFFFD200Drop:|r Ultraxion|n|cFFFFD200Zone: |rDragon Soul"), "Drop: Ultraxion\nZone: Dragon Soul")
+      eq(SM("|cnNORMAL_FONT_COLOR:Zone:|r |Hmapzone:107|hNagrand|h"), "Zone: Nagrand")
+      eq(SM("Cost: 500|TInterface\MoneyFrame\UI-GoldIcon:0|t |A:raceicon-dwarf-male:16:16|aDwarf"), "Cost: 500 Dwarf")
+      eq(SM("a\r\nb"), "a\nb", "CRLF")
+      eq(SM(nil), nil)
+      eq(SM(5), nil)
+    end)
+
+    it("SourcePairs splits labelled lines and keeps the client's labels", function()
+      local ns = loadUI()
+      local SP = ns.UI.SourcePairs
+      eq(SP("|cFFFFD200Drop:|r Ultraxion|n|cFFFFD200Zone:|r Dragon Soul"), {
+        { label = "Drop:", value = "Ultraxion" },
+        { label = "Zone:", value = "Dragon Soul" },
+      })
+      eq(SP("|cFFFFD200Achievement: |rGlory of the Hero|n|cFFFFD200Category: |rDungeons & Raids"), {
+        { label = "Achievement:", value = "Glory of the Hero" },
+        { label = "Category:", value = "Dungeons & Raids" },
+      })
+      eq(SP("Achievement: Ahead of the Curve: Ultraxion"),
+        { { label = "Achievement:", value = "Ahead of the Curve: Ultraxion" } }, "colon inside the value")
+      eq(SP("Promotion\n\n  Zone:   \nBlizzard Store  "), { { value = "Promotion" }, { value = "Blizzard Store" } },
+        "unlabelled lines kept, empty lines and empty values dropped")
+      eq(SP("This mount can be bought for a while from the shop: soon"),
+        { { value = "This mount can be bought for a while from the shop: soon" } }, "a sentence is not a label")
+      eq(SP("Butin : Ultraxion"), { { label = "Butin :", value = "Ultraxion" } }, "space before the colon")
+      eq(SP("\230\142\137\232\144\189\239\188\154Boss"),
+        { { label = "\230\142\137\232\144\189\239\188\154", value = "Boss" } }, "full-width colon")
+      eq(SP(nil), {})
+      eq(SP(""), {})
+    end)
+  end)
+
+  describe("RowDescription", function()
+    local mounts = {
+      [445] = { name = "Experiment 12-B", tab = "journal", section = "raid", group = "Raid Drop" },
+      [395] = { name = "Drake of the North Wind", tab = "journal", section = "dungeon", group = "Dungeon Drop" },
+      [515] = { name = "Son of Galleon", tab = "journal", section = "world", group = "World Boss" },
+      [262] = { name = "Red Proto-Drake", tab = "misc", section = "achievement", group = "Achievement" },
+      [700] = { name = "Group only", tab = "misc", section = "other", group = "Argent Tournament" },
+      [800] = { name = "Nothing", tab = "misc", section = "other" },
+    }
+    local function load(game)
+      local ns = loadUI(game, { Mounts = mounts, Route = ROUTE })
+      ns.AchievementScan.Lookup = function() return nil, "none" end
+      return ns
+    end
+
+    it("Drop with Zone or Location", function()
+      local RD = load().UI.RowDescription
+      eq(RD(445, "|cFFFFD200Drop:|r Ultraxion|n|cFFFFD200Zone:|r Dragon Soul"), "Drop: Ultraxion · Dragon Soul")
+      eq(RD(445, "Drop: Ultraxion\nLocation: Dragon Soul"), "Drop: Ultraxion · Dragon Soul")
+      eq(RD(445, "Drop: Ultraxion"), "Drop: Ultraxion")
+      eq(RD(445, "Zone: Dragon Soul\nDrop: Ultraxion"), "Drop: Ultraxion · Dragon Soul", "order of lines")
+    end)
+
+    it("Achievement from the source text, else the achievement scan's name", function()
+      local ns = load({ AchievementName = function(id) if id == 10 then return "Glory of the Hero" end end })
+      eq(ns.UI.RowDescription(262, "|cFFFFD200Achievement: |rGlory of the Raider|n|cFFFFD200Category: |rRaids"),
+        "Achievement: Glory of the Raider")
+      eq(ns.UI.RowDescription(262, nil), "Achievement", "scan knows nothing: the category")
+      ns.AchievementScan.Lookup = function(id) if id == 262 then return 10, "ready" end end
+      eq(ns.UI.RowDescription(262, nil), "Achievement: Glory of the Hero")
+      eq(ns.UI.RowDescription(262, "Category: Raids"), "Achievement: Glory of the Hero",
+        "scan name beats a generic line")
+    end)
+
+    it("Vendor with zone, Quest alone", function()
+      local RD = load().UI.RowDescription
+      eq(RD(700, "Vendor: Mei Francis|nZone: Dalaran|nCost: 200"), "Vendor: Mei Francis · Dalaran")
+      eq(RD(700, "Vendor: Mei Francis"), "Vendor: Mei Francis")
+      eq(RD(700, "Quest: The Wrathgate|nZone: Dragonblight"), "Quest: The Wrathgate")
+    end)
+
+    it("another labelled line, with the zone when there is one", function()
+      local RD = load().UI.RowDescription
+      eq(RD(700, "Treasure: Glimmering Chest|nZone: Hallowfall"), "Treasure: Glimmering Chest · Hallowfall")
+      eq(RD(700, "Profession: Engineering"), "Profession: Engineering")
+    end)
+
+    it("the route's boss (instance) when the source text names no source", function()
+      local RD = load().UI.RowDescription
+      eq(RD(395, nil), "Altairus (Vortex Pinnacle)")
+      eq(RD(395, "Zone: The Vortex Pinnacle"), "Altairus (Vortex Pinnacle)", "a lone zone is weaker")
+      eq(RD(515, nil), "Galleon", "no instance in the step title")
+    end)
+
+    it("then a lone zone, an unlabelled line, then the category", function()
+      local RD = load().UI.RowDescription
+      eq(RD(700, "Zone: Icecrown"), "Zone: Icecrown")
+      eq(RD(700, "Promotion"), "Promotion")
+      eq(RD(700, nil), "Argent Tournament")
+      eq(RD(800, nil), "")
+      eq(RD(9999, nil), "", "unknown mount")
+    end)
+
+    it("knows the client's localised labels (GlobalStrings)", function()
+      BATTLE_PET_SOURCE_1, ZONE_COLON = "Beute", "Gebiet:"
+      local RD = load().UI.RowDescription
+      local got = RD(445, "Beute: Ultraxion|nGebiet: Drachenseele")
+      BATTLE_PET_SOURCE_1, ZONE_COLON = nil, nil
+      eq(got, "Beute: Ultraxion · Drachenseele")
+    end)
+
+    it("RowSourceText uses the row's description, else SourceLine, plus the tag", function()
+      local ns = load()
+      eq(ns.UI.RowSourceText({ id = 700, desc = "Drop: X · Y" }), "Drop: X · Y")
+      eq(ns.UI.RowSourceText({ id = 700, desc = "Drop: X", tag = "T" }), "Drop: X · |cff33ff99T|r")
+      eq(ns.UI.RowSourceText({ id = 700 }), "Argent Tournament")
     end)
   end)
 end)

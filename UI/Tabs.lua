@@ -65,6 +65,16 @@ UI.RegisterView("achievements", {
   end,
 })
 
+-- Rows describe achievement mounts by the scan's achievement name when the
+-- source text has none (UI.RowDescription): redraw once the scan finishes.
+if ns.AchievementScan then
+  ns.AchievementScan.OnDone(function()
+    if achievementList and type(achievementList.IsVisible) == "function" and achievementList:IsVisible() then
+      achievementList:Refresh()
+    end
+  end)
+end
+
 -- Timewalking -----------------------------------------------------------------------
 
 local timewalkingList
