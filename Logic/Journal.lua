@@ -20,10 +20,45 @@ local ORDER = {
     "lunarfestival", "midsummer", "darkmoon", "timewalking", "anniversary", "other" },
 }
 
-local RANK = {}
-for tab, list in pairs(ORDER) do
-  RANK[tab] = {}
-  for i, key in ipairs(list) do RANK[tab][key] = i end
+-- Section order of each list view (Journal.Select with query.view). The
+-- Achievements view has no fixed list: its sections are expansion names
+-- (Data.Expansions order) and "General" last.
+local VIEW_ORDER = {
+  journal = ORDER.journal,
+  holidays = { "hallowsend", "brewfest", "loveisintheair", "noblegarden", "winterveil",
+    "lunarfestival", "midsummer", "darkmoon", "anniversary", "other" },
+  timewalking = { "timewalking" },
+  misc = { "profession", "shop", "tradingpost", "other" },
+}
+
+local function rankOf(list)
+  local rank = {}
+  for i, key in ipairs(list) do rank[key] = i end
+  return rank
+end
+
+local RANK, VIEW_RANK = {}, {}
+for tab, list in pairs(ORDER) do RANK[tab] = rankOf(list) end
+for view, list in pairs(VIEW_ORDER) do VIEW_RANK[view] = rankOf(list) end
+
+-- The list views, in tab order (UI/Frame.lua's tabs minus Route).
+Journal.Views = { "journal", "holidays", "achievements", "timewalking", "misc" }
+
+-- Section key of achievement mounts without an expansion.
+Journal.GENERAL = "General"
+
+-- The list view a mount belongs to: "journal", "holidays", "achievements",
+-- "timewalking" or "misc". Timewalking takes the holiday timewalking section
+-- and any SimpleArmory "Timewalking" subcat (group); Achievements takes the
+-- misc achievement section. Every mount is in exactly one view.
+function Journal.ViewOf(m)
+  local tab, section = m.tab, m.section
+  if m.group == "Timewalking" or (tab == "holiday" and section == "timewalking") then
+    return "timewalking"
+  end
+  if tab == "misc" and section == "achievement" then return "achievements" end
+  if tab == "holiday" then return "holidays" end
+  return tab
 end
 
 -- True when the mount belongs in the player's faction view.
@@ -64,29 +99,63 @@ function Journal.SectionOf(id, m, sourceText)
   return section
 end
 
--- query: { tab=, exp=, section=, filters=, search=, isOwned=fn(id),
--- exists=fn(id), faction=, sourceText=fn(id)|nil }. -> list of
--- { id=, m=, section= } sorted by section order (sections refined by
--- SectionOf), then name, then id.
+-- Achievements view: expansion name -> rank (query.expansions, else
+-- Data.Expansions), unknown expansions after the list, General last.
+local function expansionRank(ns, list)
+  list = list or (ns.Data and ns.Data.Expansions) or {}
+  local rank = rankOf(list)
+  rank[Journal.GENERAL] = 1000000
+  return rank
+end
+
+-- query: { view= | tab=, exp=, section=, filters=, search=, isOwned=fn(id),
+-- exists=fn(id), faction=, sourceText=fn(id)|nil, expansions=list|nil }.
+-- view (one of Journal.Views) selects by Journal.ViewOf and wins over tab;
+-- tab (data tab "journal"/"holiday"/"misc") is the older raw selection.
+-- -> list of { id=, m=, section= } sorted by section order, then name, then
+-- id. Sections: journal mounts refined by SectionOf; the Achievements view
+-- groups by expansion (m.exp, nil -> "General"); the Timewalking view has the
+-- one section "timewalking". Section filters apply on the journal only.
 function Journal.Select(mounts, query)
   local filters = query.filters or Journal.DefaultFilters
   local showCollected = filters.collected == true
   local isOwned, exists = query.isOwned, query.exists
-  local tab = query.tab
+  local view, tab = query.view, query.tab
+  local journal = (view or tab) == "journal"
   local sourceText = query.sourceText
   local needle
   if query.search and query.search:find("%S") then
     needle = query.search:lower()
   end
 
+  -- Section of a mount in this list, or nil when it is not in the list.
+  local sectionIn
+  if view == "achievements" then
+    sectionIn = function(_, m)
+      if Journal.ViewOf(m) ~= view then return nil end
+      return m.exp or Journal.GENERAL
+    end
+  elseif view == "timewalking" then
+    sectionIn = function(_, m)
+      return Journal.ViewOf(m) == view and "timewalking" or nil
+    end
+  elseif view then
+    sectionIn = function(id, m)
+      return Journal.ViewOf(m) == view and Journal.SectionOf(id, m, sourceText) or nil
+    end
+  else
+    sectionIn = function(id, m)
+      return m.tab == tab and Journal.SectionOf(id, m, sourceText) or nil
+    end
+  end
+
   local out = {}
   for id, m in pairs(mounts) do
-    -- SectionOf may ask the client, so only for mounts on this tab and expansion.
-    local section = m.tab == tab and (query.exp == nil or m.exp == query.exp)
-      and Journal.SectionOf(id, m, sourceText)
+    -- SectionOf may ask the client, so only for mounts in this expansion.
+    local section = (query.exp == nil or m.exp == query.exp) and sectionIn(id, m)
     if section
       and (query.section == nil or section == query.section)
-      and not (tab == "journal" and filters[section] == false) then
+      and not (journal and filters[section] == false) then
       local owned = gate(id, m, isOwned, exists, query.faction)
       if owned ~= nil and (showCollected or not owned) then
         local keep = true
@@ -99,7 +168,14 @@ function Journal.Select(mounts, query)
     end
   end
 
-  local rank = RANK[tab] or {}
+  local rank
+  if view == "achievements" then
+    rank = expansionRank(ns, query.expansions)
+  elseif view then
+    rank = VIEW_RANK[view] or {}
+  else
+    rank = RANK[tab] or {}
+  end
   local none = 1000
   table.sort(out, function(a, b)
     local ra, rb = rank[a.section] or none, rank[b.section] or none
@@ -111,14 +187,14 @@ function Journal.Select(mounts, query)
   return out
 end
 
--- Journal tab only. Returns owned, total. The optional sourceText (as in
+-- Journal view only (Journal.ViewOf). Returns owned, total. The optional sourceText (as in
 -- Select) is accepted so callers can pass the same inputs, but it never
 -- changes the totals: Counts span every section, so refining a mount's
 -- section cannot move it in or out.
 function Journal.Counts(mounts, exp, isOwned, exists, faction, sourceText)
   local owned, total = 0, 0
   for id, m in pairs(mounts) do
-    if m.tab == "journal" and (exp == nil or m.exp == exp) then
+    if (exp == nil or m.exp == exp) and Journal.ViewOf(m) == "journal" then
       local o = gate(id, m, isOwned, exists, faction)
       if o ~= nil then
         total = total + 1

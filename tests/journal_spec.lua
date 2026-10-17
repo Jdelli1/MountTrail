@@ -380,4 +380,167 @@ describe("journal", function()
       eq(t, 2)
     end)
   end)
+
+  describe("views", function()
+    local EXPS = { "Classic", "Legion", "Midnight" }
+
+    it("ViewOf maps data tab/section to the five list views", function()
+      local J = load()
+      eq(J.ViewOf(mk("a")), "journal")
+      eq(J.ViewOf(mk("a", {tab="holiday", section="brewfest"})), "holidays")
+      eq(J.ViewOf(mk("a", {tab="holiday", section="timewalking"})), "timewalking")
+      eq(J.ViewOf(mk("a", {tab="misc", section="achievement"})), "achievements")
+      eq(J.ViewOf(mk("a", {tab="misc", section="shop"})), "misc")
+      eq(J.ViewOf(mk("a", {tab="misc", section="other", group="Timewalking"})), "timewalking",
+        "a SimpleArmory Timewalking subcat anywhere")
+      eq(J.ViewOf(mk("a", {tab="journal", section="other", group="Timewalking"})), "timewalking")
+      eq(J.Views, { "journal", "holidays", "achievements", "timewalking", "misc" })
+    end)
+
+    it("achievements: misc achievement mounts only, grouped by expansion in Expansions order, General last", function()
+      local J = load()
+      local function a(n, exp) return mk(n, {tab="misc", section="achievement", exp=exp}) end
+      local mounts = {
+        [1] = a("Zed", false), [2] = a("Bee", "Midnight"), [3] = a("Ant", "Midnight"),
+        [4] = a("Cat", "Classic"), [5] = a("Dog", "Legion"),
+        [6] = mk("Shop", {tab="misc", section="shop"}), [7] = mk("Raid", {section="raid"}),
+      }
+      mounts[1].exp = nil
+      local r = J.Select(mounts, q({ view = "achievements", expansions = EXPS }))
+      eq(ids(r), {4, 5, 3, 2, 1})
+      local sections = {}
+      for i, e in ipairs(r) do sections[i] = e.section end
+      eq(sections, { "Classic", "Legion", "Midnight", "Midnight", "General" })
+    end)
+
+    it("achievements: an expansion missing from the list sorts before General", function()
+      local J = load()
+      local mounts = {
+        [1] = mk("a", {tab="misc", section="achievement"}),
+        [2] = mk("b", {tab="misc", section="achievement", exp="Future"}),
+        [3] = mk("c", {tab="misc", section="achievement", exp="Classic"}),
+      }
+      mounts[1].exp = nil
+      eq(ids(J.Select(mounts, q({ view = "achievements", expansions = EXPS }))), {3, 2, 1})
+    end)
+
+    it("achievements: expansions default to ns.Data.Expansions", function()
+      local ns = load_addon({"Logic/Journal.lua"})
+      ns.Data = { Expansions = { "Midnight", "Classic" } }
+      local mounts = {
+        [1] = mk("a", {tab="misc", section="achievement", exp="Classic"}),
+        [2] = mk("b", {tab="misc", section="achievement", exp="Midnight"}),
+      }
+      eq(ids(ns.Journal.Select(mounts, q({ view = "achievements" }))), {2, 1})
+    end)
+
+    it("achievements: the exp query option still narrows to one expansion", function()
+      local J = load()
+      local mounts = {
+        [1] = mk("a", {tab="misc", section="achievement", exp="Classic"}),
+        [2] = mk("b", {tab="misc", section="achievement", exp="Legion"}),
+      }
+      eq(ids(J.Select(mounts, q({ view = "achievements", exp = "Legion", expansions = EXPS }))), {2})
+    end)
+
+    it("timewalking: holiday timewalking plus any Timewalking group, one section", function()
+      local J = load()
+      local mounts = {
+        [1] = mk("b", {tab="holiday", section="timewalking", group="Timewalking"}),
+        [2] = mk("a", {tab="misc", section="other", group="Timewalking"}),
+        [3] = mk("c", {tab="holiday", section="brewfest"}),
+      }
+      local r = J.Select(mounts, q({ view = "timewalking" }))
+      eq(ids(r), {2, 1})
+      eq({ r[1].section, r[2].section }, { "timewalking", "timewalking" })
+    end)
+
+    it("holidays: holiday mounts without timewalking, in holiday order", function()
+      local J = load()
+      local mounts = {
+        [1] = mk("a", {tab="holiday", section="anniversary"}),
+        [2] = mk("b", {tab="holiday", section="timewalking"}),
+        [3] = mk("c", {tab="holiday", section="hallowsend"}),
+        [4] = mk("d", {tab="holiday", section="other"}),
+        [5] = mk("e", {tab="holiday", section="brewfest", group="Timewalking"}),
+      }
+      eq(ids(J.Select(mounts, q({ view = "holidays" }))), {3, 1, 4})
+    end)
+
+    it("misc: profession, shop, tradingpost, other; no achievements or timewalking", function()
+      local J = load()
+      local function m(n, s, o)
+        local t = {tab="misc", section=s}
+        for k, v in pairs(o or {}) do t[k] = v end
+        return mk(n, t)
+      end
+      local mounts = {
+        [1] = m("a", "other"), [2] = m("b", "tradingpost"), [3] = m("c", "shop"),
+        [4] = m("d", "profession"), [5] = m("e", "achievement"), [6] = m("f", "other", {group="Timewalking"}),
+      }
+      eq(ids(J.Select(mounts, q({ view = "misc" }))), {4, 3, 2, 1})
+    end)
+
+    it("journal view: journal mounts with section filters and refinement", function()
+      local J = load()
+      local mounts = {
+        [1] = mk("a", {section="raid"}), [2] = mk("b", {section="world"}),
+        [3] = mk("c", {section="other", group="Timewalking"}),
+        [4] = mk("d", {tab="misc", section="shop"}),
+      }
+      local f = { raid = false }
+      local r = J.Select(mounts, q({ view = "journal", filters = f, sourceText = function() return "Delve" end }))
+      eq(ids(r), {2})
+      eq(r[1].section, "delve")
+    end)
+
+    it("view wins over tab; section filters stay journal-only", function()
+      local J = load()
+      local mounts = { [1] = mk("a", {tab="misc", section="achievement", exp="Classic"}) }
+      eq(ids(J.Select(mounts, q({ tab = "journal", view = "achievements",
+        filters = { other = false, achievement = false, Classic = false }, expansions = EXPS }))), {1})
+    end)
+
+    it("collected, faction and search apply in every view", function()
+      local J = load()
+      local mounts = {
+        [1] = mk("Swift A", {tab="holiday", section="timewalking"}),
+        [2] = mk("Slow B", {tab="holiday", section="timewalking"}),
+        [3] = mk("Swift C", {tab="holiday", section="timewalking", faction="Horde"}),
+      }
+      local owned = ownedSet({[2] = true})
+      eq(ids(J.Select(mounts, q({ view = "timewalking", isOwned = owned, faction = "Alliance" }))), {1})
+      eq(ids(J.Select(mounts, q({ view = "timewalking", isOwned = owned, faction = "Alliance",
+        filters = { collected = true } }))), {2, 1})
+      eq(ids(J.Select(mounts, q({ view = "timewalking", search = "swift" }))), {1, 3})
+    end)
+
+    it("every generated mount lands in exactly one view", function()
+      local J = load()
+      local tabs = { journal = { "dungeon", "other" }, holiday = { "brewfest", "timewalking", "other" },
+        misc = { "achievement", "profession", "shop", "tradingpost", "other" } }
+      local mounts, n = {}, 0
+      for tab, sections in pairs(tabs) do
+        for _, s in ipairs(sections) do
+          n = n + 1
+          mounts[n] = mk("m" .. n, {tab=tab, section=s})
+        end
+      end
+      local seen = {}
+      for _, view in ipairs(J.Views) do
+        for _, e in ipairs(J.Select(mounts, q({ view = view, expansions = EXPS }))) do
+          ok(not seen[e.id], "mount " .. e.id .. " in two views")
+          seen[e.id] = view
+        end
+      end
+      for id = 1, n do ok(seen[id], "mount " .. id .. " in no view") end
+    end)
+
+    it("Counts leaves out journal-tab mounts that belong to the Timewalking view", function()
+      local J = load()
+      local mounts = { [1] = mk("a"), [2] = mk("b", {group="Timewalking"}) }
+      local o, t = J.Counts(mounts, nil, function() return false end, function() return true end)
+      eq({o, t}, {0, 1})
+    end)
+  end)
 end)
