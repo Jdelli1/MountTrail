@@ -123,6 +123,7 @@ function addon:OnInitialize()
       window = {},
       arrow = {}, -- route arrow frame position (UI\Arrow.lua)
       debug = false, -- /azt debug: show caught map / arrow errors
+      achievementMap = {}, -- { build=, ids={[mountID]=achievementID|false} } (Integrations\AchievementScan.lua)
     },
     char = {
       ticks = {},

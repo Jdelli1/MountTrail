@@ -22,6 +22,7 @@ Logic\Achievements.lua
 Game\API.lua
 Integrations\Map.lua
 Integrations\Rarity.lua
+Integrations\AchievementScan.lua
 Core\Init.lua
 UI\Frame.lua
 UI\Tooltip.lua

@@ -188,3 +188,68 @@ function Game.PlayerName()
   if type(name) == "string" and name ~= "" then return name end
   return nil
 end
+
+-- Achievements ------------------------------------------------------------------
+
+local MAX_CRITERIA = 100
+
+-- GetAchievementInfo(id): id, name, points, completed, month, day, year,
+-- description, flags, icon, rewardText, ... GetAchievementCriteriaInfo(id,
+-- i): criteriaString, criteriaType, completed, quantity, reqQuantity, ...
+-- -> { id=, name=, description=, completed=, numCriteria=, criteria = {
+-- { text=, completed=, quantity=, required= } } } (at most 100 criteria
+-- read; one that errors is left out), or nil when unknown.
+function Game.AchievementInfo(achievementID)
+  if not (GetAchievementInfo and achievementID) then return nil end
+  local good, id, name, _, completed, _, _, _, description = pcall(GetAchievementInfo, achievementID)
+  if not (good and id and type(name) == "string") then return nil end
+  local info = { id = id, name = name, description = description, completed = completed == true,
+    numCriteria = 0, criteria = {} }
+  local n = GetAchievementNumCriteria and tonumber(GetAchievementNumCriteria(achievementID)) or 0
+  info.numCriteria = n
+  if GetAchievementCriteriaInfo then
+    for i = 1, math.min(n, MAX_CRITERIA) do
+      local ok2, text, _, done, quantity, required = pcall(GetAchievementCriteriaInfo, achievementID, i)
+      if ok2 then
+        info.criteria[#info.criteria + 1] = { text = text, completed = done == true,
+          quantity = tonumber(quantity), required = tonumber(required) }
+      end
+    end
+  end
+  return info
+end
+
+-- Opens the achievement UI on `achievementID`: the bootstrap's
+-- ShowAchievementFrameForAchievement (12.x), else the older
+-- OpenAchievementFrameToAchievement, else load Blizzard_AchievementUI, show
+-- AchievementFrame and AchievementFrame_SelectAchievement. -> true when a call
+-- went through; errors are caught (Game.ReportError) and give false.
+function Game.OpenAchievement(achievementID)
+  if not achievementID then return false end
+  local function try(fn, ...)
+    local good, err = pcall(fn, ...)
+    if not good then Game.ReportError(err) end
+    return good
+  end
+  if type(ShowAchievementFrameForAchievement) == "function" then
+    return try(ShowAchievementFrameForAchievement, achievementID)
+  end
+  if type(OpenAchievementFrameToAchievement) == "function" then
+    return try(OpenAchievementFrameToAchievement, achievementID)
+  end
+  if not AchievementFrame then
+    local load = (C_AddOns and C_AddOns.LoadAddOn) or LoadAddOn
+    if type(load) == "function" then try(load, "Blizzard_AchievementUI") end
+  end
+  if not (AchievementFrame and type(AchievementFrame_SelectAchievement) == "function") then return false end
+  return try(function()
+    if not AchievementFrame:IsShown() then
+      if type(AchievementFrame_ToggleAchievementFrame) == "function" then
+        AchievementFrame_ToggleAchievementFrame()
+      else
+        ShowUIPanel(AchievementFrame)
+      end
+    end
+    AchievementFrame_SelectAchievement(achievementID)
+  end)
+end
