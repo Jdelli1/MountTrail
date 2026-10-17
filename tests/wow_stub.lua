@@ -100,3 +100,169 @@ function run_slash(addon, cmd, input)
   if type(handler) == "function" then return handler(input) end
   return addon[handler](addon, input)
 end
+
+-- Fake widgets for loading UI/ files (Task 12). Only what UI/Frame.lua calls;
+-- a missing method errors, as it would in game. Templates add nothing except
+-- the PortraitFrameTemplate methods Frame.lua uses (SetTitle,
+-- SetPortraitToAsset), which Retail's PortraitFrameMixin provides.
+-- Simplification: OnShow/OnHide fire only on the frame whose Show/Hide was
+-- called, not on its children.
+local Region = {}
+Region.__index = Region
+
+local function newRegion(kind, name, parent)
+  local r = setmetatable({ kind = kind, name = name, parent = parent, shown = true,
+    points = {}, scripts = {}, events = {}, children = {} }, Region)
+  if name then _G[name] = r end
+  if parent and parent.children then parent.children[#parent.children + 1] = r end
+  return r
+end
+
+function Region:GetName() return self.name end
+function Region:GetParent() return self.parent end
+function Region:SetSize(w, h) self.width, self.height = w, h end
+function Region:SetWidth(w) self.width = w end
+function Region:SetHeight(h) self.height = h end
+function Region:GetSize() return self.width, self.height end
+function Region:ClearAllPoints() self.points = {} end
+function Region:SetAllPoints(rel) self.points = { { "ALL", rel or self.parent } } end
+function Region:SetPoint(point, rel, relPoint, x, y)
+  if type(rel) == "number" or rel == nil then
+    x, y, rel, relPoint = rel, relPoint, nil, nil
+  end
+  for i = #self.points, 1, -1 do
+    if self.points[i][1] == point then table.remove(self.points, i) end
+  end
+  self.points[#self.points + 1] = { point, rel or self.parent, relPoint or point, x or 0, y or 0 }
+end
+function Region:GetNumPoints() return #self.points end
+function Region:GetPoint(i)
+  local p = self.points[i or 1]
+  if p then return p[1], p[2], p[3], p[4], p[5] end
+end
+function Region:IsShown() return self.shown end
+function Region:IsVisible()
+  if not self.shown then return false end
+  return self.parent == nil or self.parent:IsVisible()
+end
+function Region:Show()
+  if self.shown then return end
+  self.shown = true
+  if self:IsVisible() and self.scripts.OnShow then self.scripts.OnShow(self) end
+end
+function Region:Hide()
+  if not self.shown then return end
+  local was = self:IsVisible()
+  self.shown = false
+  if was and self.scripts.OnHide then self.scripts.OnHide(self) end
+end
+function Region:SetShown(show) if show then self:Show() else self:Hide() end end
+function Region:SetText(text) self.text = text end
+function Region:GetText() return self.text end
+function Region:SetTexture(tex) self.texture = tex end
+
+local Frame = setmetatable({}, { __index = Region })
+Frame.__index = Frame
+
+function Frame:SetScript(name, fn) self.scripts[name] = fn end
+function Frame:GetScript(name) return self.scripts[name] end
+function Frame:HookScript(name, fn)
+  local old = self.scripts[name]
+  self.scripts[name] = old and function(...) old(...); fn(...) end or fn
+end
+function Frame:RegisterEvent(event) self.events[event] = true end
+function Frame:UnregisterEvent(event) self.events[event] = nil end
+function Frame:EnableMouse(on) self.mouse = on end
+function Frame:SetMovable(on) self.movable = on end
+function Frame:IsMovable() return self.movable end
+function Frame:SetClampedToScreen(on) self.clamped = on end
+function Frame:SetToplevel(on) self.toplevel = on end
+function Frame:SetFrameStrata(strata) self.strata = strata end
+function Frame:RegisterForDrag(...) self.dragButtons = { ... } end
+function Frame:StartMoving()
+  if not self.movable then error("Frame:StartMoving: frame is not movable", 2) end
+  self.moving = true
+end
+function Frame:StopMovingOrSizing() self.moving = false end
+function Frame:SetUserPlaced(on) self.userPlaced = on end
+function Frame:SetID(id) self.id = id end
+function Frame:GetID() return self.id or 0 end
+function Frame:CreateFontString(name, layer, template)
+  local fs = newRegion("FontString", name, self)
+  fs.layer, fs.template = layer, template
+  return fs
+end
+function Frame:CreateTexture(name, layer)
+  local tex = newRegion("Texture", name, self)
+  tex.layer = layer
+  return tex
+end
+-- Fires a script handler as the client would (OnClick, OnDragStop, ...).
+function Frame:RunScript(name, ...)
+  local fn = self.scripts[name]
+  if fn then return fn(self, ...) end
+end
+
+local TEMPLATE_METHODS = {
+  PortraitFrameTemplate = {
+    SetTitle = function(self, title) self.title = title end,
+    SetPortraitToAsset = function(self, asset) self.portraitAsset = asset end,
+  },
+}
+
+UIParent = UIParent or setmetatable(newRegion("Frame", "UIParent"), Frame)
+UISpecialFrames = UISpecialFrames or {}
+local createdFrames = {}
+
+function CreateFrame(frameType, name, parent, template)
+  local f = setmetatable(newRegion(frameType, name, parent), Frame)
+  f.template = template
+  for tmpl in string.gmatch(template or "", "[^,%s]+") do
+    for k, fn in pairs(TEMPLATE_METHODS[tmpl] or {}) do f[k] = fn end
+  end
+  createdFrames[#createdFrames + 1] = f
+  return f
+end
+
+function PanelTemplates_SetNumTabs(frame, n) frame.numTabs = n end
+function PanelTemplates_SetTab(frame, id)
+  assert(frame.numTabs and id >= 1 and id <= frame.numTabs, "PanelTemplates_SetTab: bad tab id")
+  frame.selectedTab = id
+end
+
+local loggedIn = false
+function IsLoggedIn() return loggedIn end
+
+-- Fires `event` at every fake frame that registered it, then marks the player
+-- logged in when the event is PLAYER_LOGIN.
+function fire_frame_event(event, ...)
+  if event == "PLAYER_LOGIN" then loggedIn = true end
+  for _, f in ipairs(createdFrames) do
+    if f.events[event] and f.scripts.OnEvent then f.scripts.OnEvent(f, event, ...) end
+  end
+end
+
+-- Fake LibDataBroker-1.1 / LibDBIcon-1.0: record what the UI registers.
+fakeLibs["LibDataBroker-1.1"] = {
+  objects = {},
+  NewDataObject = function(self, name, obj)
+    if self.objects[name] then return nil end -- like LDB: names are unique
+    self.objects[name] = obj
+    return obj
+  end,
+}
+fakeLibs["LibDBIcon-1.0"] = {
+  registered = {},
+  Register = function(self, name, obj, db) self.registered[name] = { obj = obj, db = db } end,
+}
+
+-- Clears UI state between specs that load UI/ files more than once.
+function reset_ui_stub()
+  wipe(UISpecialFrames)
+  wipe(createdFrames)
+  wipe(fakeLibs["LibDataBroker-1.1"].objects)
+  wipe(fakeLibs["LibDBIcon-1.0"].registered)
+  loggedIn = false
+  AzerothTrailFrame = nil
+  for i = 1, 4 do _G["AzerothTrailFrameTab" .. i] = nil end
+end

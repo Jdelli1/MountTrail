@@ -25,3 +25,13 @@ L["/azt help - this list"] = "/azt help - this list"
 
 -- Map button
 L["No map location for %s"] = "No map location for %s"
+
+-- Main window and minimap button
+L["AzerothTrail"] = "AzerothTrail"
+L["Journal"] = "Journal"
+L["Holidays"] = "Holidays"
+L["Misc"] = "Misc"
+L["Route"] = "Route"
+L["Coming soon"] = "Coming soon"
+L["Left-click: open/close"] = "Left-click: open/close"
+L["Route: %d steps left"] = "Route: %d steps left"

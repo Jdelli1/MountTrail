@@ -22,3 +22,4 @@ Game\API.lua
 Integrations\Map.lua
 Integrations\Rarity.lua
 Core\Init.lua
+UI\Frame.lua
