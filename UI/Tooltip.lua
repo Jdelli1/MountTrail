@@ -1,8 +1,9 @@
 local ADDON, ns = ...
 
 -- Mount tooltip: the mount item's own tooltip (or name + flavor text when the
--- mount has no item), then approximate drop rate, times farmed (ours, plus
--- Rarity's when readable), this character's lockout state, for achievement
+-- mount has no item), then approximate drop rate, kills from the game's
+-- statistics (Logic/Stats.lua) or else times farmed (ours), Rarity's count
+-- when readable, this character's lockout state, for achievement
 -- mounts the achievement with its criteria, and the click hints.
 -- The text is built by pure helpers (UI.TooltipLines, UI.LockoutStatus) so it
 -- can be tested without a client; UI.ShowMountTooltip only paints GameTooltip.
@@ -38,8 +39,9 @@ function UI.LockoutStatus(mountID)
   return STATE_TO_STATUS[state]
 end
 
--- -> { name, ["~1 in N (approx.)"], "Times farmed: N", ["Rarity: N"],
---      "Lockout: <state>", "Ctrl-click to preview" }
+-- -> { name, ["~1 in N (approx.)"], "Kills: N (this character: M)" or
+--      "Times farmed: N", ["Rarity: N"], "Lockout: <state>",
+--      "Ctrl-click to preview" }
 function UI.TooltipLines(mountID)
   local m = mountData(mountID) or {}
   local name = ns.Game.MountInfo(mountID)
@@ -50,8 +52,12 @@ function UI.TooltipLines(mountID)
     lines[#lines + 1] = string.format(L["~1 in %d (approx.)"], n)
   end
 
-  local store = ns.db and ns.db.global and ns.db.global.attempts or {}
-  lines[#lines + 1] = string.format(L["Times farmed: %d"], ns.Attempts.Get(store, mountID))
+  -- Mounts with kill statistics show those (every character, and this one);
+  -- the rest, and those not read yet, show our attempt counter.
+  local global = ns.db and ns.db.global or {}
+  local kills = m.stats and ns.Stats and ns.Stats.Line(global.stats, mountID, ns.Game.CharKey()) or nil
+  lines[#lines + 1] = kills
+    or string.format(L["Times farmed: %d"], ns.Attempts.Get(global.attempts or {}, mountID))
 
   if m.item and ns.RarityBridge then
     local rarity = ns.RarityBridge.Attempts(m.item)

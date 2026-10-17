@@ -157,3 +157,15 @@ The mount -> achievement map is built in the background the first time an achiev
 - [ ] Other tabs: hovering a non-achievement mount (Journal, Misc, Holidays, Timewalking) shows no achievement lines and no Shift-right-click hint.
 - [ ] Factions: log in a Horde character, hover Pandaren Kite (Horde) on the Achievements tab: it shows the Horde Pandaren Ambassador achievement. Then an Alliance alt: the Alliance kite shows its own (Alliance) achievement after a fresh scan; `/dump AzerothTrailDB.global.achievementMap` keeps both faction entries.
 - [ ] Money / progress-bar criteria: hover a mount whose achievement has a progress bar (e.g. a gold or reputation-count achievement): the criterion shows the client's own text (with coin icons for money) instead of raw numbers.
+
+## F3: Kill statistics
+
+51 mounts carry the game's kill statistic IDs from Rarity (`stats = { ... }` in Data/Mounts.lua, e.g. `stats = { 1097 }` on Rivendare's Deathcharger). The game keeps these per character and counts kills from before the addon was installed, so for these mounts the tooltip shows them instead of our attempt counter. Saved as `AzerothTrailDB.global.stats["Name-Realm"][mountID] = kills`.
+
+- [ ] Login: `/reload` (out of combat), then `/dump AzerothTrailDB.global.stats`: an entry for this character (`Name-Realm`) with a number for each statistic mount, 0 for bosses this character never killed. Compare a few against the game's Statistics window (Achievements > Statistics > Dungeons & Raids), e.g. Rivendare's Deathcharger (Baron Rivendare kills, mount 69) and Ashes of Al'ar (Kael'thas kills, mount 183); a mount with several statistics (e.g. Mimiron's Head, 304, `stats = { 2869, 2883 }`) shows their sum (`/run print(GetStatistic(2869), GetStatistic(2883))`).
+- [ ] Hover a statistic mount (e.g. Journal > Classic > Rivendare's Deathcharger): `Kills: N` where `Times farmed` used to be (only this character has data). The `Rarity: N` line is still there when Rarity is installed; `Lockout:` and the hints unchanged.
+- [ ] Log in an alt, `/reload`, hover the same mount: `Kills: <sum over both> (this character: <alt's count>)`. A character with 0 kills still shows the split.
+- [ ] Hover a mount without statistics (e.g. a reputation or vendor mount, or a dungeon mount Rarity has no statistic for): still `Times farmed: N`.
+- [ ] Kill a statistic boss (e.g. Baron Rivendare in Stratholme): after the lockout update (`UPDATE_INSTANCE_INFO`, a few seconds after the kill) the tooltip's count goes up by one without `/reload`.
+- [ ] Combat: enter combat (training dummy), `/reload` while still in combat if possible, or kill a statistic boss and stay in combat: no statistics are read until combat ends (`/dump AzerothTrailDB.global.stats` unchanged), then they update. No "Interface action failed" or Lua errors naming AzerothTrail.
+- [ ] Note any statistic mount whose count looks wrong (e.g. counts a difficulty that cannot drop the mount, or misses one that can): that is Rarity's statistic list, reported per mount ID.

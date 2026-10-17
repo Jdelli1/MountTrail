@@ -307,6 +307,37 @@ describe("ui journal", function()
       })
     end)
 
+    it("shows kill statistics instead of the attempt counter for mounts with stats", function()
+      local ns = loadUI({ CharKey = function() return "Me-Realm" end },
+        { Mounts = { [40] = { name = "Stat Mount", item = 7777, stats = { 1, 2 } } } })
+      ns.db.global.attempts[40] = 2
+      ns.db.global.stats = { ["Me-Realm"] = { [40] = 3 }, ["Alt-Realm"] = { [40] = 4 } }
+      ns.RarityBridge.Attempts = function() return 11 end
+      eq(ns.UI.TooltipLines(40), {
+        "Stat Mount",
+        "Kills: 7 (this character: 3)",
+        "Rarity: 11",
+        "Lockout: —",
+        "Ctrl-click to preview",
+      })
+      ns.db.global.stats = { ["Me-Realm"] = { [40] = 3 } }
+      eq(ns.UI.TooltipLines(40)[2], "Kills: 3", "only this character has data")
+    end)
+
+    it("keeps the attempt counter for mounts with stats but no reading yet, and without stats", function()
+      local ns = loadUI({ CharKey = function() return "Me-Realm" end }, { Mounts = {
+        [40] = { name = "Stat Mount", stats = { 1 } },
+        [41] = { name = "Plain Mount" },
+      } })
+      ns.RarityBridge.Attempts = function() return nil end
+      ns.db.global.attempts[40], ns.db.global.attempts[41] = 2, 5
+      ns.db.global.stats = { ["Me-Realm"] = { [41] = 9 } } -- stale reading for a mount without stats
+      eq(ns.UI.TooltipLines(40)[2], "Times farmed: 2")
+      eq(ns.UI.TooltipLines(41)[2], "Times farmed: 5")
+      ns.db.global.stats = nil
+      eq(ns.UI.TooltipLines(40)[2], "Times farmed: 2", "no stats table at all")
+    end)
+
     it("shows Available and Manual states", function()
       local ns = loadUI(nil, {
         Mounts = { [30] = { name = "A", quest = 1, chance = 100 }, [31] = { name = "M" } },
