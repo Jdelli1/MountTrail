@@ -252,12 +252,10 @@ describe("ui journal", function()
       local labels = {}
       for i, l in ipairs(MISC_LABELS) do labels[i] = l end
       labels[#labels + 1] = "Show unobtainable mounts"
-      eq(ns.UI.FilterMenuItems("misc", f, { showUnobtainable = false }),
-        menu(false, "Categories", MISC, labels, { shop = true }))
-      eq(ns.UI.FilterMenuItems("misc", f, { showUnobtainable = true }),
-        menu(false, "Categories", MISC, labels, { shop = true }))
+      eq(ns.UI.FilterMenuItems("misc", f), menu(false, "Categories", MISC, labels, { shop = true }))
       ns.db.global.settings.showUnobtainable = true
-      eq(#ns.UI.FilterMenuItems("misc", {}), #menu(false, "", MISC, labels))
+      eq(ns.UI.FilterMenuItems("misc", f), menu(false, "Categories", MISC, labels, { shop = true }),
+        "the Options setting does not change the menu")
     end)
 
     it("Holidays: each holiday; Achievements: each expansion and General; Timewalking: Collected only", function()
@@ -311,12 +309,12 @@ describe("ui journal", function()
     it("Check all / Uncheck all set every section of the view and leave the rest alone", function()
       local ns = loadUI()
       local f = { collected = true, journal = { raid = false }, misc = { pvp = false } }
-      ns.UI.ApplyFilterAction(f, "uncheckAll", "misc", { showUnobtainable = false })
+      ns.UI.ApplyFilterAction(f, "uncheckAll", "misc")
       for _, key in ipairs(MISC) do eq(f.misc[key], false, key) end
       eq(f.misc.unobtainable, false, "Unobtainable is in the menu")
       eq(f.collected, true)
       eq(f.journal, { raid = false }, "other views untouched")
-      ns.UI.ApplyFilterAction(f, "checkAll", "misc", { showUnobtainable = false })
+      ns.UI.ApplyFilterAction(f, "checkAll", "misc")
       eq(f.misc, nil)
       ns.UI.ApplyFilterAction(f, "uncheckAll", "journal")
       for _, key in ipairs(SOURCES) do eq(f.journal[key], false, key) end
@@ -346,7 +344,7 @@ describe("ui journal", function()
       eq(ns.UI.FiltersAreDefault({}, "journal"), true, "an empty table reads as the defaults")
       -- Unobtainable is always in the Misc menu; a hidden key the menu does
       -- not show does not light the reset arrow.
-      eq(ns.UI.FiltersAreDefault({ misc = { unobtainable = false } }, "misc", { showUnobtainable = false }), false)
+      eq(ns.UI.FiltersAreDefault({ misc = { unobtainable = false } }, "misc"), false)
       eq(ns.UI.FiltersAreDefault({ misc = { mystery = false } }, "misc"), true, "keys outside the menu do not count")
     end)
   end)

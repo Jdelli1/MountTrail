@@ -727,7 +727,6 @@ describe("journal", function()
       local misc = { "profession", "shop", "tradingpost", "pvp", "racial", "keystone",
         "promotion", "class", "bmah", "collection", "other", "unobtainable" }
       eq(J.FilterSections("misc"), misc, "Unobtainable always: owned limited-time mounts are listed there")
-      eq(J.FilterSections("misc", { showUnobtainable = true }), misc)
       eq(J.FilterSections("holidays"), J.ViewSections("holidays"))
       eq(J.FilterSections("achievements", { expansions = EXPS }), J.ViewSections("achievements", EXPS))
       eq(J.FilterSections("timewalking"), {}, "Timewalking: Collected only")

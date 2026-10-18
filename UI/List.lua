@@ -699,18 +699,10 @@ function UI.FilterLabel(view, key)
   return string.format(L["Show %s"], UI.SectionLabel(key))
 end
 
--- opts for Journal.FilterSections: { expansions =, showUnobtainable = };
--- missing fields come from Data.Expansions and the Options setting.
-local function sectionOpts(opts)
-  opts = opts or {}
-  local showUnobtainable = opts.showUnobtainable
-  if showUnobtainable == nil then showUnobtainable = UI.ShowUnobtainable() end
-  return { expansions = opts.expansions, showUnobtainable = showUnobtainable }
-end
-
--- Section keys the Filter menu shows on `view`.
+-- Section keys the Filter menu shows on `view` (Journal.FilterSections;
+-- opts.expansions, else Data.Expansions, for Achievements).
 local function menuSections(view, opts)
-  return ns.Journal.FilterSections(view, sectionOpts(opts))
+  return ns.Journal.FilterSections(view, opts)
 end
 
 -- Whether filter `key` is on: "collected" only when true (default off); a
@@ -724,9 +716,8 @@ end
 -- "checkbox", key =, label =, checked = }, { kind = "divider" }, { kind =
 -- "title", label = }, { kind = "button", action = "checkAll" | "uncheckAll",
 -- label = } }: Collected, then (views with sections) the view's sections
--- with Check all / Uncheck all. opts (optional): { expansions =,
--- showUnobtainable = } as for Journal.FilterSections (defaults: the live
--- data and Options setting).
+-- with Check all / Uncheck all. opts (optional): { expansions = } as for
+-- Journal.FilterSections (default: Data.Expansions).
 function UI.FilterMenuItems(view, filters, opts)
   local items = {
     { kind = "checkbox", key = "collected", label = L["Collected"], checked = UI.FilterChecked(filters, "collected", view) },
@@ -1235,6 +1226,9 @@ end
 UI.InitMountRow = initRow
 UI.MOUNT_ROW_HEIGHT = ROW_HEIGHT
 
+-- Fallback panel checkbox; its label is one line kept inside the panel
+-- (long "Show ..." labels are cut, not run under the list).
+local FILTER_LABEL_WIDTH = FILTER_WIDTH - CHECK_SIZE - 10
 local function makeCheck(panel, label, onClick)
   local cb = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
   cb:SetSize(CHECK_SIZE, CHECK_SIZE)
@@ -1243,6 +1237,9 @@ local function makeCheck(panel, label, onClick)
     text = cb:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     text:SetPoint("LEFT", cb, "RIGHT", 2, 0)
   end
+  text:SetWidth(FILTER_LABEL_WIDTH)
+  text:SetWordWrap(false)
+  if text.SetJustifyH then text:SetJustifyH("LEFT") end
   text:SetText(label)
   cb.Label = text
   cb:SetScript("OnClick", onClick)
@@ -1331,42 +1328,59 @@ end
 -- the 11.x SetupMenu API), or nil when this client lacks either (callers
 -- fall back to checkboxes). Reusable by any view (the list, the checklist).
 -- opts: {
---   items = function() -> UI.FilterMenuItems-style list (read whenever the
---     menu opens; a checkbox's state is read live from it),
+--   items = function() -> UI.FilterMenuItems-style list (read when the
+--     menu is built and again after each change; the checkboxes' states
+--     come from that one read),
 --   onChange = function(kind, value): ("toggle", key) when a checkbox is
 --     clicked, ("action", action) for a button (the menu stays open),
 --   isDefault = function() -> bool and reset = function() (optional, both
 --     needed): the reset arrow next to the button while not at the defaults,
+--   fallbackName = string (optional): what replaces the dropdown on clients
+--     without it, for /azt debug (default "checkbox panel"),
 -- }
 function UI.CreateFilterDropdown(parent, opts)
+  local fallbackName = opts.fallbackName or "checkbox panel"
   local template = UI.Template("WowStyle1FilterDropdownTemplate", nil)
   if not template then return nil end
   local good, dropdown = pcall(CreateFrame, "DropdownButton", nil, parent, template)
   if not (good and type(dropdown) == "table") then
-    UI.RecordFallback("DropdownButton", "checkbox panel")
+    UI.RecordFallback("DropdownButton", fallbackName)
     return nil
   end
   if type(dropdown.SetupMenu) ~= "function" then
     dropdown:Hide()
-    UI.RecordFallback("DropdownButton:SetupMenu", "checkbox panel")
+    UI.RecordFallback("DropdownButton:SetupMenu", fallbackName)
     return nil
   end
   dropdown:SetSize(FILTER_BUTTON_WIDTH, FILTER_BUTTON_HEIGHT)
   if dropdown.Text and dropdown.Text.SetText then dropdown.Text:SetText(L["Filter"]) end
 
-  local function isChecked(key)
-    for _, item in ipairs(opts.items() or {}) do
-      if item.kind == "checkbox" and item.key == key then return item.checked == true end
+  -- key -> checked from the last items() read; nil = read again on demand
+  -- (after a change).
+  local checked
+  local function readItems()
+    local items = opts.items() or {}
+    checked = {}
+    for _, item in ipairs(items) do
+      if item.kind == "checkbox" then checked[item.key] = item.checked == true end
     end
-    return false
+    return items
+  end
+  local function isChecked(key)
+    if not checked then readItems() end
+    return checked[key] == true
+  end
+  local function changed(kind, value)
+    opts.onChange(kind, value)
+    checked = nil
   end
 
   dropdown:SetupMenu(function(_, root)
-    for _, item in ipairs(opts.items() or {}) do
+    for _, item in ipairs(readItems()) do
       if item.kind == "checkbox" then
         local key = item.key
         root:CreateCheckbox(item.label, function() return isChecked(key) end,
-          function() opts.onChange("toggle", key) end)
+          function() changed("toggle", key) end)
       elseif item.kind == "divider" then
         root:CreateDivider()
       elseif item.kind == "title" then
@@ -1374,7 +1388,7 @@ function UI.CreateFilterDropdown(parent, opts)
       elseif item.kind == "button" then
         local action = item.action
         root:CreateButton(item.label, function()
-          opts.onChange("action", action)
+          changed("action", action)
           -- Keep the menu open and redraw its checkboxes.
           return MenuResponse and MenuResponse.Refresh or nil
         end)
@@ -1385,7 +1399,10 @@ function UI.CreateFilterDropdown(parent, opts)
   if opts.isDefault and opts.reset and type(dropdown.SetDefaultCallback) == "function"
     and type(dropdown.SetIsDefaultCallback) == "function" then
     dropdown:SetIsDefaultCallback(opts.isDefault)
-    dropdown:SetDefaultCallback(opts.reset)
+    dropdown:SetDefaultCallback(function()
+      opts.reset()
+      checked = nil
+    end)
   end
   return dropdown
 end

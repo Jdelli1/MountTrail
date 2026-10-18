@@ -20,6 +20,7 @@ for _, name in ipairs({ "SetTexCoord", "SetJustifyH", "SetWordWrap", "SetDesatur
   RegionMT[name] = RegionMT[name] or noop
 end
 function RegionMT:SetFontObject(font) self.font = font end
+function RegionMT:SetWordWrap(on) self.wordWrap = on end
 function RegionMT:SetDesaturated(on) self.desaturated = on end
 function RegionMT:GetStringWidth() return 60 end
 function RegionMT:GetWidth() return self.width or 0 end
@@ -336,6 +337,12 @@ describe("ui build", function()
     ok(list.SectionsTitle:IsShown())
     eq(list.SectionChecks[2].filterKey, "shop")
     eq(list.SectionChecks[2].Label.text, "Show in-game shop mounts")
+    -- Labels stay inside the panel: fixed width, one line.
+    for _, cb in ipairs(list.SectionChecks) do
+      ok(cb.Label.width and cb.Label.width > 0 and cb.Label.width <= 150 - 24, "label width " .. cb.filterKey)
+      eq(cb.Label.wordWrap, false, "no wrap " .. cb.filterKey)
+    end
+    eq(list.CollectedCheck.Label.wordWrap, false)
     list.SectionChecks[2].checked = false
     list.SectionChecks[2]:RunScript("OnClick")
     eq(ns.db.global.filters.misc, { shop = false })
@@ -494,6 +501,50 @@ describe("ui build", function()
     local plain = ns.UI.CreateFilterDropdown(parent, { items = function() return {} end, onChange = function() end })
     ok(plain, "isDefault / reset are optional")
     eq(plain.defaultCallback, nil)
+
+    -- Checkbox states come from one items() call per menu build / change,
+    -- not one per checkbox.
+    local calls, shown = 0, { a = true, b = false, c = true }
+    local counted = ns.UI.CreateFilterDropdown(parent, {
+      items = function()
+        calls = calls + 1
+        local out = {}
+        for _, k in ipairs({ "a", "b", "c" }) do
+          out[#out + 1] = { kind = "checkbox", key = k, label = k, checked = shown[k] }
+        end
+        return out
+      end,
+      onChange = function(_, key) shown[key] = not shown[key] end,
+      isDefault = function() return true end,
+      reset = function() shown.a, shown.b, shown.c = true, true, true end,
+    })
+    local menu = openMenu(counted)
+    eq(calls, 1, "the menu build reads items() once")
+    eq({ menu[1].isSelected(), menu[2].isSelected(), menu[3].isSelected() }, { true, false, true })
+    eq(calls, 1, "checkbox states from the same read")
+    menu[2].setSelected()
+    eq({ menu[1].isSelected(), menu[2].isSelected(), menu[3].isSelected() }, { true, true, true })
+    eq(calls, 2, "one fresh read after a change")
+    shown.a = false
+    counted.defaultCallback()
+    eq(menu[1].isSelected(), true, "reset refreshes the states too")
+    eq(calls, 3)
+
+    -- opts.fallbackName: what /azt debug says replaces the dropdown
+    -- (default "checkbox panel").
+    local saved = STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate
+    local function noSetup(name)
+      ns.UI.TemplateFallbacks["DropdownButton:SetupMenu"] = nil
+      STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate = nil
+      local good, dd = pcall(ns.UI.CreateFilterDropdown, parent, { items = function() return {} end,
+        onChange = function() end, fallbackName = name })
+      STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate = saved
+      assert(good, dd)
+      eq(dd, nil)
+      return ns.UI.TemplateFallbacks["DropdownButton:SetupMenu"]
+    end
+    eq(noSetup("no checklist filter"), "no checklist filter")
+    eq(noSetup(nil), "checkbox panel")
 
     STUB_TEMPLATES.WowStyle1FilterDropdownTemplate = nil
     eq(ns.UI.CreateFilterDropdown(parent, { items = function() return {} end, onChange = function() end }), nil,
