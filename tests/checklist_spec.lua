@@ -303,6 +303,18 @@ describe("Checklist.Rows", function()
     }))
   end
 
+  local function shape(rows)
+    local out = {}
+    for _, r in ipairs(rows) do
+      if r.header then
+        out[#out + 1] = r.key .. " (" .. r.owned .. "/" .. r.total .. ")" .. (r.collapsed and " +" or "")
+      else
+        out[#out + 1] = tostring(r.entry.key) .. "@" .. tostring(r.depth)
+      end
+    end
+    return out
+  end
+
   it("emits a header per non-empty reset group (daily first) with done/total and the entries left to do", function()
     local rows = load().Rows(built(), { label = function(reset) return "L:" .. reset end })
     eq(rows[1].header, true)
@@ -313,13 +325,42 @@ describe("Checklist.Rows", function()
     eq(rows[1].owned, 1, "done count (UI.HeaderText reads owned/total)")
     eq(rows[1].total, 3)
     eq(rows[1].collapsed, false)
-    eq(rows[2].id, 2)
-    eq(rows[2].entry.key, 2)
-    eq(rows[3].id, 1)
-    eq(rows[4].key, "checklist|weekly", "the done entry (9) is not listed")
-    eq(rows[4].owned, 0)
-    eq(rows[4].total, 4)
-    eq(#rows, 8)
+    eq(rows[3].id, 2)
+    eq(rows[3].entry.key, 2)
+    eq(rows[4].id, 1)
+    eq(rows[5].key, "checklist|weekly", "the done entry (9) is not listed")
+    eq(rows[5].owned, 0)
+    eq(rows[5].total, 4)
+    eq(#rows, 11)
+  end)
+
+  it("splits each reset group into expansion sub-headers (Data.Expansions order) with done/total", function()
+    local rows = load().Rows(built())
+    eq(shape(rows), {
+      "checklist|daily (1/3)",
+      -- Classic holds only the done Ram: no shown entry, no sub-header.
+      "checklist|daily|Cataclysm (0/2)", "2@2", "1@2",
+      "checklist|weekly (0/4)",
+      "checklist|weekly|Classic (0/2)", "12@2", "8@2",
+      "checklist|weekly|Wrath of the Lich King (0/2)", "3@2", "3@Koralon@2",
+    })
+    local sub = rows[2]
+    eq(sub.header, true)
+    eq(sub.depth, 2)
+    eq(sub.reset, "daily")
+    eq(sub.exp, "Cataclysm")
+    eq(sub.text, "Cataclysm")
+    eq(sub.collapsed, false)
+  end)
+
+  it("sub-header counts include done entries of that expansion", function()
+    local rows = load().Rows(load().Build(ctxFor({
+      stateOf = function(id) return id == 12 and "manual-done" or "open" end,
+    })))
+    local classic
+    for _, r in ipairs(rows) do if r.key == "checklist|weekly|Classic" then classic = r end end
+    eq(classic.owned, 1)
+    eq(classic.total, 2)
   end)
 
   it("hides a collapsed group's entries but keeps its header and counts", function()
@@ -327,24 +368,67 @@ describe("Checklist.Rows", function()
     eq(rows[1].collapsed, true)
     eq(rows[1].total, 3)
     eq(rows[2].key, "checklist|weekly")
-    eq(#rows, 6)
+    eq(#rows, 8)
+  end)
+
+  it("a collapsed sub-header hides only its own entries", function()
+    local rows = load().Rows(built(), { collapsed = { ["checklist|weekly|Classic"] = true } })
+    eq(shape(rows), {
+      "checklist|daily (1/3)",
+      "checklist|daily|Cataclysm (0/2)", "2@2", "1@2",
+      "checklist|weekly (0/4)",
+      "checklist|weekly|Classic (0/2) +",
+      "checklist|weekly|Wrath of the Lich King (0/2)", "3@2", "3@Koralon@2",
+    })
   end)
 
   it("done entries disappear on their own; the header still counts them", function()
     local rows = load().Rows(built())
     eq(rows[1].owned, 1)
     eq(rows[1].total, 3)
-    eq(rows[2].id, 2)
-    eq(rows[3].id, 1)
-    eq(rows[4].key, "checklist|weekly")
+    eq(rows[3].id, 2)
+    eq(rows[4].id, 1)
+    eq(rows[5].key, "checklist|weekly")
   end)
 
-  it("leaves out empty groups; the default label is the reset kind", function()
+  it("unknown expansions sort after known ones (by name), a missing one last as Other", function()
+    local entry = function(id, exp, rank) return { id = id, key = id, done = false, exp = exp, expRank = rank } end
+    local rows = load().Rows({ daily = {}, weekly = {
+      entry(1, nil, 9), entry(2, "Zeta", 9), entry(3, "Legion", 2), entry(4, "Alpha", 9),
+    } })
+    eq(shape(rows), {
+      "checklist|weekly (0/4)",
+      "checklist|weekly|Legion (0/1)", "3@2",
+      "checklist|weekly|Alpha (0/1)", "4@2",
+      "checklist|weekly|Zeta (0/1)", "2@2",
+      "checklist|weekly|Other (0/1)", "1@2",
+    })
+    eq(rows[#rows - 1].text, "Other")
+  end)
+
+  it("stays flat when Other is the only expansion (as the list sections do)", function()
     local rows = load().Rows({ daily = {}, weekly = { { id = 1, key = 1, done = false } } })
     eq(#rows, 2)
     eq(rows[1].key, "checklist|weekly")
     eq(rows[1].text, "Weekly")
+    eq(rows[2].id, 1)
+    eq(rows[2].depth, nil)
     eq(load().Rows({ daily = {}, weekly = {} }), {})
+  end)
+
+  it("Build records each entry's expansion: the spec's exp, else the mount's", function()
+    local out = load().Build(ctxFor({
+      bossLockouts = BOSS_SPECS,
+      specFor = function(id, boss)
+        if boss == "Koralon" then return { instance = 2, boss = "Koralon", difficulties = { 3, 4 },
+          reset = "weekly", exp = "Classic" } end
+        return SPECS[id]
+      end,
+    }))
+    local byKey = {}
+    for _, e in ipairs(out.weekly) do byKey[e.key] = e end
+    eq(byKey[3].exp, "Wrath of the Lich King")
+    eq(byKey["3@Koralon"].exp, "Classic")
   end)
 
   it("counts the entries left to do", function()

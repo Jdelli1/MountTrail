@@ -4,7 +4,9 @@ local ADDON, ns = ...
 -- this character's daily and weekly lockouts (Logic/Checklist.lua) under
 -- two collapsible headers ("Daily · resets in ..." with done/total, F4's
 -- header rows, collapse state in ns.db.global.collapsed under
--- "checklist|daily" / "checklist|weekly"). Rows look like the mount lists
+-- "checklist|daily" / "checklist|weekly"), each split into collapsible
+-- expansion sub-headers ("checklist|daily|<exp>", done/total, Checklist.Rows;
+-- rows under them indented like the lists'). Rows look like the mount lists
 -- (UI.InitMountRow: icon, name, grey "boss · instance" line, pin; click =
 -- waypoint, hover = tooltip). Only lockouts the game can't report get a
 -- tick box in front of the icon, working like the route's (UI.RouteCheck /
@@ -195,7 +197,9 @@ end
 local CHECK_SIZE = 22
 local CHECK_LEFT = 6
 local ICON_LEFT = CHECK_LEFT + CHECK_SIZE + 4
+local SUB_OFFSET = 16 -- under an expansion sub-header (UI/List.lua: sub-header indicator 22 vs 6)
 local HEADER_HEIGHT = 24 -- UI/List.lua section headers
+local SUB_HEADER_HEIGHT = 20 -- UI/List.lua sub-headers
 
 local view = {}
 UI.ChecklistView = view
@@ -235,12 +239,15 @@ local function initRow(row, data)
     local check = CreateFrame("CheckButton", nil, row,
       UI.TemplateChain("MinimalCheckboxTemplate", "SettingsCheckboxTemplate", "UICheckButtonTemplate"))
     check:SetSize(CHECK_SIZE, CHECK_SIZE)
-    check:SetPoint("LEFT", row, "LEFT", CHECK_LEFT, 0)
     check:SetScript("OnClick", onTick)
     row.Check = check
   end
   row.entry = data.entry
-  row.Icon:SetPoint("LEFT", row, "LEFT", ICON_LEFT, 0)
+  -- Recycled rows: re-anchor for this row's depth (indented under a sub-header).
+  local inset = data.depth == 2 and SUB_OFFSET or 0
+  row.Check:ClearAllPoints()
+  row.Check:SetPoint("LEFT", row, "LEFT", CHECK_LEFT + inset, 0)
+  row.Icon:SetPoint("LEFT", row, "LEFT", ICON_LEFT + inset, 0)
   local checked, enabled = UI.ChecklistCheck(data.entry)
   row.Check:SetChecked(checked and true or false)
   row.Check:SetEnabled(enabled and true or false)
@@ -283,7 +290,7 @@ function view.Build(parent, top)
 
   local listView = CreateScrollBoxListLinearView()
   listView:SetElementExtentCalculator(function(_, row)
-    if row.header then return HEADER_HEIGHT end
+    if row.header then return row.depth == 2 and SUB_HEADER_HEIGHT or HEADER_HEIGHT end
     return UI.MOUNT_ROW_HEIGHT
   end)
   listView:SetElementFactory(function(factory, row)

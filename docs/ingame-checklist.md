@@ -364,3 +364,12 @@ Options > AddOns > AzerothTrail has a `Show unobtainable mounts` checkbox (off b
 - [ ] Journal home tile and summary numbers are the same with the option on and off.
 - [ ] Hover and click an Unobtainable row: tooltip and waypoint (when it has a location) work as on other rows; collapse the header and `/reload`: it stays collapsed.
 - [ ] `/reload`: the checkbox keeps its state.
+
+## F12: Checklist by expansion, boss-aware hover, data fixes
+
+Route tab > Checklist: Daily and Weekly are each split into collapsible expansion sub-headers (Data.Expansions order; an expansion the data does not know after them; mounts without an expansion last as `Other`). Each sub-header reads `<expansion>  (done/total)`; the Daily / Weekly headers still count the whole reset group. A sub-header whose lockouts are all done is left out (its entries disappear as before); a group whose only expansion would be `Other` stays flat. Collapse state is saved under `checklist|daily|<expansion>` / `checklist|weekly|<expansion>`.
+
+- [ ] Checklist: under Daily and Weekly, expansion sub-headers in expansion order (Classic first, Midnight last), smaller and indented like the Journal's sub-headers; rows under them are indented (tick box and icon) by the same step.
+- [ ] Sub-header counts: e.g. Weekly > Wrath of the Lich King `(1/7)` after one Wrath kill; the Weekly header's own count is unchanged from before F12 (the sum over its sub-headers).
+- [ ] Collapse one sub-header (e.g. Weekly > Cataclysm), `/reload`: it stays collapsed, the others stay open; collapsing Weekly still hides everything under it.
+- [ ] Finish every lockout of one expansion: its sub-header disappears; the reset header still counts those lockouts as done.

@@ -114,7 +114,8 @@ end
 -- -> { daily = { entry }, weekly = { entry } }; entry = { id= (first member),
 -- m=, boss=, title= (route node), holiday= (key), key= (first member's tick
 -- key), spec=, reset=, state=, done=, auto= (done by the game), locked=,
--- lockedText=, name=, mounts= { member ids, data order }, names= { their
+-- lockedText=, name=, exp= (the spec's `exp`, else the first member's;
+-- nil when unknown), expRank=, mounts= { member ids, data order }, names= { their
 -- display names }, grouped= (#mounts > 1) }. A grouped entry's name is its
 -- boss (route boss, else the spec's boss, else the holiday's title, else the
 -- first mount's name). A spec without a reset files under daily (as hand
@@ -166,6 +167,8 @@ function Checklist.Build(ctx)
     local locked = (req and not (ctx.isQuestDone and ctx.isQuestDone(req.quest))) and true or false
     local reset = spec.reset == "weekly" and "weekly" or "daily"
     local list = out[reset]
+    -- The lockout's expansion: a per-boss spec's own `exp`, else the mount's.
+    local exp = spec.exp or m.exp
     local entry = {
       id = id, m = m, boss = boss, title = title, holiday = holiday, key = key,
       spec = spec, reset = reset, state = state,
@@ -173,7 +176,7 @@ function Checklist.Build(ctx)
       auto = state == "done",
       locked = locked, lockedText = locked and req.text or nil,
       name = name, order = order,
-      expRank = rank[spec.exp] or rank[m.exp] or unknownRank,
+      exp = exp, expRank = rank[exp] or unknownRank,
       mounts = { id }, names = { name }, grouped = false,
     }
     list[#list + 1] = entry
@@ -227,14 +230,52 @@ end
 -- then weekly) a header { header = true, depth = 1, key = "checklist|<reset>",
 -- reset =, text = opts.label(reset) (default "Daily" / "Weekly"), owned =
 -- done count, total =, collapsed = } (owned / total as UI.HeaderText reads
--- them), then unless collapsed its entries still to do as { id=, m=, entry=,
--- done= } (entries already sorted). Done entries are never listed: they
--- disappear on their own, while the header counts span the whole group.
+-- them), then unless collapsed one expansion sub-header per expansion with
+-- an entry still to do (F4's sub-header rows): { header = true, depth = 2,
+-- key = "checklist|<reset>|<exp>", reset =, exp =, text = the expansion,
+-- owned = done, total =, collapsed = }, in expansion order (entry.expRank:
+-- Data.Expansions order, unknown ones after by name, entries without an
+-- expansion last as "Other"), then unless collapsed its entries still to do
+-- as { id=, m=, entry=, done=, depth = 2 } (entries already sorted). Done
+-- entries are never listed: they disappear on their own, while the header
+-- counts span the whole group. A group whose only expansion is "Other" stays
+-- flat (no sub-header, entries at depth nil), as the list sections do.
 -- opts.collapsed = { [key] = true }.
+local OTHER = "Other"
+
+local function expGroups(list)
+  local groups, byKey = {}, {}
+  for _, e in ipairs(list) do
+    local exp = e.exp
+    local gkey = exp or OTHER
+    local group = byKey[gkey]
+    if not group then
+      group = { key = gkey, exp = exp, rank = e.expRank or math.huge, entries = {}, done = 0, open = 0 }
+      byKey[gkey] = group
+      groups[#groups + 1] = group
+    end
+    group.entries[#group.entries + 1] = e
+    if e.done then group.done = group.done + 1 else group.open = group.open + 1 end
+  end
+  table.sort(groups, function(a, b)
+    if (a.exp == nil) ~= (b.exp == nil) then return b.exp == nil end
+    if a.rank ~= b.rank then return a.rank < b.rank end
+    return string.lower(a.key) < string.lower(b.key)
+  end)
+  return groups
+end
+
 function Checklist.Rows(built, opts)
   opts = opts or {}
   local collapsed = opts.collapsed or {}
   local rows = {}
+  local function addEntries(entries, depth)
+    for _, e in ipairs(entries) do
+      if not e.done then
+        rows[#rows + 1] = { id = e.id, m = e.m, entry = e, done = e.done, depth = depth }
+      end
+    end
+  end
   for _, reset in ipairs(RESETS) do
     local list = (built and built[reset]) or {}
     if #list > 0 then
@@ -248,9 +289,22 @@ function Checklist.Rows(built, opts)
         owned = done, total = #list, collapsed = isCollapsed,
       }
       if not isCollapsed then
-        for _, e in ipairs(list) do
-          if not e.done then
-            rows[#rows + 1] = { id = e.id, m = e.m, entry = e, done = e.done }
+        local shown = {}
+        for _, group in ipairs(expGroups(list)) do
+          if group.open > 0 then shown[#shown + 1] = group end
+        end
+        if #shown == 1 and shown[1].exp == nil then
+          addEntries(shown[1].entries, nil)
+        else
+          for _, group in ipairs(shown) do
+            local gkey = key .. "|" .. group.key
+            local gCollapsed = collapsed[gkey] == true
+            rows[#rows + 1] = {
+              header = true, depth = 2, key = gkey, reset = reset, exp = group.exp,
+              text = L[group.key], owned = group.done, total = #group.entries,
+              collapsed = gCollapsed,
+            }
+            if not gCollapsed then addEntries(group.entries, 2) end
           end
         end
       end

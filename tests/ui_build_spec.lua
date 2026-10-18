@@ -1021,15 +1021,24 @@ describe("ui build", function()
     ok(frames[1].Label:GetText():find("^Daily \194\183 resets in "), frames[1].Label:GetText())
     ok(frames[1].Label:GetText():find("(0/" .. rows[1].total .. ")", 1, true), "done/total")
     local weekly
-    for i, row in ipairs(rows) do if row.header and row.reset == "weekly" then weekly = i end end
+    for i, row in ipairs(rows) do if row.header and row.depth == 1 and row.reset == "weekly" then weekly = i end end
     ok(weekly and weekly > 2, "weekly header after the daily rows")
+
+    -- F12: the daily group opens with an expansion sub-header (smaller, indented).
+    eq(rows[2].header, true)
+    eq(rows[2].depth, 2)
+    ok(rows[2].key:find("^checklist|daily|"), rows[2].key)
+    eq(box.view.extent(1, rows[2]), 20, "sub-header height")
+    ok(frames[2].Label:GetText():find("(0/" .. rows[2].total .. ")", 1, true), "sub-header done/total")
 
     -- A row: list look, pin, click, hover. A game-tracked lockout has no
     -- tick box (the game decides); the icon keeps its place either way.
-    local f, row = frames[2], rows[2]
+    local f, row = frames[3], rows[3]
     ok(not row.entry.spec.manual, "the first daily entry is game-tracked")
+    eq(row.depth, 2, "under its expansion sub-header")
     eq(f.Check:IsShown(), false, "no tick box on a game-tracked lockout")
-    eq({ f.Icon:GetPoint(1) }, { "LEFT", f, "LEFT", 6 + 22 + 4, 0 }, "icon after the tick-box column")
+    eq({ f.Icon:GetPoint(1) }, { "LEFT", f, "LEFT", 6 + 22 + 4 + 16, 0 }, "icon after the tick-box column, indented")
+    eq({ f.Check:GetPoint(1) }, { "LEFT", f, "LEFT", 6 + 16, 0 }, "tick-box column indented")
     eq(f.Pin:IsShown(), row.id % 2 == 0)
     ok(f.Source:GetText() ~= "", "grey description line")
     f:RunScript("OnClick", "LeftButton")
