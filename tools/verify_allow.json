@@ -1,5 +1,5 @@
 {
-  "_comment": "Findings of tools/verify_data.py accepted as legitimate. Keys: route '<mount>@<route boss>', identity '<mount>', lockout '<mount>' or 'boss:<route boss>'. Every reason must cite DB2 evidence (Mount.db2 SourceText, DungeonEncounter, ...).",
+  "_comment": "Findings of tools/verify_data.py accepted as legitimate. Keys: route '<mount>@<route boss>', identity '<mount>', lockout '<mount>' or 'boss:<route boss>', completeness / source / rares '<mount>'. Every reason must cite DB2 evidence (Mount.db2 SourceText, DungeonEncounter, ...).",
   "route": {
     "117@Trash": "Mount.db2 SourceText: 'Drop: World Drop; Location: Temple of Ahn'Qiraj' (trash drop, no encounter)",
     "118@Trash": "Mount.db2 SourceText: 'Drop: World Drop; Location: Temple of Ahn'Qiraj' (trash drop, no encounter)",
@@ -10,5 +10,20 @@
   },
   "lockout": {
     "419": "Mount.db2 SourceText: 'Drop: Kasha's Bag' (timed-run bag); the spec tracks the daily heroic lockout via Daakara on purpose"
+  },
+  "rares": {
+    "838": "Mount.db2 SourceText 'Drop: Kosumoth the Hungering' (no zone); SimpleArmory group 'Riddle': a world-quest boss unlocked by a hidden chain, not a rare spawn",
+    "931": "Mount.db2 SourceText 'Drop: Lord Hel'Nurath; Zone: Broken Shore'; SimpleArmory group 'Class Hall': the warlock Class Hall summon, not a rare spawn",
+    "1315": "Mount.db2 SourceText 'Drop: Mail Muncher; Zone: Horrific Visions': inside the Horrific Visions scenario (SimpleArmory 'Visions'), not a world rare",
+    "2496": "Mount.db2 SourceText 'Zone: Vision of Stormwind (Revisited)': inside the Visions Revisited scenario, not a world rare",
+    "2497": "Mount.db2 SourceText 'Zone: Vision of Stormwind (Revisited)': inside the Visions Revisited scenario, not a world rare",
+    "2498": "Mount.db2 SourceText 'Zone: Vision of Orgrimmar (Revisited)': inside the Visions Revisited scenario, not a world rare",
+    "2499": "Mount.db2 SourceText 'Zone: Vision of Orgrimmar (Revisited)': inside the Visions Revisited scenario, not a world rare"
+  },
+  "source": {
+    "237": "Mount.db2 SourceText 'Drop: Hyldnir Spoils' (the Storm Peaks daily-quest reward bag): SimpleArmory's 'Quest' fits",
+    "1438": "Mount.db2 SourceText 'Drop: Oozing Necroray Egg' (a Maldraxxus calling reward): SimpleArmory's 'Maldraxxus Callings' quest fits",
+    "1439": "Mount.db2 SourceText 'Drop: Oozing Necroray Egg' (a Maldraxxus calling reward): SimpleArmory's 'Maldraxxus Callings' quest fits",
+    "1440": "Mount.db2 SourceText 'Drop: Oozing Necroray Egg' (a Maldraxxus calling reward): SimpleArmory's 'Maldraxxus Callings' quest fits"
   }
 }

@@ -1181,7 +1181,7 @@ ns.Data.Mounts = {
   [2116] = { name = "Remembered Golden Gryphon", spell = 441324, item = 217985, icon = "ability_mount_goldengryphon", exp = "The War Within", tab = "journal", section = "quest", group = "Pre-Launch Event", faction = "Alliance", unobtainable = true },
   [2117] = { name = "Remembered Wind Rider", spell = 441325, item = 217987, icon = "ability_mount_tawnywindrider", exp = "The War Within", tab = "journal", section = "quest", group = "Pre-Launch Event", faction = "Horde", unobtainable = true },
   [2118] = { name = "Amber Pterrordax", spell = 441794, item = 218111, icon = "ability_mount_pterodactylmount", tab = "misc", section = "unobtainable", group = "Remix: Pandaria", unobtainable = true },
-  [2119] = { name = "Stonevault Mechsuit", spell = 442358, item = 221765, icon = "inv_dwarvenmechboss", exp = "The War Within", tab = "journal", section = "dungeon", group = "Dungeon Drop" },
+  [2119] = { name = "Stonevault Mechsuit", spell = 442358, item = 221765, icon = "inv_dwarvenmechboss", exp = "The War Within", tab = "journal", section = "quest", group = "Dungeon Drop" },
   [2140] = { name = "Charming Courier", spell = 443660, item = 219450, icon = "inv_owldragonmount", tab = "misc", section = "shop", group = "Blizzard Store" },
   [2142] = { name = "August Phoenix", spell = 446017, item = 220766, icon = "ability_mount_pandarenphoenix_white", tab = "misc", section = "unobtainable", group = "Remix: Pandaria", unobtainable = true },
   [2143] = { name = "Astral Emperor's Serpent", spell = 446022, item = 220768, icon = "inv_celestialserpentmount_gold", tab = "misc", section = "unobtainable", group = "Remix: Pandaria", unobtainable = true },

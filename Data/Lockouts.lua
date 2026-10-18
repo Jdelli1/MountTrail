@@ -9,6 +9,13 @@
 --     10-player kill AND a 25-player kill (separate lockouts).
 --   { quest=<questID>, reset=... }   { lfg=<LFG dungeonID>, reset="daily" }   { manual=true, reset=... }
 --   any spec may add requires={ quest=<questID>, text="<unlock needed>" }
+--   { camp=true, zone="<Zone>" }: a rare spawn with no known kill flag and no
+--     reset (long-respawn rares: owner ruling). No reset, no tick, never "done",
+--     no attempts: the checklist lists it under "Rare spawns (no lockout)" by
+--     expansion and zone until the mount is owned, with a box recording when
+--     the player last checked the spawn. `zone` is a Zone / Location of the
+--     mount's Mount.db2 SourceText (tools/verify_data.py check 7); omitted when
+--     the source text names none.
 --   repeatable=true: no lockout at all (run as often as you like): a route
 --   step, never a daily / weekly checklist entry
 -- Mounts with a Rarity quest flag (Data/Mounts.lua `quest`) and no entry here are
@@ -90,6 +97,14 @@ ns.Data.Lockouts = {
   [559] = { instance = 1136, boss = "Garrosh Hellscream", difficulties = { 16 }, reset = "weekly" }, -- Kor'kron Juggernaut, Mythic only
 
   -- Warlords of Draenor (Rukhmar uses its Rarity quest) ----------------------
+  -- Tanaan Jungle: Mount.db2 SourceText "Drop: Vengeance, Deathtalon, Terrorfist,
+  -- Doomroller; Zone: Tanaan Jungle" for all three. Four rares, each its own daily
+  -- kill (Rarity: questId { 39287, 39288, 39289, 39290 }, one per rare); the
+  -- generated `quest` keeps only Deathtalon's 39287, which would tick (and merge)
+  -- all three on one kill of four. One row per mount, ticked by hand.
+  [611] = { manual = true, reset = "daily" }, -- Tundra Icehoof: four Tanaan rares, no single kill flag -- hand tick
+  [622] = { manual = true, reset = "daily" }, -- Armored Razorback: four Tanaan rares, no single kill flag -- hand tick
+  [643] = { manual = true, reset = "daily" }, -- Warsong Direfang: four Tanaan rares, no single kill flag -- hand tick
   [751] = { instance = 1448, boss = "Archimonde", difficulties = { 16 }, reset = "weekly" }, -- Felsteel Annihilator, Mythic only
   [613] = { instance = 1205, boss = "Blackhand", difficulties = { 16 }, reset = "weekly" }, -- Ironhoof Destroyer, Mythic only
 
@@ -118,6 +133,13 @@ ns.Data.Lockouts = {
   [1293] = { instance = 2217, boss = "N'Zoth the Corruptor", difficulties = { 16 }, reset = "weekly" }, -- Ny'alotha Allseer, Mythic only
 
   -- Shadowlands --------------------------------------------------------------
+  -- Covenant rares SimpleArmory files under a covenant vendor group: Mount.db2
+  -- SourceText names the rare ("Drop: <rare>; Covenant: ...; Zone: ..."), so their
+  -- Rarity kill flag resets daily like every rare spawn, under Rares
+  -- (tools/verify_data.py check 7, rare-quest-not-daily).
+  [1310] = { quest = 59612, reset = "daily", category = "rares" }, -- Horrid Dredwing: Drop: Harika the Horrid, Revendreth
+  [1370] = { quest = 58784, reset = "daily", category = "rares" }, -- Armored Bonehoof Tauralus: Drop: Sabriel the Bonecleaver, Maldraxxus
+  [1393] = { quest = 61632, reset = "daily", category = "rares" }, -- Wild Glimmerfur Prowler: Drop: Valfir the Unrelenting, Ardenweald
   [1406] = { instance = 2286, boss = "Nalthor the Rimebinder", difficulties = { 23 }, reset = "weekly" }, -- Marrowfang, Necrotic Wake Mythic
   [1481] = { instance = 2441, boss = "So'leah", difficulties = { 23 }, reset = "weekly" }, -- Cartel Master's Gearglider; Heroic is repeatable (not saved), Mythic is the lockout
   [1500] = { instance = 2450, boss = "The Nine", difficulties = { 14, 15, 16 }, reset = "weekly" }, -- LFR untracked; Sanctum Gloomcharger
@@ -153,6 +175,61 @@ ns.Data.Lockouts = {
   [3058] = { instance = 2993, boss = "Zul'jan", difficulties = { 23 }, reset = "weekly" },
   -- Primeval Skyfriend: JournalInstance 1320 The Venomous Abyss (MapID 3004, LfgDungeons TypeID 2 raid, 14/15/16), DungeonEncounter 3492 "Ula'tek", item 275658 -- difficulty: verify in game
   [3030] = { instance = 3004, boss = "Ula'tek", difficulties = { 16 }, reset = "weekly" },
+
+  -- Rare spawns with no known kill flag (camp specs) ------------------------
+  -- Mount.db2 SourceText "Drop: <creature>" (tools/verify_data.py check 7, build
+  -- 12.1.5.70448), not Encounter Journal loot, no Rarity quest: no daily lockout
+  -- (owner: long-respawn rares). zone = the source text's Zone / Location.
+  -- Wrath of the Lich King
+  [265] = { camp = true, zone = "The Storm Peaks" }, -- Time-Lost Proto-Drake: Drop: Time-Lost Proto-Drake
+  -- Cataclysm
+  [393] = { camp = true, zone = "Deepholm" }, -- Phosphorescent Stone Drake: Drop: Aeonaxx
+  [400] = { camp = true, zone = "Feralas" }, -- Grey Riding Camel: Drop: Dormus the Camel-Hoarder
+  [420] = { camp = true, zone = "Vashj'ir" }, -- Subdued Seahorse: Drop: Poseidus
+  -- Mists of Pandaria
+  [517] = { camp = true, zone = "Vale of Eternal Blossoms" }, -- Thundering Ruby Cloud Serpent: Drop: Alani
+  [534] = { camp = true, zone = "Dread Wastes, Kun-Lai Summit, Townlong Steppes, Valley of the Four Winds" }, -- Amber Primordial Direhorn: Drop: Zandalari Warbringer
+  [535] = { camp = true, zone = "Dread Wastes, Krasarang Wilds, Kun-Lai Summit, Townlong Steppes, Valley of the Four Winds" }, -- Slate Primordial Direhorn: Drop: Zandalari Warbringer
+  [536] = { camp = true, zone = "Dread Wastes, Kun-Lai Summit, Townlong Steppes, Valley of the Four Winds" }, -- Jade Primordial Direhorn: Drop: Zandalari Warbringer
+  [561] = { camp = true, zone = "Timeless Isle" }, -- Thundering Onyx Cloud Serpent: Drop: Huolon
+  -- Warlords of Draenor
+  [612] = { camp = true, zone = "Nagrand" }, -- Bloodhoof Bull: Drop: Nakk the Thunderer
+  [614] = { camp = true, zone = "Nagrand" }, -- Mottled Meadowstomper: Drop: Luk'hok
+  [627] = { camp = true, zone = "Frostfire Ridge" }, -- Great Greytusk: Drop: Gorok
+  [630] = { camp = true, zone = "Talador" }, -- Sapphire Riverbeast: Drop: Silthide
+  [636] = { camp = true, zone = "Shadowmoon Valley" }, -- Swift Breezestrider: Drop: Pathrunner
+  [655] = { camp = true, zone = "Gorgrond" }, -- Sunhide Gronnling: Drop: Poundfist
+  [657] = { camp = true, zone = "Frostfire Ridge" }, -- Garn Nighthowl: Drop: Nok-Karosh
+  -- Battle for Azeroth
+  [1057] = { camp = true, zone = "Stormsong Valley" }, -- Nazjatar Blood Serpent: Drop: Adherent of the Abyss
+  [1201] = { camp = true, zone = "Darkshore" }, -- Frightened Kodo: Drop: Frightened Kodo
+  [1258] = { camp = true }, -- Fabious: Drop: Fabious (the source text names no zone)
+  [1311] = { camp = true, zone = "Vale of Eternal Blossoms" }, -- Ivory Cloud Serpent: Drop: Ivory Cloud Serpent
+  -- Shadowlands
+  [803]  = { camp = true, zone = "Korthia" }, -- Mastercraft Gravewing: Drop: Stygian Stonecrusher
+  [1306] = { camp = true, zone = "Ardenweald" }, -- Swift Gloomhoof: Drop: Night Mare
+  [1307] = { camp = true, zone = "Bastion" }, -- Sundancer: Drop: Sundancer
+  [1362] = { camp = true, zone = "Ardenweald" }, -- Spinemaw Gladechewer: Drop: Gormtamer Tizo
+  [1415] = { camp = true, zone = "Ardenweald" }, -- Arboreal Gulper: Drop: Humon'gozz
+  [1434] = { camp = true, zone = "Zereth Mortis" }, -- Deepstar Aurelid: Drop: Hirukon
+  [1449] = { camp = true, zone = "Korthia" }, -- Lord of the Corpseflies: Drop: Fleshwing
+  [1487] = { camp = true, zone = "Korthia" }, -- Summer Wilderling: Drop: Escaped Wilderling
+  [1493] = { camp = true, zone = "Korthia" }, -- Forsworn Aquilon: Drop: Wild Worldcracker
+  [1502] = { camp = true, zone = "The Maw" }, -- Fallen Charger: Drop: Fallen Charger
+  [1584] = { camp = true }, -- Colossal Plaguespew Mawrat: Drop: Rhuv, Gorger of Ruin (no zone in the source text) -- verify in game
+  -- Dragonflight
+  [1553] = { camp = true, zone = "The Azure Span" }, -- Liberated Slyvern: Drop: Breezebiter
+  -- The War Within
+  [2176] = { camp = true, zone = "Isle of Dorn" }, -- Alunira: Drop: Alunira
+  [2601] = { camp = true, zone = "K'aresh" }, -- Pearlescent Krolusk: Drop: Urmag
+  [2603] = { camp = true, zone = "K'aresh" }, -- Sthaarbs's Last Lunch: Drop: Sthaarbs
+  -- Midnight
+  [2749] = { camp = true, zone = "Harandar" }, -- Echo of Aln'sharan: Drop: Aln'Sharan
+  [3031] = { camp = true }, -- Hexflame Reaver: Drop: Ral'kala (SimpleArmory "Prey Drop"; no zone in the source text) -- verify in game
+  -- Not here (tools/verify_allow.json "rares"): Fathom Dweller (Kosumoth, a
+  -- world-quest boss), Netherlord's Accursed Wrathsteed (warlock Class Hall),
+  -- Mail Muncher (Horrific Visions) and the Visions Revisited mounts: instanced
+  -- or summoned, not world rares.
 
   -- Holiday bosses (Ruling R3): the daily LFG reward marks the day's kill ---
   [219]  = { lfg = 285, reset = "daily" }, -- Headless Horseman's Mount
