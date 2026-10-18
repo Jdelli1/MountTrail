@@ -335,6 +335,61 @@ class ChecksTest(unittest.TestCase):
         self.assertIn("555", missing["detail"])
         self.assertEqual(missing["severity"], "error")
 
+    # completeness
+    def test_not_collectable_flags(self):
+        self.assertEqual(v.not_collectable({"Flags": "0"}), [])
+        self.assertEqual(v.not_collectable({"Flags": "64"}), ["ExcludeFromJournalIfNotLearned"])
+        self.assertEqual(v.not_collectable({"Flags": "264"}), ["ShowInSpellbook"])
+        self.assertEqual(v.not_collectable({"Flags": "1"}), ["ServerOnly"])
+        self.assertEqual(v.not_collectable({"Flags": "4"}), [], "faction-only journal rows count")
+
+    def test_completeness_lists_journal_mounts_missing_from_data(self):
+        findings, skipped = v.check_completeness(self.ours, self.game)
+        (hit,) = [f for f in findings if f["check"] == "completeness"]
+        self.assertEqual((hit["mount"], hit["kind"], hit["severity"]), (30, "missing-from-data", "error"))
+        self.assertIn("Vendor", hit["detail"])
+        self.assertEqual(skipped, {"ExcludeFromJournalIfNotLearned": [31], "ShowInSpellbook": [32],
+                                   "ServerOnly": [33]})
+
+    # source correctness
+    def test_source_kinds_from_type_and_labels(self):
+        self.assertEqual(v.source_kinds({"SourceTypeEnum": "2", "SourceText_lang": "Vendor: Bob"}), {"vendor"})
+        self.assertEqual(v.source_kinds({"SourceTypeEnum": "11", "SourceText_lang": "Achievement: X"}),
+                         {"tradingpost", "achievement"})
+        self.assertEqual(v.source_kinds({"SourceTypeEnum": "0", "SourceText_lang": "World Quest: Y; Zone: Z"}),
+                         {"drop", "quest"})
+        self.assertEqual(v.source_kinds({"SourceTypeEnum": "-1", "SourceText_lang": "In-Game Shop"}), {"shop"})
+
+    def test_source_mismatch_warns_and_skips_agreeing_mounts(self):
+        f = v.check_sources(self.ours, self.game)
+        (hit,) = self.find(f, "source", "25")
+        self.assertEqual((hit["kind"], hit["severity"]), ("section-differs", "warn"))
+        self.assertIn("journal/raid", hit["detail"])
+        self.assertIn("Vendor: Bob", hit["detail"])
+        for ok_mount in ("26", "28", "29"):
+            self.assertEqual(self.find(f, "source", ok_mount), [], ok_mount)
+
+    # rare-spawn coverage
+    def test_rare_drop_without_flag_or_spec_is_an_error(self):
+        f = v.check_rares(self.ours, self.game)
+        (hit,) = self.find(f, "rares", "14", "rare-not-on-checklist")
+        self.assertEqual(hit["severity"], "error")
+        self.assertIn("Rare Guy", hit["detail"])
+        self.assertEqual(self.find(f, "rares", "16"), [], "a Rarity quest flag covers it")
+        self.assertEqual(self.find(f, "rares", "26"), [], "camp spec in the source text's zone")
+        self.assertEqual(self.find(f, "rares", "2"), [], "a journal boss is not a rare")
+
+    def test_camp_zone_must_be_a_source_zone(self):
+        f = v.check_rares(self.ours, self.game)
+        (hit,) = self.find(f, "rares", "27", "camp-zone-differs")
+        self.assertEqual(hit["severity"], "error")
+        self.assertIn("Hills", hit["detail"])
+
+    def test_camp_spec_is_not_a_lockout_spec(self):
+        _, table = v.check_lockouts(self.ours, self.game)
+        self.assertNotIn("26", {r["key"] for r in table})
+        self.assertIn(26, v.covered_mounts(self.ours), "a camp spec puts it on the checklist")
+
     # candidates
     def test_journal_candidates_skip_specs_quests_and_boss_lockouts(self):
         groups = v.lockout_candidates(self.ours, self.game)
@@ -383,6 +438,9 @@ class ChecksTest(unittest.TestCase):
             self.assertIn("The Frost Lord Ahune", text)
             self.assertIn("## Event status IDs resolved against the game", text)
             self.assertIn("| Assault: Uldum | AreaPOI | 6488 | Assault: Aqir |", text)
+            self.assertIn("## Mount.db2 rows that are not collectable", text)
+            self.assertIn("| ExcludeFromJournalIfNotLearned | 1 | 31 |", text)
+            self.assertIn("## 7. Rare-spawn mounts on the checklist", text)
             with open(out_json, encoding="utf-8") as fh:
                 dumped = json.load(fh)
             self.assertEqual(dumped["build"], "1.2.3.4")

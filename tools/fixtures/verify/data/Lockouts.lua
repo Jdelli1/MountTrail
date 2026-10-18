@@ -19,6 +19,8 @@ ns.Data.Lockouts = {
   [23] = { instance = 200, boss = "Gamma, The Old King", difficulties = { 23 }, reset = "weekly" },
   [24] = { instance = 200, boss = "Gamma", difficulties = { 23 }, reset = "weekly" },
   [22] = { lfg = 777, reset = "daily" },
+  [26] = { camp = true, zone = "Wilds" }, -- no known kill flag: camp the spawn
+  [27] = { camp = true, zone = "Valley" }, -- wrong zone: the source text says Hills
 }
 
 ns.Data.BossLockouts = {

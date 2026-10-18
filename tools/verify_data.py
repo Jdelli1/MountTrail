@@ -16,10 +16,19 @@ Checks (see docs/data-verification.md for the latest report):
   lockout   Data/Lockouts.lua instance specs: map ID, boss name and loot.
   events    Data/Events.lua (F17): assault AreaPOI IDs, warfront Contribution IDs and their
             UiMap IDs resolve to the names the data claims.
+  completeness Every Mount.db2 row a player can collect (Flags: not ServerOnly,
+            ExcludeFromJournalIfNotLearned or ShowInSpellbook) is in Data/Mounts.lua.
+  source    Each mount's tab / section agrees with the game's SourceTypeEnum or a label of
+            its SourceText (Drop, Quest, Vendor, Achievement, ...).
+  rares     Every obtainable mount whose game source is a drop from a world creature (not a
+            journal boss, not an instance) is on the checklist: a Rarity quest flag or a
+            Data/Lockouts.lua spec (`camp` for rares with no kill flag; its zone must be a
+            Zone / Location of the source text).
   candidates Mounts in Encounter Journal loot with no lockout spec and no Rarity quest.
 
 Allowlist (tools/verify_allow.json): {"route": {"<mount>@<boss>": "reason"},
-"identity": {"<mount>": "reason"}, "lockout": {"<mount>" or "boss:<route boss>": "reason"}}.
+"identity": {"<mount>": "reason"}, "lockout": {"<mount>" or "boss:<route boss>": "reason"},
+"completeness" / "source" / "rares": {"<mount>": "reason"}}.
 An allowlisted finding is downgraded to info and keeps its reason.
 
 Exit code 1 if any error remains after the allowlist.
@@ -60,13 +69,16 @@ TABLES = (
     "UiMap",
 )
 SEVERITIES = ("error", "warn", "info")
-CHECKS = ("identity", "route", "unavailable", "lockout", "events")
+CHECKS = ("identity", "route", "unavailable", "lockout", "events", "completeness", "source", "rares")
 CHECK_TITLES = {
     "identity": "1. Mount identity (Mount.db2, ItemEffect)",
     "route": "2. Route drop claims (JournalEncounterItem)",
     "unavailable": "2b. Unavailable route rows still in Encounter Journal loot (JournalEncounterItem)",
     "lockout": "3. Lockout specs (JournalInstance, JournalEncounter, DungeonEncounter, LfgDungeons)",
     "events": "4. Event status IDs (AreaPOI, Contribution, UiMap)",
+    "completeness": "5. Mount.db2 mounts missing from Data/Mounts.lua",
+    "source": "6. Tab / section vs the game's source (Mount.db2 SourceTypeEnum, SourceText)",
+    "rares": "7. Rare-spawn mounts on the checklist (Mount.db2 SourceText, Data/Lockouts.lua)",
 }
 # Mount.SourceTypeEnum (same values as the pet journal's source filter).
 SOURCE_TYPES = {
@@ -854,6 +866,211 @@ def check_events(ours, game):
     return out, table
 
 
+# --- check 5: completeness ---------------------------------------------------------------
+
+# Mount.Flags bits that keep a Mount.db2 row out of a player's Mount Journal
+# (TrinityCore DBCEnums.h `MountFlags`): ServerOnly; ExcludeFromJournalIfNotLearned
+# (listed only once learned: legacy duplicates, placeholder and test rows);
+# ShowInSpellbook (class / racial spell mounts such as Divine Steed and Soar).
+NOT_COLLECTABLE_FLAGS = (
+    (0x1, "ServerOnly"),
+    (0x40, "ExcludeFromJournalIfNotLearned"),
+    (0x100, "ShowInSpellbook"),
+)
+
+
+def not_collectable(row):
+    """Names of the NOT_COLLECTABLE_FLAGS set on a Mount.db2 row ([] = a journal mount)."""
+    flags = _int(row.get("Flags"))
+    return [name for bit, name in NOT_COLLECTABLE_FLAGS if flags & bit]
+
+
+def source_type_name(row):
+    st = _int(row.get("SourceTypeEnum"), -1)
+    return "%d: %s" % (st, SOURCE_TYPES.get(st, "none"))
+
+
+def check_completeness(ours, game):
+    """Mount.db2 rows a player can collect that Data/Mounts.lua lacks.
+    -> (findings, {flag name: [mount ids left out for it]}) (a row is counted under
+    its first flag)."""
+    out, skipped = [], {}
+    for mid in sorted(game.mounts):
+        if mid in ours["mounts"]:
+            continue
+        row = game.mounts[mid]
+        flags = not_collectable(row)
+        if flags:
+            skipped.setdefault(flags[0], []).append(mid)
+            continue
+        out.append(finding("completeness", "missing-from-data", "error", mid, row["Name_lang"],
+                           "Mount.db2 row (SourceTypeEnum %s, Flags 0x%x) is not in Data/Mounts.lua; "
+                           "source: %s" % (source_type_name(row), _int(row.get("Flags")),
+                                           clean_source_text(row["SourceText_lang"]) or "(none)"),
+                           "add it through tools/build_data.py, or allowlist with a reason"))
+    return out, skipped
+
+
+# --- check 6: tab / section vs the game's source -----------------------------------------
+
+# Mount.SourceTypeEnum -> source kind.
+SOURCE_TYPE_KINDS = {
+    0: "drop", 1: "quest", 2: "vendor", 3: "profession", 5: "achievement", 6: "event",
+    7: "promotion", 8: "tcg", 9: "shop", 10: "discovery", 11: "tradingpost",
+}
+# SourceText labels ("Drop:", "World Quest:", ...) -> source kind; other labels
+# (Zone, Location, Cost, ...) say where, not how.
+SOURCE_LABEL_KINDS = {
+    "drop": "drop", "npc": "drop", "quest": "quest", "world quest": "quest", "vendor": "vendor",
+    "vendors": "vendor", "profession": "profession", "achievement": "achievement",
+    "world event": "event", "holiday": "event", "public event": "event", "event": "event",
+    "promotion": "promotion", "treasure": "treasure", "covenant": "reputation",
+    "renown": "reputation", "faction": "reputation", "garrison mission": "activity",
+}
+# Unlabelled source texts (the whole line) -> source kind.
+SOURCE_TEXT_KINDS = (
+    ("trading post", "tradingpost"), ("in-game shop", "shop"), ("recruit-a-friend", "promotion"),
+)
+
+_J, _M = "journal", "misc"
+_WORLDISH = {(_J, s) for s in ("dungeon", "raid", "world", "treasure", "delve", "activity", "reputation")}
+# Source kind -> the (tab, section) pairs that agree with it; ("holiday", None) = any holiday.
+KIND_SECTIONS = {
+    "drop": _WORLDISH | {("holiday", None)},
+    "quest": {(_J, "quest"), (_J, "activity"), (_J, "reputation"), (_J, "treasure"), (_M, "class"),
+              (_M, "racial"), ("holiday", None)},
+    "vendor": {(_J, "vendor"), (_J, "reputation"), (_J, "activity"), (_M, "racial"), (_M, "pvp"),
+               (_M, "keystone"), (_M, "class"), (_M, "other"), ("holiday", None)},
+    "profession": {(_M, "profession"), (_J, "activity")},
+    "achievement": {(_M, "achievement"), (_M, "pvp"), (_M, "keystone"), (_M, "collection"),
+                    (_J, "activity"), ("holiday", None)},
+    "event": {("holiday", None), (_J, "activity"), (_J, "treasure")},
+    "promotion": {(_M, "promotion"), (_M, "shop"), (_M, "tradingpost")},
+    "tcg": {(_M, "promotion"), (_M, "tradingpost")},
+    "shop": {(_M, "shop"), (_M, "promotion"), (_M, "tradingpost")},
+    "discovery": {(_J, "world"), (_J, "treasure")},
+    "tradingpost": {(_M, "tradingpost")},
+    "treasure": {(_J, "treasure")},
+    "reputation": {(_J, "reputation"), (_J, "vendor"), (_J, "quest"), (_J, "activity")},
+    "activity": {(_J, "activity")},
+}
+# Sections that never contradict a source: the Black Market list (old mounts,
+# whatever they came from) and the unobtainable list.
+_ANY_SOURCE = {(_M, "bmah"), (_M, "unobtainable")}
+
+
+def source_kinds(row):
+    """The source kinds a Mount.db2 row names: its SourceTypeEnum's and each kind label
+    of its SourceText (unlabelled texts such as "Trading Post" by the whole line)."""
+    kinds = set()
+    st = SOURCE_TYPE_KINDS.get(_int(row.get("SourceTypeEnum"), -1))
+    if st:
+        kinds.add(st)
+    for label in source_fields(row.get("SourceText_lang")):
+        if label in SOURCE_LABEL_KINDS:
+            kinds.add(SOURCE_LABEL_KINDS[label])
+    text = clean_source_text(row.get("SourceText_lang")).lower()
+    for prefix, kind in SOURCE_TEXT_KINDS:
+        if text.startswith(prefix):
+            kinds.add(kind)
+    return kinds
+
+
+def section_agrees(tab, section, kinds):
+    if (tab, section) in _ANY_SOURCE:
+        return True
+    for kind in kinds:
+        allowed = KIND_SECTIONS.get(kind, ())
+        if (tab, section) in allowed or (tab, None) in allowed:
+            return True
+    return False
+
+
+def check_sources(ours, game):
+    """Obtainable mounts whose tab / section agrees with none of the game's source kinds
+    (source_kinds). Mounts without a tab / section, unknown to Mount.db2 or whose row names
+    no kind are skipped."""
+    out = []
+    for mid in sorted(ours["mounts"]):
+        m = ours["mounts"][mid]
+        row = game.mounts.get(mid)
+        tab, section = m.get("tab"), m.get("section")
+        if m.get("unobtainable") or row is None or not tab or not section:
+            continue
+        kinds = source_kinds(row)
+        if not kinds or section_agrees(tab, section, kinds):
+            continue
+        want = sorted({"%s/%s" % (t, s or "*") for k in kinds for t, s in KIND_SECTIONS.get(k, ())})
+        out.append(finding("source", "section-differs", "warn", mid, m.get("name", ""),
+                           "ours %s/%s (SimpleArmory group %r); the game says %s (SourceTypeEnum %s): %s"
+                           % (tab, section, m.get("group", ""), ", ".join(sorted(kinds)), source_type_name(row),
+                              clean_source_text(row["SourceText_lang"]) or "(none)"),
+                           "expected one of %s: fix it in tools/build_data.py _SECTION_FIXES when clear, "
+                           "else allowlist with a reason" % ", ".join(want)))
+    return out
+
+
+# --- check 7: rare-spawn mounts on the checklist ------------------------------------------
+
+def rare_drop(mid, m, game, boss_names, instance_names):
+    """For an obtainable mount whose Mount.db2 source is a drop from a world creature:
+    (creature names, zones: the Zone / Location values); else None. Not a world creature:
+    containers and pools (_NOT_A_BOSS), Encounter Journal loot, a JournalEncounter or
+    DungeonEncounter name (dungeon, raid and world bosses), a holiday drop, a place that
+    is a JournalInstance, a holiday-tab mount."""
+    row = game.mounts.get(mid)
+    if row is None or m.get("unobtainable") or m.get("tab") == "holiday":
+        return None
+    fields = source_fields(row["SourceText_lang"])
+    if fields.get("holiday"):
+        return None
+    drops = [d for d in fields.get("drop", []) if not _NOT_A_BOSS.search(d)]
+    if not drops or any(norm_boss(d) in boss_names for d in drops):
+        return None
+    zones = fields.get("zone", []) + fields.get("location", [])
+    if any(norm_boss(z) in instance_names for z in zones):
+        return None
+    if game.loot_rows(game.mount_items(mid, m)):
+        return None
+    return drops, zones
+
+
+def check_rares(ours, game):
+    """Rare-spawn mounts (rare_drop) need a checklist row: a Rarity quest flag or a
+    Data/Lockouts.lua spec. A `camp` spec's zone must be one of the source text's Zone /
+    Location values; a `camp` spec on a mount that is not a rare drop is a warning."""
+    boss_names = {norm_boss(e["Name_lang"]) for e in game.encounters.values()}
+    boss_names |= {norm_boss(d["Name_lang"]) for d in game.dungeon_encounters.values()}
+    instance_names = {norm_boss(i["Name_lang"]) for i in game.instances.values()}
+    covered = covered_mounts(ours)
+    out = []
+    for mid in sorted(ours["mounts"]):
+        m = ours["mounts"][mid]
+        rare = rare_drop(mid, m, game, boss_names, instance_names)
+        spec = ours["lockouts"].get(mid)
+        camp = isinstance(spec, dict) and spec.get("camp") is True
+        src = clean_source_text(game.mounts[mid]["SourceText_lang"]) if mid in game.mounts else ""
+        if rare is None:
+            if camp:
+                out.append(finding("rares", "camp-not-a-rare", "warn", mid, m.get("name", ""),
+                                   "camp spec, but the game's source is not a world creature drop: %s"
+                                   % (src or "(none)"), "check the spec"))
+            continue
+        drops, zones = rare
+        if not (m.get("quest") or mid in covered):
+            out.append(finding("rares", "rare-not-on-checklist", "error", mid, m.get("name", ""),
+                               "drops from %s (%s) but has no Rarity quest and no Data/Lockouts.lua spec: %s"
+                               % (", ".join(drops), ", ".join(zones) or "no zone", src),
+                               "add { camp = true%s } (no known kill flag), or allowlist with a reason"
+                               % (', zone = "%s"' % zones[0] if zones else "")))
+            continue
+        if camp and spec.get("zone") is not None and spec.get("zone") not in zones:
+            out.append(finding("rares", "camp-zone-differs", "error", mid, m.get("name", ""),
+                               "camp zone %r is not a Zone / Location of the source text: %s"
+                               % (spec.get("zone"), src), "use one of: %s" % (", ".join(zones) or "(none: drop zone)")))
+    return out
+
+
 # --- candidates: farmable lockouts we do not track --------------------------------------
 
 def covered_mounts(ours):
@@ -966,7 +1183,7 @@ def summarise(findings):
 
 
 def render_report(build, findings, lock_table, candidates, source_cands, ours, expansions=(), lfg_table=(),
-                  event_table=()):
+                  event_table=(), skipped=None):
     counts, totals = summarise(findings)
     lines = [
         "# Data verification",
@@ -1015,6 +1232,20 @@ def render_report(build, findings, lock_table, candidates, source_cands, ours, e
                     f["kind"], f["mount"], _md(f["name"]), _md(f["detail"]), _md(sugg)))
             lines.append("")
     lines += [
+        "## Mount.db2 rows that are not collectable",
+        "",
+        "Rows left out of the completeness check (section 5) by their Mount.Flags bit (a row",
+        "is counted under its first bit; TrinityCore `MountFlags`): the Mount Journal never lists",
+        "them for a player who does not already have them.",
+        "",
+        "| Flag | Rows | Mount IDs |",
+        "|---|---:|---|",
+    ]
+    for _, flag in NOT_COLLECTABLE_FLAGS:
+        ids = (skipped or {}).get(flag, [])
+        lines.append("| %s | %d | %s |" % (flag, len(ids), ", ".join(map(str, ids))))
+    lines += [
+        "",
         "## Lockout specs resolved against the journal",
         "",
         "Each instance spec in `Data/Lockouts.lua`: the JournalInstance with that MapID, the",
@@ -1112,9 +1343,11 @@ def run(ours, game, allow):
     lock_findings, lock_table = check_lockouts(ours, game)
     lfg_findings, lfg_table = check_lfg(ours, game)
     event_findings, event_table = check_events(ours, game)
-    findings = apply_allowlist(findings + lock_findings + lfg_findings + event_findings, allow)
+    complete_findings, skipped = check_completeness(ours, game)
+    findings = apply_allowlist(findings + lock_findings + lfg_findings + event_findings + complete_findings
+                               + check_sources(ours, game) + check_rares(ours, game), allow)
     return (findings, lock_table, lockout_candidates(ours, game), source_candidates(ours, game), lfg_table,
-            event_table)
+            event_table, skipped)
 
 
 def main(argv=None):
@@ -1140,10 +1373,10 @@ def main(argv=None):
     folder = fetch_tables(build, args.cache, offline=args.offline)
     ours = load_our_data(args.data)
     game = Game(folder)
-    findings, lock_table, candidates, source_cands, lfg_table, event_table = run(
+    findings, lock_table, candidates, source_cands, lfg_table, event_table, skipped = run(
         ours, game, load_allowlist(args.allow))
     report = render_report(build, findings, lock_table, candidates, source_cands, ours,
-                           ours.get("expansions") or (), lfg_table, event_table)
+                           ours.get("expansions") or (), lfg_table, event_table, skipped)
     if args.report == "-":
         sys.stdout.write(report)
     else:

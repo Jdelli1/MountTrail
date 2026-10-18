@@ -460,6 +460,18 @@ _ITEM_FIXES = {
 }
 
 
+# Sections SimpleArmory has wrong, checked against the game's own tables
+# (tools/verify_data.py check 6, build 12.1.5.70448): mountID -> ((SimpleArmory's
+# tab, section), (the tab, section the game's source gives)). Applied only while
+# SimpleArmory still files the mount there; the SimpleArmory group is kept.
+_SECTION_FIXES = {
+    # Stonevault Mechsuit: Mount.db2 SourceTypeEnum 1 (Quest), SourceText "Quest:
+    # Repurposed, Restored; Zone: The Ringing Deeps"; no JournalEncounterItem has its
+    # item 221765 (SimpleArmory: "Dungeon Drop", Void Speaker Eirich).
+    2119: (("journal", "dungeon"), ("journal", "quest")),
+}
+
+
 def build_mounts(sa, rarity, stats=None):
     """Returns {mountID: mount dict}. Duplicates: a later sighting replaces the kept one only when it
     is stronger (sighting_strength; equal strength keeps the first); tradingNow is kept
@@ -523,6 +535,15 @@ def build_mounts(sa, rarity, stats=None):
             fixes += 1
     if stats is not None:
         stats["item_fixes"] = fixes
+
+    fixes = 0
+    for mid, (wrong, right) in _SECTION_FIXES.items():
+        rec = mounts.get(mid)
+        if rec is not None and (rec.get("tab"), rec.get("section")) == wrong:
+            rec["tab"], rec["section"] = right
+            fixes += 1
+    if stats is not None:
+        stats["section_fixes"] = fixes
 
     for mid, rec in mounts.items():
         if not obtainable[mid]:
@@ -945,6 +966,7 @@ def generate(sources):
     print("coords: %d full, %d map-only" % (sum("x" in c for c in coords), sum("x" not in c for c in coords)))
     print("statistics: %d mounts" % sum(1 for r in mounts.values() if r.get("stats")))
     print("item fixes (DB2-checked): %d of %d" % (stats.get("item_fixes", 0), len(_ITEM_FIXES)))
+    print("section fixes (DB2-checked): %d of %d" % (stats.get("section_fixes", 0), len(_SECTION_FIXES)))
     print("unobtainable: %d; faction: %d Alliance, %d Horde" % (
         sum(1 for r in mounts.values() if r.get("unobtainable")),
         sum(1 for r in mounts.values() if r.get("faction") == "Alliance"),

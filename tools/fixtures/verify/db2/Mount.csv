@@ -22,3 +22,12 @@ Name_lang,SourceText_lang,Description_lang,ID,MountTypeID,Flags,SourceTypeEnum,S
 "Phi Kodo","","",22,0,0,0,1022
 "Chi Tomb Stalker","","",23,0,0,0,1023
 "Psi Tomb Stalker","","",24,0,0,0,1024
+"Omega Vendor Ram","|cFFFFD200Vendor: |rBob|n|cFFFFD200Zone: |rTown","",25,0,0,2,1025
+"Camp Cat","|cFFFFD200Drop: |rLurker|n|cFFFFD200Zone: |rWilds","",26,0,0,0,1026
+"Camp Dog","|cFFFFD200Drop: |rProwler|n|cFFFFD200Location: |rHills","",27,0,0,0,1027
+"Quest Hawk","|cFFFFD200Quest: |rBig Job","",28,0,0,1,1028
+"Shop Hawk","In-Game Shop","",29,0,0,9,1029
+"Lost Lion","|cFFFFD200Vendor: |rSomeone","",30,0,0,2,1030
+"Legacy Lion","Legacy","",31,0,64,2,1031
+"Divine Lion","Paladin","",32,0,264,1,1032
+"Server Lion","","",33,0,1,0,1033

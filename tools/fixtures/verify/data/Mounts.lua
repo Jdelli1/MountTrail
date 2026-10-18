@@ -29,4 +29,9 @@ ns.Data.Mounts = {
   [22] = { name = "Phi Kodo", spell = 1022 },
   [23] = { name = "Chi Tomb Stalker", spell = 1023, item = 523 },
   [24] = { name = "Psi Tomb Stalker", spell = 1024, item = 524 },
+  [25] = { name = "Omega Vendor Ram", spell = 1025, exp = "Classic", tab = "journal", section = "raid", group = "Raid Drop" },
+  [26] = { name = "Camp Cat", spell = 1026, exp = "Classic", tab = "journal", section = "world", group = "Rare Spawn" },
+  [27] = { name = "Camp Dog", spell = 1027, exp = "Classic", tab = "journal", section = "world", group = "Rare Spawn" },
+  [28] = { name = "Quest Hawk", spell = 1028, exp = "Classic", tab = "journal", section = "quest", group = "Quest" },
+  [29] = { name = "Shop Hawk", spell = 1029, tab = "misc", section = "shop", group = "Blizzard Store" },
 }

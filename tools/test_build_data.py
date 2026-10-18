@@ -485,6 +485,30 @@ class BuildDataTests(unittest.TestCase):
         self.assertEqual(mounts[1668]["item"], 123)
         self.assertEqual(stats["item_fixes"], 0)
 
+    def test_section_fixes_move_the_stonevault_mechsuit_to_quests(self):
+        # Mount.db2 2119: SourceTypeEnum 1 (Quest), SourceText "Quest: Repurposed,
+        # Restored", and no JournalEncounterItem has its item; SimpleArmory files it
+        # under "Dungeon Drop".
+        sa = [{"name": "The War Within", "subcats": [{"name": "Dungeon Drop", "items": [
+            {"ID": 2119, "name": "Stonevault Mechsuit", "spellid": 442358, "itemId": 221765},
+            {"ID": 2204, "name": "Wick", "spellid": 449264, "itemId": 225548},
+        ]}]}]
+        stats = {}
+        mounts = build_data.build_mounts(sa, {}, stats)
+        self.assertEqual((mounts[2119]["tab"], mounts[2119]["section"]), ("journal", "quest"))
+        self.assertEqual(mounts[2119]["group"], "Dungeon Drop", "the SimpleArmory group stays")
+        self.assertEqual(mounts[2204]["section"], "dungeon", "other mounts untouched")
+        self.assertEqual(stats["section_fixes"], 1)
+
+    def test_section_fixes_only_replace_the_known_wrong_section(self):
+        sa = [{"name": "The War Within", "subcats": [{"name": "Quest", "items": [
+            {"ID": 2119, "name": "Stonevault Mechsuit", "spellid": 442358, "itemId": 221765},
+        ]}]}]
+        stats = {}
+        mounts = build_data.build_mounts(sa, {}, stats)
+        self.assertEqual(mounts[2119]["section"], "quest")
+        self.assertEqual(stats["section_fixes"], 0)
+
     def test_route_emit(self):
         text = build_data.emit_lua(route=self.route)
         self.assertIn("ns.Data.Route = {", text)
