@@ -31,3 +31,5 @@ Name_lang,SourceText_lang,Description_lang,ID,MountTypeID,Flags,SourceTypeEnum,S
 "Legacy Lion","Legacy","",31,0,64,2,1031
 "Divine Lion","Paladin","",32,0,264,1,1032
 "Server Lion","","",33,0,1,0,1033
+"Covenant Rare","|cFFFFD200Drop: |rHarika|n|cFFFFD200Zone: |rRevendreth","",34,0,0,0,1034
+"Invasion Boar","|cFFFFD200Drop: |rInvader's Forgotten Treasure","",35,0,0,0,1035

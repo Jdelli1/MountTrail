@@ -379,6 +379,16 @@ class ChecksTest(unittest.TestCase):
         self.assertEqual(self.find(f, "rares", "26"), [], "camp spec in the source text's zone")
         self.assertEqual(self.find(f, "rares", "2"), [], "a journal boss is not a rare")
 
+    def test_rare_with_a_quest_outside_a_rare_group_warns(self):
+        # Lockouts.QuestReset gives a quest flag "daily" only for a rare-spawn group;
+        # a rare filed under another group would reset weekly on the checklist.
+        f = v.check_rares(self.ours, self.game)
+        (hit,) = self.find(f, "rares", "34", "rare-quest-not-daily")
+        self.assertEqual(hit["severity"], "warn")
+        self.assertIn("Venthyr Vendor", hit["detail"])
+        self.assertEqual(self.find(f, "rares", "35"), [], "a treasure is not a creature")
+        self.assertEqual(self.find(f, "rares", "16"), [], "rare group: daily already")
+
     def test_camp_zone_must_be_a_source_zone(self):
         f = v.check_rares(self.ours, self.game)
         (hit,) = self.find(f, "rares", "27", "camp-zone-differs")

@@ -56,6 +56,12 @@ describe("data", function()
     if s.quest ~= nil and type(s.quest) ~= "number" then fail(id, "quest not a number") end
     if s.lfg ~= nil and type(s.lfg) ~= "number" then fail(id, "lfg not a number") end
     if s.manual ~= nil and s.manual ~= true then fail(id, "manual must be true") end
+    -- category (checklist level, Checklist.CATEGORIES): only on a lockout spec.
+    if s.category ~= nil then
+      local cats = { raids = true, dungeons = true, worldbosses = true, rares = true, holidays = true, other = true }
+      if not cats[s.category] then fail(id, "category " .. tostring(s.category) .. " is not a checklist category") end
+      if s.camp ~= nil then fail(id, "category on a camp spec") end
+    end
     -- exp (checklist sort order): a Data.Expansions name.
     if s.exp ~= nil then
       local known = false
@@ -116,8 +122,10 @@ describe("data", function()
     checkSpec("reset", { camp = true, reset = "daily" }, fail)
     checkSpec("both", { camp = true, manual = true }, fail)
     checkSpec("zone", { manual = true, reset = "daily", zone = "X" }, fail)
+    checkSpec("cat", { quest = 1, reset = "daily", category = "rares" }, fail)
+    checkSpec("badcat", { quest = 1, reset = "daily", category = "rare" }, fail)
     eq(bad, { "reset: camp spec with a reset", "both: has 2 of instance/quest/lfg/manual/camp",
-      "zone: zone on a non-camp spec" })
+      "zone: zone on a non-camp spec", "badcat: category rare is not a checklist category" })
   end)
 
   it("no instance spec tracks LFR (R10)", function()

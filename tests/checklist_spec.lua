@@ -703,6 +703,14 @@ describe("Checklist.Category", function()
     eq(C.Category({ quest = 1 }, { section = "dungeon" }), "dungeons")
   end)
 
+  it("a spec's own category wins over the mount's section and group (a rare filed under a vendor)", function()
+    eq(C.Category({ quest = 1, reset = "daily", category = "rares" }, { section = "vendor", group = "Venthyr Vendor" }),
+      "rares")
+    eq(C.Category({ quest = 1, category = "bogus" }, { section = "vendor", group = "Venthyr Vendor" }), "other",
+      "an unknown category is ignored")
+    eq(C.Category({ lfg = 1, category = "rares" }, {}), "holidays", "holidays first")
+  end)
+
   it("world bosses and rares by SimpleArmory group", function()
     eq(C.Category({ quest = 1 }, { section = "world", group = "World Boss" }), "worldbosses")
     eq(C.Category({ quest = 1 }, { section = "world", group = "Rare Spawn" }), "rares")

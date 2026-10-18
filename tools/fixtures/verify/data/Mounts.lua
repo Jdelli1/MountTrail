@@ -34,4 +34,6 @@ ns.Data.Mounts = {
   [27] = { name = "Camp Dog", spell = 1027, exp = "Classic", tab = "journal", section = "world", group = "Rare Spawn" },
   [28] = { name = "Quest Hawk", spell = 1028, exp = "Classic", tab = "journal", section = "quest", group = "Quest" },
   [29] = { name = "Shop Hawk", spell = 1029, tab = "misc", section = "shop", group = "Blizzard Store" },
+  [34] = { name = "Covenant Rare", spell = 1034, exp = "Classic", tab = "journal", section = "vendor", group = "Venthyr Vendor", quest = 77 },
+  [35] = { name = "Invasion Boar", spell = 1035, exp = "Classic", tab = "journal", section = "activity", group = "Garrison", quest = 78 },
 }

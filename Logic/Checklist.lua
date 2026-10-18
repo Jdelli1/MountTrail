@@ -125,7 +125,8 @@ local function anyRaidDifficulty(list)
 end
 
 -- Category of a lockout: an LFG flag or a holiday mount (`holiday` key, or
--- a holiday-tab mount) -> "holidays"; an instance spec -> "raids" when any
+-- a holiday-tab mount) -> "holidays"; a spec's own `category` (one of
+-- Checklist.CATEGORIES) next; an instance spec -> "raids" when any
 -- difficulty is a raid one, else "dungeons"; anything else from the mount's
 -- journal section (raid / dungeon) or SimpleArmory group ("World Boss" ->
 -- "worldbosses", a rare-spawn group -> "rares", Lockouts.IsRareGroup);
@@ -134,6 +135,8 @@ function Checklist.Category(spec, m, holiday)
   m = type(m) == "table" and m or {}
   spec = type(spec) == "table" and spec or {}
   if holiday or spec.lfg or m.tab == "holiday" then return "holidays" end
+  -- A spec's own category (e.g. a covenant rare SimpleArmory files under a vendor).
+  if spec.category and CATEGORY_RANK[spec.category] then return spec.category end
   if spec.instance then
     return anyRaidDifficulty(spec.difficulties) and "raids" or "dungeons"
   end

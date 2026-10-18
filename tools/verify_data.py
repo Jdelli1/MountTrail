@@ -1035,6 +1035,14 @@ def rare_drop(mid, m, game, boss_names, instance_names):
     return drops, zones
 
 
+def is_rare_group(group):
+    """Logic/Lockouts.lua IsRareGroup: "Rare Spawn", "<x> Rare Spawn", "Warfront: ..." or
+    "Assault: ..." (a Rarity quest flag of such a mount resets daily, else weekly)."""
+    group = group or ""
+    return (group == "Rare Spawn" or group.endswith(" Rare Spawn")
+            or group.startswith("Warfront: ") or group.startswith("Assault: "))
+
+
 def check_rares(ours, game):
     """Rare-spawn mounts (rare_drop) need a checklist row: a Rarity quest flag or a
     Data/Lockouts.lua spec. A `camp` spec's zone must be one of the source text's Zone /
@@ -1064,6 +1072,12 @@ def check_rares(ours, game):
                                "add { camp = true%s } (no known kill flag), or allowlist with a reason"
                                % (', zone = "%s"' % zones[0] if zones else "")))
             continue
+        if m.get("quest") and spec is None and not is_rare_group(m.get("group")):
+            out.append(finding("rares", "rare-quest-not-daily", "warn", mid, m.get("name", ""),
+                               "drops from %s (%s), but its Rarity quest %d resets weekly on the checklist: "
+                               "SimpleArmory group %r is not a rare-spawn group (Lockouts.IsRareGroup)"
+                               % (", ".join(drops), ", ".join(zones) or "no zone", m["quest"], m.get("group", "")),
+                               'add { quest = %d, reset = "daily", category = "rares" }' % m["quest"]))
         if camp and spec.get("zone") is not None and spec.get("zone") not in zones:
             out.append(finding("rares", "camp-zone-differs", "error", mid, m.get("name", ""),
                                "camp zone %r is not a Zone / Location of the source text: %s"
@@ -1121,7 +1135,7 @@ def lockout_candidates(ours, game):
 _NOT_A_BOSS = re.compile(
     r"\b(supplies|cache|chest|egg|trove|bag|strongbox|footlocker|gift|spoils|expeditions?|rifts?|"
     r"rare creatures|forbidden reach|zskera|dreamsurges|archives|torghast|pile|garbage|swarms|"
-    r"spreading the light|shipping|desire|world drop|war chest|layers|crate|box|stash|coffer)\b", re.I)
+    r"spreading the light|shipping|desire|world drop|war chest|layers|crate|box|stash|coffer|treasure)\b", re.I)
 
 
 def source_candidates(ours, game):
