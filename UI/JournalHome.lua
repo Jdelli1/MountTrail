@@ -1,7 +1,8 @@
 local ADDON, ns = ...
 
 -- Journal tab: a front page with a slim summary strip (title, collected
--- totals over every expansion, a 4 px gold bar) above a 4 x 3 grid of flat
+-- totals over every tab's mounts, a 4 px gold bar, then one chip per tab with
+-- its own owned / total; a chip click opens that tab) above a 4 x 3 grid of flat
 -- expansion tiles (logo, a 3 px bar, owned / total and percent); clicking a
 -- tile opens that expansion's mount list, and Back returns.
 -- Tiles follow the current flat panel style: a dark flat fill with a 1 px
@@ -15,20 +16,22 @@ ns.UI = UI
 
 -- Layout. The content area of the 800 x 560 window is 780 x 486 (inset 6 px
 -- in and 60 px down for the portrait and top tabs, content 4 px inside it).
--- Strip: title and totals in the top 32 px, the bar at 32-36 px. Grid from
--- 48 px down: 12 + 4 x 180 + 3 x 12 = 768 wide (12 px right margin) and
--- 48 + 3 x 134 + 2 x 12 = 474 tall (12 px bottom margin).
+-- Strip: title and totals in the top 32 px, the bar at 32-36 px, the tab
+-- chips at 42-58 px. Grid from 68 px down: 12 + 4 x 180 + 3 x 12 = 768 wide
+-- (12 px right margin) and 68 + 3 x 128 + 2 x 12 = 476 tall (10 px bottom
+-- margin).
 local G = {
   cols = 4,
-  tileW = 180, tileH = 134,
+  tileW = 180, tileH = 128,
   gap = 12,
-  left = 12, top = -48,
+  left = 12, top = -68,
   stripH = 36,
+  chipsY = -42, chipsH = 16, chipGap = 18,
 }
 UI.HomeLayout = G
 
 local LOGO_W, LOGO_H = 150, 75 -- 2:1, the shape of the client's expansion logos
-local LOGO_Y = 15 -- centre of the area above the bar: (30 + 134) / 2 - 134 / 2
+local LOGO_Y = 15 -- centre of the area above the bar: (30 + 128) / 2 - 128 / 2
 local TILE_BAR_H, SUMMARY_BAR_H = 3, 4
 local BAR_TEXTURE = "Interface\\Buttons\\WHITE8X8" -- flat fill, tinted below
 local FILL = { 0.07, 0.07, 0.08, 0.9 }
@@ -47,6 +50,16 @@ local home, listPage, list, title
 local cards = {}
 local currentExp
 
+-- The tabs that list mounts, in tab order; the summary counts all of them.
+local CHIPS = {
+  { key = "journal", label = "Journal" },
+  { key = "holidays", label = "Holidays" },
+  { key = "achievements", label = "Achievements" },
+  { key = "timewalking", label = "Timewalking" },
+  { key = "misc", label = "Misc" },
+}
+UI.HomeChips = CHIPS
+
 local function expansions()
   return (ns.Data and ns.Data.Expansions) or {}
 end
@@ -56,6 +69,26 @@ end
 function UI.HomePercent(have, total)
   if not total or total <= 0 then return 0 end
   return math.floor((have or 0) * 100 / total)
+end
+
+-- Owned / total per tab (Journal.ViewOf without options, so an unobtainable
+-- mount counts on its own tab) through the list gate (known to the client,
+-- this faction, obtainable or owned) -> { [view] = { have =, total = } },
+-- plus all = the sum over the CHIPS tabs.
+function UI.HomeTabCounts(mounts, isOwned, exists, faction)
+  local out = { all = { have = 0, total = 0 } }
+  for _, chip in ipairs(CHIPS) do out[chip.key] = { have = 0, total = 0 } end
+  for id, m in pairs(mounts or {}) do
+    local c = out[ns.Journal.ViewOf(m)]
+    if c and c ~= out.all then
+      local o = ns.Journal.Gate(id, m, isOwned, exists, faction)
+      if o ~= nil then
+        c.total, out.all.total = c.total + 1, out.all.total + 1
+        if o then c.have, out.all.have = c.have + 1, out.all.have + 1 end
+      end
+    end
+  end
+  return out
 end
 
 -- A flat StatusBar (gold) on a dark track; the caller anchors it.
@@ -100,7 +133,6 @@ local function refreshHome()
   end
   local faction = Game.Faction()
 
-  local sumHave, sumTotal = 0, 0
   for i, name in ipairs(expansions()) do
     local card = cards[i]
     if card then
@@ -115,16 +147,23 @@ local function refreshHome()
       end
       local have, total = ns.Journal.Counts(mounts, name, isOwned, exists, faction, Game.MountSourceText)
       paintTile(card, have, total)
-      sumHave, sumTotal = sumHave + have, sumTotal + total
     end
   end
 
+  local counts = UI.HomeTabCounts(mounts, isOwned, exists, faction)
+  local sumHave, sumTotal = counts.all.have, counts.all.total
   local s = home.Summary
   s.have, s.total = sumHave, sumTotal
   s.Totals:SetText(string.format(L["%d / %d collected  ·  %d%%"], sumHave, sumTotal,
     UI.HomePercent(sumHave, sumTotal)))
   s.Bar:SetMinMaxValues(0, math.max(sumTotal, 1))
   s.Bar:SetValue(sumHave)
+  for _, chip in ipairs(s.Chips) do
+    local c = counts[chip.key]
+    chip.have, chip.total = c.have, c.total
+    chip.Text:SetText(string.format(L["|cffffd100%s|r  %d / %d"], L[chip.label], c.have, c.total))
+    chip:SetWidth(chip.Text:GetStringWidth() + 8)
+  end
 end
 
 local function showHome()
@@ -214,8 +253,40 @@ local function createCard(i, name)
   return card
 end
 
--- The summary strip: "Mount Journal" left, the totals right, a full-width
--- 4 px gold bar along its bottom edge.
+-- One chip per tab under the bar: "<Tab>  owned / total", left to right;
+-- hover lights it, a click opens that tab.
+local function createChips(s)
+  s.Chips = {}
+  local prev
+  for i, info in ipairs(CHIPS) do
+    local chip = CreateFrame("Button", nil, s)
+    chip:SetHeight(G.chipsH)
+    if prev then
+      chip:SetPoint("LEFT", prev, "RIGHT", G.chipGap, 0)
+    else
+      chip:SetPoint("TOPLEFT", s, "TOPLEFT", -4, G.chipsY)
+    end
+    chip.key, chip.label = info.key, info.label
+    local glow = chip:CreateTexture(nil, "BACKGROUND")
+    glow:SetAllPoints(chip)
+    glow:SetColorTexture(1, 1, 1, 0.08)
+    glow:Hide()
+    chip.Glow = glow
+    local text = chip:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    text:SetPoint("LEFT", chip, "LEFT", 4, 0)
+    chip.Text = text
+    chip:SetScript("OnEnter", function() glow:Show() end)
+    chip:SetScript("OnLeave", function() glow:Hide() end)
+    chip:SetScript("OnHide", function() glow:Hide() end)
+    chip:SetScript("OnClick", function() UI.SelectTab(info.key) end)
+    s.Chips[i] = chip
+    prev = chip
+  end
+end
+
+-- The summary strip: "Mount Collection" left, the totals over every tab
+-- right, a full-width 4 px gold bar along its bottom edge, the tab chips
+-- below it.
 local function createSummary()
   local s = CreateFrame("Frame", nil, home)
   s:SetPoint("TOPLEFT", home, "TOPLEFT", G.left, 0)
@@ -224,7 +295,7 @@ local function createSummary()
 
   local heading = s:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
   heading:SetPoint("TOPLEFT", s, "TOPLEFT", 0, -8)
-  heading:SetText(L["Mount Journal"])
+  heading:SetText(L["Mount Collection"])
   s.Title = heading
 
   local totals = s:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
@@ -235,6 +306,7 @@ local function createSummary()
   bar:SetPoint("BOTTOMLEFT", s, "BOTTOMLEFT", 0, 0)
   bar:SetPoint("BOTTOMRIGHT", s, "BOTTOMRIGHT", 0, 0)
   s.Bar = bar
+  createChips(s)
   return s
 end
 

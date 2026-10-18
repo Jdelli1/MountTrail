@@ -206,7 +206,8 @@ L["The options page is not available on this client."] = "The options page is no
 L["/azt options - open the AzerothTrail options (Options > AddOns)"] = "/azt options - open the AzerothTrail options (Options > AddOns)"
 
 -- Journal home (front page)
-L["Mount Journal"] = "Mount Journal"
+L["Mount Collection"] = "Mount Collection"
+L["|cffffd100%s|r  %d / %d"] = "|cffffd100%s|r  %d / %d"
 L["%d / %d collected  ·  %d%%"] = "%d / %d collected  ·  %d%%"
 L["%d%%"] = "%d%%"
 

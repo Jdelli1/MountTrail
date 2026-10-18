@@ -101,7 +101,7 @@ describe("journal home", function()
     eq(#home.children, #ns.Data.Expansions + 1, "the tiles, then the summary strip")
     local summary = home.Summary
     ok(summary and home.children[#home.children] == summary, "summary strip on the home")
-    eq(summary.Title:GetText(), "Mount Journal")
+    eq(summary.Title:GetText(), "Mount Collection")
     eq(summary.Title.template, "GameFontNormalLarge")
     eq(summary.Totals.template, "GameFontHighlight")
     eq(summary.Bar.height, 4, "4 px summary bar")
@@ -127,7 +127,7 @@ describe("journal home", function()
     eq(all[2].Name:GetText(), ns.Data.Expansions[2])
   end)
 
-  it("summary totals are the sum of the tile counts", function()
+  it("tile counts and percents match their text", function()
     local ns = loadUI()
     local home = openHome(ns)
     local have, total = 0, 0
@@ -140,12 +140,38 @@ describe("journal home", function()
       eq(tile.Percent:GetText(), ns.UI.HomePercent(tile.have, tile.total) .. "%")
     end
     ok(total > 0 and have > 0 and have < total, "a partial collection")
+  end)
+
+  it("summary totals count every tab's mounts; one chip per tab, clicking opens it", function()
+    local ns = loadUI()
+    ns.Data.Mounts = {
+      [3] = { name = "J owned", tab = "journal", section = "raid", exp = ns.Data.Expansions[1] },
+      [4] = { name = "J", tab = "journal", section = "raid", exp = ns.Data.Expansions[2] },
+      [6] = { name = "Holiday owned", tab = "holiday", section = "brewfest" },
+      [7] = { name = "Achievement", tab = "misc", section = "achievement" },
+      [9] = { name = "Shop owned", tab = "misc", section = "shop" },
+      [10] = { name = "Shop", tab = "misc", section = "shop" },
+      [11] = { name = "TW", tab = "holiday", section = "timewalking" },
+      [13] = { name = "Gone", tab = "misc", section = "other", unobtainable = true },
+      [14] = { name = "Horde only", tab = "misc", section = "shop", faction = "Horde" },
+    }
+    local home = openHome(ns)
     local s = home.Summary
-    eq(s.have, have)
-    eq(s.total, total)
-    eq(s.Totals:GetText(), string.format("%d / %d collected  ·  %d%%", have, total, ns.UI.HomePercent(have, total)))
-    eq(s.Bar.max, total)
-    eq(s.Bar.value, have)
+    eq({ s.have, s.total }, { 3, 7 }, "unobtainable unowned and other-faction mounts left out")
+    eq(s.Totals:GetText(), string.format("%d / %d collected  ·  %d%%", 3, 7, ns.UI.HomePercent(3, 7)))
+    eq(s.Bar.max, 7)
+    eq(s.Bar.value, 3)
+    local want = {
+      journal = { 1, 2 }, holidays = { 1, 1 }, achievements = { 0, 1 }, timewalking = { 0, 1 }, misc = { 1, 2 },
+    }
+    eq(#s.Chips, 5)
+    for i, chip in ipairs(s.Chips) do
+      eq(chip.key, ns.UI.HomeChips[i].key)
+      eq({ chip.have, chip.total }, want[chip.key], chip.key)
+      eq(chip.Text:GetText(), string.format("|cffffd100%s|r  %d / %d", chip.label, chip.have, chip.total))
+    end
+    s.Chips[5]:RunScript("OnClick", "LeftButton")
+    ok(ns.UI.frame.Contents.misc:IsShown(), "the Misc chip opens the Misc tab")
   end)
 
   it("percent rounds down and is 0 without mounts", function()
