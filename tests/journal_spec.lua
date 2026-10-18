@@ -31,19 +31,16 @@ describe("journal", function()
     return function(id) return set[id] == true end
   end
 
-  it("DefaultFilters values", function()
+  it("DefaultFilters values: Collected off, no section hidden", function()
     local J = load()
-    eq(J.DefaultFilters, { dungeon=true, raid=true, world=true, delve=true, treasure=true, quest=true,
-      activity=true, reputation=true, vendor=true, other=true, collected=false })
+    eq(J.DefaultFilters, { collected = false })
   end)
 
-  it("filters out a section when its flag is false", function()
+  it("filters out a section when its flag is false (filters[view][section])", function()
     local J = load()
     local mounts = { [1] = mk("A", {section="raid"}), [2] = mk("B", {section="dungeon"}) }
-    local f = {}
-    for k, v in pairs(J.DefaultFilters) do f[k] = v end
-    f.raid = false
-    eq(ids(J.Select(mounts, q({ filters = f }))), {2})
+    eq(ids(J.Select(mounts, q({ filters = { journal = { raid = false } } }))), {2})
+    eq(ids(J.Select(mounts, q({ filters = { raid = false } }))), {2, 1}, "flat (pre-F15) keys are ignored")
   end)
 
   it("returns id and mount table", function()
@@ -72,10 +69,11 @@ describe("journal", function()
     eq(ids(J.Select(mounts, q({ tab = "misc", isOwned = owned, filters = {collected=true} }))), {1, 2})
   end)
 
-  it("section flags do not apply to non-journal tabs", function()
+  it("section flags apply per tab: filters[tab]", function()
     local J = load()
     local mounts = { [1] = mk("A", {tab="misc", section="other"}) }
-    eq(ids(J.Select(mounts, q({ tab = "misc", filters = {other=false} }))), {1})
+    eq(ids(J.Select(mounts, q({ tab = "misc", filters = { misc = { other = false } } }))), {})
+    eq(ids(J.Select(mounts, q({ tab = "misc", filters = { journal = { other = false } } }))), {1})
   end)
 
   it("filters by tab", function()
@@ -166,7 +164,7 @@ describe("journal", function()
     local J = load()
     local mounts = { [1] = mk("A", {section="delve"}), [2] = mk("B", {section="activity"}),
       [3] = mk("C", {section="raid"}) }
-    local old = { dungeon=true, raid=false, world=true, reputation=true, vendor=true, other=true, collected=false }
+    local old = { journal = { raid = false }, collected = false }
     eq(ids(J.Select(mounts, q({ filters = old }))), {1, 2})
   end)
 
@@ -243,9 +241,10 @@ describe("journal", function()
       local mounts = { [1] = mk("A", {section="world"}), [2] = mk("B", {section="world"}),
         [3] = mk("C", {section="other"}) }
       local st = sources({ [1] = "Delve", [3] = "Cache" })
-      eq(ids(J.Select(mounts, q({ sourceText = st, filters = { delve = false } }))), {2, 3}, "world, then treasure")
-      eq(ids(J.Select(mounts, q({ sourceText = st, filters = { treasure = false } }))), {2, 1}, "world before delve")
-      eq(ids(J.Select(mounts, q({ sourceText = st, filters = { world = false } }))), {1, 3})
+      local function f(t) return { journal = t } end
+      eq(ids(J.Select(mounts, q({ sourceText = st, filters = f({ delve = false }) }))), {2, 3}, "world, then treasure")
+      eq(ids(J.Select(mounts, q({ sourceText = st, filters = f({ treasure = false }) }))), {2, 1}, "world before delve")
+      eq(ids(J.Select(mounts, q({ sourceText = st, filters = f({ world = false }) }))), {1, 3})
     end)
 
     it("single-section queries use the refined section", function()
@@ -654,17 +653,97 @@ describe("journal", function()
         [3] = mk("c", {section="other", group="Timewalking"}),
         [4] = mk("d", {tab="misc", section="shop"}),
       }
-      local f = { raid = false }
+      local f = { journal = { raid = false } }
       local r = J.Select(mounts, q({ view = "journal", filters = f, sourceText = function() return "Delve" end }))
       eq(ids(r), {2})
       eq(r[1].section, "delve")
     end)
 
-    it("view wins over tab; section filters stay journal-only", function()
+    it("view wins over tab; each view reads its own section filters", function()
       local J = load()
       local mounts = { [1] = mk("a", {tab="misc", section="achievement", exp="Classic"}) }
       eq(ids(J.Select(mounts, q({ tab = "journal", view = "achievements",
-        filters = { other = false, achievement = false, Classic = false }, expansions = EXPS }))), {1})
+        filters = { journal = { other = false }, misc = { achievement = false }, Classic = false },
+        expansions = EXPS }))), {1})
+      eq(ids(J.Select(mounts, q({ tab = "journal", view = "achievements",
+        filters = { achievements = { Classic = false } }, expansions = EXPS }))), {})
+    end)
+
+    it("section filters apply in every view (F15)", function()
+      local J = load()
+      local mounts = {
+        [1] = mk("a", {tab="misc", section="profession"}),
+        [2] = mk("b", {tab="misc", section="shop"}),
+        [3] = mk("c", {tab="holiday", section="brewfest"}),
+        [4] = mk("d", {tab="holiday", section="hallowsend"}),
+        [5] = mk("e", {tab="misc", section="achievement", exp="Classic"}),
+        [6] = mk("f", {tab="misc", section="achievement"}),
+        [7] = mk("g", {tab="holiday", section="timewalking"}),
+        [8] = mk("h", {section="raid", unobtainable=true}),
+      }
+      mounts[6].exp = nil -- General
+      local function sel(view, filters, extra)
+        local o = { view = view, filters = filters, expansions = EXPS }
+        for k, v in pairs(extra or {}) do o[k] = v end
+        return ids(J.Select(mounts, q(o)))
+      end
+      eq(sel("misc", { misc = { shop = false } }), {1})
+      eq(sel("misc", { misc = { profession = false, shop = false } }), {})
+      eq(sel("misc", { holidays = { profession = false } }), {1, 2}, "another view's filters do not apply")
+      eq(sel("holidays", { holidays = { brewfest = false } }), {4})
+      eq(sel("achievements", { achievements = { General = false } }), {5})
+      eq(sel("achievements", { achievements = { Classic = false } }), {6})
+      eq(sel("timewalking", { timewalking = {} }), {7})
+      eq(sel("misc", {}, { showUnobtainable = true }), {1, 2, 8})
+      eq(sel("misc", { misc = { unobtainable = false } }, { showUnobtainable = true }), {1, 2})
+      eq(sel("misc", { misc = { shop = false }, collected = true }), {1}, "Collected stays global")
+    end)
+
+    it("FilterSections: the Filter menu's section keys per view", function()
+      local J = load()
+      eq(J.FilterSections("journal"), J.ViewSections("journal"))
+      eq(J.FilterSections("misc"), { "profession", "shop", "tradingpost", "pvp", "racial", "keystone",
+        "promotion", "class", "bmah", "collection", "limited", "other" }, "no unobtainable while the option is off")
+      eq(J.FilterSections("misc", { showUnobtainable = true })[13], "unobtainable")
+      eq(J.FilterSections("holidays"), J.ViewSections("holidays"))
+      eq(J.FilterSections("achievements", { expansions = EXPS }), J.ViewSections("achievements", EXPS))
+      eq(J.FilterSections("timewalking"), {}, "Timewalking: Collected only")
+      eq(J.FilterSections(nil), {})
+      eq(J.FilterSections("holiday"), {}, "data tab keys have no menu sections")
+    end)
+
+    it("SectionShown / SetSectionShown store only false, per view", function()
+      local J = load()
+      local f = { collected = true }
+      ok(J.SectionShown(f, "misc", "shop"))
+      ok(J.SectionShown(nil, "misc", "shop"), "no filters: shown")
+      J.SetSectionShown(f, "misc", "shop", false)
+      eq(f, { collected = true, misc = { shop = false } })
+      ok(not J.SectionShown(f, "misc", "shop"))
+      ok(J.SectionShown(f, "journal", "shop"), "other views unaffected")
+      J.SetSectionShown(f, "misc", "pvp", true)
+      eq(f, { collected = true, misc = { shop = false } }, "showing stores nothing")
+      J.SetSectionShown(f, "misc", "shop", true)
+      eq(f, { collected = true }, "an emptied view table is dropped")
+      ok(J.SectionShown({ misc = "junk" }, "misc", "shop"), "a non-table view entry reads as all shown")
+    end)
+
+    it("MigrateFilters moves the flat journal keys into filters.journal once", function()
+      local J = load()
+      local f = { collected = true, dungeon = true, raid = false, delve = false, other = true }
+      eq(J.MigrateFilters(f), true)
+      eq(f, { collected = true, journal = { raid = false, delve = false } })
+      eq(J.MigrateFilters(f), false, "nothing left to move")
+      eq(f, { collected = true, journal = { raid = false, delve = false } })
+
+      local g = { collected = false, raid = false, journal = { quest = false }, misc = { shop = false } }
+      J.MigrateFilters(g)
+      eq(g, { collected = false, journal = { quest = false, raid = false }, misc = { shop = false } })
+
+      local h = { collected = false, dungeon = true }
+      J.MigrateFilters(h)
+      eq(h, { collected = false }, "all-shown flat keys leave no journal table")
+      eq(J.MigrateFilters(nil), false)
     end)
 
     it("collected, faction and search apply in every view", function()

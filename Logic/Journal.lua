@@ -5,12 +5,10 @@ local ADDON, ns = ...
 local Journal = {}
 ns.Journal = Journal
 
--- Saved filter tables may predate a section key: a missing key means shown.
-Journal.DefaultFilters = {
-  dungeon = true, raid = true, world = true, delve = true, treasure = true,
-  quest = true, activity = true, reputation = true, vendor = true, other = true,
-  collected = false,
-}
+-- Saved filters (ns.db.global.filters): { collected = bool (global, default
+-- off), [view] = { [section] = false } } -- per list view, only hidden
+-- sections are stored; a missing view table or key means shown.
+Journal.DefaultFilters = { collected = false }
 
 local ORDER = {
   journal = { "dungeon", "raid", "world", "delve", "treasure", "quest", "activity",
@@ -62,6 +60,62 @@ function Journal.ViewSections(view, expansions)
   end
   for i, key in ipairs(VIEW_ORDER[view] or {}) do out[i] = key end
   return out
+end
+
+-- Section keys of view's Filter menu, in order. opts (optional):
+-- { expansions = list (Achievements; else Data.Expansions),
+-- showUnobtainable = bool (Misc lists "unobtainable" only with it) }.
+-- Timewalking (one section) and unknown views have none: Collected only.
+function Journal.FilterSections(view, opts)
+  if view == "timewalking" then return {} end
+  local keys = Journal.ViewSections(view, opts and opts.expansions)
+  if view == "misc" and not (opts and opts.showUnobtainable == true) then
+    for i = #keys, 1, -1 do
+      if keys[i] == Journal.UNOBTAINABLE then table.remove(keys, i) end
+    end
+  end
+  return keys
+end
+
+-- Whether `section` of `view` is shown by the saved filters (missing = shown).
+function Journal.SectionShown(filters, view, section)
+  local t = type(filters) == "table" and view ~= nil and filters[view] or nil
+  return not (type(t) == "table" and t[section] == false)
+end
+
+-- Shows or hides `section` of `view` in `filters`: hiding stores false,
+-- showing removes the key (and an emptied view table).
+function Journal.SetSectionShown(filters, view, section, shown)
+  local t = filters[view]
+  if shown then
+    if type(t) == "table" then
+      t[section] = nil
+      if next(t) == nil then filters[view] = nil end
+    end
+    return
+  end
+  if type(t) ~= "table" then
+    t = {}
+    filters[view] = t
+  end
+  t[section] = false
+end
+
+-- Before F15 the Journal's source filters were flat keys (filters.raid =
+-- false). Moves them into filters.journal (hidden ones only) and removes
+-- them; `collected` stays. -> true when anything was moved. Idempotent.
+function Journal.MigrateFilters(filters)
+  if type(filters) ~= "table" then return false end
+  local moved = false
+  for _, key in ipairs(ORDER.journal) do
+    local v = filters[key]
+    if v ~= nil and type(v) ~= "table" then
+      if v == false then Journal.SetSectionShown(filters, "journal", key, false) end
+      filters[key] = nil
+      moved = true
+    end
+  end
+  return moved
 end
 
 -- Misc section of not-owned unobtainable mounts when the "Show unobtainable
@@ -153,7 +207,8 @@ end
 -- -> list of { id=, m=, section= } sorted by section order, then name, then
 -- id. Sections: journal mounts refined by SectionOf; the Achievements view
 -- groups by expansion (m.exp, nil -> "General"); the Timewalking view has the
--- one section "timewalking". Section filters apply on the journal only.
+-- one section "timewalking". Section filters apply in every view:
+-- filters[view or tab][section] == false hides that section (SectionShown).
 -- pin (e.g. the Holidays tab's active holidays) moves those sections to the
 -- top, keeping their usual order among themselves; the rest follow in order.
 function Journal.Select(mounts, query)
@@ -161,7 +216,6 @@ function Journal.Select(mounts, query)
   local showCollected = filters.collected == true
   local isOwned, exists = query.isOwned, query.exists
   local view, tab = query.view, query.tab
-  local journal = (view or tab) == "journal"
   local sourceText = query.sourceText
   local showUnobtainable = view ~= nil and query.showUnobtainable == true
   local needle
@@ -207,7 +261,7 @@ function Journal.Select(mounts, query)
     local section = (query.exp == nil or m.exp == query.exp) and sectionIn(id, m)
     if section
       and (query.section == nil or section == query.section)
-      and not (journal and filters[section] == false) then
+      and Journal.SectionShown(filters, view or tab, section) then
       local owned = gate(id, m, isOwned, exists, query.faction, showUnobtainable)
       if owned ~= nil and (showCollected or not owned) then
         local keep = true

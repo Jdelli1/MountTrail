@@ -144,6 +144,7 @@ function addon:OnInitialize()
   -- char.last (the last lockout observation) starts nil.
   ns.db = LibStub("AceDB-3.0"):New("AzerothTrailDB", {
     global = {
+      -- { collected = bool, [view] = { [section] = false } } (Logic\Journal.lua)
       filters = copyTable(ns.Journal.DefaultFilters),
       -- Attempt counters per character: { [charKey] = { [mountID] = n } }.
       -- `attempts` ({ [mountID] = n }) is the account-wide counter of earlier
@@ -171,6 +172,8 @@ function addon:OnInitialize()
       checklistHideDone = false, -- Checklist: hide done lockouts
     },
   }, true)
+  -- Pre-F15 saved variables kept the Journal's source filters as flat keys.
+  ns.Journal.MigrateFilters(ns.db.global.filters)
   self:RegisterChatCommand("azt", "OnSlash")
   self:RegisterChatCommand("azerothtrail", "OnSlash")
 end

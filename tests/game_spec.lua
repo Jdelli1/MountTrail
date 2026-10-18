@@ -498,6 +498,7 @@ describe("init", function()
   it("db defaults: filters is a copy of Journal.DefaultFilters", function()
     local ns = setup()
     eq(ns.db.global.filters, ns.Journal.DefaultFilters)
+    eq(ns.db.global.filters, { collected = false })
     ok(ns.db.global.filters ~= ns.Journal.DefaultFilters, "a copy, not the same table")
     eq(ns.db.global.attempts, {})
     eq(ns.db.global.attemptsByChar, {})
@@ -506,6 +507,20 @@ describe("init", function()
     eq(ns.db.global.window, {})
     eq(ns.db.char.ticks, {})
     eq(ns.db.char.showCompleted, false)
+  end)
+
+  it("OnInitialize migrates pre-F15 flat journal filters into filters.journal", function()
+    local AceDB = LibStub("AceDB-3.0")
+    local realNew = AceDB.New
+    AceDB.New = function(self, svName, defaults)
+      local db = realNew(self, svName, defaults)
+      db.global.filters = { collected = true, dungeon = true, raid = false, vendor = false }
+      return db
+    end
+    local good, ns = pcall(setup)
+    AceDB.New = realNew
+    assert(good, ns)
+    eq(ns.db.global.filters, { collected = true, journal = { raid = false, vendor = false } })
   end)
 
   it("first observation counts nothing, then open -> done adds +1", function()
