@@ -6,10 +6,10 @@ local ADDON, ns = ...
 -- header rows, collapse state in ns.db.global.collapsed under
 -- "checklist|daily" / "checklist|weekly"). Rows look like the mount lists
 -- (UI.InitMountRow: icon, name, grey "boss · instance" line, pin; click =
--- waypoint, hover = tooltip) with a tick box in front that works like the
--- route's (UI.RouteCheck / UI.RouteToggle on a one-boss route row, so the
--- ticks are the route's own). "Hide done" (ns.db.char.checklistHideDone)
--- drops done rows. UI/RouteView.lua owns the header and the Route ·
+-- waypoint, hover = tooltip). Only lockouts the game can't report get a
+-- tick box in front of the icon, working like the route's (UI.RouteCheck /
+-- UI.RouteToggle on a one-boss route row, so the ticks are the route's own).
+-- Done entries disappear on their own (Checklist.Rows); the headers count them. UI/RouteView.lua owns the header and the Route ·
 -- Checklist switch and calls UI.ChecklistView.Build / Refresh.
 --
 -- The pure helpers (RouteSubView, SetRouteSubView, ChecklistContext,
@@ -183,8 +183,9 @@ local function initRow(row, data)
   local checked, enabled = UI.ChecklistCheck(data.entry)
   row.Check:SetChecked(checked and true or false)
   row.Check:SetEnabled(enabled and true or false)
-  -- A disabled button still eats the mouse: let hover and clicks reach the row.
   row.Check:EnableMouse(enabled and true or false)
+  -- Only lockouts the game can't report get a box; the icon keeps its place.
+  row.Check:SetShown(enabled and true or false)
   if data.done then
     row.Name:SetFontObject("GameFontDisable")
     row.Icon:SetDesaturated(true)
@@ -250,10 +251,8 @@ function view.Refresh()
   local Game = ns.Game
   local built = UI.ChecklistBuild(Game.Now())
   local untilDaily, untilWeekly = Game.UntilDaily(), Game.UntilWeekly()
-  local char = charDB()
   local rows = ns.Checklist.Rows(built, {
     collapsed = collapsedDB() or {},
-    hideDone = (char and char.checklistHideDone) == true,
     label = function(reset) return UI.ChecklistHeaderLabel(reset, untilDaily, untilWeekly) end,
   })
   local sourceText = UI.MemoText(Game.MountSourceText)

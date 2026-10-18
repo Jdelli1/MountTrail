@@ -163,9 +163,10 @@ end
 -- then weekly) a header { header = true, depth = 1, key = "checklist|<reset>",
 -- reset =, text = opts.label(reset) (default "Daily" / "Weekly"), owned =
 -- done count, total =, collapsed = } (owned / total as UI.HeaderText reads
--- them), then unless collapsed its entries as { id=, m=, entry=, done= }
--- (entries already sorted). opts.hideDone drops done entries; header counts
--- always span the whole group. opts.collapsed = { [key] = true }.
+-- them), then unless collapsed its entries still to do as { id=, m=, entry=,
+-- done= } (entries already sorted). Done entries are never listed: they
+-- disappear on their own, while the header counts span the whole group.
+-- opts.collapsed = { [key] = true }.
 function Checklist.Rows(built, opts)
   opts = opts or {}
   local collapsed = opts.collapsed or {}
@@ -184,7 +185,7 @@ function Checklist.Rows(built, opts)
       }
       if not isCollapsed then
         for _, e in ipairs(list) do
-          if not (opts.hideDone and e.done) then
+          if not e.done then
             rows[#rows + 1] = { id = e.id, m = e.m, entry = e, done = e.done }
           end
         end

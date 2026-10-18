@@ -100,7 +100,6 @@ describe("route sub-view", function()
     eq(UI.SetRouteSubView(ns.db.char, "bogus"), "route", "anything else is the route")
     eq(UI.RouteSubView(nil), "route")
     eq(UI.RouteSubView({ routeView = "weird" }), "route")
-    eq(ns.db.char.checklistHideDone, false, "Hide done defaults off")
   end)
 end)
 

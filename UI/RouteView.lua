@@ -2,11 +2,11 @@ local ADDON, ns = ...
 
 -- Route tab: this character's farming route (Logic/Route.lua rows) with the
 -- reset timers, a "Show completed" box, a List / Arrow mode toggle,
--- Oregon-Trail flavour lines, a tick box per kill row and a location pin
+-- Oregon-Trail flavour lines, a tick box on kill rows the game can't report and a location pin
 -- (clicks as on the mount lists, aimed at UI.RouteTargetMount). A second
 -- segmented control (Route / Checklist, ns.db.char.routeView) swaps the list
 -- for the daily / weekly checklist (UI\ChecklistView.lua) under the same
--- header, where "Hide done" takes the "Show completed" spot. Also
+-- header (done checklist entries disappear on their own). Also
 -- defines ns.UI.RouteRemaining for the minimap tooltip and ns.UI.RouteNextStep
 -- for the route arrow (UI\Arrow.lua).
 --
@@ -378,10 +378,11 @@ local function initRow(frame, data)
     frame.Check:SetPoint("TOPLEFT", frame, "TOPLEFT", left, -2)
     frame.Check:SetChecked(checked and true or false)
     frame.Check:SetEnabled(enabled and true or false)
-    -- A disabled button still eats the mouse: let hover and ctrl-click
-    -- reach the row through it.
     frame.Check:EnableMouse(enabled and true or false)
-    frame.Check:Show()
+    -- Only lockouts the game can't report get a box: a game-tracked row is
+    -- done when the game says so (greyed, "auto"), never by a click. The
+    -- hidden box still anchors the title, so titles stay aligned.
+    frame.Check:SetShown(enabled and true or false)
     -- Check top is -2, so the title top is -6 (= KILL_TITLE_Y).
     frame.Title:SetPoint("TOPLEFT", frame.Check, "TOPRIGHT", 4, KILL_TITLE_Y + 2)
     frame.Title:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -TITLE_RIGHT, KILL_TITLE_Y)
@@ -444,15 +445,13 @@ local function resetsText(Game)
 end
 
 -- Checklist sub-view (UI\ChecklistView.lua): its own list replaces the
--- route's; "Hide done" replaces "Show completed".
+-- route's. Done entries disappear on their own, so there is no "Show
+-- completed" there.
 local function refreshChecklist(Game)
   local checklist = UI.ChecklistView
   scrollBox:Hide()
   scrollBar:Hide()
   header.ShowCompleted:Hide()
-  header.HideDone:Show()
-  local char = charDB()
-  header.HideDone:SetChecked((char and char.checklistHideDone) == true)
   checklist.SetShown(true)
   local built = checklist.Refresh()
   local name = Game.PlayerName()
@@ -472,7 +471,6 @@ local function refresh()
   scrollBox:Show()
   scrollBar:Show()
   header.ShowCompleted:Show()
-  header.HideDone:Hide()
   local ctx = UI.RouteContext(Game.Now())
   local rows = ns.Route.Build((ns.Data and ns.Data.Route) or {}, ctx)
   for i, row in ipairs(rows) do
@@ -551,25 +549,6 @@ local function build(parent)
     ns.Refresh()
   end)
   header.ShowCompleted = show
-
-  -- Checklist sub-view: "Hide done" in the same spot
-  -- (ns.db.char.checklistHideDone).
-  local hide = CreateFrame("CheckButton", nil, header, checkTemplate())
-  hide:SetSize(CHECK_SIZE, CHECK_SIZE)
-  local hideText = hide.Text or hide.text
-  if not hideText then
-    hideText = hide:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    hideText:SetPoint("LEFT", hide, "RIGHT", 2, 0)
-  end
-  hideText:SetText(L["Hide done"])
-  hide:SetPoint("TOPRIGHT", header, "TOPRIGHT", -8 - (hideText:GetStringWidth() or 90), -6)
-  hide:SetScript("OnClick", function(self)
-    local char = charDB()
-    if char then char.checklistHideDone = self:GetChecked() and true or false end
-    ns.Refresh()
-  end)
-  hide:Hide()
-  header.HideDone = hide
 
   -- A flat two-segment control in a 1 px frame: 1 px frame + two segments
   -- of `width` + a 1 px divider between them; onPick(key) on a click.

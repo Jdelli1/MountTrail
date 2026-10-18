@@ -898,7 +898,8 @@ describe("ui build", function()
     eq(header.RouteViewButton.Label.font, "GameFontNormalSmall", "Route selected by default")
     eq(header.ChecklistViewButton.Label.font, "GameFontDisableSmall")
     ok(routeBox:IsShown() and not checklist:IsShown(), "route list shown")
-    ok(header.ShowCompleted:IsShown() and not header.HideDone:IsShown(), "Show completed on the route")
+    ok(header.ShowCompleted:IsShown(), "Show completed on the route")
+    eq(header.HideDone, nil, "no Hide done: done checklist entries disappear on their own")
 
     header.ChecklistViewButton:RunScript("OnClick")
     eq(ns.db.char.routeView, "checklist")
@@ -906,7 +907,7 @@ describe("ui build", function()
     eq(header.ChecklistViewButton.Bg.color, { 1, 0.82, 0, 0.22 })
     eq(header.RouteViewButton.Label.font, "GameFontDisableSmall")
     ok(checklist:IsShown() and not routeBox:IsShown(), "checklist shown, route list hidden")
-    ok(header.HideDone:IsShown() and not header.ShowCompleted:IsShown(), "Hide done replaces Show completed")
+    ok(not header.ShowCompleted:IsShown(), "no Show completed on the checklist")
     ok(header.ModeControl:IsShown(), "List / Arrow stays")
     ok(header.Flavour:GetText():find("lockouts left", 1, true), "flavour counts checklist entries")
 
@@ -935,28 +936,26 @@ describe("ui build", function()
     for i, row in ipairs(rows) do if row.header and row.reset == "weekly" then weekly = i end end
     ok(weekly and weekly > 2, "weekly header after the daily rows")
 
-    -- A row: list look, tick box in front of the icon, pin, click, hover.
+    -- A row: list look, pin, click, hover. A game-tracked lockout has no
+    -- tick box (the game decides); the icon keeps its place either way.
     local f, row = frames[2], rows[2]
-    ok(f.Check and f.Check:IsShown() ~= false, "tick box")
-    eq({ f.Icon:GetPoint(1) }, { "LEFT", f, "LEFT", 6 + 22 + 4, 0 }, "icon after the tick box")
+    ok(not row.entry.spec.manual, "the first daily entry is game-tracked")
+    eq(f.Check:IsShown(), false, "no tick box on a game-tracked lockout")
+    eq({ f.Icon:GetPoint(1) }, { "LEFT", f, "LEFT", 6 + 22 + 4, 0 }, "icon after the tick-box column")
     eq(f.Pin:IsShown(), row.id % 2 == 0)
     ok(f.Source:GetText() ~= "", "grey description line")
     f:RunScript("OnClick", "LeftButton")
     eq(got[1], { row.id, "LeftButton" })
 
-    -- A game-tracked row's box is display-only.
-    if not row.entry.spec.manual then
-      eq(f.Check.mouse, false, "game-tracked lockout: display-only box (takes no clicks)")
-    end
-
-    -- Ticking a manual row writes the route's tick key and redraws with the
-    -- entry done.
+    -- A manual lockout (the game can't report it) has a tick box; ticking it
+    -- writes the route's tick key and the entry disappears, counted as done.
     local m
     for i, r in ipairs(rows) do
       if not m and r.entry and r.entry.spec.manual then m = i end
     end
     ok(m and m > weekly, "a manual (weekly) entry to tick")
     f, row = frames[m], rows[m]
+    ok(f.Check:IsShown() ~= false, "tick box on a manual lockout")
     local key = row.entry.key
     f.Check:RunScript("OnClick")
     ok(ns.db.char.ticks[key], "ticked " .. tostring(key))
@@ -964,19 +963,7 @@ describe("ui build", function()
     eq(rows[weekly].header, true)
     eq(rows[weekly].owned, 1, "1 done in the weekly group")
     eq(rows[1].owned, 0, "the daily group is untouched")
-    local last
-    for i, r in ipairs(rows) do if r.entry and r.entry.key == key then last = i end end
-    eq(last, #rows, "the ticked entry sinks to the end of its group")
-    ok(rows[last].done, "ticked entry is done")
-    eq(render(box)[last].Name.font, "GameFontDisable", "done rows are dimmed")
-
-    -- Hide done drops it; the count stays.
-    header.HideDone.checked = true
-    header.HideDone:RunScript("OnClick")
-    eq(ns.db.char.checklistHideDone, true)
-    rows = box.provider.rows
-    eq(rows[weekly].owned, 1)
-    for _, r in ipairs(rows) do ok(not (r.entry and r.entry.key == key), "done row hidden") end
+    for _, r in ipairs(rows) do ok(not (r.entry and r.entry.key == key), "done entry is gone") end
 
     -- Collapsing the daily header (saved like the list headers).
     frames = render(box)
