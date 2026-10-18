@@ -13,7 +13,8 @@
 --   step, never a daily / weekly checklist entry
 -- Mounts with a Rarity quest flag (Data/Mounts.lua `quest`) and no entry here are
 -- treated as { quest=<that quest>, reset=Lockouts.QuestReset(mount) }: "daily" for a
--- SimpleArmory group "Rare Spawn" (or ending in " Rare Spawn"), else "weekly" (MoP
+-- SimpleArmory group "Rare Spawn" (or ending in " Rare Spawn", or a BfA zone-rare group
+-- starting "Warfront: " / "Assault: "), else "weekly" (MoP
 -- world bosses, Rukhmar: group "World Boss"). An entry here always wins.
 --
 -- Difficulty IDs: 1 Normal dungeon, 2 Heroic dungeon, 23 Mythic dungeon,
@@ -107,9 +108,10 @@ ns.Data.Lockouts = {
   [1217] = { instance = 2070, boss = "High Tinker Mekkatorque", difficulties = { 14, 15, 16 }, reset = "weekly" }, -- G.M.O.D.
   [1219] = { instance = 2070, boss = "Lady Jaina Proudmoore", difficulties = { 16 }, reset = "weekly" }, -- Glacial Tidestorm, Mythic only -- verify in game
   [995]  = { instance = 1754, boss = "Harlan Sweete", difficulties = { 23 }, reset = "weekly" }, -- Sharkbait, Freehold Mythic
-  -- Tomb Stalker: the journal name; DungeonEncounter has no row for it on map 1762 (tools/verify_data.py),
-  -- so the saved-instance name is unconfirmed.
-  [1040] = { instance = 1762, boss = "Dazar, The First King", difficulties = { 23 }, reset = "weekly" }, -- Tomb Stalker, King's Rest Mythic -- verify in game
+  -- Tomb Stalker: JournalEncounter 2172 "Dazar, The First King" links (DungeonEncounterID) to DungeonEncounter
+  -- 2143 "King Dazar" on map 1762 (tools/verify_data.py, build 12.1.5.70448); "Dazar" is contained in both and
+  -- in no other King's Rest boss name.
+  [1040] = { instance = 1762, boss = "Dazar", difficulties = { 23 }, reset = "weekly" }, -- Tomb Stalker, King's Rest Mythic -- verify in game
   [1053] = { instance = 1841, boss = "Unbound Abomination", difficulties = { 23 }, reset = "weekly" }, -- Underrot Crawg, Underrot Mythic
   [1252] = { instance = 2097, boss = "HK-8 Aerial Oppression Unit", difficulties = { 23 }, reset = "weekly" }, -- Mechagon Peacekeeper, Mythic
   [1227] = { instance = 2097, boss = "King Mechagon", difficulties = { 23 }, reset = "weekly" }, -- Aerial Unit R-21/X, Mythic hard mode

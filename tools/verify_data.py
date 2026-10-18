@@ -375,9 +375,10 @@ class Game:
         self.loot = {}
         for r in rows("JournalEncounterItem"):
             self.loot.setdefault(_int(r["ItemID"]), []).append(r)
-        self.dungeon_encounters_by_map = {}
+        self.dungeon_encounters_by_map, self.dungeon_encounters = {}, {}
         for r in rows("DungeonEncounter"):
             self.dungeon_encounters_by_map.setdefault(_int(r["MapID"]), []).append(r)
+            self.dungeon_encounters[_int(r["ID"])] = r
         self.lfg_dungeons = {_int(r["ID"]): r for r in rows("LfgDungeons")}
 
     def mount_spell(self, mount_id, ours=None):
@@ -624,6 +625,13 @@ def check_lockouts(ours, game):
         # names are the game's candidates for those names.
         dnames = sorted({d["Name_lang"] for d in game.dungeon_encounters_by_map.get(map_id, [])
                          if boss_match(boss, d["Name_lang"])})
+        # The DungeonEncounter the journal page links to (JournalEncounter.DungeonEncounterID):
+        # the saved-instance name even when it shares no words with the journal's
+        # ("Dazar, The First King" -> "King Dazar").
+        linked = game.dungeon_encounters.get(_int(enc.get("DungeonEncounterID")))
+        linked_name = linked["Name_lang"] if linked and _int(linked["MapID"]) == map_id else None
+        if linked_name:
+            dnames = sorted(set(dnames) | {linked_name})
         row["dungeon_encounter"] = " / ".join(dnames)
         candidates = [e["Name_lang"] for _, e in scored] + dnames
         if not any(addon_match(boss, c) for c in candidates):
@@ -631,6 +639,13 @@ def check_lockouts(ours, game):
                                "%s: %r only matches %s loosely; the addon's substring "
                                "test would not match it" % (label, boss, " / ".join(sorted(set(candidates)))),
                                "set boss = %r" % (dnames[0] if dnames else enc["Name_lang"]), key))
+        elif linked_name and not addon_match(boss, linked_name):
+            out.append(finding("lockout", "dungeon-encounter-name-differs", "warn", mid, name,
+                               "%s: %r matches journal %r, whose linked DungeonEncounter %d is %r; if the "
+                               "saved-instance list uses that name, the addon's substring test fails"
+                               % (label, boss, enc["Name_lang"], _int(linked["ID"]), linked_name),
+                               "check with /azt dump; use a name contained in both %r and %r"
+                               % (enc["Name_lang"], linked_name), key))
         elif dnames and not any(addon_match(boss, d) for d in dnames):
             out.append(finding("lockout", "dungeon-encounter-name-differs", "warn", mid, name,
                                "%s: %r matches journal %r, but DungeonEncounter calls it %s; if the "

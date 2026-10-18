@@ -9,3 +9,5 @@ ID,JournalEncounterID,ItemID,FactionMask,Flags,DifficultyMask,DisplaySeasonID,Wo
 8,1005,518,-1,0,-1,0,0
 9,1005,519,-1,0,-1,0,0
 10,1004,520,-1,0,-1,0,0
+11,1006,523,-1,0,-1,0,0
+12,1006,524,-1,0,-1,0,0

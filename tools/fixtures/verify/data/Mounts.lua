@@ -27,4 +27,6 @@ ns.Data.Mounts = {
   [20] = { name = "Tau Gear", spell = 1020, item = 520 },
   [21] = { name = "Upsilon Roc", spell = 1021 },
   [22] = { name = "Phi Kodo", spell = 1022 },
+  [23] = { name = "Chi Tomb Stalker", spell = 1023, item = 523 },
+  [24] = { name = "Psi Tomb Stalker", spell = 1024, item = 524 },
 }

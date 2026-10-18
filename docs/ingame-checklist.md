@@ -384,16 +384,23 @@ Boss names (data verifier, build 12.1.5.70448): a lockout spec's boss now matche
 
 - [ ] Freehold Mythic: kill Harlan Sweete; `/azt dump` lists the boss name the client uses; the Sharkbait row is ticked `auto` (Checklist) and its tooltip reads `Lockout: Saved`.
 - [ ] Battle of Dazar'alor (Normal or higher): kill Mekkatorque; `/azt dump` shows its name; G.M.O.D. reads `Lockout: Saved`.
-- [ ] King's Rest Mythic: kill Dazar; `/azt dump`: note the exact boss name (the game's DungeonEncounter table has no row for `Dazar, The First King`); the Tomb Stalker row should tick `auto`. If it does not, report the dumped name.
+- [ ] King's Rest Mythic: kill Dazar; `/azt dump`: note the exact boss name (the journal calls it `Dazar, The First King`, its linked DungeonEncounter 2143 `King Dazar`; the spec now says `Dazar`, contained in both); the Tomb Stalker row should tick `auto`. If it does not, report the dumped name.
 
-Rare-spawn resets: a mount whose only lockout is its Rarity quest flag now resets daily when SimpleArmory files it under `Rare Spawn` (or `<covenant> Rare Spawn`), weekly otherwise (`World Boss`, Garrison, Warfront, Assault, ...). Explicit Data/Lockouts.lua entries still win. That moves 29 mounts from Weekly to Daily (all obtainable spec'd mounts: 17 daily / 123 weekly before, 46 / 94 after). The game's tables do not say how a hidden tracking quest resets, so this is the owner's rule, to be confirmed:
+Rare-spawn resets: a mount whose only lockout is its Rarity quest flag now resets daily when SimpleArmory files it under `Rare Spawn` (or `<covenant> Rare Spawn`) or under a BfA zone-rare group starting `Warfront: ` (Arathi, Darkshore) or `Assault: ` (Uldum, Vale of Eternal Blossoms); weekly otherwise (`World Boss`, Garrison, ...). Explicit Data/Lockouts.lua entries still win. That moves 45 mounts from Weekly to Daily (all obtainable spec'd mounts: 17 daily / 124 weekly before F12, 63 / 78 after, Ahune included). The game's tables do not say how a hidden tracking quest resets, so this is the owner's rule, to be confirmed:
 
 - [ ] Checklist > Daily lists the rare-spawn mounts (e.g. Legion > Vile Fiend, Shadowlands > Gorespine, The War Within > Darkfuse Spy-Eye), Weekly the world bosses (e.g. Mists of Pandaria > Son of Galleon, Warlords of Draenor > Solar Spirehawk).
 - [ ] Kill one daily rare (e.g. a Mechagon or Korthia rare with a mount): its row ticks `auto`; after the daily reset it is back. If it stays ticked until the weekly reset instead, report the mount (it needs a weekly entry in Data/Lockouts.lua).
 - [ ] Tanaan Jungle (Tundra Icehoof, Armored Razorback, Warsong Direfang share quest 39287): one Daily row; confirm it returns after the daily reset.
+- [ ] BfA zone rares under Daily: Battle for Azeroth > Warfront: Arathi (e.g. Skullripper, Witherbark Direwing), Warfront: Darkshore (e.g. Umber Nightsaber), Assault: Uldum (e.g. Waste Marauder) and Assault: Vale of Eternal Blossoms (e.g. Xinlao). Kill one: it ticks `auto` and is back after the daily reset (if it waits for the weekly reset, report the mount).
 
 Ahune (Midsummer Fire Festival): the game's LfgDungeons table has ID 286 `The Frost Lord Ahune` in the holiday-boss group (Group_ID 11, with 285 / 287 / 288), so Sun Festival's Painted Roc (3036, Mount.db2 `Drop: Ahune; Holiday: Midsummer`) gets a daily `lfg = 286` spec and Midsummer a route step `Queue for Ahune (Midsummer Fire Festival)`. The step has no map pin (the location is not in the verified tables). The verifier now also checks every `lfg` spec and holiday `lfg` against LfgDungeons.
 
 - [ ] During Midsummer: Checklist > Daily lists Sun Festival's Painted Roc (description `Queue for Ahune (Midsummer Fire Festival)`); the Route tab shows the queue step.
 - [ ] Queue for and kill Ahune: the row ticks `auto` (the daily LFG reward is marked done) and comes back after the daily reset. If it does not tick, report it (the LFG ID may not be the one the reward check uses).
 - [ ] Holidays tab > Midsummer Fire Festival: the Painted Roc row shows `Lockout: Available` / `Saved` like the Brewfest mounts.
+
+Data fixes (verifier, build 12.1.5.70448):
+
+- [ ] Checklist > Daily > Wrath of the Lich King: Bronze Drake (Culling of Stratholme) has a tick box (manual: the game reports no `Infinite Corruptor` kill); tick it after a timed heroic run: the row disappears and Daily's done count goes up; it is back after the daily reset.
+- [ ] Hover Swift Armored Vorquin and Majestic Armored Vorquin (Misc > Other, Dracthyr): each tooltip shows its own reins item (Swift: item 198810, Majestic: 198811); the item's name matches the mount.
+- [ ] Route tab: no `Run The Stonevault (Dungeon)` step and no `Flightpath to The Ringing Deeps` travel step; the Checklist has no Stonevault Mechsuit row (it is a quest reward: `Repurposed, Restored`).

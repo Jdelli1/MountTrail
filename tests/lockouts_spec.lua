@@ -131,6 +131,19 @@ describe("lockouts", function()
       eq(L.State(gmod, killed(2070, 16, "high tinker MEKKATORQUE")), "done", "case-insensitive")
     end)
 
+    -- JournalEncounter 2172 "Dazar, The First King" links to DungeonEncounter 2143
+    -- "King Dazar" (map 1762): the shipped spec names what both contain.
+    it("Tomb Stalker's King's Rest spec matches the journal and the DungeonEncounter name", function()
+      local ns = loadWithData()
+      local L, spec = ns.Lockouts, ns.Data.Lockouts[1040]
+      eq(spec.boss, "Dazar")
+      eq(L.State(spec, killed(1762, 23, "King Dazar")), "done")
+      eq(L.State(spec, killed(1762, 23, "Dazar, The First King")), "done")
+      local others = merge(killed(1762, 23, "The Golden Serpent"), killed(1762, 23, "The Council of Tribes"),
+        killed(1762, 23, "Mchimba the Embalmer"))
+      eq(L.State(spec, others), "open", "no other King's Rest boss contains Dazar")
+    end)
+
     it("does not match another boss of the same instance", function()
       local L = load().Lockouts
       local archavon = { instance = 624, boss = "Archavon the Stone Watcher", difficulties = { 3 }, reset = "weekly" }
@@ -249,6 +262,27 @@ describe("lockouts", function()
       eq(L.SpecFor(5), { quest = 15, reset = "weekly" }, "no group")
       eq(L.SpecFor(6), { quest = 16, reset = "weekly" }, "only a trailing Rare Spawn counts")
       eq(L.SpecFor(7), { quest = 17, reset = "weekly" }, "SimpleArmory's exact spelling")
+    end)
+
+    it("BfA warfront and assault zone rares (Warfront: / Assault: groups) reset daily", function()
+      local ns = load_addon({"Logic/Lockouts.lua"})
+      ns.Data = { Lockouts = {}, BossLockouts = {}, Mounts = {
+        [1] = { quest = 21, group = "Warfront: Arathi" },
+        [2] = { quest = 22, group = "Warfront: Darkshore" },
+        [3] = { quest = 23, group = "Assault: Uldum" },
+        [4] = { quest = 24, group = "Assault: Vale of Eternal Blossoms" },
+        [5] = { quest = 25, group = "Warfront" },
+        [6] = { quest = 26, group = "Old Assault: Uldum" },
+        [7] = { quest = 27, group = "warfront: arathi" },
+      } }
+      local L = ns.Lockouts
+      eq(L.SpecFor(1).reset, "daily")
+      eq(L.SpecFor(2).reset, "daily")
+      eq(L.SpecFor(3).reset, "daily")
+      eq(L.SpecFor(4).reset, "daily")
+      eq(L.SpecFor(5).reset, "weekly", "needs the 'Warfront: ' prefix")
+      eq(L.SpecFor(6).reset, "weekly", "a prefix, not anywhere in the group")
+      eq(L.SpecFor(7).reset, "weekly", "SimpleArmory's exact spelling")
     end)
 
     it("an explicit Lockouts entry wins over the quest flag's group rule", function()

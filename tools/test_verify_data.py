@@ -211,6 +211,20 @@ class ChecksTest(unittest.TestCase):
         self.assertEqual((hit["kind"], hit["severity"]), ("dungeon-encounter-name-differs", "warn"))
         self.assertIn("Lord Harlan", hit["suggestion"])
 
+    def test_linked_dungeon_encounter_name_that_defeats_the_substring_test(self):
+        # JournalEncounter "Gamma, The Old King" links (DungeonEncounterID) to
+        # DungeonEncounter "King Gamma": no fuzzy name pick finds it, the link does
+        # (the real case: "Dazar, The First King" vs "King Dazar", map 1762).
+        f, table = v.check_lockouts(self.ours, self.game)
+        (hit,) = self.find(f, "lockout", "23", kind="dungeon-encounter-name-differs")
+        self.assertEqual(hit["severity"], "warn")
+        self.assertIn("King Gamma", hit["detail"])
+        row = next(r for r in table if r["key"] == "23")
+        self.assertIn("King Gamma", row["dungeon_encounter"])
+        # A name contained in both the journal and the linked name passes.
+        self.assertEqual([h["kind"] for h in self.find(f, "lockout", "24")], ["loose-boss-match"],
+                         "only the info that 'Gamma' is a prefix of the journal name")
+
     def test_addon_match_naming_two_bosses_of_the_instance_warns(self):
         f, _ = v.check_lockouts(self.ours, self.game)
         (hit,) = self.find(f, "lockout", "20", kind="addon-ambiguous-match")

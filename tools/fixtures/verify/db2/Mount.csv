@@ -20,3 +20,5 @@ Name_lang,SourceText_lang,Description_lang,ID,MountTypeID,Flags,SourceTypeEnum,S
 "Tau Gear","","",20,0,0,0,1020
 "Upsilon Roc","","",21,0,0,0,1021
 "Phi Kodo","","",22,0,0,0,1022
+"Chi Tomb Stalker","","",23,0,0,0,1023
+"Psi Tomb Stalker","","",24,0,0,0,1024
