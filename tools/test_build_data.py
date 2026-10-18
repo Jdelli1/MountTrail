@@ -434,6 +434,29 @@ class BuildDataTests(unittest.TestCase):
         self.assertEqual([(b["mount"], b["boss"]) for b in steps[0]["bosses"]],
                          [(7, "Void Speaker Eirich"), (2119, "Someone Else")])
 
+    def test_route_clears_unavailable_for_rows_the_encounter_journal_lists(self):
+        # DB2 12.1.5.70448 JournalEncounterItem: Lucent Hawkstrider (2817, item
+        # 260231) drops from Degentrius (Magisters' Terrace), Spectral
+        # Hawkstrider (2805, item 262914) from The Restless Heart (Windrunner
+        # Spire); SimpleArmory marks both steps unavailable. Only those exact
+        # (mount, boss) rows clear the flag on their step.
+        planner = {"steps": [{
+            "title": "Flightpath to Isle of Quel'Danas",
+            "steps": [
+                {"title": "Run Magister's Terrace (Midnight Dungeon)", "type": "Dungeon", "unavailable": True,
+                 "bosses": [{"ID": 2817, "name": "Degentrius", "note": "Mythic only"}]},
+                {"title": "Run Windrunner Spire (Dungeon)", "type": "Dungeon", "unavailable": True,
+                 "bosses": [{"ID": 2805, "name": "The Restless Heart"}]},
+                {"title": "Run Gone (Dungeon)", "unavailable": True,
+                 "bosses": [{"ID": 2817, "name": "Someone Else"}, {"ID": 7, "name": "Degentrius"}]},
+            ],
+        }]}
+        steps = build_data.build_route(planner)[0]["steps"]
+        self.assertNotIn("unavailable", steps[0])
+        self.assertNotIn("unavailable", steps[1])
+        self.assertTrue(steps[2]["unavailable"], "other rows keep SimpleArmory's flag")
+        self.assertEqual(steps[0]["bosses"], [{"mount": 2817, "boss": "Degentrius", "note": "Mythic only"}])
+
     def test_item_fixes_swap_the_armored_vorquin_items(self):
         # DB2 ItemEffect / ItemXItemEffect: item 198810 teaches spell 385134
         # (Swift Armored Vorquin, 1665), 198811 teaches 385115 (Majestic, 1668);

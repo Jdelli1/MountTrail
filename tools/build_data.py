@@ -584,6 +584,28 @@ _BOGUS_BOSS_ROWS = {
 }
 
 
+# Planner rows SimpleArmory marks unavailable (on their step) that the game's
+# Encounter Journal still lists as loot: (mountID, boss name) pairs whose step
+# loses the `unavailable` flag. Evidence, DB2 build 12.1.5.70448:
+#   Lucent Hawkstrider (2817, item 260231): JournalEncounterItem -> encounter
+#     2662 Degentrius, JournalInstance 1300 Magisters' Terrace (MapID 2811);
+#     Mount.db2 SourceText "Drop: Degentrius, Zone: Magister's Terrace
+#     (Mythic)" + "Drop: Challenger's Cache".
+#   Spectral Hawkstrider (2805, item 262914): encounter 2658 The Restless
+#     Heart, JournalInstance 1299 Windrunner Spire (MapID 2805); SourceText
+#     "Drop: The Restless Heart, Zone: Windrunner Spire (Mythic)" +
+#     "Drop: Challenger's Cache".
+# tools/verify_data.py warns about any other unavailable row with journal loot.
+_AVAILABLE_BOSS_ROWS = {
+    (2817, "Degentrius"),
+    (2805, "The Restless Heart"),
+}
+
+
+def _available_override(bosses):
+    return any((_to_int(b.get("ID")), b.get("name")) in _AVAILABLE_BOSS_ROWS for b in bosses)
+
+
 def _bogus_boss(b):
     if (_to_int(b.get("ID")), b.get("name")) in _BOGUS_BOSS_ROWS:
         return True
@@ -609,6 +631,8 @@ def _node(n):
             continue
         out[dst] = v
     raw = [b for b in n.get("bosses") or [] if isinstance(b, dict)]
+    if out.get("unavailable") and _available_override(raw):
+        del out["unavailable"]
     kept = [b for b in raw if not _bogus_boss(b)]
     pruned = len(kept) < len(raw)
     bosses = [_boss(b) for b in kept]

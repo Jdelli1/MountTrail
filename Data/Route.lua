@@ -736,7 +736,6 @@ ns.Data.Route = {
               {
                 title = "Run Magister's Terrace (Midnight Dungeon)",
                 type = "Dungeon",
-                unavailable = true,
                 bosses = {
                   { mount = 2817, boss = "Degentrius", note = "Mythic only" },
                 },
@@ -756,7 +755,6 @@ ns.Data.Route = {
               {
                 title = "Run Windrunner Spire (Dungeon)",
                 type = "Dungeon",
-                unavailable = true,
                 bosses = {
                   { mount = 2805, boss = "The Restless Heart", note = "Mythic only" },
                 },

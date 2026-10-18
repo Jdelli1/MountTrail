@@ -428,7 +428,7 @@ Route tab > Checklist: under each expansion sub-header the lockouts are split ag
 
 Real data (every obtainable spec'd mount, nothing owned, all holidays on; per character the numbers drop with what you own): Daily 55 = Dungeons 9, Rares 42, Holidays 4; Weekly 74 = Raids 48, Dungeons 11, World bosses 6, Other 9 (vendor / quest / garrison flags such as Shadowhide Pearltusk, Loyal Gorger, Hand of Bahmethra).
 
-- [ ] Checklist > Weekly > Shadowlands: `Raids` (Sanctum Gloomcharger, Vengeance, Zereth Overseer), `Dungeons` (Marrowfang, Cartel Master's Gearglider), `Other`; Battle for Azeroth > Dungeons lists Sharkbait, Underrot Crawg, Tomb Stalker, Aerial Unit R-21/X, Mechagon Peacekeeper; Midnight > Dungeons lists The Writhing Brood, Midnight > Raids Ashes of Belo'ren.
+- [ ] Checklist > Weekly > Shadowlands: `Raids` (Sanctum Gloomcharger, Vengeance, Zereth Overseer), `Dungeons` (Marrowfang, Cartel Master's Gearglider), `Other`; Battle for Azeroth > Dungeons lists Sharkbait, Underrot Crawg, Tomb Stalker, Aerial Unit R-21/X, Mechagon Peacekeeper; Midnight > Dungeons lists The Writhing Brood, Lucent Hawkstrider and Spectral Hawkstrider (see the fix round below), Midnight > Raids Ashes of Belo'ren.
 - [ ] Mists of Pandaria under Weekly shows `Raids` and `World bosses` (Son of Galleon, the Cloud Serpents, Cobalt Primordial Direhorn); Daily > Battle for Azeroth > `Rares` holds the Warfront / Assault rares.
 - [ ] Weekly > Wrath of the Lich King > Raids holds the four Grand Black War Mammoth rows (Archavon, Koralon, Emalon, Toravon in the grey line); Daily > Wrath > Dungeons the Blue Proto-Drake and the Bronze Drake (tick box).
 - [ ] During a holiday: Daily > Other > `Holidays` (the queue bosses, which have no expansion: last, under the `Other` expansion sub-header).
@@ -441,3 +441,14 @@ Filter: on the Checklist the Route header shows a `Filter` button at the top rig
 - [ ] Untick everything but `Show dungeons`: only Dungeons headers remain (e.g. Weekly > Shadowlands > Dungeons: Marrowfang, Cartel Master's Gearglider). Click the reset arrow: every category back.
 - [ ] Log in on another character: its filters are its own (all shown by default). `/reload`: the choices stay.
 - [ ] Switch to Route: no Filter button; back to Checklist: the button and its choices are back.
+
+### F14 fix round 1: Midnight Mythic mounts
+
+Game data (DB2 12.1.5.70448) shows SimpleArmory's `unavailable` flag on two Midnight dungeon steps is wrong. JournalEncounterItem lists Lucent Hawkstrider (item 260231) under Degentrius (Magisters' Terrace) and Spectral Hawkstrider (item 262914) under The Restless Heart (Windrunner Spire). The generator now clears the flag for exactly those two rows (tools/build_data.py `_AVAILABLE_BOSS_ROWS`). The verifier gains a check: a route row marked unavailable whose mount item is in Encounter Journal loot warns `marked unavailable but in Encounter Journal loot` (none now; the old route had these two).
+
+The Midnight hand-tick specs are now instance specs (instance = JournalInstance MapID, boss = DungeonEncounter name): Lucent Hawkstrider 2811 / Degentrius, Spectral Hawkstrider 2805 / Restless Heart, The Writhing Brood 2993 / Zul'jan (dungeons, Mythic 23); Primeval Skyfriend 3004 / Ula'tek and Ashes of Belo'ren 2913 / Midnight Falls (raids, Mythic 16). Luminous Sporeglider (Sporefall, kills on 4 separate weeks) stays a hand tick. The difficulties are taken from the mount source text and are not confirmed in game.
+
+- [ ] Route tab: `Run Magister's Terrace (Midnight Dungeon)` and `Run Windrunner Spire (Dungeon)` steps are listed. Checklist > Weekly > Midnight > Dungeons lists Lucent Hawkstrider, Spectral Hawkstrider and The Writhing Brood, with no tick box on any of them (the game tracks them now).
+- [ ] Kill Degentrius on Mythic: `/azt dump` lists Magisters' Terrace with instance ID 2811 and the boss `Degentrius`. The Lucent Hawkstrider row ticks `auto`. If it does not, report the dumped instance ID, difficulty and boss name. Do the same for Windrunner Spire (2805, `Restless Heart`) and Altar of Fangs (2993, `Zul'jan`). If The Writhing Brood also drops on Heroic, report that too: its source text names no difficulty.
+- [ ] Mythic March on Quel'Danas (Midnight Falls) and Mythic The Venomous Abyss (Ula'tek): Ashes of Belo'ren and Primeval Skyfriend tick `auto` (Checklist > Weekly > Midnight > Raids). A Heroic kill must not tick them.
+- [ ] Luminous Sporeglider keeps its tick box.

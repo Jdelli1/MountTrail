@@ -164,6 +164,34 @@ class ChecksTest(unittest.TestCase):
         (big,) = self.find(f, "route", "13@Big Mount")
         self.assertEqual((big["kind"], big["severity"]), ("boss-in-description", "info"))
 
+    def test_unavailable_route_row_in_journal_loot_warns(self):
+        # Mount 1 (item 501) is Encounter Journal loot of Fyrakk; mount 3
+        # (Trash) is in no loot. An unavailable step (or one under an
+        # unavailable step, or a row flagged itself) with journal loot warns.
+        route = [{"title": "Start", "steps": [
+            {"title": "Run Gone Keep (Raid)", "unavailable": True, "bosses": [
+                {"mount": 1, "boss": "Fyrakk"}, {"mount": 3, "boss": "Trash"}]},
+            {"title": "Gone Wing", "unavailable": True, "steps": [
+                {"title": "Inner", "bosses": [{"mount": 1, "boss": "Inner Fyrakk"}]}]},
+            {"title": "Run Live Keep (Raid)", "bosses": [
+                {"mount": 1, "boss": "Live Fyrakk"}, {"mount": 1, "boss": "Row Gone", "unavailable": True}]},
+        ]}]
+        ours = dict(self.ours, route=route)
+        f = v.check_unavailable(ours, self.game)
+        keys = sorted(h["key"] for h in f)
+        self.assertEqual(keys, ["1@Fyrakk", "1@Inner Fyrakk", "1@Row Gone"])
+        (hit,) = self.find(f, "unavailable", "1@Fyrakk", "unavailable-in-loot")
+        self.assertEqual(hit["severity"], "warn")
+        self.assertIn("marked unavailable but in Encounter Journal loot", hit["detail"])
+        self.assertIn("Fyrakk", hit["detail"])
+        counts, _ = v.summarise(f)
+        self.assertEqual(counts["unavailable"]["warn"], 3, "a report section of its own")
+        # Part of the full run.
+        findings, _, _, _, _ = v.run(ours, self.game, {})
+        self.assertEqual(len(self.find(findings, "unavailable", "1@Fyrakk")), 1)
+        # The fixture route has no unavailable rows.
+        self.assertEqual(v.check_unavailable(self.ours, self.game), [])
+
     def test_route_row_with_unknown_mount(self):
         f = v.check_route(self.ours, self.game)
         (hit,) = self.find(f, "route", "99@Nobody", "unknown-mount")

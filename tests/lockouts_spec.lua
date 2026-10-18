@@ -321,3 +321,22 @@ describe("Lockouts.IsRareGroup / QuestReset", function()
     eq(L.QuestReset(nil), "weekly")
   end)
 end)
+
+-- Midnight Mythic mounts: instance specs from the game's DB2 tables
+-- (JournalInstance MapID + DungeonEncounter name, build 12.1.5.70448).
+describe("Midnight lockout specs", function()
+  local data = load_addon({ "Data/Mounts.lua", "Data/Lockouts.lua", "Logic/Lockouts.lua" }).Data
+  local function spec(id) return data.Lockouts[id] end
+  it("dungeons: Mythic (23) on the instance's MapID", function()
+    eq(spec(2817), { instance = 2811, boss = "Degentrius", difficulties = { 23 }, reset = "weekly" })
+    eq(spec(2805), { instance = 2805, boss = "Restless Heart", difficulties = { 23 }, reset = "weekly" })
+    eq(spec(3058), { instance = 2993, boss = "Zul'jan", difficulties = { 23 }, reset = "weekly" })
+  end)
+  it("raids: Mythic (16)", function()
+    eq(spec(3030), { instance = 3004, boss = "Ula'tek", difficulties = { 16 }, reset = "weekly" })
+    eq(spec(2607), { instance = 2913, boss = "Midnight Falls", difficulties = { 16 }, reset = "weekly" })
+  end)
+  it("the Sporefall multi-week mount stays a hand tick", function()
+    eq(spec(2950), { manual = true, reset = "weekly" })
+  end)
+end)

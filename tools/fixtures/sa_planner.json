@@ -36,11 +36,11 @@
         },
         {},
         {
-          "title": "Run Windrunner Spire (Dungeon)",
+          "title": "Run Retired Keep (Dungeon)",
           "type": "Dungeon",
           "unavailable": true,
           "bosses": [
-            {"ID": "2805", "epic": true, "icon": "inv_white_hawkstrider", "itemId": 262914, "mount": "Spectral Hawkstrider", "name": "The Restless Heart", "note": "Mythic only", "spellId": 1263635}
+            {"ID": "998", "epic": true, "icon": "x", "itemId": 2, "mount": "Retired Mount", "name": "Old Boss", "note": "Mythic only", "spellId": 2}
           ]
         }
       ]

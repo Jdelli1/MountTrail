@@ -139,14 +139,20 @@ ns.Data.Lockouts = {
   [2487] = { instance = 2769, boss = "Chrome King Gallywix", difficulties = { 16 }, reset = "weekly" }, -- The Big G, Mythic only (Rarity: "Gallywix") -- verify in game
   [2569] = { instance = 2810, boss = "Dimensius, the All-Devouring", difficulties = { 16 }, reset = "weekly" }, -- Unbound Star-Eater, Mythic only -- verify in game
 
-  -- Midnight: instance IDs not known yet -> manual ticks. Replace with instance
-  -- specs once `/azt dump` shows them (see docs/ingame-checklist.md).
-  [2817] = { manual = true, reset = "weekly" }, -- Lucent Hawkstrider, Magisters' Terrace (Midnight) Mythic, Degentrius -- verify in game
-  [2805] = { manual = true, reset = "weekly" }, -- Spectral Hawkstrider, Windrunner Spire Mythic, The Restless Heart -- verify in game
-  [2607] = { manual = true, reset = "weekly" }, -- Ashes of Belo'ren, March on Quel'Danas Mythic, Midnight Falls -- verify in game
-  [2950] = { manual = true, reset = "weekly" }, -- Luminous Sporeglider, Sporefall: Rotmire kills on 4 separate weeks -- verify in game
-  [3058] = { manual = true, reset = "weekly" }, -- The Writhing Brood, Altar of Fangs Mythic, Zul'jan -- verify in game
-  [3030] = { manual = true, reset = "weekly" }, -- Primeval Skyfriend, The Venomous Abyss Mythic, Ula'tek -- verify in game
+  -- Midnight: instance = JournalInstance MapID, boss = DungeonEncounter name,
+  -- loot from JournalEncounterItem (DB2 build 12.1.5.70448). Difficulty from
+  -- the Mount.db2 source text "(Mythic)" (dungeons 23, raids 16).
+  -- Lucent Hawkstrider: JournalInstance 1300 Magisters' Terrace (MapID 2811), DungeonEncounter 3074 "Degentrius", item 260231 -- difficulty: verify in game
+  [2817] = { instance = 2811, boss = "Degentrius", difficulties = { 23 }, reset = "weekly" },
+  -- Spectral Hawkstrider: JournalInstance 1299 Windrunner Spire (MapID 2805), DungeonEncounter 3059 "Restless Heart" (journal: The Restless Heart), item 262914 -- difficulty: verify in game
+  [2805] = { instance = 2805, boss = "Restless Heart", difficulties = { 23 }, reset = "weekly" },
+  -- Ashes of Belo'ren: JournalInstance 1308 March on Quel'Danas (MapID 2913, LfgDungeons TypeID 2 raid), DungeonEncounter 3183 "Midnight Falls", item 246590 -- difficulty: verify in game
+  [2607] = { instance = 2913, boss = "Midnight Falls", difficulties = { 16 }, reset = "weekly" },
+  [2950] = { manual = true, reset = "weekly" }, -- Luminous Sporeglider, Sporefall: Rotmire kills on 4 separate weeks (multi-week mechanic: hand ticks) -- verify in game
+  -- The Writhing Brood: JournalInstance 1322 Altar of Fangs (MapID 2993), DungeonEncounter 3458 "Zul'jan", item 276804 -- difficulty: verify in game (its source text names no difficulty)
+  [3058] = { instance = 2993, boss = "Zul'jan", difficulties = { 23 }, reset = "weekly" },
+  -- Primeval Skyfriend: JournalInstance 1320 The Venomous Abyss (MapID 3004, LfgDungeons TypeID 2 raid, 14/15/16), DungeonEncounter 3492 "Ula'tek", item 275658 -- difficulty: verify in game
+  [3030] = { instance = 3004, boss = "Ula'tek", difficulties = { 16 }, reset = "weekly" },
 
   -- Holiday bosses (Ruling R3): the daily LFG reward marks the day's kill ---
   [219]  = { lfg = 285, reset = "daily" }, -- Headless Horseman's Mount

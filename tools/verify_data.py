@@ -55,10 +55,11 @@ TABLES = (
     "LfgDungeons",
 )
 SEVERITIES = ("error", "warn", "info")
-CHECKS = ("identity", "route", "lockout")
+CHECKS = ("identity", "route", "unavailable", "lockout")
 CHECK_TITLES = {
     "identity": "1. Mount identity (Mount.db2, ItemEffect)",
     "route": "2. Route drop claims (JournalEncounterItem)",
+    "unavailable": "2b. Unavailable route rows still in Encounter Journal loot (JournalEncounterItem)",
     "lockout": "3. Lockout specs (JournalInstance, JournalEncounter, DungeonEncounter, LfgDungeons)",
 }
 # Mount.SourceTypeEnum (same values as the pet journal's source filter).
@@ -560,6 +561,54 @@ def check_route(ours, game):
     return out
 
 
+# --- check 2b: unavailable rows the journal still lists ----------------------------------
+
+def unavailable_route_rows(route):
+    """(title path, row) for kill rows that are unavailable: flagged themselves or under
+    a step flagged `unavailable` (the addon skips the whole subtree)."""
+    out = []
+
+    def walk(node, path, gone):
+        if isinstance(node, list):
+            for child in node:
+                walk(child, path, gone)
+            return
+        if not isinstance(node, dict):
+            return
+        title = node.get("title")
+        here = path + [title] if isinstance(title, str) and title else path
+        gone = gone or node.get("unavailable") is True
+        for row in node.get("bosses") or []:
+            if isinstance(row, dict) and row.get("mount") is not None and (gone or row.get("unavailable") is True):
+                out.append((here, row))
+        for key in ("steps", "children"):
+            if key in node:
+                walk(node[key], here, gone)
+    walk(route, [], False)
+    return out
+
+
+def check_unavailable(ours, game):
+    """A route row marked unavailable whose mount item is current Encounter Journal
+    loot: SimpleArmory's flag is likely stale (tools/build_data.py _AVAILABLE_BOSS_ROWS)."""
+    out = []
+    for path, row in unavailable_route_rows(ours["route"]):
+        mid, boss = _int(row.get("mount")), str(row.get("boss") or "")
+        m = ours["mounts"].get(mid)
+        if m is None:
+            continue
+        hits = game.loot_rows(game.mount_items(mid, m))
+        if not hits:
+            continue
+        where = " > ".join(path[-2:]) if path else "route"
+        out.append(finding("unavailable", "unavailable-in-loot", "warn", mid, m.get("name", ""),
+                           "route row %r (%s) is marked unavailable but in Encounter Journal loot: %s"
+                           % (boss, where, describe_loot(hits[0])),
+                           "clear the flag in tools/build_data.py _AVAILABLE_BOSS_ROWS, or allowlist "
+                           "with a reason", "%d@%s" % (mid, boss)))
+    return out
+
+
 # --- check 3: lockout specs --------------------------------------------------------------
 
 def lockout_specs(ours):
@@ -978,7 +1027,7 @@ def render_report(build, findings, lock_table, candidates, source_cands, ours, e
 
 
 def run(ours, game, allow):
-    findings = check_identity(ours, game) + check_route(ours, game)
+    findings = check_identity(ours, game) + check_route(ours, game) + check_unavailable(ours, game)
     lock_findings, lock_table = check_lockouts(ours, game)
     lfg_findings, lfg_table = check_lfg(ours, game)
     findings = apply_allowlist(findings + lock_findings + lfg_findings, allow)
