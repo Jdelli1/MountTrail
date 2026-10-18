@@ -391,6 +391,19 @@ def _categories(sa):
     return sa["mounts"] if isinstance(sa, dict) else sa
 
 
+# Item IDs SimpleArmory has wrong, checked against the game's own tables
+# (tools/verify_data.py, build 12.1.5.70448, docs/data-verification.md):
+# mountID -> (SimpleArmory's item, the item that teaches the mount's spell).
+# Applied only while SimpleArmory still has that wrong item, so an upstream
+# fix (or any other change) leaves the data alone.
+_ITEM_FIXES = {
+    # ItemEffect 170367 (SpellID 385134) <- ItemXItemEffect: item 198810;
+    # ItemEffect 170369 (SpellID 385115) <- item 198811. SimpleArmory swaps them.
+    1665: (198811, 198810),  # Swift Armored Vorquin, spell 385134
+    1668: (198810, 198811),  # Majestic Armored Vorquin, spell 385115
+}
+
+
 def build_mounts(sa, rarity, stats=None):
     """Returns {mountID: mount dict}. Duplicates: a later sighting replaces an earlier one only when
     the earlier one is misc/other (or flagged `dupe`) and the later one is not; tradingNow is kept
@@ -446,6 +459,15 @@ def build_mounts(sa, rarity, stats=None):
                 mounts[mid] = rec
                 chosen_weak[mid] = weak
 
+    fixes = 0
+    for mid, (wrong, right) in _ITEM_FIXES.items():
+        rec = mounts.get(mid)
+        if rec is not None and rec.get("item") == wrong:
+            rec["item"] = right
+            fixes += 1
+    if stats is not None:
+        stats["item_fixes"] = fixes
+
     for mid, rec in mounts.items():
         if not obtainable[mid]:
             rec["unobtainable"] = True
@@ -496,8 +518,19 @@ def _boss(b):
 # Rows whose note mentions it are left out of Data/Route.lua.
 _BOGUS_BOSS_NOTES = ("quantum courser",)
 
+# Single planner rows the game's own tables contradict (tools/verify_data.py,
+# build 12.1.5.70448): (mountID, boss name) pairs left out of Data/Route.lua.
+_BOGUS_BOSS_ROWS = {
+    # Stonevault Mechsuit: Mount.db2 SourceText "Quest: Repurposed, Restored"
+    # (SourceTypeEnum 1, quest), and no JournalEncounterItem of Void Speaker
+    # Eirich (The Stonevault) has its item 221765.
+    (2119, "Void Speaker Eirich"),
+}
+
 
 def _bogus_boss(b):
+    if (_to_int(b.get("ID")), b.get("name")) in _BOGUS_BOSS_ROWS:
+        return True
     note = b.get("note")
     if not isinstance(note, str):
         return False
@@ -826,6 +859,7 @@ def generate(sources):
           % (len(rarity_files), len(map_ids), stats["rarity_entries"], stats["joined"], stats["rarity_unmatched"]))
     print("coords: %d full, %d map-only" % (sum("x" in c for c in coords), sum("x" not in c for c in coords)))
     print("statistics: %d mounts" % sum(1 for r in mounts.values() if r.get("stats")))
+    print("item fixes (DB2-checked): %d of %d" % (stats.get("item_fixes", 0), len(_ITEM_FIXES)))
     print("unobtainable: %d; faction: %d Alliance, %d Horde" % (
         sum(1 for r in mounts.values() if r.get("unobtainable")),
         sum(1 for r in mounts.values() if r.get("faction") == "Alliance"),

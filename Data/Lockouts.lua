@@ -54,7 +54,11 @@ ns.Data.Lockouts = {
   [250] = { instance = 615, boss = "Sartharion", difficulties = { 4 }, reset = "weekly" }, -- Twilight Drake, 25-player, 3 drakes up
   [264] = { instance = 575, boss = "Skadi the Ruthless", difficulties = { 2 }, reset = "daily" }, -- Blue Proto-Drake, Utgarde Pinnacle heroic
   [304] = { instance = 603, boss = "Yogg-Saron", difficulties = { 14 }, reset = "weekly" }, -- Mimiron's Head, Ulduar (Rarity: difficulty 14) -- verify in game
-  [248] = { instance = 595, boss = "Infinite Corruptor", difficulties = { 2 }, reset = "daily" }, -- Bronze Drake, Culling of Stratholme timed heroic -- verify in game
+  -- Bronze Drake: "Infinite Corruptor" (the timed heroic's bonus boss) is neither a JournalEncounter nor a
+  -- DungeonEncounter of The Culling of Stratholme (map 595) in the game's tables (tools/verify_data.py,
+  -- build 12.1.5.70448: only Meathook, Salramm, Chrono-Lord Epoch, Mal'Ganis), so the saved-instance
+  -- list can never name it: hand tick, no auto tick. Mount.db2 SourceText: "Drop: Infinite Corruptor".
+  [248] = { manual = true, reset = "daily" }, -- Bronze Drake, Culling of Stratholme timed heroic -- verify in game
 
   -- Cataclysm ----------------------------------------------------------------
   [395] = { instance = 657, boss = "Altairus", difficulties = { 2 }, reset = "daily" }, -- Drake of the North Wind, Vortex Pinnacle heroic (normal is never saved)
@@ -116,7 +120,8 @@ ns.Data.Lockouts = {
   [1818] = { instance = 2549, boss = "Fyrakk the Blazing", difficulties = { 16 }, reset = "weekly" }, -- Anu'relos, Mythic only (Rarity: "Fyrakk") -- verify in game
 
   -- The War Within -----------------------------------------------------------
-  [2119] = { instance = 2652, boss = "Void Speaker Eirich", difficulties = { 23 }, reset = "weekly" }, -- Stonevault Mechsuit, Mythic only
+  -- No Stonevault Mechsuit (2119) spec: Mount.db2 SourceText "Quest: Repurposed, Restored" and it is not in
+  -- Void Speaker Eirich's journal loot (tools/verify_data.py, build 12.1.5.70448): a quest reward, no lockout.
   [2204] = { instance = 2651, boss = "The Darkness", difficulties = { 23 }, reset = "weekly" }, -- Wick, Darkflame Cleft Mythic
   [2219] = { instance = 2657, boss = "Queen Ansurek", difficulties = { 14, 15, 16 }, reset = "weekly" }, -- LFR untracked; Sureki Skyrazor
   [2223] = { instance = 2657, boss = "Queen Ansurek", difficulties = { 16 }, reset = "weekly" }, -- Ascendant Skyrazor, Mythic only

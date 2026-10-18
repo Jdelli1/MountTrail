@@ -672,18 +672,6 @@ ns.Data.Route = {
         notes = "Set Hearthstone to Faction Capital",
         steps = {
           {
-            title = "Flightpath to The Ringing Deeps",
-            steps = {
-              {
-                title = "Run The Stonevault (Dungeon)",
-                type = "WeeklyDungeon",
-                bosses = {
-                  { mount = 2119, boss = "Void Speaker Eirich", note = "Mythic only" },
-                },
-              },
-            },
-          },
-          {
             title = "Flightpath to Ringing Deeps",
             steps = {
               {

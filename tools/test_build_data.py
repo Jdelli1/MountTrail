@@ -276,6 +276,56 @@ class BuildDataTests(unittest.TestCase):
         # A titled step that never had bosses (travel) is kept as before.
         self.assertNotIn("bosses", hearth["steps"][1])
 
+    def test_route_drops_stonevault_mechsuit_eirich_row(self):
+        # DB2 (Mount 2119 SourceText "Quest: Repurposed, Restored", not in
+        # Void Speaker Eirich's JournalEncounterItem loot): that one planner
+        # row goes; the same boss name for another mount, or the mount under
+        # another boss, stays.
+        planner = {"steps": [{
+            "title": "Flightpath to The Ringing Deeps",
+            "steps": [
+                {"title": "Run The Stonevault (Dungeon)", "type": "WeeklyDungeon",
+                 "bosses": [{"ID": 2119, "name": "Void Speaker Eirich", "note": "Mythic only"}]},
+                {"title": "Run Other (Dungeon)", "bosses": [
+                    {"ID": 7, "name": "Void Speaker Eirich"},
+                    {"ID": 2119, "name": "Someone Else"},
+                ]},
+            ],
+        }]}
+        route = build_data.build_route(planner)
+        steps = route[0]["steps"]
+        self.assertEqual([s["title"] for s in steps], ["Run Other (Dungeon)"])
+        self.assertEqual([(b["mount"], b["boss"]) for b in steps[0]["bosses"]],
+                         [(7, "Void Speaker Eirich"), (2119, "Someone Else")])
+
+    def test_item_fixes_swap_the_armored_vorquin_items(self):
+        # DB2 ItemEffect / ItemXItemEffect: item 198810 teaches spell 385134
+        # (Swift Armored Vorquin, 1665), 198811 teaches 385115 (Majestic, 1668);
+        # SimpleArmory has them the other way round.
+        sa = [{"name": "Dragon Isles", "subcats": [{"name": "Dracthyr", "items": [
+            {"ID": 1665, "name": "Swift Armored Vorquin", "spellid": 385134, "itemId": 198811},
+            {"ID": 1668, "name": "Majestic Armored Vorquin", "spellid": 385115, "itemId": 198810},
+            {"ID": 1667, "name": "Armored Vorquin Leystrider", "spellid": 385131, "itemId": 198809},
+        ]}]}]
+        stats = {}
+        mounts = build_data.build_mounts(sa, {}, stats)
+        self.assertEqual(mounts[1665]["item"], 198810)
+        self.assertEqual(mounts[1668]["item"], 198811)
+        self.assertEqual(mounts[1667]["item"], 198809, "other mounts untouched")
+        self.assertEqual(stats["item_fixes"], 2)
+
+    def test_item_fixes_only_replace_the_known_wrong_item(self):
+        # Once SimpleArmory fixes (or changes) the item, the override is a no-op.
+        sa = [{"name": "Dragon Isles", "subcats": [{"name": "Dracthyr", "items": [
+            {"ID": 1665, "name": "Swift Armored Vorquin", "spellid": 385134, "itemId": 198810},
+            {"ID": 1668, "name": "Majestic Armored Vorquin", "spellid": 385115, "itemId": 123},
+        ]}]}]
+        stats = {}
+        mounts = build_data.build_mounts(sa, {}, stats)
+        self.assertEqual(mounts[1665]["item"], 198810)
+        self.assertEqual(mounts[1668]["item"], 123)
+        self.assertEqual(stats["item_fixes"], 0)
+
     def test_route_emit(self):
         text = build_data.emit_lua(route=self.route)
         self.assertIn("ns.Data.Route = {", text)

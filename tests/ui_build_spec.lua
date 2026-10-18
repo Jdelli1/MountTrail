@@ -1082,7 +1082,7 @@ describe("ui build", function()
     -- writes the route's tick key and the entry disappears, counted as done.
     local m
     for i, r in ipairs(rows) do
-      if not m and r.entry and r.entry.spec.manual then m = i end
+      if not m and r.entry and r.entry.spec.manual and r.entry.reset == "weekly" then m = i end
     end
     ok(m and m > weekly, "a manual (weekly) entry to tick")
     f, row = frames[m], rows[m]
