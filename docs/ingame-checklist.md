@@ -385,3 +385,9 @@ Boss names (data verifier, build 12.1.5.70448): a lockout spec's boss now matche
 - [ ] Freehold Mythic: kill Harlan Sweete; `/azt dump` lists the boss name the client uses; the Sharkbait row is ticked `auto` (Checklist) and its tooltip reads `Lockout: Saved`.
 - [ ] Battle of Dazar'alor (Normal or higher): kill Mekkatorque; `/azt dump` shows its name; G.M.O.D. reads `Lockout: Saved`.
 - [ ] King's Rest Mythic: kill Dazar; `/azt dump`: note the exact boss name (the game's DungeonEncounter table has no row for `Dazar, The First King`); the Tomb Stalker row should tick `auto`. If it does not, report the dumped name.
+
+Rare-spawn resets: a mount whose only lockout is its Rarity quest flag now resets daily when SimpleArmory files it under `Rare Spawn` (or `<covenant> Rare Spawn`), weekly otherwise (`World Boss`, Garrison, Warfront, Assault, ...). Explicit Data/Lockouts.lua entries still win. That moves 29 mounts from Weekly to Daily (all obtainable spec'd mounts: 17 daily / 123 weekly before, 46 / 94 after). The game's tables do not say how a hidden tracking quest resets, so this is the owner's rule, to be confirmed:
+
+- [ ] Checklist > Daily lists the rare-spawn mounts (e.g. Legion > Vile Fiend, Shadowlands > Gorespine, The War Within > Darkfuse Spy-Eye), Weekly the world bosses (e.g. Mists of Pandaria > Son of Galleon, Warlords of Draenor > Solar Spirehawk).
+- [ ] Kill one daily rare (e.g. a Mechagon or Korthia rare with a mount): its row ticks `auto`; after the daily reset it is back. If it stays ticked until the weekly reset instead, report the mount (it needs a weekly entry in Data/Lockouts.lua).
+- [ ] Tanaan Jungle (Tundra Icehoof, Armored Razorback, Warsong Direfang share quest 39287): one Daily row; confirm it returns after the daily reset.

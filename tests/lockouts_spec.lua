@@ -229,6 +229,36 @@ describe("lockouts", function()
       eq(ns.Lockouts.SpecFor(5), { quest = 777, reset = "weekly" })
     end)
 
+    -- F12: a Rarity quest flag's reset follows the mount's SimpleArmory group.
+    it("a quest-flag rare spawn resets daily, a world boss weekly, anything else weekly", function()
+      local ns = load_addon({"Logic/Lockouts.lua"})
+      ns.Data = { Lockouts = {}, BossLockouts = {}, Mounts = {
+        [1] = { quest = 11, group = "Rare Spawn" },
+        [2] = { quest = 12, group = "Necrolord Rare Spawn" },
+        [3] = { quest = 13, group = "World Boss" },
+        [4] = { quest = 14, group = "Garrison" },
+        [5] = { quest = 15 },
+        [6] = { quest = 16, group = "Rare Spawns of Old" },
+        [7] = { quest = 17, group = "rare spawn" },
+      } }
+      local L = ns.Lockouts
+      eq(L.SpecFor(1), { quest = 11, reset = "daily" })
+      eq(L.SpecFor(2), { quest = 12, reset = "daily" }, "ends with Rare Spawn")
+      eq(L.SpecFor(3), { quest = 13, reset = "weekly" })
+      eq(L.SpecFor(4), { quest = 14, reset = "weekly" }, "other groups keep the weekly default")
+      eq(L.SpecFor(5), { quest = 15, reset = "weekly" }, "no group")
+      eq(L.SpecFor(6), { quest = 16, reset = "weekly" }, "only a trailing Rare Spawn counts")
+      eq(L.SpecFor(7), { quest = 17, reset = "weekly" }, "SimpleArmory's exact spelling")
+    end)
+
+    it("an explicit Lockouts entry wins over the quest flag's group rule", function()
+      local ns = load_addon({"Logic/Lockouts.lua"})
+      local spec = { quest = 99, reset = "weekly" }
+      ns.Data = { Lockouts = { [1] = spec }, BossLockouts = {},
+        Mounts = { [1] = { quest = 11, group = "Rare Spawn" } } }
+      eq(ns.Lockouts.SpecFor(1), spec)
+    end)
+
     it("returns nil with no spec and no quest", function()
       local ns = load_addon({"Logic/Lockouts.lua"})
       ns.Data = { Lockouts = {}, BossLockouts = {}, Mounts = { [5] = {} } }

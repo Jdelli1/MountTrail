@@ -12,7 +12,9 @@
 --   repeatable=true: no lockout at all (run as often as you like): a route
 --   step, never a daily / weekly checklist entry
 -- Mounts with a Rarity quest flag (Data/Mounts.lua `quest`) and no entry here are
--- treated as { quest=<that quest>, reset="weekly" } (MoP world bosses, Rukhmar).
+-- treated as { quest=<that quest>, reset=Lockouts.QuestReset(mount) }: "daily" for a
+-- SimpleArmory group "Rare Spawn" (or ending in " Rare Spawn"), else "weekly" (MoP
+-- world bosses, Rukhmar: group "World Boss"). An entry here always wins.
 --
 -- Difficulty IDs: 1 Normal dungeon, 2 Heroic dungeon, 23 Mythic dungeon,
 -- 3/4 10/25 Normal legacy raid, 5/6 10/25 Heroic legacy raid, 9 40-player,

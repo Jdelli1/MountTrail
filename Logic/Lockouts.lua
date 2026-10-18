@@ -27,8 +27,25 @@ function Lockouts.Snapshot(rows)
   return snap
 end
 
+local RARE_SPAWN = "Rare Spawn"
+
+-- Reset of a Rarity quest flag, from the mount's SimpleArmory group: a rare
+-- spawn ("Rare Spawn", or a group ending in it such as "Necrolord Rare
+-- Spawn") is looted once a day -> "daily"; a world boss ("World Boss") and
+-- anything else -> "weekly" (Data/Lockouts.lua entries override both).
+function Lockouts.QuestReset(mount)
+  local group = type(mount) == "table" and mount.group or nil
+  if type(group) == "string" and #group >= #RARE_SPAWN
+    and string.sub(group, -#RARE_SPAWN) == RARE_SPAWN
+    and (#group == #RARE_SPAWN or string.sub(group, -#RARE_SPAWN - 1, -#RARE_SPAWN - 1) == " ") then
+    return "daily"
+  end
+  return "weekly"
+end
+
 -- Which spec governs a mount: a per-boss spec for the route boss, else the
--- mount's own spec, else the Rarity quest flag (weekly), else nil.
+-- mount's own spec, else the Rarity quest flag (reset: Lockouts.QuestReset),
+-- else nil.
 function Lockouts.SpecFor(mountID, routeBoss)
   local data = ns.Data or {}
   if routeBoss and data.BossLockouts and data.BossLockouts[routeBoss] then
@@ -39,7 +56,7 @@ function Lockouts.SpecFor(mountID, routeBoss)
   end
   local mount = data.Mounts and data.Mounts[mountID]
   if mount and mount.quest then
-    return { quest = mount.quest, reset = "weekly" }
+    return { quest = mount.quest, reset = Lockouts.QuestReset(mount) }
   end
   return nil
 end
