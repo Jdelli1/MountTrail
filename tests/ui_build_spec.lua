@@ -944,15 +944,30 @@ describe("ui build", function()
     f:RunScript("OnClick", "LeftButton")
     eq(got[1], { row.id, "LeftButton" })
 
-    -- Ticking writes the route's tick key and redraws with the entry done.
+    -- A game-tracked row's box is display-only.
+    if not row.entry.spec.manual then
+      eq(f.Check.mouse, false, "game-tracked lockout: display-only box (takes no clicks)")
+    end
+
+    -- Ticking a manual row writes the route's tick key and redraws with the
+    -- entry done.
+    local m
+    for i, r in ipairs(rows) do
+      if not m and r.entry and r.entry.spec.manual then m = i end
+    end
+    ok(m and m > weekly, "a manual (weekly) entry to tick")
+    f, row = frames[m], rows[m]
     local key = row.entry.key
     f.Check:RunScript("OnClick")
     ok(ns.db.char.ticks[key], "ticked " .. tostring(key))
     rows = box.provider.rows
-    eq(rows[1].owned, 1, "1 done")
+    eq(rows[weekly].header, true)
+    eq(rows[weekly].owned, 1, "1 done in the weekly group")
+    eq(rows[1].owned, 0, "the daily group is untouched")
     local last
     for i, r in ipairs(rows) do if r.entry and r.entry.key == key then last = i end end
-    ok(last and last < weekly and rows[last].done, "the ticked entry sinks to the end of its group")
+    eq(last, #rows, "the ticked entry sinks to the end of its group")
+    ok(rows[last].done, "ticked entry is done")
     eq(render(box)[last].Name.font, "GameFontDisable", "done rows are dimmed")
 
     -- Hide done drops it; the count stays.
@@ -960,7 +975,7 @@ describe("ui build", function()
     header.HideDone:RunScript("OnClick")
     eq(ns.db.char.checklistHideDone, true)
     rows = box.provider.rows
-    eq(rows[1].owned, 1)
+    eq(rows[weekly].owned, 1)
     for _, r in ipairs(rows) do ok(not (r.entry and r.entry.key == key), "done row hidden") end
 
     -- Collapsing the daily header (saved like the list headers).

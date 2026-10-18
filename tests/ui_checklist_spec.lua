@@ -165,24 +165,22 @@ describe("UI.ChecklistHeaderLabel", function()
 end)
 
 describe("checklist tick boxes", function()
-  it("hand ticks an open tracked lockout until its reset, keyed like the route", function()
+  it("an open game-tracked lockout is display-only; a stored hand tick for it is ignored", function()
     local ns = loadUI()
     local UI = ns.UI
     local out = UI.ChecklistBuild(NOW)
     local koralon = out.weekly[2]
     eq(koralon.key, "12@Koralon")
-    eq({ UI.ChecklistCheck(koralon) }, { false, true, false }, "open + tracked: enabled override")
+    eq({ UI.ChecklistCheck(koralon) }, { false, false, false }, "open + tracked by the game: display-only")
     local store = {}
-    eq(UI.ChecklistToggle(koralon, store, NOW, 3600, 86400), true)
-    eq(store, { ["12@Koralon"] = NOW + 86400 }, "weekly spec, per-boss key")
-    ns.db.char.ticks = store
+    eq(UI.ChecklistToggle(koralon, store, NOW, 3600, 86400), false)
+    eq(store, {})
+    ns.db.char.ticks = { ["12@Koralon"] = NOW + 86400 }
     out = UI.ChecklistBuild(NOW)
-    local again = out.weekly[3]
-    eq(again.key, "12@Koralon")
-    eq(again.state, "manual-done")
-    eq({ UI.ChecklistCheck(again) }, { true, true, false })
-    UI.ChecklistToggle(again, store, NOW, 3600, 86400)
-    eq(store, {}, "second click unticks")
+    local again
+    for _, e in ipairs(out.weekly) do if e.key == "12@Koralon" then again = e end end
+    eq(again.state, "open", "only the game's lockouts tick a tracked row")
+    eq(again.done, false)
   end)
 
   it("a lockout the game reports done is checked, disabled and auto", function()

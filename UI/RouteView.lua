@@ -101,9 +101,12 @@ function UI.RouteContext(now)
     local spec = ns.Lockouts.SpecFor(mountID, routeBoss)
     local state = ns.Lockouts.State(spec, snap, Game.IsQuestDone, Game.IsLfgDone)
     if state == "done" then return "done" end
+    -- Hand ticks only stand in for lockouts the game can't report (manual
+    -- specs). A game-tracked row is done only when the game says so, so a
+    -- stray tick never makes this character look locked out.
+    if state ~= "manual" then return "open" end
     if ns.Resets.IsTicked(ticks, UI.RouteTickKey(mountID, routeBoss), now) then return "manual-done" end
-    if state == "manual" then return "manual-open" end
-    return "open"
+    return "manual-open"
   end
   local char = charDB()
   return {
@@ -140,15 +143,13 @@ function UI.RouteNextStep(now, skipped)
   return ns.Arrow.NextStep(rows, skipped)
 end
 
--- Whether the player may tick (or untick) a route boss by hand: a hand tick
--- (manual-done), a manual spec, or an open boss whose spec the game tracks
--- (instance / quest / LFG: a manual override). "done" belongs to the game;
+-- Whether the player may tick (or untick) a route boss by hand: only bosses
+-- with a manual spec (the game can't report them). Game-tracked bosses
+-- (instance / quest / LFG) are display-only, "done" belongs to the game, and
 -- untracked mounts have nothing to reset.
 local function tickable(b)
   local state = b.state
-  if state == "manual-open" or state == "manual-done" then return true end
-  if state ~= "open" then return false end
-  return ns.Lockouts.SpecFor(b.mount, b.boss) ~= nil
+  return state == "manual-open" or state == "manual-done"
 end
 
 -- Tick box for a route row -> checked, enabled, auto.
