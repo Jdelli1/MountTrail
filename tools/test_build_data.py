@@ -116,9 +116,9 @@ class BuildDataTests(unittest.TestCase):
         self.assertEqual(c("Promotion", "Blizzard Store"), ("misc", "shop"))
         self.assertEqual(c("Promotion", "Blizzcon"), ("misc", "promotion"))
         self.assertEqual(c("Limited Time", "Trading Post: November"), ("misc", "tradingpost"))
-        self.assertEqual(c("Limited Time", "Midnight: Season 2"), ("misc", "limited"))
+        self.assertEqual(c("Limited Time", "Midnight: Season 2"), ("misc", "unobtainable"))
         self.assertEqual(c("Past Limited Time", "Trading Post Re-Releases"), ("misc", "tradingpost"))
-        self.assertEqual(c("Past Limited Time", "Plunderstorm"), ("misc", "limited"))
+        self.assertEqual(c("Past Limited Time", "Plunderstorm"), ("misc", "unobtainable"))
         self.assertEqual(c("World Events", "Brewfest"), ("holiday", "brewfest"))
         self.assertEqual(c("World Events", "Love is in the Air"), ("holiday", "loveisintheair"))
         self.assertEqual(c("World Events", "Midsummer Fire Festival"), ("holiday", "midsummer"))
@@ -163,7 +163,7 @@ class BuildDataTests(unittest.TestCase):
         self.assertEqual(c("The War Within", "Raid Renown"), ("journal", "raid"))
         self.assertEqual(c("Shadowlands", "Achievement"), ("misc", "achievement"))
         # Expansion-only: the same names elsewhere keep their old tabs.
-        self.assertEqual(c("Limited Time", "Vendor"), ("misc", "limited"))
+        self.assertEqual(c("Limited Time", "Vendor"), ("misc", "unobtainable"))
         self.assertEqual(c("World Events", "Treasure"), ("holiday", "other"))
 
     # Every non-expansion, non-holiday SimpleArmory (category, subcat) of the
@@ -171,7 +171,7 @@ class BuildDataTests(unittest.TestCase):
     SA_MISC = {
         "Mounts": {"collection": ["Collect", "Reputations", "Toys", "Heirlooms"]},
         "Limited Time": {"tradingpost": ["Trading Post: October"],
-                         "limited": ["Midnight: Season 2", "Vendor"]},
+                         "unobtainable": ["Midnight: Season 2", "Vendor"]},
         "Racial": {"racial": ["Human", "Dwarf", "Night Elf", "Gnome", "Draenei", "Worgen", "Pandaren",
                               "Dracthyr", "Orc", "Undead", "Tauren", "Troll", "Goblin", "Blood Elf"]},
         "Professions": {"profession": ["Alchemy", "Archaeology", "Engineering", "Fishing", "Jewelcrafting",
@@ -180,7 +180,7 @@ class BuildDataTests(unittest.TestCase):
         "PVP": {"pvp": ["Achievement", "Mark of Honor", "Honor", "Halaa", "Timeless Isle", "Ashran",
                         "Vicious Saddle", "Gladiator", "Talon's Vengeance"]},
         "Past Limited Time": {"tradingpost": ["Trading Post Re-Releases", "Trading Post Originals"],
-                              "limited": ["Plunderstorm", "Dastardly Duos", "Decor Duels", "Greedy Emissary",
+                              "unobtainable": ["Plunderstorm", "Dastardly Duos", "Decor Duels", "Greedy Emissary",
                                           "Remix: Pandaria", "Remix: Legion"]},
         "Promotion": {"shop": ["Blizzard Store"],
                       "promotion": ["Blizzcon", "Player Vote", "Collector's Edition", "WoW Classic",
@@ -214,7 +214,7 @@ class BuildDataTests(unittest.TestCase):
     def test_misc_sections_are_the_logic_order(self):
         self.assertEqual(build_data.MISC_SECTIONS,
                          ["profession", "shop", "tradingpost", "pvp", "racial", "keystone", "promotion",
-                          "class", "bmah", "collection", "limited", "other"])
+                          "class", "bmah", "collection", "other", "unobtainable"])
         for sections in self.SA_MISC.values():
             for section in sections:
                 self.assertIn(section, build_data.MISC_SECTIONS)
@@ -266,7 +266,7 @@ class BuildDataTests(unittest.TestCase):
 
     def test_duplicate_strength_order(self):
         item = {"ID": 77, "name": "X", "spellid": 1}
-        # limited < pvp / keystone, either order.
+        # unobtainable (limited time) < pvp / keystone, either order.
         for first, second, want in (
                 (("Limited Time", "Midnight: Season 2"), ("Mythic+", "Timelost Saddle"), ("keystone", "Timelost Saddle")),
                 (("Mythic+", "Timelost Saddle"), ("Limited Time", "Midnight: Season 2"), ("keystone", "Timelost Saddle")),
@@ -278,14 +278,25 @@ class BuildDataTests(unittest.TestCase):
                 (("Midnight", "Vendor"), ("Limited Time", "Vendor"), ("vendor", "Vendor")),
                 # two catch-alls of the same strength: the first stays.
                 (("PVP", "Honor"), ("Mythic+", "Timelost Saddle"), ("pvp", "Honor")),
-                (("Limited Time", "Vendor"), ("Other", "Unknown"), ("limited", "Vendor"))):
+                (("Limited Time", "Vendor"), ("Other", "Unknown"), ("unobtainable", "Vendor"))):
             m = self._build([first + (dict(item),), second + (dict(item),)])[77]
             self.assertEqual((m["section"], m["group"]), want, (first, second))
         # A `dupe` sighting stays weakest.
         m = self._build([("PVP", "Honor", dict(item)), ("Limited Time", "Vendor", dict(item, dupe=True))])[77]
         self.assertEqual(m["section"], "pvp")
         m = self._build([("Limited Time", "Vendor", dict(item, dupe=True)), ("Other", "Unknown", dict(item))])[77]
-        self.assertEqual(m["section"], "limited", "dupe and limited are equally weak: first stays")
+        self.assertEqual(m["section"], "unobtainable", "dupe and limited time are equally weak: first stays")
+
+    def test_generated_unobtainable_section_is_all_unobtainable(self):
+        """Data/Mounts.lua: every misc "unobtainable" mount (Limited Time, non-Trading-Post) is flagged
+        unobtainable, so the Misc tab lists it only when owned or with Show unobtainable mounts."""
+        with open(os.path.join(build_data.ROOT, "Data", "Mounts.lua"), encoding="utf-8") as fh:
+            rows = [l for l in fh.read().splitlines() if 'tab = "misc", section = "unobtainable"' in l]
+        self.assertGreater(len(rows), 0)
+        for row in rows:
+            self.assertIn("unobtainable = true", row)
+        self.assertNotIn('section = "limited"', open(os.path.join(build_data.ROOT, "Data", "Mounts.lua"),
+                                                     encoding="utf-8").read())
 
     def test_fixture_delves_subcat_is_delve(self):
         m = self.mounts[9001]

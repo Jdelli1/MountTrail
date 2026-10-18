@@ -613,7 +613,7 @@ describe("journal", function()
     it("misc sections (F15), in order, unobtainable last", function()
       local J = load()
       local order = { "profession", "shop", "tradingpost", "pvp", "racial", "keystone", "promotion",
-        "class", "bmah", "collection", "limited", "other", "unobtainable" }
+        "class", "bmah", "collection", "other", "unobtainable" }
       eq(J.ViewSections("misc"), order)
       local mounts, want = {}, {}
       for i = #order - 1, 1, -1 do
@@ -699,12 +699,35 @@ describe("journal", function()
       eq(sel("misc", { misc = { shop = false }, collected = true }), {1}, "Collected stays global")
     end)
 
+    it("misc unobtainable section (limited time): owned ones with Collected, others with the option", function()
+      local J = load()
+      local mounts = {
+        [1] = mk("a", {tab="misc", section="unobtainable", unobtainable=true}),
+        [2] = mk("b", {tab="misc", section="unobtainable", unobtainable=true}),
+        [3] = mk("c", {tab="misc", section="other"}),
+      }
+      local owned = ownedSet({[1] = true})
+      local function sel(o)
+        local base = { view = "misc", isOwned = owned }
+        for k, v in pairs(o) do base[k] = v end
+        return J.Select(mounts, q(base))
+      end
+      eq(ids(sel({})), {3}, "not owned, option off: hidden")
+      local r = sel({ filters = { collected = true } })
+      eq(ids(r), {3, 1}, "owned: under Unobtainable with Collected on")
+      eq(r[2].section, "unobtainable")
+      eq(ids(sel({ filters = { collected = true }, showUnobtainable = true })), {3, 1, 2})
+      eq(ids(sel({ filters = { collected = true, misc = { unobtainable = false } }, showUnobtainable = true })), {3},
+        "the Unobtainable filter hides them all")
+    end)
+
     it("FilterSections: the Filter menu's section keys per view", function()
       local J = load()
       eq(J.FilterSections("journal"), J.ViewSections("journal"))
-      eq(J.FilterSections("misc"), { "profession", "shop", "tradingpost", "pvp", "racial", "keystone",
-        "promotion", "class", "bmah", "collection", "limited", "other" }, "no unobtainable while the option is off")
-      eq(J.FilterSections("misc", { showUnobtainable = true })[13], "unobtainable")
+      local misc = { "profession", "shop", "tradingpost", "pvp", "racial", "keystone",
+        "promotion", "class", "bmah", "collection", "other", "unobtainable" }
+      eq(J.FilterSections("misc"), misc, "Unobtainable always: owned limited-time mounts are listed there")
+      eq(J.FilterSections("misc", { showUnobtainable = true }), misc)
       eq(J.FilterSections("holidays"), J.ViewSections("holidays"))
       eq(J.FilterSections("achievements", { expansions = EXPS }), J.ViewSections("achievements", EXPS))
       eq(J.FilterSections("timewalking"), {}, "Timewalking: Collected only")
@@ -764,7 +787,7 @@ describe("journal", function()
       local J = load()
       local tabs = { journal = { "dungeon", "other" }, holiday = { "brewfest", "timewalking", "other" },
         misc = { "achievement", "profession", "shop", "tradingpost", "pvp", "racial", "keystone", "promotion",
-          "class", "bmah", "collection", "limited", "other" } }
+          "class", "bmah", "collection", "other", "unobtainable" } }
       local mounts, n = {}, 0
       for tab, sections in pairs(tabs) do
         for _, s in ipairs(sections) do

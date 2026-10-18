@@ -168,7 +168,7 @@ local SECTION_NAMES = {
   achievement = "Achievements", profession = "Professions", shop = "In-game Shop",
   tradingpost = "Trading Post", pvp = "PvP", racial = "Racial", keystone = "Mythic+",
   promotion = "Promotions", class = "Class", bmah = "Black Market",
-  collection = "Collection rewards", limited = "Limited time",
+  collection = "Collection rewards",
   timewalking = "Timewalking", anniversary = "Anniversary",
   unobtainable = "Unobtainable",
 }
@@ -685,7 +685,7 @@ local FILTER_LABELS = {
     tradingpost = "Show Trading Post mounts", pvp = "Show PvP mounts", racial = "Show racial mounts",
     keystone = "Show Mythic+ mounts", promotion = "Show promotion mounts", class = "Show class mounts",
     bmah = "Show Black Market mounts", collection = "Show collection rewards",
-    limited = "Show limited-time mounts", other = "Show other mounts",
+    other = "Show other mounts",
     unobtainable = "Show unobtainable mounts",
   },
   holidays = { other = "Show other mounts" },

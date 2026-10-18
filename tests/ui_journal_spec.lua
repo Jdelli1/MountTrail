@@ -201,7 +201,7 @@ describe("ui journal", function()
       local want = {
         profession = "Professions", shop = "In-game Shop", tradingpost = "Trading Post", pvp = "PvP",
         racial = "Racial", keystone = "Mythic+", promotion = "Promotions", class = "Class",
-        bmah = "Black Market", collection = "Collection rewards", limited = "Limited time", other = "Other",
+        bmah = "Black Market", collection = "Collection rewards", other = "Other",
         unobtainable = "Unobtainable",
       }
       for key, label in pairs(want) do eq(ns.UI.SectionLabel(key), label, key) end
@@ -217,10 +217,10 @@ describe("ui journal", function()
       "Show treasures & caches", "Show quest mounts", "Show zone activity mounts", "Show reputation mounts",
       "Show vendor mounts", "Show other mounts" }
     local MISC = { "profession", "shop", "tradingpost", "pvp", "racial", "keystone", "promotion", "class",
-      "bmah", "collection", "limited", "other" }
+      "bmah", "collection", "other", "unobtainable" }
     local MISC_LABELS = { "Show profession mounts", "Show in-game shop mounts", "Show Trading Post mounts",
       "Show PvP mounts", "Show racial mounts", "Show Mythic+ mounts", "Show promotion mounts",
-      "Show class mounts", "Show Black Market mounts", "Show collection rewards", "Show limited-time mounts",
+      "Show class mounts", "Show Black Market mounts", "Show collection rewards",
       "Show other mounts" }
     local EXPS = { "Classic", "Legion" }
 
@@ -246,21 +246,18 @@ describe("ui journal", function()
       eq(items, menu(true, "Sources", SOURCES, LABELS, { raid = true, quest = true }))
     end)
 
-    it("Misc: the misc categories; Unobtainable only with the option on", function()
+    it("Misc: the misc categories, Unobtainable last whatever the option", function()
       local ns = loadUI()
       local f = { misc = { shop = false }, journal = { raid = false } }
-      eq(ns.UI.FilterMenuItems("misc", f, { showUnobtainable = false }),
-        menu(false, "Categories", MISC, MISC_LABELS, { shop = true }))
-      local keys, labels = {}, {}
-      for i, k in ipairs(MISC) do keys[i] = k; labels[i] = MISC_LABELS[i] end
-      keys[#keys + 1] = "unobtainable"
+      local labels = {}
+      for i, l in ipairs(MISC_LABELS) do labels[i] = l end
       labels[#labels + 1] = "Show unobtainable mounts"
+      eq(ns.UI.FilterMenuItems("misc", f, { showUnobtainable = false }),
+        menu(false, "Categories", MISC, labels, { shop = true }))
       eq(ns.UI.FilterMenuItems("misc", f, { showUnobtainable = true }),
-        menu(false, "Categories", keys, labels, { shop = true }))
-      -- Default: the saved option (ns.db.global.settings.showUnobtainable).
-      eq(#ns.UI.FilterMenuItems("misc", {}), #menu(false, "", MISC, MISC_LABELS))
+        menu(false, "Categories", MISC, labels, { shop = true }))
       ns.db.global.settings.showUnobtainable = true
-      eq(#ns.UI.FilterMenuItems("misc", {}), #menu(false, "", keys, labels))
+      eq(#ns.UI.FilterMenuItems("misc", {}), #menu(false, "", MISC, labels))
     end)
 
     it("Holidays: each holiday; Achievements: each expansion and General; Timewalking: Collected only", function()
@@ -316,7 +313,7 @@ describe("ui journal", function()
       local f = { collected = true, journal = { raid = false }, misc = { pvp = false } }
       ns.UI.ApplyFilterAction(f, "uncheckAll", "misc", { showUnobtainable = false })
       for _, key in ipairs(MISC) do eq(f.misc[key], false, key) end
-      eq(f.misc.unobtainable, nil, "not in the menu")
+      eq(f.misc.unobtainable, false, "Unobtainable is in the menu")
       eq(f.collected, true)
       eq(f.journal, { raid = false }, "other views untouched")
       ns.UI.ApplyFilterAction(f, "checkAll", "misc", { showUnobtainable = false })
@@ -347,10 +344,10 @@ describe("ui journal", function()
       eq(f, ns.Journal.DefaultFilters)
       ok(f ~= ns.Journal.DefaultFilters, "the saved table is updated, not replaced")
       eq(ns.UI.FiltersAreDefault({}, "journal"), true, "an empty table reads as the defaults")
-      -- A hidden section the menu does not show (Unobtainable with the option
-      -- off) does not light the reset arrow.
-      eq(ns.UI.FiltersAreDefault({ misc = { unobtainable = false } }, "misc", { showUnobtainable = false }), true)
-      eq(ns.UI.FiltersAreDefault({ misc = { unobtainable = false } }, "misc", { showUnobtainable = true }), false)
+      -- Unobtainable is always in the Misc menu; a hidden key the menu does
+      -- not show does not light the reset arrow.
+      eq(ns.UI.FiltersAreDefault({ misc = { unobtainable = false } }, "misc", { showUnobtainable = false }), false)
+      eq(ns.UI.FiltersAreDefault({ misc = { mystery = false } }, "misc"), true, "keys outside the menu do not count")
     end)
   end)
 
@@ -433,6 +430,23 @@ describe("ui journal", function()
         line("Lockout: —", GOLD),
         line("Click: waypoint · Shift-click: map · Ctrl-click: preview", HINT),
       })
+    end)
+
+    it("unobtainable mounts: a grey 'No longer obtainable' line right after the source kind", function()
+      local ns = loadUI({}, { Mounts = {
+        [1] = { name = "Retired drop", tab = "journal", section = "raid", unobtainable = true },
+        [2] = { name = "Old season", tab = "misc", section = "unobtainable", unobtainable = true },
+        [3] = { name = "Old holiday", tab = "holiday", section = "brewfest", unobtainable = true },
+        [4] = { name = "Live drop", tab = "journal", section = "raid" },
+      } })
+      local l1 = ns.UI.TooltipLines(1)
+      eq({ l1[2], l1[3] }, { line("Drops from NPC(s)", BLUE), line("No longer obtainable", GREY) })
+      local l2 = ns.UI.TooltipLines(2)
+      eq(l2[2], line("No longer obtainable", GREY), "Unobtainable section: no kind line, just the grey one")
+      eq(lefts(l2)[3]:find("obtainable"), nil, "once")
+      local l3 = ns.UI.TooltipLines(3)
+      eq({ l3[2].left, l3[3].left }, { "Holiday event", "No longer obtainable" })
+      for _, l in ipairs(ns.UI.TooltipLines(4)) do ok(l.left ~= "No longer obtainable", "obtainable: no line") end
     end)
 
     it("adds 'Dropped by <boss> in <instance>' unless a source line names the boss", function()
@@ -582,13 +596,12 @@ describe("ui journal", function()
         { { tab = "misc", section = "class" }, "Class mount" },
         { { tab = "misc", section = "bmah" }, "Black Market Auction House" },
         { { tab = "misc", section = "collection" }, "Collection reward" },
-        { { tab = "misc", section = "limited" }, "Limited-time offer" },
-        { { tab = "misc", section = "unobtainable" }, "No longer obtainable" },
-        -- Unobtainable mounts (the Misc > Unobtainable section) say so, whatever their section.
-        { { tab = "misc", section = "other", unobtainable = true }, "No longer obtainable" },
-        { { tab = "misc", section = "pvp", unobtainable = true }, "No longer obtainable" },
-        { { tab = "journal", section = "raid", unobtainable = true }, "No longer obtainable" },
-        { { tab = "holiday", section = "brewfest", unobtainable = true }, "No longer obtainable" },
+        { { tab = "misc", section = "limited" }, nil, "no Limited time section any more" },
+        { { tab = "misc", section = "unobtainable" }, nil, "Unobtainable: only the grey line (TooltipLines)" },
+        -- Unobtainable mounts keep their section's line (TooltipLines adds a grey one).
+        { { tab = "misc", section = "pvp", unobtainable = true }, "PvP reward" },
+        { { tab = "journal", section = "raid", unobtainable = true }, "Drops from NPC(s)" },
+        { { tab = "holiday", section = "brewfest", unobtainable = true }, "Holiday event" },
         { { tab = "holiday", section = "brewfest" }, "Holiday event" },
         { { tab = "holiday", section = "timewalking" }, "Holiday event" },
         { {}, nil },

@@ -3,6 +3,7 @@ local ADDON, ns = ...
 -- Mount tooltip, Rarity style: the mount item's own tooltip (or name +
 -- flavor text when the mount has no item), then
 --   "Mount [CATA]" and the kind of source ("Drops from NPC(s)", ...),
+--   a grey "No longer obtainable" for unobtainable mounts,
 --   the client's source lines (gold label, white value) and "Dropped by
 --   <boss> in <instance>" from the route when no line names the boss,
 --   "1 in N chance", "Lucky if you obtain in K or less" (Logic/Odds.lua),
@@ -68,9 +69,9 @@ function UI.ExpansionTag(exp)
 end
 
 -- Kind-of-source line per (refined) section; holiday mounts are all
--- "Holiday event", unobtainable ones (m.unobtainable; the Misc >
--- Unobtainable section) "No longer obtainable". Sections not listed (other)
--- give no line.
+-- "Holiday event". Sections not listed (other, unobtainable) give no line.
+-- Unobtainable mounts get a separate grey "No longer obtainable" line
+-- (TooltipLines).
 local SOURCE_KINDS = {
   dungeon = "Drops from NPC(s)", raid = "Drops from NPC(s)", world = "Drops from NPC(s)",
   treasure = "Found in a treasure / cache", delve = "Delve reward", quest = "Quest reward",
@@ -78,7 +79,7 @@ local SOURCE_KINDS = {
   achievement = "Achievement reward", profession = "Crafted by a profession", shop = "In-game shop",
   tradingpost = "Trading Post", pvp = "PvP reward", racial = "Racial mount", keystone = "Mythic+ reward",
   promotion = "Promotion", class = "Class mount", bmah = "Black Market Auction House",
-  collection = "Collection reward", limited = "Limited-time offer", unobtainable = "No longer obtainable",
+  collection = "Collection reward",
 }
 
 -- The kind-of-source line of a mount -> localised text or nil. The section is
@@ -86,7 +87,6 @@ local SOURCE_KINDS = {
 -- sourceText is a string or a function(id), optional.
 function UI.SourceKind(mountID, m, sourceText)
   if type(m) ~= "table" then return nil end
-  if m.unobtainable then return L[SOURCE_KINDS.unobtainable] end
   if m.tab == "holiday" then return L["Holiday event"] end
   if not m.section then return nil end
   local section = ns.Journal.SectionOf(mountID, m, sourceText)
@@ -176,6 +176,7 @@ function UI.TooltipLines(mountID, routeBoss)
   local text = ns.Game.MountSourceText and ns.Game.MountSourceText(mountID) or nil
   local kind = UI.SourceKind(mountID, m, text)
   if kind then lines[#lines + 1] = line(kind, BLUE) end
+  if m.unobtainable then lines[#lines + 1] = line(L["No longer obtainable"], GREY) end
   sourceLines(lines, mountID, text)
 
   local n = (type(m.chance) == "number" and m.chance > 0) and math.max(1, math.floor(m.chance + 0.5)) or nil

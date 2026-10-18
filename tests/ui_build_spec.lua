@@ -437,14 +437,17 @@ describe("ui build", function()
     ok(sections("misc").shop, "shop back")
   end)
 
-  it("Misc lists Show unobtainable mounts in its menu only with the option on", function()
+  it("Misc always lists Show unobtainable mounts in its menu, last", function()
     local ns = loadUI()
     ns.ToggleWindow()
     ns.UI.SelectTab("misc")
     local misc = content(ns, "misc").children[2]
-    ok(not find(openMenu(misc.FilterDropdown), "Show unobtainable mounts"), "off: not listed")
+    local calls = openMenu(misc.FilterDropdown)
+    eq(calls[#calls - 3].text, "Show unobtainable mounts", "option off")
+    ok(not find(calls, "Show limited-time mounts"), "no Limited time category")
     ns.db.global.settings.showUnobtainable = true
-    ok(find(openMenu(misc.FilterDropdown), "Show unobtainable mounts"), "on: listed")
+    calls = openMenu(misc.FilterDropdown)
+    eq(calls[#calls - 3].text, "Show unobtainable mounts", "option on")
   end)
 
   it("UI.CreateFilterDropdown: a reusable Filter button over an items generator", function()
@@ -547,10 +550,10 @@ describe("ui build", function()
     headers, mounts = tabRows(ns, "misc")
     ok(#mounts > 100, "misc mounts listed")
     local allowed = { profession = 1, shop = 2, tradingpost = 3, pvp = 4, racial = 5, keystone = 6,
-      promotion = 7, class = 8, bmah = 9, collection = 10, limited = 11, other = 12 }
+      promotion = 7, class = 8, bmah = 9, collection = 10, other = 11, unobtainable = 12 }
     local labels = { profession = "Professions", shop = "In-game Shop", tradingpost = "Trading Post",
       pvp = "PvP", racial = "Racial", keystone = "Mythic+", promotion = "Promotions", class = "Class",
-      bmah = "Black Market", collection = "Collection rewards", limited = "Limited time", other = "Other" }
+      bmah = "Black Market", collection = "Collection rewards", other = "Other", unobtainable = "Unobtainable" }
     for _, row in ipairs(mounts) do eq(Journal.ViewOf(row.m), "misc", "misc row " .. row.id) end
     last = 0
     for _, h in ipairs(headers) do
@@ -564,8 +567,18 @@ describe("ui build", function()
     local ns = loadUI({ filters = { collected = true } })
     ns.ToggleWindow()
     local Journal = ns.Journal
-    local headers = tabRows(ns, "misc")
-    for _, h in ipairs(headers) do ok(h.section ~= "unobtainable", "off: no Unobtainable header") end
+    -- Off: Unobtainable holds only owned limited-time mounts (data section
+    -- "unobtainable"), listed with Collected on.
+    local headers, offRows = tabRows(ns, "misc")
+    eq(headers[#headers].section, "unobtainable", "off: the Unobtainable header is still last")
+    local sawOwned = false
+    for _, row in ipairs(offRows) do
+      if row.m.unobtainable then
+        eq(row.id % 3, 0, "off: owned unobtainable only " .. row.id)
+        if row.m.section == "unobtainable" then sawOwned = true end
+      end
+    end
+    ok(sawOwned, "owned limited-time mounts listed under Unobtainable")
 
     -- Not-owned unobtainable mounts the stub client lists (owned: id % 3 == 0;
     -- Alliance).

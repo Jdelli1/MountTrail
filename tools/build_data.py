@@ -157,10 +157,11 @@ HOLIDAYS = {
 
 
 # Misc sections of the non-expansion SimpleArmory categories, in the Misc tab's
-# order (Logic/Journal.lua VIEW_ORDER.misc, before "unobtainable"). The
+# order (Logic/Journal.lua VIEW_ORDER.misc; "unobtainable" also takes every
+# not-owned unobtainable mount there with Show unobtainable mounts). The
 # expansion "Achievement" subcats are misc "achievement" (the Achievements tab).
 MISC_SECTIONS = ["profession", "shop", "tradingpost", "pvp", "racial", "keystone", "promotion",
-                 "class", "bmah", "collection", "limited", "other"]
+                 "class", "bmah", "collection", "other", "unobtainable"]
 
 # Whole categories -> misc section.
 MISC_CATEGORIES = {
@@ -192,11 +193,12 @@ OTHER_SUBCATS = {
 # Duplicate sightings of a mount (see build_mounts): a later sighting replaces
 # the kept one only when it is stronger. Strength 2: journal, holiday and the
 # specific misc sections (achievement, profession, shop, tradingpost). 1: the
-# misc catch-alls below. 0: limited and other (and any `dupe` sighting), so a
+# misc catch-alls below. 0: unobtainable (Limited Time) and other (and any
+# `dupe` sighting), so a
 # season mount also sold for PvP / Mythic+ currency lands in pvp / keystone
 # (owner ruling, F15 fix).
-WEAK_MISC = {"pvp", "racial", "keystone", "promotion", "class", "bmah", "collection", "limited", "other"}
-WEAKEST_MISC = {"limited", "other"}
+WEAK_MISC = {"pvp", "racial", "keystone", "promotion", "class", "bmah", "collection", "unobtainable", "other"}
+WEAKEST_MISC = {"unobtainable", "other"}
 
 
 def sighting_strength(tab, section, dupe=False):
@@ -217,7 +219,9 @@ def classify(category, subcat):
     if category == "World Events":
         return "holiday", HOLIDAYS.get(subcat, "other")
     if category in ("Limited Time", "Past Limited Time"):
-        return "misc", "tradingpost" if subcat.startswith("Trading Post") else "limited"
+        # Non-Trading-Post limited-time offers (seasons, Remix, Plunderstorm...) are all over at the
+        # pinned data: Misc lists them under Unobtainable (owner ruling, F15 fix).
+        return "misc", "tradingpost" if subcat.startswith("Trading Post") else "unobtainable"
     if (category, subcat) in MISC_SUBCATS:
         return "misc", MISC_SUBCATS[(category, subcat)]
     if category in MISC_CATEGORIES:

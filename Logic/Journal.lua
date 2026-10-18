@@ -14,7 +14,7 @@ local ORDER = {
   journal = { "dungeon", "raid", "world", "delve", "treasure", "quest", "activity",
     "reputation", "vendor", "other" },
   misc = { "achievement", "profession", "shop", "tradingpost", "pvp", "racial", "keystone", "promotion",
-    "class", "bmah", "collection", "limited", "other" },
+    "class", "bmah", "collection", "other", "unobtainable" },
   holiday = { "hallowsend", "brewfest", "loveisintheair", "noblegarden", "winterveil",
     "lunarfestival", "midsummer", "darkmoon", "timewalking", "anniversary", "other" },
 }
@@ -27,9 +27,11 @@ local VIEW_ORDER = {
   holidays = { "hallowsend", "brewfest", "loveisintheair", "noblegarden", "winterveil",
     "lunarfestival", "midsummer", "darkmoon", "anniversary", "other" },
   timewalking = { "timewalking" },
-  -- tools/build_data.py MISC_SECTIONS, then the Show unobtainable section.
+  -- tools/build_data.py MISC_SECTIONS. "unobtainable" holds the limited-time
+  -- offers (data section) and, with Show unobtainable mounts, every
+  -- not-owned unobtainable mount.
   misc = { "profession", "shop", "tradingpost", "pvp", "racial", "keystone", "promotion", "class",
-    "bmah", "collection", "limited", "other", "unobtainable" },
+    "bmah", "collection", "other", "unobtainable" },
 }
 
 local function rankOf(list)
@@ -63,18 +65,13 @@ function Journal.ViewSections(view, expansions)
 end
 
 -- Section keys of view's Filter menu, in order. opts (optional):
--- { expansions = list (Achievements; else Data.Expansions),
--- showUnobtainable = bool (Misc lists "unobtainable" only with it) }.
--- Timewalking (one section) and unknown views have none: Collected only.
+-- { expansions = list (Achievements; else Data.Expansions) }. Misc always
+-- lists "unobtainable" (owned limited-time mounts are there with Collected
+-- on, whatever the Show unobtainable option). Timewalking (one section) and
+-- unknown views have none: Collected only.
 function Journal.FilterSections(view, opts)
   if view == "timewalking" then return {} end
-  local keys = Journal.ViewSections(view, opts and opts.expansions)
-  if view == "misc" and not (opts and opts.showUnobtainable == true) then
-    for i = #keys, 1, -1 do
-      if keys[i] == Journal.UNOBTAINABLE then table.remove(keys, i) end
-    end
-  end
-  return keys
+  return Journal.ViewSections(view, opts and opts.expansions)
 end
 
 -- Whether `section` of `view` is shown by the saved filters (missing = shown).
