@@ -50,7 +50,7 @@ describe("ui", function()
     eq(f.numTabs, 6)
     local labels = {}
     for i, tab in ipairs(f.Tabs) do labels[i] = tab:GetText() end
-    eq(labels, { "Journal", "Holidays", "Achievements", "Timewalking", "Misc", "Route" })
+    eq(labels, { "Journal", "Holidays", "Achievements", "Timewalking", "Misc", "Checklist" })
     eq(f.Tabs[1].template, "PanelTopTabButtonTemplate", "modern top tabs")
     ok(f.topTabs and f.isFlat, "flat window with top tabs")
     eq({ f.Tabs[1]:GetPoint(1) }, { "BOTTOMLEFT", f.Inset, "TOPLEFT", 60, 0 }, "tabs sit on the content's top edge")
@@ -69,7 +69,7 @@ describe("ui", function()
     local ns = loadUI()
     local journal, route = countingView(), countingView()
     ns.UI.RegisterView("journal", journal)
-    ns.UI.RegisterView("route", route)
+    ns.UI.RegisterView("checklist", route)
     ns.Refresh() -- window not built: no-op
     eq(journal.builds, 0)
 
@@ -83,12 +83,12 @@ describe("ui", function()
     eq(journal.refreshes, 2)
     eq(route.refreshes, 0)
 
-    ns.UI.SelectTab("route")
+    ns.UI.SelectTab("checklist")
     eq(route.builds, 1)
     eq(route.refreshes, 1)
     ok(route.parent:IsShown() and not journal.parent:IsShown(), "only the selected content is shown")
     eq(ns.UI.frame.selectedTab, 6)
-    eq(ns.db.global.window.tab, "route")
+    eq(ns.db.global.window.tab, "checklist")
 
     ns.Refresh()
     eq(route.refreshes, 2)
@@ -105,7 +105,7 @@ describe("ui", function()
   it("tab buttons select their tab", function()
     local ns = loadUI()
     local views = {}
-    for _, key in ipairs({ "journal", "holidays", "achievements", "timewalking", "misc", "route" }) do
+    for _, key in ipairs({ "journal", "holidays", "achievements", "timewalking", "misc", "checklist" }) do
       views[key] = countingView()
       ns.UI.RegisterView(key, views[key])
     end
@@ -176,6 +176,19 @@ describe("ui", function()
     eq(ns.db.global.window.tab, "journal")
   end)
 
+  it("the retired Route tab's key opens the Checklist tab (F16)", function()
+    local ns = loadUI({ window = { tab = "route" } })
+    eq(ns.UI.TabKey("route"), "checklist")
+    eq(ns.UI.TabKey("misc"), "misc")
+    eq(ns.UI.TabKey(nil), "journal")
+    ns.ToggleWindow()
+    eq(ns.UI.frame.selectedTab, 6)
+    eq(ns.db.global.window.tab, "checklist")
+    ns.UI.SelectTab("route")
+    eq(ns.db.global.window.tab, "checklist", "SelectTab maps it too")
+    ok(not pcall(ns.UI.RegisterView, "route", countingView()), "no view registers as route any more")
+  end)
+
   it("saves the position after a title drag", function()
     local ns = loadUI()
     ns.ToggleWindow()
@@ -207,7 +220,7 @@ describe("ui", function()
       PortraitFrameFlatTemplate = "PortraitFrameTemplate",
       PanelTopTabButtonTemplate = "PanelTabButtonTemplate",
     })
-    ns.UI.SelectTab("route")
+    ns.UI.SelectTab("checklist")
     eq(f.selectedTab, 6, "tabs still work")
   end)
 
@@ -350,7 +363,7 @@ describe("ui", function()
       ok(not ns.UI.frame:IsShown())
     end)
 
-    it("tooltip shows the title, the hint and route steps when known", function()
+    it("tooltip shows the title, the hint and the checklist's lockouts left when known", function()
       local ns = loadUI()
       fire_frame_event("PLAYER_LOGIN")
       local obj = LDB.objects.AzerothTrail
@@ -360,8 +373,10 @@ describe("ui", function()
         return out
       end
       eq(lines(), { "AzerothTrail", "Left-click: open/close" })
-      ns.UI.RouteRemaining = function() return 7 end
-      eq(lines(), { "AzerothTrail", "Left-click: open/close", "Route: 7 steps left" })
+      ns.UI.RouteRemaining = function() return 99 end -- retired: never read
+      eq(lines(), { "AzerothTrail", "Left-click: open/close" })
+      ns.UI.ChecklistRemaining = function() return 7 end
+      eq(lines(), { "AzerothTrail", "Left-click: open/close", "Checklist: 7 lockouts left" })
     end)
 
     it("sets up immediately when loaded after login", function()

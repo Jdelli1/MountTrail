@@ -1,9 +1,10 @@
 -- Pure helpers of UI/Arrow.lua (Bearing, NextStep, route mode), the Frame.lua
--- refresh hooks, UI.RouteNextStep and the /azt arrow command. The arrow frame
--- itself is compile-checked only.
+-- refresh hooks and UI.RouteNextStep. The arrow is parked (F16): routeMode is
+-- forced to "list" on load and /azt arrow is gone. The arrow frame itself is
+-- compile-checked only.
 
 local UI_FILES = { "UI/Frame.lua", "UI/Tooltip.lua", "UI/List.lua", "UI/JournalHome.lua",
-  "UI/Tabs.lua", "UI/RouteView.lua", "UI/Arrow.lua" }
+  "UI/Tabs.lua", "UI/LockoutHelpers.lua", "UI/Arrow.lua" }
 
 local NOW = 1000000
 local PI = math.pi
@@ -53,7 +54,7 @@ local function killRow(key, depth, title, state, locked)
 end
 
 describe("arrow", function()
-  it("toc lists UI\\Arrow.lua right after UI\\RouteView.lua", function()
+  it("toc lists UI\\Arrow.lua right after UI\\LockoutHelpers.lua", function()
     local fh = assert(io.open(ROOT .. "/AzerothTrail.toc", "r"))
     local lines = {}
     for line in fh:lines() do
@@ -62,8 +63,8 @@ describe("arrow", function()
     end
     fh:close()
     local rv
-    for i, line in ipairs(lines) do if line == "UI\\RouteView.lua" then rv = i end end
-    ok(rv, "UI\\RouteView.lua in toc")
+    for i, line in ipairs(lines) do if line == "UI\\LockoutHelpers.lua" then rv = i end end
+    ok(rv, "UI\\LockoutHelpers.lua in toc")
     eq(lines[rv + 1], "UI\\Arrow.lua")
   end)
 
@@ -250,24 +251,40 @@ describe("arrow", function()
     end)
   end)
 
-  describe("/azt arrow", function()
-    it("toggles the route mode, says so and refreshes", function()
+  describe("parked (F16)", function()
+    it("ns.RetireRoute forces list mode and drops the route list's settings", function()
       local ns = loadUI()
-      local refreshes = 0
-      ns.Refresh = function() refreshes = refreshes + 1 end
-      run_slash(ns.addon, "azt", "arrow")
-      eq(ns.db.char.routeMode, "arrow")
-      eq(refreshes, 1)
-      ok(ns.addon.printed[#ns.addon.printed]:find("Arrow", 1, true), "prints the new mode")
-      run_slash(ns.addon, "azt", " ARROW ")
-      eq(ns.db.char.routeMode, "list")
-      eq(refreshes, 2)
+      local db = { char = { routeMode = "arrow", routeView = "route", showCompleted = true, ticks = { [1] = 5 } },
+        global = { window = { tab = "route", x = 3 } } }
+      ns.RetireRoute(db)
+      eq(db.char, { routeMode = "list", ticks = { [1] = 5 } })
+      eq(db.global.window, { tab = "checklist", x = 3 })
+      local other = { char = {}, global = { window = { tab = "misc" } } }
+      ns.RetireRoute(other)
+      eq(other.global.window.tab, "misc", "other tabs are kept")
+      ns.RetireRoute({}) -- no sections: no error
+      ns.RetireRoute(nil)
     end)
 
-    it("is listed in help", function()
+    it("OnInitialize runs it, so a saved arrow mode never shows the frame", function()
       local ns = loadUI()
-      run_slash(ns.addon, "azt", "help")
-      ok(table.concat(ns.addon.printed, "\n"):find("/azt arrow", 1, true), "help mentions /azt arrow")
+      local retired
+      local old = ns.RetireRoute
+      ns.RetireRoute = function(db) retired = db; return old(db) end
+      ns.addon:OnInitialize()
+      eq(retired, ns.db)
+      eq(ns.db.char.routeMode, "list")
+      ns.Refresh()
+      eq(AzerothTrailArrow, nil)
+    end)
+
+    it("/azt arrow is no longer a command: it prints the help, which no longer lists it", function()
+      local ns = loadUI()
+      run_slash(ns.addon, "azt", "arrow")
+      eq(ns.db.char.routeMode, "list")
+      local text = table.concat(ns.addon.printed, " | ")
+      ok(text:find("Commands:", 1, true), "help printed")
+      ok(not text:find("/azt arrow", 1, true), "help does not mention /azt arrow")
     end)
   end)
 end)

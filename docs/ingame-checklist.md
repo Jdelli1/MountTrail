@@ -453,3 +453,15 @@ The Midnight hand-tick specs are now instance specs (instance = JournalInstance 
 - [ ] Mythic March on Quel'Danas (Midnight Falls) and Mythic The Venomous Abyss (Ula'tek): Ashes of Belo'ren and Primeval Skyfriend tick `auto` (Checklist > Weekly > Midnight > Raids). A Heroic kill must not tick them.
 - [ ] Midnight Mythic+ runs: the Lucent / Spectral Hawkstriders also come from the Challenger's Cache (Mythic+). A Mythic+ run creates no lockout, so their rows only tick `auto` after a Mythic 0 kill; note whether that matches how you farm them.
 - [ ] Luminous Sporeglider keeps its tick box.
+
+## F16: Route planner retired
+
+The route planner is retired for now. The `Route` tab is now the `Checklist` tab (sixth tab, label `Checklist`): it shows only the daily / weekly checklist under a flat header with the character name, the weekly and daily reset timers, the flavour line (`You have N lockouts left. Saddle up?` / `<name> has reached Oregon. ...`, counting the categories the Filter shows) and the `Filter` button top right. The route list, the `Route | Checklist` switch, `Show completed` and the `List | Arrow` control are gone. The route arrow (UI/Arrow.lua) is parked: `AzerothTrailDB.char.routeMode` is forced to `list` on every load and `/azt arrow` is no longer a command. This section supersedes every earlier item that mentions the Route tab, its route rows, Show completed, List / Arrow, the arrow frame or `/azt arrow` (Tasks 14, 16, 17 and the later route-row checks); the Checklist checks keep applying with "Route tab > Checklist" read as "Checklist tab".
+
+- [ ] `/reload` with `/console scriptErrors 1`, `/azt`: six tabs, the last one `Checklist`; no Lua errors; no "Coming soon" on it.
+- [ ] A character that had the Route tab selected before this update opens on `Checklist` (`/dump AzerothTrailDB.global.window.tab` -> `"checklist"`).
+- [ ] A character that was in arrow mode: no `AzerothTrailArrow` frame after login; `/dump AzerothTrailDB.char.routeMode` -> `"list"`; `routeView` and `showCompleted` are gone from `AzerothTrailDB.char`.
+- [ ] Checklist header: name, `Weekly reset in ...    Daily reset in ...`, the flavour line, `Filter` top right (the name line does not run under it). No other buttons.
+- [ ] `/azt arrow` prints the command list (no `/azt arrow` in it); `/azt help` does not list it.
+- [ ] Minimap button tooltip: `Checklist: N lockouts left`, N equal to the flavour line's number (with the same Filter choices).
+- [ ] Tick boxes, collapse, Filter, row clicks and hovers on the checklist work as before (F10-F14 checks).

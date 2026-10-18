@@ -1,5 +1,5 @@
 -- Builds the restyled views (journal home and list, Holidays, Achievements,
--- Timewalking, Misc, Route)
+-- Timewalking, Misc, Checklist)
 -- under the widget stub, plus the extra widget methods and ScrollBox / menu
 -- stand-ins below, so the widget code runs instead of being compile-checked
 -- only. Checks the Filter dropdown wiring (menu content, writes to
@@ -7,7 +7,7 @@
 -- UI/Arrow.lua is not loaded.
 
 local UI_FILES = { "UI/Frame.lua", "UI/Tooltip.lua", "UI/List.lua", "UI/JournalHome.lua",
-  "UI/Tabs.lua", "UI/RouteView.lua", "UI/ChecklistView.lua", "UI/ZonePanel.lua" }
+  "UI/Tabs.lua", "UI/LockoutHelpers.lua", "UI/ChecklistView.lua", "UI/ZonePanel.lua" }
 
 -- Widget methods the views call that the base stub does not need.
 local probe = CreateFrame("Frame")
@@ -669,49 +669,35 @@ describe("ui build", function()
     eq({ o, t }, { o2, t2 }, "journal counts do not depend on the setting")
   end)
 
-  it("Route builds a flat header, a two-segment mode control and striped rows", function()
+  it("Checklist tab: a flat header (name, resets, flavour, Filter) over the list; no route controls (F16)", function()
     local ns = loadUI()
     ns.ToggleWindow()
-    ns.UI.SelectTab("route")
-    local arrowMode = "list"
-    ns.Arrow = {
-      Mode = function() return arrowMode end,
-      SetMode = function(_, mode) arrowMode = mode; return mode end,
-    }
-    local root = content(ns, "route").children[2]
+    ns.UI.SelectTab("checklist")
+    local root = content(ns, "checklist").children[2]
     local header = root.children[1]
-    eq(header.ShowCompleted.template, "MinimalCheckboxTemplate")
     eq(header.Name:GetText(), "Tester")
-    eq(header.ListMode.Label.font, "GameFontNormalSmall", "List selected")
-    eq(header.ArrowMode.Label.font, "GameFontDisableSmall")
-    eq(header.ListMode.Bg.color, { 1, 0.82, 0, 0.22 })
-    eq(header.ModeControl.width, 60 * 2 + 3, "1 px frame, two segments, 1 px divider")
-    eq(header.ModeControl.height, 22)
-    eq({ header.ListMode:GetPoint(1) }, { "TOPLEFT", header.ModeControl, "TOPLEFT", 1, -1 }, "inset 1 px")
-    eq({ header.ArrowMode:GetPoint(1) }, { "TOPRIGHT", header.ModeControl, "TOPRIGHT", -1, -1 })
-    header.ArrowMode:RunScript("OnClick")
-    eq(arrowMode, "arrow")
-    eq(header.ArrowMode.Label.font, "GameFontNormalSmall", "Arrow segment selected")
-    eq(header.ArrowMode.Bg.color, { 1, 0.82, 0, 0.22 })
-    eq(header.ListMode.Label.font, "GameFontDisableSmall")
-    header.ListMode:RunScript("OnClick")
-    eq(header.ListMode.Label.font, "GameFontNormalSmall", "back to List")
-    header.ShowCompleted.checked = true
-    header.ShowCompleted:RunScript("OnClick")
-    eq(ns.db.char.showCompleted, true)
-    local box
-    for _, child in ipairs(root.children) do if child.view then box = child end end
-    local frames = render(box)
-    ok(#frames > 10, "route rows rendered")
-    local striped = 0
-    for _, f in ipairs(frames) do
-      if f.Stripe:IsShown() then striped = striped + 1 end
-      ok(f.Title.font == "GameFontNormal" or f.Title.font == "GameFontDisable", "GameFont family")
+    ok(header.Resets:GetText():find("Weekly reset in", 1, true), header.Resets:GetText())
+    ok(header.Resets:GetText():find("Daily reset in", 1, true))
+    eq(header.Flavour:GetText(), string.format("You have %d lockouts left. Saddle up?", ns.UI.ChecklistRemaining()))
+    eq(header.height, 78)
+    ok(header.ChecklistFilter and header.ChecklistFilter:IsShown(), "Filter button shown")
+    ok(header.Checklist and header.Checklist:IsShown(), "the checklist list is shown")
+    for _, gone in ipairs({ "ShowCompleted", "ModeControl", "ListMode", "ArrowMode", "ViewControl",
+      "RouteViewButton", "ChecklistViewButton" }) do
+      eq(header[gone], nil, gone .. " is retired")
     end
-    eq(striped, math.floor(#frames / 2), "every other row striped")
+    local boxes = 0
+    for _, child in ipairs(root.children) do if child.view then boxes = boxes + 1 end end
+    eq(boxes, 0, "no route list beside the checklist")
+    -- Everything done: the Oregon line.
+    ns.db.char.checklistFilters = { raids = false, dungeons = false, worldbosses = false, rares = false,
+      holidays = false, other = false }
+    ns.Refresh()
+    eq(header.Flavour:GetText(), "Tester has reached Oregon. Nothing left to farm until reset.")
+    ok(header.Checklist.Empty:IsShown(), "empty line")
   end)
 
-  it("mount rows (lists and Route) take left and right clicks and dispatch through HandleRowClick", function()
+  it("mount rows (lists and Checklist) take left and right clicks and dispatch through HandleRowClick", function()
     local ns = loadUI()
     ns.ToggleWindow()
     local got = {}
@@ -726,19 +712,16 @@ describe("ui build", function()
     row:RunScript("OnClick", "RightButton")
     eq(got[1], { row.mountID, "RightButton" })
 
-    ns.UI.SelectTab("route")
-    local root = content(ns, "route").children[2]
-    local box
-    for _, child in ipairs(root.children) do if child.view then box = child end end
-    local routeRow
+    ns.UI.SelectTab("checklist")
+    local box = content(ns, "checklist").children[2].children[1].Checklist.ScrollBox
+    local checkRow
     for _, f in ipairs(render(box)) do
-      if f.clickButtons and not routeRow then routeRow = f end
+      if f.mountID and not checkRow then checkRow = f end
     end
-    ok(routeRow, "route row rendered")
-    eq(routeRow.clickButtons, { "LeftButtonUp", "RightButtonUp" })
-    routeRow:RunScript("OnClick", "RightButton")
-    eq(got[2][2], "RightButton")
-    ok(got[2][1] ~= nil, "route row passes its first mount")
+    ok(checkRow, "checklist row rendered")
+    eq(checkRow.clickButtons, { "LeftButtonUp", "RightButtonUp" })
+    checkRow:RunScript("OnClick", "RightButton")
+    eq(got[2], { checkRow.mountID, "RightButton" })
   end)
 
   it("mount rows have no Map button and show a pin only where Map.HasLocation says so", function()
@@ -765,66 +748,6 @@ describe("ui build", function()
     local f
     for i, row in ipairs(rows) do if not row.header and row.id % 2 == 0 and not f then f = render(list.ScrollBox)[i] end end
     eq(f.Pin.atlas, "Waypoint-MapPin-ChatIcon")
-  end)
-
-  it("route rows: pin and click target the first boss not done", function()
-    local ns = loadUI()
-    ns.Map.Resolve = function() error("Resolve must not run on refresh") end
-    ns.Map.HasLocation = function() return true end
-    local got = {}
-    ns.UI.HandleRowClick = function(id, button, boss) got[#got + 1] = { id, button, boss } end
-    ns.ToggleWindow()
-    ns.UI.SelectTab("route")
-    local root = content(ns, "route").children[2]
-    local box
-    for _, child in ipairs(root.children) do if child.view then box = child end end
-    local rows = box.provider.rows
-    local frames = render(box)
-    local kills = 0
-    for i, row in ipairs(rows) do
-      local f = frames[i]
-      eq(f.Map, nil, "no Map button")
-      if row.kind == "kill" and ns.UI.RouteTargetMount(row) then
-        kills = kills + 1
-        ok(f.Pin:IsShown(), "kill row pin")
-      else
-        ok(not f.Pin:IsShown(), "travel row: no pin")
-      end
-    end
-    ok(kills > 0, "kill rows rendered")
-    -- A row whose first boss is done targets the next one.
-    local data = { kind = "kill", title = "Run X", bosses = { { mount = 11, boss = "One", state = "done" },
-      { mount = 22, boss = "Two", state = "open" } } }
-    local f = frames[1]
-    box.view.factory(function(_, init) init(f, data) end, data)
-    f:RunScript("OnClick", "LeftButton")
-    eq(got[#got], { 22, "LeftButton", "Two" }, "the target boss rides along (its instance's entrance)")
-    -- F12: the hover's lockout line is about that boss too.
-    local shown = {}
-    ns.UI.ShowMountTooltip = function(_, id, boss) shown[#shown + 1] = { id, boss } end
-    f:RunScript("OnEnter")
-    eq(shown[#shown], { 22, "Two" }, "the tooltip names the target boss")
-  end)
-
-  it("route rows: the pin asks about the target boss (per-boss entrances)", function()
-    local ns = loadUI()
-    local asked = {}
-    ns.UI.LocationIcon = function(id, boss) asked[#asked + 1] = { id, boss }; return "spot" end
-    ns.ToggleWindow()
-    ns.UI.SelectTab("route")
-    local root = content(ns, "route").children[2]
-    local box
-    for _, child in ipairs(root.children) do if child.view then box = child end end
-    local want, withBoss = {}, 0
-    for _, row in ipairs(box.provider.rows) do
-      local id, boss = ns.UI.RouteTargetMount(row)
-      if row.kind == "kill" and id then
-        want[#want + 1] = { id, boss }
-        if boss then withBoss = withBoss + 1 end
-      end
-    end
-    ok(withBoss > 0, "kill rows with bosses")
-    eq(asked, want, "each kill row's pin names its target boss")
   end)
 
   -- Mount rows under each section header of a provider -> { [key] = n }.
@@ -1212,55 +1135,16 @@ describe("ui build", function()
     ok(found, "help lists /azt zone")
   end)
 
-  it("Route header: a Route / Checklist switch beside List / Arrow swaps the sub-views", function()
+  it("Checklist Filter dropdown: per-character category filters", function()
     local ns = loadUI()
-    ns.Arrow = { Mode = function() return "list" end, SetMode = function() end }
     ns.ToggleWindow()
-    ns.UI.SelectTab("route")
-    local root = content(ns, "route").children[2]
-    local header = root.children[1]
-    local routeBox
-    for _, child in ipairs(root.children) do if child.view then routeBox = child end end
-    local checklist = header.Checklist
-    ok(checklist, "checklist sub-view built")
-    eq(header.ViewControl.width, 64 * 2 + 3)
-    eq({ header.ViewControl:GetPoint(1) }, { "TOPRIGHT", header.ModeControl, "TOPLEFT", -8, 0 },
-      "left of List / Arrow on the same line")
-    eq(header.RouteViewButton.Label.font, "GameFontNormalSmall", "Route selected by default")
-    eq(header.ChecklistViewButton.Label.font, "GameFontDisableSmall")
-    ok(routeBox:IsShown() and not checklist:IsShown(), "route list shown")
-    ok(header.ShowCompleted:IsShown(), "Show completed on the route")
-    eq(header.HideDone, nil, "no Hide done: done checklist entries disappear on their own")
-
-    header.ChecklistViewButton:RunScript("OnClick")
-    eq(ns.db.char.routeView, "checklist")
-    eq(header.ChecklistViewButton.Label.font, "GameFontNormalSmall")
-    eq(header.ChecklistViewButton.Bg.color, { 1, 0.82, 0, 0.22 })
-    eq(header.RouteViewButton.Label.font, "GameFontDisableSmall")
-    ok(checklist:IsShown() and not routeBox:IsShown(), "checklist shown, route list hidden")
-    ok(not header.ShowCompleted:IsShown(), "no Show completed on the checklist")
-    ok(header.ModeControl:IsShown(), "List / Arrow stays")
-    ok(header.Flavour:GetText():find("lockouts left", 1, true), "flavour counts checklist entries")
-
-    header.RouteViewButton:RunScript("OnClick")
-    eq(ns.db.char.routeView, "route")
-    ok(routeBox:IsShown() and not checklist:IsShown(), "back to the route")
-  end)
-
-  it("Checklist Filter dropdown: per-character category filters, shown on the checklist only", function()
-    local ns = loadUI()
-    ns.Arrow = { Mode = function() return "list" end, SetMode = function() end }
-    ns.ToggleWindow()
-    ns.UI.SelectTab("route")
-    local header = content(ns, "route").children[2].children[1]
+    ns.UI.SelectTab("checklist")
+    local header = content(ns, "checklist").children[2].children[1]
     local dd = header.ChecklistFilter
     ok(dd, "Filter dropdown built")
     eq(dd.template, "WowStyle1FilterDropdownTemplate")
-    eq({ dd:GetPoint(1) }, { "TOPRIGHT", header, "TOPRIGHT", -8, -4 }, "top right, where Show completed sits on the route")
-    ok(not dd:IsShown(), "hidden on the route")
-
-    header.ChecklistViewButton:RunScript("OnClick")
-    ok(dd:IsShown(), "shown on the checklist")
+    eq({ dd:GetPoint(1) }, { "TOPRIGHT", header, "TOPRIGHT", -8, -4 }, "top right of the header")
+    ok(dd:IsShown(), "shown")
     eq(dd.resetShown, false, "defaults: no reset arrow")
     local calls = openMenu(dd)
     local labels = {}
@@ -1299,9 +1183,6 @@ describe("ui build", function()
     eq(ns.db.char.checklistFilters, {}, "reset shows every category")
     eq(dd.resetShown, false)
 
-    header.RouteViewButton:RunScript("OnClick")
-    ok(not dd:IsShown(), "hidden again on the route")
-
     -- Without the 11.x menu API /azt debug names what the checklist gets instead.
     local saved = STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate
     ns.UI.TemplateFallbacks["DropdownButton:SetupMenu"] = nil
@@ -1318,10 +1199,9 @@ describe("ui build", function()
     ns.Map.HasLocation = function(id) return id % 2 == 0 end
     local got = {}
     ns.UI.HandleRowClick = function(id, button) got[#got + 1] = { id, button } end
-    ns.db.char.routeView = "checklist"
     ns.ToggleWindow()
-    ns.UI.SelectTab("route")
-    local header = content(ns, "route").children[2].children[1]
+    ns.UI.SelectTab("checklist")
+    local header = content(ns, "checklist").children[2].children[1]
     local box = header.Checklist.ScrollBox
     local rows = box.provider.rows
     eq(rows[1].header, true)
@@ -1412,10 +1292,9 @@ describe("ui build", function()
       reset = "weekly", exp = "Dragonflight" }
     local got = {}
     ns.UI.HandleRowClick = function(id, button, boss) got[#got + 1] = { id, button, boss } end
-    ns.db.char.routeView = "checklist"
     ns.ToggleWindow()
-    ns.UI.SelectTab("route")
-    local header = content(ns, "route").children[2].children[1]
+    ns.UI.SelectTab("checklist")
+    local header = content(ns, "checklist").children[2].children[1]
     local box = header.Checklist.ScrollBox
     local rows = box.provider.rows
     local frames = render(box)
@@ -1461,13 +1340,16 @@ describe("ui build", function()
     eq(frames[plain].Name:GetText(), rows[plain].m.name, "single-mount rows keep the mount name")
   end)
 
-  it("Route falls back to the classic checkbox", function()
+  it("Checklist tick boxes fall back to the classic checkbox", function()
     local ns = loadUI()
     STUB_TEMPLATES.MinimalCheckboxTemplate = nil
     ns.ToggleWindow()
-    ns.UI.SelectTab("route")
-    local header = content(ns, "route").children[2].children[1]
-    eq(header.ShowCompleted.template, "UICheckButtonTemplate")
+    ns.UI.SelectTab("checklist")
+    local box = content(ns, "checklist").children[2].children[1].Checklist.ScrollBox
+    local check
+    for _, f in ipairs(render(box)) do if f.Check and not check then check = f.Check end end
+    ok(check, "a row with a tick box")
+    eq(check.template, "UICheckButtonTemplate")
     eq(ns.UI.TemplateFallbacks.MinimalCheckboxTemplate, "UICheckButtonTemplate")
   end)
 end)

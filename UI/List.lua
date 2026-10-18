@@ -895,7 +895,7 @@ local function mapAction(method, mountID, routeBoss)
   trace("%s(%s) -> %s, %s", method, tostring(mountID), tostring(kind), tostring(place))
 end
 
--- OnClick of a mount row (lists and Route): reads the modifier keys and
+-- OnClick of a mount row (lists, Checklist and zone panel): reads the modifier keys and
 -- runs UI.RowClickAction's action for `mountID`. `routeBoss` (optional): the
 -- route / checklist row's boss, so the waypoint and map go to that boss's
 -- instance (Map.SetWaypoint / Map.OpenMap) rather than the mount's own place.

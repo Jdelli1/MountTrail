@@ -1,6 +1,6 @@
 local ADDON, ns = ...
 
--- Daily / weekly lockout checklist (the Route tab's Checklist view): every
+-- Daily / weekly lockout checklist (the Checklist tab): every
 -- lockout this character can still spend on a mount, grouped by reset.
 -- Pure Lua, no WoW API: the caller injects the route tree, spec / state
 -- lookups and the gate (UI/ChecklistView.lua builds the context).

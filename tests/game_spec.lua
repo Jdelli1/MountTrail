@@ -506,7 +506,26 @@ describe("init", function()
     eq(ns.db.global.minimap, { hide = false })
     eq(ns.db.global.window, {})
     eq(ns.db.char.ticks, {})
-    eq(ns.db.char.showCompleted, false)
+    eq(ns.db.char.showCompleted, nil, "the route list's Show completed is retired (F16)")
+    eq(ns.db.char.routeMode, "list")
+  end)
+
+  it("OnInitialize retires the route planner's saved state (F16)", function()
+    local AceDB = LibStub("AceDB-3.0")
+    local realNew = AceDB.New
+    AceDB.New = function(self, svName, defaults)
+      local db = realNew(self, svName, defaults)
+      db.char.routeMode, db.char.routeView, db.char.showCompleted = "arrow", "checklist", true
+      db.global.window = { tab = "route", point = "CENTER" }
+      return db
+    end
+    local good, ns = pcall(setup)
+    AceDB.New = realNew
+    assert(good, ns)
+    eq(ns.db.char.routeMode, "list", "the parked arrow can't show")
+    eq(ns.db.char.routeView, nil)
+    eq(ns.db.char.showCompleted, nil)
+    eq(ns.db.global.window, { tab = "checklist", point = "CENTER" })
   end)
 
   it("OnInitialize migrates pre-F15 flat journal filters into filters.journal", function()

@@ -1,10 +1,11 @@
--- Pure helpers of UI/RouteView.lua and UI/Tabs.lua (route context, steps
--- left, tick boxes, row text, flavour, durations, holiday badge, trading tag),
--- the List opts hooks (UI/List.lua) and the route-boss LockoutStatus fix.
--- The frame code (route view, Holidays/Misc views) is built in tests/ui_build_spec.lua.
+-- Pure helpers of UI/LockoutHelpers.lua and UI/Tabs.lua (route context, tick
+-- boxes, row text, flavour, durations, the parked arrow's route rows, holiday
+-- badge, trading tag), the List opts hooks (UI/List.lua) and the route-boss
+-- LockoutStatus fix. The frame code (Checklist, Holidays/Misc views) is built
+-- in tests/ui_build_spec.lua.
 
 local UI_FILES = { "UI/Frame.lua", "UI/Tooltip.lua", "UI/List.lua", "UI/JournalHome.lua",
-  "UI/Tabs.lua", "UI/RouteView.lua" }
+  "UI/Tabs.lua", "UI/LockoutHelpers.lua" }
 
 local NOW = 1000000
 
@@ -44,8 +45,24 @@ local function kill(title, bosses)
   return { title = title, type = "Raid", bosses = bosses }
 end
 
+-- Kill rows of this character's route (Route.Build over UI.RouteContext)
+-- not done yet; `showCompleted` lists done rows too.
+local function routeRows(ns, now, showCompleted)
+  local ctx = ns.UI.RouteContext(now)
+  ctx.showCompleted = showCompleted == true
+  return ns.Route.Build(ns.Data.Route, ctx)
+end
+
+local function left(ns, now)
+  local n = 0
+  for _, row in ipairs(routeRows(ns, now)) do
+    if row.kind == "kill" and row.state ~= "done" then n = n + 1 end
+  end
+  return n
+end
+
 describe("ui route", function()
-  it("toc lists Tabs and RouteView right after JournalHome", function()
+  it("toc lists Tabs and LockoutHelpers right after JournalHome", function()
     local fh = assert(io.open(ROOT .. "/AzerothTrail.toc", "r"))
     local lines = {}
     for line in fh:lines() do
@@ -56,16 +73,17 @@ describe("ui route", function()
     local home
     for i, line in ipairs(lines) do if line == "UI\\JournalHome.lua" then home = i end end
     ok(home, "UI\\JournalHome.lua in toc")
-    eq({ lines[home + 1], lines[home + 2] }, { "UI\\Tabs.lua", "UI\\RouteView.lua" })
+    eq({ lines[home + 1], lines[home + 2] }, { "UI\\Tabs.lua", "UI\\LockoutHelpers.lua" })
   end)
 
   it("loads and exposes the helpers without building any view", function()
     local ns = loadUI()
-    for _, name in ipairs({ "RouteContext", "RouteRemaining", "RouteCheck", "RouteToggle",
-      "RouteRowLines", "RouteFlavour", "FormatDuration", "HolidayBadge", "TradingTag",
+    for _, name in ipairs({ "RouteContext", "RouteCheck", "RouteToggle", "RouteTickKey", "RouteTargetMount",
+      "RouteNextStep", "RouteRowLines", "RouteFlavour", "FormatDuration", "HolidayBadge", "TradingTag",
       "HeaderText", "RowSourceText", "RouteBoss" }) do
       eq(type(ns.UI[name]), "function", name)
     end
+    eq(ns.UI.RouteRemaining, nil, "the route count is retired (F16)")
     eq(ns.UI.frame, nil, "no window until toggled")
   end)
 
@@ -129,18 +147,16 @@ describe("ui route", function()
       })
     end)
 
-    it("carries faction, showCompleted and predicates", function()
+    it("carries faction and predicates; never lists done rows (Show completed is retired)", function()
       local ns = loadUI({ IsOwned = function(id) return id == 5 end })
-      ns.db.char.showCompleted = true
+      ns.db.char.showCompleted = true -- a leftover saved value
       local ctx = ns.UI.RouteContext(NOW)
       eq(ctx.faction, "Horde")
-      eq(ctx.showCompleted, true)
+      eq(ctx.showCompleted, false)
       eq(ctx.isOwned(5), true)
       eq(ctx.isOwned(6), false)
       eq(ctx.isQuestDone, ns.Game.IsQuestDone)
       eq(ctx.holidaySteps, {})
-      ns.db.char.showCompleted = false
-      eq(ns.UI.RouteContext(NOW).showCompleted, false)
     end)
 
     it("defaults now to Game.Now()", function()
@@ -150,7 +166,7 @@ describe("ui route", function()
     end)
   end)
 
-  describe("RouteRemaining", function()
+  describe("route rows (the parked arrow's steps)", function()
     local route = {
       { title = "Fly somewhere", steps = {
         kill("Saved raid", { { mount = 1, boss = "A" } }),
@@ -173,9 +189,7 @@ describe("ui route", function()
         IsOwned = function(id) return id == 5 end,
       }, { Route = route, Lockouts = lockouts })
       ns.db.char.ticks[4] = NOW + 60
-      eq(ns.UI.RouteRemaining(NOW), 2, "Open raid + Manual rare")
-      ns.db.char.showCompleted = true
-      eq(ns.UI.RouteRemaining(NOW), 2, "showCompleted does not change the count")
+      eq(left(ns, NOW), 2, "Open raid + Manual rare")
     end)
 
     it("counts active holiday steps and drops to zero when all is done", function()
@@ -187,9 +201,9 @@ describe("ui route", function()
         Lockouts = { [1] = { quest = 1001, reset = "weekly" }, [202] = { lfg = 287, reset = "daily" } },
         Holidays = { brewfest = { title = "Brewfest", mounts = { 202 }, stepTitle = "Queue for Coren Direbrew (Brewfest)" } },
       })
-      eq(ns.UI.RouteRemaining(NOW), 1, "holiday boss open")
+      eq(left(ns, NOW), 1, "holiday boss open")
       ns.Game.IsLfgDone = function() return true end
-      eq(ns.UI.RouteRemaining(NOW), 0)
+      eq(left(ns, NOW), 0)
     end)
 
     it("runs on the shipped data for both factions", function()
@@ -210,8 +224,7 @@ describe("ui route", function()
         local rows = ns.Route.Build(ns.Data.Route, ctx)
         ok(#rows > 10, faction .. ": route has rows")
         eq(rows[1].title, "Queue for Coren Direbrew (Brewfest)", faction .. ": holiday boss first")
-        local left = ns.UI.RouteRemaining(NOW)
-        ok(left > 10, faction .. ": steps left")
+        ok(left(ns, NOW) > 10, faction .. ": steps left")
         for _, row in ipairs(rows) do
           ns.UI.RouteRowLines(row)
           if row.kind == "kill" then
@@ -220,16 +233,6 @@ describe("ui route", function()
           end
         end
       end
-    end)
-
-    it("feeds the minimap tooltip line", function()
-      local ns = loadUI(nil, { Route = { kill("Open", { { mount = 2, boss = "B" } }) } })
-      fire_frame_event("PLAYER_LOGIN")
-      local launcher = ns.UI.launcher
-      ok(launcher, "launcher registered")
-      local lines = {}
-      launcher.OnTooltipShow({ AddLine = function(_, text) lines[#lines + 1] = text end })
-      eq(lines[#lines], "Route: 1 steps left")
     end)
   end)
 
@@ -308,16 +311,15 @@ describe("ui route", function()
       -- A tick left over from an older version (or another click path).
       ns.db.char.ticks = { [1] = NOW + 5000 }
       eq(ns.UI.RouteContext(NOW).stateOf(1, "Malygos"), "open")
-      eq(ns.UI.RouteRemaining(NOW), 1)
-      local rows = ns.Route.Build(ns.Data.Route, ns.UI.RouteContext(NOW))
+      eq(left(ns, NOW), 1)
+      local rows = routeRows(ns, NOW)
       eq({ ns.UI.RouteCheck(rows[1]) }, { false, false, false })
 
       -- The game reports it done: checked, disabled, auto.
       saved[1] = { instance = 616, difficulty = 3, bosses = { { name = "Malygos", killed = true } } }
       saved[2] = { instance = 616, difficulty = 4, bosses = { { name = "Malygos", killed = true } } }
       eq(ns.UI.RouteContext(NOW).stateOf(1, "Malygos"), "done")
-      ns.db.char.showCompleted = true
-      rows = ns.Route.Build(ns.Data.Route, ns.UI.RouteContext(NOW))
+      rows = routeRows(ns, NOW, true)
       eq({ ns.UI.RouteCheck(rows[1]) }, { true, false, true })
     end)
 
@@ -335,7 +337,7 @@ describe("ui route", function()
       local ctx = ns.UI.RouteContext(NOW)
       eq(ctx.stateOf(395, "Grand Hoarder"), "manual-done")
       eq(ctx.stateOf(395, "Altairus"), "manual-open")
-      eq(ns.UI.RouteRemaining(NOW), 1)
+      eq(left(ns, NOW), 1)
     end)
 
     it("game-tracked rows can't be hand ticked, so no attempts come from clicks", function()
@@ -361,12 +363,11 @@ describe("ui route", function()
       local rows = ns.Route.Build(ns.Data.Route, ns.UI.RouteContext(NOW))
       eq(rows[1].bosses[1].state, "manual-open")
       ns.UI.RouteToggle(rows[1], ns.db.char.ticks, NOW, 100, 5000)
-      eq(ns.UI.RouteRemaining(NOW), 0)
-      ns.db.char.showCompleted = true
-      rows = ns.Route.Build(ns.Data.Route, ns.UI.RouteContext(NOW))
+      eq(left(ns, NOW), 0)
+      rows = routeRows(ns, NOW, true)
       eq(rows[1].state, "done")
       eq({ ns.UI.RouteCheck(rows[1]) }, { true, true, false }, "still clickable to untick")
-      eq(ns.UI.RouteRemaining(NOW + 100), 1, "gone after the daily reset")
+      eq(left(ns, NOW + 100), 1, "gone after the daily reset")
     end)
   end)
 

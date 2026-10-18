@@ -22,11 +22,9 @@ L["Commands:"] = "Commands:"
 L["/azt - show or hide the window"] = "/azt - show or hide the window"
 L["/azt dump - list saved instances (instance ID, difficulty ID, bosses)"] = "/azt dump - list saved instances (instance ID, difficulty ID, bosses)"
 L["/azt help - this list"] = "/azt help - this list"
-L["/azt arrow - switch the route between list and arrow"] = "/azt arrow - switch the route between list and arrow"
-L["Route mode: %s"] = "Route mode: %s"
-L["/azt debug - show or hide caught map and arrow errors"] = "/azt debug - show or hide caught map and arrow errors"
+L["/azt debug - show or hide caught map and waypoint errors"] = "/azt debug - show or hide caught map and waypoint errors"
 L["/azt zone - show or hide the zone panel (mounts in your current zone)"] = "/azt zone - show or hide the zone panel (mounts in your current zone)"
-L["Debug: on (caught map and arrow errors go to the error handler)"] = "Debug: on (caught map and arrow errors go to the error handler)"
+L["Debug: on (caught map and waypoint errors go to the error handler)"] = "Debug: on (caught map and waypoint errors go to the error handler)"
 L["Debug: off"] = "Debug: off"
 L["Template %s missing, using %s"] = "Template %s missing, using %s"
 L["none"] = "none"
@@ -39,10 +37,9 @@ L["AzerothTrail"] = "AzerothTrail"
 L["Journal"] = "Journal"
 L["Holidays"] = "Holidays"
 L["Misc"] = "Misc"
-L["Route"] = "Route"
 L["Coming soon"] = "Coming soon"
 L["Left-click: open/close"] = "Left-click: open/close"
-L["Route: %d steps left"] = "Route: %d steps left"
+L["Checklist: %d lockouts left"] = "Checklist: %d lockouts left"
 
 -- Zone side panel
 L["Mounts in %s"] = "Mounts in %s"
@@ -161,21 +158,16 @@ L["Can't open achievements in combat"] = "Can't open achievements in combat"
 L["Active now"] = "Active now"
 L["Trading Post — this month"] = "Trading Post — this month"
 
--- Route tab
+-- Checklist tab header
 L["Weekly reset in %s"] = "Weekly reset in %s"
 L["Daily reset in %s"] = "Daily reset in %s"
-L["Show completed"] = "Show completed"
 L["You have %d lockouts left. Saddle up?"] = "You have %d lockouts left. Saddle up?"
 L["%s has reached Oregon. Nothing left to farm until reset."] = "%s has reached Oregon. Nothing left to farm until reset."
 L["Your party"] = "Your party"
 L["auto"] = "auto"
 L["Locked"] = "Locked"
 
--- Route arrow
-L["List"] = "List"
-L["Arrow"] = "Arrow"
-
--- Route tab: Checklist sub-view
+-- Checklist tab
 L["Checklist"] = "Checklist"
 L["Daily"] = "Daily"
 L["Weekly"] = "Weekly"
@@ -184,6 +176,8 @@ L["Hide done"] = "Hide done"
 L["No lockouts left to farm on this character."] = "No lockouts left to farm on this character."
 L["%d mounts"] = "%d mounts"
 L["Can drop:"] = "Can drop:"
+
+-- Parked route arrow (UI\Arrow.lua)
 L["Skip"] = "Skip"
 L["via: %s"] = "via: %s"
 L["%d yd"] = "%d yd"
@@ -207,7 +201,7 @@ L["Where a mount row's left-click puts the waypoint. TomTom arrow and Both need 
 L["Show minimap button"] = "Show minimap button"
 L["Show the AzerothTrail button on the minimap."] = "Show the AzerothTrail button on the minimap."
 L["Debug messages"] = "Debug messages"
-L["Show errors AzerothTrail catches around maps, waypoints and the arrow (same as /azt debug)."] = "Show errors AzerothTrail catches around maps, waypoints and the arrow (same as /azt debug)."
+L["Show errors AzerothTrail catches around maps and waypoints (same as /azt debug)."] = "Show errors AzerothTrail catches around maps and waypoints (same as /azt debug)."
 L["The options page is not available on this client."] = "The options page is not available on this client."
 L["/azt options - open the AzerothTrail options (Options > AddOns)"] = "/azt options - open the AzerothTrail options (Options > AddOns)"
 

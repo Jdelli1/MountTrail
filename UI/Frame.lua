@@ -105,20 +105,23 @@ function UI.FlatBorder(frame, r, g, b, a, layer)
   return border
 end
 
--- Tab order is fixed; views plug in by key. A saved key that is no longer
--- here (an older version's tab) falls back to the first tab.
+-- Tab order is fixed; views plug in by key. A saved key of an older
+-- version's tab maps to its successor (UI.LEGACY_TABS: the retired Route tab
+-- -> Checklist); any other unknown key falls back to the first tab.
 local TABS = {
   { key = "journal", label = "Journal" },
   { key = "holidays", label = "Holidays" },
   { key = "achievements", label = "Achievements" },
   { key = "timewalking", label = "Timewalking" },
   { key = "misc", label = "Misc" },
-  { key = "route", label = "Route" },
+  { key = "checklist", label = "Checklist" },
 }
+
+UI.LEGACY_TABS = { route = "checklist" }
 
 -- Tab widths for PanelTemplates_TabResize: each tab fits its text plus 10 px
 -- of extra padding (on top of the template's 20 px sides), at least 70 px so
--- Misc / Route are not stubby, at most 116 px so a long translation
+-- Misc is not stubby, at most 116 px so a long translation
 -- truncates instead of pushing the row past the window: 6 x 116 + gaps
 -- stays inside the 800 px window from the 60 px portrait offset.
 UI.TabSize = { padding = 10, min = 70, max = 116 }
@@ -137,9 +140,13 @@ local function windowDB()
   return ns.db.global.window
 end
 
-local function validKey(key)
+-- A tab key to select: `key` when it is a tab, its successor when it is a
+-- retired tab's key, else the first tab.
+function UI.TabKey(key)
+  key = UI.LEGACY_TABS[key] or key
   return key and TAB_INDEX[key] and key or TABS[1].key
 end
+local validKey = UI.TabKey
 
 -- Builds the selected tab's view the first time it is on screen, then
 -- refreshes it. Tabs with no view keep their placeholder.
@@ -157,7 +164,7 @@ local function showCurrent()
 end
 
 -- Registers a tab view. key: "journal", "holidays", "achievements",
--- "timewalking", "misc" or "route".
+-- "timewalking", "misc" or "checklist".
 function UI.RegisterView(key, view)
   assert(TAB_INDEX[key], "AzerothTrail: unknown view key " .. tostring(key))
   assert(type(view) == "table", "AzerothTrail: view must be a table")
@@ -358,7 +365,7 @@ function ns.ToggleWindow()
 end
 
 -- Refresh hooks: functions run on every ns.Refresh(), before the window check,
--- so UI that lives outside the main window (the route arrow, UI\Arrow.lua)
+-- so UI that lives outside the main window (the parked route arrow, UI\Arrow.lua)
 -- stays current while the window is closed. Hooks must not raise errors.
 local refreshHooks = {}
 
@@ -397,10 +404,10 @@ local function setupMinimap()
     OnTooltipShow = function(tooltip)
       tooltip:AddLine(L["AzerothTrail"])
       tooltip:AddLine(L["Left-click: open/close"], 1, 1, 1)
-      if type(UI.RouteRemaining) == "function" then
-        local left = UI.RouteRemaining()
+      if type(UI.ChecklistRemaining) == "function" then
+        local left = UI.ChecklistRemaining()
         if type(left) == "number" then
-          tooltip:AddLine(string.format(L["Route: %d steps left"], left), 1, 1, 1)
+          tooltip:AddLine(string.format(L["Checklist: %d lockouts left"], left), 1, 1, 1)
         end
       end
     end,

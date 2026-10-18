@@ -147,7 +147,7 @@ local function build(api)
   local debug = api.RegisterProxySetting(category, Options.DEBUG, VarType.Boolean or "boolean",
     L["Debug messages"], false, getDebug, setDebug)
   api.CreateCheckbox(category, debug,
-    L["Show errors AzerothTrail catches around maps, waypoints and the arrow (same as /azt debug)."])
+    L["Show errors AzerothTrail catches around maps and waypoints (same as /azt debug)."])
 
   api.RegisterAddOnCategory(category)
   return category

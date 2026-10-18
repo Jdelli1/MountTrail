@@ -1,33 +1,36 @@
 local ADDON, ns = ...
 
--- The Route tab's Checklist sub-view (ns.db.char.routeView = "checklist"):
--- this character's daily and weekly lockouts (Logic/Checklist.lua) under
--- two collapsible headers ("Daily · resets in ..." with done/total, F4's
+-- The Checklist tab (F16: it replaced the retired Route tab): this
+-- character's daily and weekly lockouts (Logic/Checklist.lua) under a flat
+-- header (character name, reset timers, the Oregon-Trail flavour line with
+-- the lockouts left, and a Filter button top right). The list has two
+-- collapsible headers ("Daily · resets in ..." with done/total, F4's
 -- header rows, collapse state in ns.db.global.collapsed under
 -- "checklist|daily" / "checklist|weekly"), each split into collapsible
 -- expansion sub-headers ("checklist|daily|<exp>", done/total, Checklist.Rows;
 -- rows under them indented like the lists'), each split again into
 -- collapsible category headers (Raids, Dungeons, World bosses, Rares,
 -- Holidays, Other: "checklist|daily|<exp>|<category>", one step further in).
--- A Filter button in the Route header (view.CreateFilterDropdown:
--- UI.CreateFilterDropdown with "Show raids" ... "Show other", saved per
--- character in ns.db.char.checklistFilters) hides categories; every count
--- follows it. Rows look like the mount lists
+-- The Filter button (view.CreateFilterDropdown: UI.CreateFilterDropdown
+-- with "Show raids" ... "Show other", saved per character in
+-- ns.db.char.checklistFilters) hides categories; every count follows it.
+-- Rows look like the mount lists
 -- (UI.InitMountRow: icon, name, grey "boss · instance" line, pin; click =
 -- waypoint, hover = tooltip). Only lockouts the game can't report get a
--- tick box in front of the icon, working like the route's (UI.RouteCheck /
--- UI.RouteToggle on a one-boss route row, so the ticks are the route's own).
+-- tick box in front of the icon (UI.RouteCheck / UI.RouteToggle on a
+-- one-boss route row, UI\LockoutHelpers.lua).
 -- Done entries disappear on their own (Checklist.Rows); the headers count them.
 -- A lockout that drops several mounts (e.g. Malygos' two drakes) is one row named
 -- after its boss ("<instance> · <n> mounts", hover lists the mounts:
--- UI.ChecklistGroupLines). UI/RouteView.lua owns the header and the Route ·
--- Checklist switch and calls UI.ChecklistView.Build / Refresh.
+-- UI.ChecklistGroupLines). Also defines UI.ChecklistRemaining for the
+-- minimap tooltip.
 --
--- The pure helpers (RouteSubView, SetRouteSubView, ChecklistContext,
--- ChecklistBuild, ChecklistDescription, ChecklistHeaderLabel, ChecklistCheck,
+-- The pure helpers (ChecklistContext, ChecklistBuild, ChecklistRemaining,
+-- ChecklistDescription, ChecklistHeaderLabel, ChecklistCheck,
 -- ChecklistToggle, ChecklistFilterItems, ToggleChecklistFilter,
--- ApplyChecklistFilterAction, ChecklistFiltersAreDefault) are unit-tested in tests/ui_checklist_spec.lua; the
--- widget code is built under a stub by tests/ui_build_spec.lua.
+-- ApplyChecklistFilterAction, ChecklistFiltersAreDefault) are unit-tested in
+-- tests/ui_checklist_spec.lua; the widget code is built under a stub by
+-- tests/ui_build_spec.lua.
 
 local L = ns.L
 
@@ -38,19 +41,6 @@ local GREY = "|cff808080"
 local DOT = " \194\183 " -- " · "
 
 -- Pure helpers -------------------------------------------------------------------
-
--- The Route tab's sub-view: "checklist" or "route" (anything else).
-function UI.RouteSubView(char)
-  return (char and char.routeView == "checklist") and "checklist" or "route"
-end
-
--- Saves the sub-view in `char` (ns.db.char); unknown views become "route".
--- -> the saved view.
-function UI.SetRouteSubView(char, view)
-  view = view == "checklist" and "checklist" or "route"
-  if char then char.routeView = view end
-  return view
-end
 
 -- Checklist.Build context for this character at `now`: the route tree, the
 -- route's stateOf (game lockouts + hand ticks, UI.RouteContext), the
@@ -83,6 +73,14 @@ end
 -- This character's checklist at `now` (Checklist.Build).
 function UI.ChecklistBuild(now)
   return ns.Checklist.Build(UI.ChecklistContext(now))
+end
+
+-- Lockouts this character has left at `now` in the categories its Filter
+-- menu shows (the header's flavour line and the minimap tooltip).
+function UI.ChecklistRemaining(now)
+  local char = ns.db and ns.db.char
+  local filters = char and type(char.checklistFilters) == "table" and char.checklistFilters or nil
+  return ns.Checklist.Remaining(UI.ChecklistBuild(now), filters)
 end
 
 -- Grey row line of an entry: "<boss> · <instance>" for route rows (either
@@ -255,13 +253,14 @@ local CHECK_SIZE = 22
 local CHECK_LEFT = 6
 local ICON_LEFT = CHECK_LEFT + CHECK_SIZE + 4
 local SUB_OFFSET = 16 -- per header level under the reset header (UI/List.lua: sub-header indicator 22 vs 6, +16 per level)
+local TOP_HEIGHT = 78 -- the tab's own header: name, reset timers, flavour line
 local HEADER_HEIGHT = 24 -- UI/List.lua section headers
 local SUB_HEADER_HEIGHT = 20 -- UI/List.lua sub-headers
 
 local view = {}
 UI.ChecklistView = view
 
-local frame, scrollBox, empty
+local root, header, frame, scrollBox, empty
 
 local function charDB()
   return ns.db and ns.db.char or nil
@@ -284,7 +283,7 @@ function view.Filters()
 end
 
 -- The Filter button for the checklist (UI.CreateFilterDropdown) on
--- `parent` (the Route header), or nil on clients without the 11.x dropdown.
+-- `parent` (the tab's header), or nil on clients without the 11.x dropdown.
 function view.CreateFilterDropdown(parent)
   return UI.CreateFilterDropdown(parent, {
     -- /azt debug: without the dropdown there is no checklist filter.
@@ -366,13 +365,70 @@ local function initHeader(f, data)
   UI.InitListHeader(f, data)
 end
 
--- Builds the sub-view under `top` (the Route header) inside `parent`;
--- hidden until shown. -> the container frame.
-function view.Build(parent, top)
-  frame = CreateFrame("Frame", nil, parent)
-  frame:SetPoint("TOPLEFT", top, "BOTTOMLEFT", 0, -2)
-  frame:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", 0, 0)
+local function resetsText(Game)
+  return string.format(L["Weekly reset in %s"], UI.FormatDuration(Game.UntilWeekly()))
+    .. "    " .. string.format(L["Daily reset in %s"], UI.FormatDuration(Game.UntilDaily()))
+end
 
+-- The flat header strip: name, reset timers, flavour line, and the Filter
+-- button in the top right (none on clients without the 11.x dropdown: every
+-- category shown).
+local function buildHeader(parent)
+  local top = CreateFrame("Frame", nil, parent)
+  top:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
+  top:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
+  top:SetHeight(TOP_HEIGHT)
+
+  -- Flat header strip with a thin rule underneath.
+  local strip = top:CreateTexture(nil, "BACKGROUND")
+  strip:SetAllPoints(top)
+  strip:SetColorTexture(1, 1, 1, 0.04)
+  local rule = top:CreateTexture(nil, "BORDER")
+  rule:SetHeight(1)
+  rule:SetPoint("BOTTOMLEFT", top, "BOTTOMLEFT", 0, 0)
+  rule:SetPoint("BOTTOMRIGHT", top, "BOTTOMRIGHT", 0, 0)
+  rule:SetColorTexture(1, 1, 1, 0.1)
+
+  -- Header lines span the header with same-edge anchor pairs, each chained
+  -- under the one above (the Filter button overlays the name line's right
+  -- end; the name is short and left-justified).
+  local name = top:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+  name:SetPoint("TOPLEFT", top, "TOPLEFT", 8, -6)
+  name:SetPoint("TOPRIGHT", top, "TOPRIGHT", -8, -6)
+  name:SetJustifyH("LEFT")
+  top.Name = name
+
+  local resets = top:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  resets:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -4)
+  resets:SetPoint("TOPRIGHT", name, "BOTTOMRIGHT", 0, -4)
+  resets:SetJustifyH("LEFT")
+  top.Resets = resets
+
+  local flavour = top:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+  flavour:SetPoint("TOPLEFT", resets, "BOTTOMLEFT", 0, -8)
+  flavour:SetPoint("TOPRIGHT", resets, "BOTTOMRIGHT", 0, -8)
+  flavour:SetJustifyH("LEFT")
+  top.Flavour = flavour
+
+  local filter = view.CreateFilterDropdown(top)
+  if filter then
+    filter:SetPoint("TOPRIGHT", top, "TOPRIGHT", -8, -4)
+    top.ChecklistFilter = filter
+  end
+  return top
+end
+
+-- Builds the tab inside `parent` (its content frame): the header, then the
+-- list under it (header.Checklist).
+function view.Build(parent)
+  root = CreateFrame("Frame", nil, parent)
+  root:SetAllPoints(parent)
+  header = buildHeader(root)
+
+  frame = CreateFrame("Frame", nil, root)
+  frame:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -2)
+  frame:SetPoint("BOTTOMRIGHT", root, "BOTTOMRIGHT", 0, 0)
+  header.Checklist = frame
   scrollBox = CreateFrame("Frame", nil, frame, "WowScrollBoxList")
   scrollBox:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
   scrollBox:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -20, 0)
@@ -401,21 +457,20 @@ function view.Build(parent, top)
   empty:SetText(L["No lockouts left to farm on this character."])
   empty:Hide()
   frame.Empty = empty
-
-  frame:Hide()
-  return frame
+  return root
 end
 
--- Redraws the checklist (when built). -> the Checklist.Build output, for the
--- header's flavour line; nil before Build.
+-- Redraws the tab (when built): the header lines, the Filter button's reset
+-- arrow and the list. -> the Checklist.Build output; nil before Build.
 function view.Refresh()
   if not frame then return nil end
   local Game = ns.Game
   local built = UI.ChecklistBuild(Game.Now())
   local untilDaily, untilWeekly = Game.UntilDaily(), Game.UntilWeekly()
+  local filters = view.Filters()
   local rows = ns.Checklist.Rows(built, {
     collapsed = collapsedDB() or {},
-    filters = view.Filters(),
+    filters = filters,
     label = function(reset) return UI.ChecklistHeaderLabel(reset, untilDaily, untilWeekly) end,
   })
   local sourceText = UI.MemoText(Game.MountSourceText)
@@ -448,9 +503,15 @@ function view.Refresh()
     scrollBox:SetDataProvider(CreateDataProvider(rows))
   end
   empty:SetShown(#rows == 0)
+
+  local name = Game.PlayerName()
+  header.Name:SetText(name or "")
+  header.Resets:SetText(resetsText(Game))
+  -- Lockouts left in the categories the Filter menu shows.
+  header.Flavour:SetText(UI.RouteFlavour(ns.Checklist.Remaining(built, filters), name))
+  local filter = header.ChecklistFilter
+  if filter and type(filter.ValidateResetState) == "function" then filter:ValidateResetState() end
   return built
 end
 
-function view.SetShown(shown)
-  if frame then frame:SetShown(shown and true or false) end
-end
+UI.RegisterView("checklist", view)

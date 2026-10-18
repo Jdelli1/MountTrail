@@ -1,10 +1,10 @@
--- Pure helpers of UI/ChecklistView.lua: the Route tab's sub-view setting, the
+-- Pure helpers of UI/ChecklistView.lua (the Checklist tab, F16): the
 -- checklist context (UI.RouteContext's stateOf, Journal.Gate, holidays), row
 -- text, header labels and tick boxes (UI.RouteCheck / UI.RouteToggle on a
 -- one-boss route row). The frames are built in tests/ui_build_spec.lua.
 
 local UI_FILES = { "UI/Frame.lua", "UI/Tooltip.lua", "UI/List.lua", "UI/JournalHome.lua",
-  "UI/Tabs.lua", "UI/RouteView.lua", "UI/ChecklistView.lua" }
+  "UI/Tabs.lua", "UI/LockoutHelpers.lua", "UI/ChecklistView.lua" }
 
 local NOW = 1000000
 
@@ -88,18 +88,38 @@ local function keys(list)
   return out
 end
 
-describe("route sub-view", function()
-  it("defaults to the route and saves the checklist per character", function()
+describe("checklist tab", function()
+  it("the route sub-view helpers and setting are gone (the tab is built in ui_build_spec)", function()
     local ns = loadUI()
-    local UI = ns.UI
-    eq(ns.db.char.routeView, "route", "AceDB default")
-    eq(UI.RouteSubView(ns.db.char), "route")
-    eq(UI.SetRouteSubView(ns.db.char, "checklist"), "checklist")
-    eq(ns.db.char.routeView, "checklist")
-    eq(UI.RouteSubView(ns.db.char), "checklist")
-    eq(UI.SetRouteSubView(ns.db.char, "bogus"), "route", "anything else is the route")
-    eq(UI.RouteSubView(nil), "route")
-    eq(UI.RouteSubView({ routeView = "weird" }), "route")
+    eq(ns.UI.RouteSubView, nil)
+    eq(ns.UI.SetRouteSubView, nil)
+    eq(ns.db.char.routeView, nil, "no sub-view setting")
+    eq(ns.db.char.showCompleted, nil, "no Show completed setting")
+    eq(type(ns.UI.ChecklistView.Build), "function")
+  end)
+
+  it("UI.ChecklistRemaining counts open lockouts in the shown categories", function()
+    local ns = loadUI()
+    local built = ns.UI.ChecklistBuild(NOW)
+    local all = ns.Checklist.Remaining(built, {})
+    ok(all > 0, "open lockouts")
+    eq(ns.UI.ChecklistRemaining(NOW), all)
+    ns.db.char.checklistFilters = { raids = false, dungeons = false, worldbosses = false, rares = false,
+      holidays = false, other = false }
+    eq(ns.UI.ChecklistRemaining(NOW), 0, "every category hidden")
+    ns.db.char.checklistFilters = nil
+    eq(ns.UI.ChecklistRemaining(NOW), all, "no filters saved: all shown")
+    eq(ns.UI.ChecklistRemaining(), all, "defaults now to Game.Now()")
+  end)
+
+  it("feeds the minimap tooltip line", function()
+    local ns = loadUI()
+    fire_frame_event("PLAYER_LOGIN")
+    local launcher = ns.UI.launcher
+    ok(launcher, "launcher registered")
+    local lines = {}
+    launcher.OnTooltipShow({ AddLine = function(_, text) lines[#lines + 1] = text end })
+    eq(lines[#lines], string.format("Checklist: %d lockouts left", ns.UI.ChecklistRemaining(NOW)))
   end)
 end)
 

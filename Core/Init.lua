@@ -138,6 +138,22 @@ end
 
 -- Lifecycle -------------------------------------------------------------------
 
+-- The route planner is retired for now (F16): the Route tab became the
+-- Checklist tab and the route arrow is parked. On `db` (AceDB: .char,
+-- .global): the arrow can't come back on (routeMode forced to "list"), the
+-- route list's settings go (routeView, showCompleted) and a saved "route"
+-- tab opens the Checklist tab.
+function ns.RetireRoute(db)
+  local char, global = db and db.char, db and db.global
+  if type(char) == "table" then
+    char.routeMode = "list"
+    char.routeView = nil
+    char.showCompleted = nil
+  end
+  local window = type(global) == "table" and global.window or nil
+  if type(window) == "table" and window.tab == "route" then window.tab = "checklist" end
+end
+
 function addon:OnInitialize()
   -- One saved variable, AzerothTrailDB: AceDB keeps the per-character section
   -- under .char ("Name - Realm"), so no SavedVariablesPerCharacter is needed.
@@ -156,7 +172,7 @@ function addon:OnInitialize()
       minimap = { hide = false },
       window = {},
       arrow = {}, -- route arrow frame position (UI\Arrow.lua)
-      debug = false, -- /azt debug: show caught map / arrow errors
+      debug = false, -- /azt debug: show caught map / waypoint errors
       achievementMap = {}, -- { build=, ids={[mountID]=achievementID|false} } (Integrations\AchievementScan.lua)
       zonePanel = { open = false }, -- zone side panel shown with the window (UI\ZonePanel.lua)
       -- Options > AddOns > AzerothTrail (UI\Options.lua): waypoints = "game" | "tomtom" | "both"
@@ -166,15 +182,14 @@ function addon:OnInitialize()
     },
     char = {
       ticks = {},
-      showCompleted = false,
-      routeMode = "list", -- "list" | "arrow" (UI\Arrow.lua)
-      routeView = "route", -- Route tab sub-view: "route" | "checklist" (UI\ChecklistView.lua)
+      routeMode = "list", -- the parked route arrow (UI\Arrow.lua): always "list" (ns.RetireRoute)
       checklistHideDone = false, -- Checklist: hide done lockouts
       checklistFilters = {}, -- Checklist Filter menu: { [category] = false } for hidden ones (Logic\Checklist.lua)
     },
   }, true)
   -- Pre-F15 saved variables kept the Journal's source filters as flat keys.
   ns.Journal.MigrateFilters(ns.db.global.filters)
+  ns.RetireRoute(ns.db)
   self:RegisterChatCommand("azt", "OnSlash")
   self:RegisterChatCommand("azerothtrail", "OnSlash")
 end
@@ -252,14 +267,6 @@ function addon:OnSlash(input)
     end
   elseif cmd == "dump" then
     ns.Dump()
-  elseif cmd == "arrow" then
-    if ns.Arrow and ns.Arrow.ToggleMode then
-      local mode = ns.Arrow.ToggleMode()
-      self:Print(string.format(L["Route mode: %s"], mode == "arrow" and L["Arrow"] or L["List"]))
-      ns.Refresh()
-    else
-      self:Print(L["The window is not available yet. Type /azt help for commands."])
-    end
   elseif cmd == "zone" then
     if ns.ToggleZonePanel then
       ns.ToggleZonePanel()
@@ -275,7 +282,7 @@ function addon:OnSlash(input)
   elseif cmd == "debug" then
     ns.db.global.debug = not ns.db.global.debug
     if ns.Options and ns.Options.Changed then ns.Options.Changed(ns.Options.DEBUG) end
-    self:Print(ns.db.global.debug and L["Debug: on (caught map and arrow errors go to the error handler)"]
+    self:Print(ns.db.global.debug and L["Debug: on (caught map and waypoint errors go to the error handler)"]
       or L["Debug: off"])
     -- Templates the window could not use on this client (UI.Template).
     local fallbacks = ns.UI and ns.UI.TemplateFallbacks
@@ -292,10 +299,9 @@ function addon:OnSlash(input)
     self:Print(L["Commands:"])
     self:Print(L["/azt - show or hide the window"])
     self:Print(L["/azt dump - list saved instances (instance ID, difficulty ID, bosses)"])
-    self:Print(L["/azt arrow - switch the route between list and arrow"])
     self:Print(L["/azt zone - show or hide the zone panel (mounts in your current zone)"])
     self:Print(L["/azt options - open the AzerothTrail options (Options > AddOns)"])
-    self:Print(L["/azt debug - show or hide caught map and arrow errors"])
+    self:Print(L["/azt debug - show or hide caught map and waypoint errors"])
     self:Print(L["/azt help - this list"])
   end
 end
