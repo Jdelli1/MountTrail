@@ -8,11 +8,13 @@ ns.Data.Lockouts = {
   [9]  = { instance = 100, boss = "Nobody", difficulties = { 2 }, reset = "daily" },
   [10] = { instance = 100, boss = "Boss One", difficulties = { 2 }, reset = "daily" },
   [11] = { instance = 100, boss = "Hidden Thing", difficulties = { 2 }, reset = "daily" },
-  [12] = { instance = 100, boss = "fyrakk the blazing", difficulties = { 16 }, reset = "weekly" },
+  [12] = { instance = 100, boss = "Fyrakk, the Blazing", difficulties = { 16 }, reset = "weekly" },
   [17] = { instance = 200, boss = "King Gear", difficulties = { 23 }, reset = "weekly" },
   [3]  = { manual = true, reset = "weekly", repeatable = true },
   [15] = { lfg = 285, reset = "daily" },
   [18] = { instance = 200, boss = "Harlan", difficulties = { 23 }, reset = "weekly" },
+  [19] = { instance = 200, boss = "The Harlan", difficulties = { 23 }, reset = "weekly" },
+  [20] = { instance = 200, boss = "King", difficulties = { 23 }, reset = "weekly" },
 }
 
 ns.Data.BossLockouts = {

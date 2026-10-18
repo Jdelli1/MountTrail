@@ -42,11 +42,17 @@ class NormalisationTest(unittest.TestCase):
         self.assertIsNone(v.boss_match("", "Onyxia"))
         self.assertIsNone(v.boss_match("The", "The Nine"))
 
-    def test_addon_match_is_case_sensitive_prefix(self):
+    def test_addon_match_is_case_insensitive_substring_either_way(self):
+        # Logic/Lockouts.lua bossMatches (F12): plain containment, either way.
         self.assertTrue(v.addon_match("Fyrakk", "Fyrakk the Blazing"))
         self.assertTrue(v.addon_match("Fyrakk the Blazing", "Fyrakk"))
-        self.assertFalse(v.addon_match("fyrakk", "Fyrakk the Blazing"))
+        self.assertTrue(v.addon_match("fyrakk", "Fyrakk the Blazing"))
+        self.assertTrue(v.addon_match("Harlan Sweete", "Lord Harlan Sweete"))
+        self.assertTrue(v.addon_match("High Tinker Mekkatorque", "Mekkatorque"))
+        self.assertFalse(v.addon_match("Fyrakk, the Blazing", "Fyrakk the Blazing"), "punctuation is literal")
+        self.assertFalse(v.addon_match("Archavon the Stone Watcher", "Koralon the Flame Watcher"))
         self.assertFalse(v.addon_match("", "Onyxia"))
+        self.assertFalse(v.addon_match("Onyxia", ""))
 
     def test_norm_mount(self):
         self.assertEqual(v.norm_mount("Gamma  wyrm"), v.norm_mount("Gamma Wyrm"))
@@ -194,11 +200,24 @@ class ChecksTest(unittest.TestCase):
         (case,) = self.find(f, "lockout", "12")
         self.assertEqual((case["kind"], case["severity"]), ("addon-name-mismatch", "warn"))
 
-    def test_dungeon_encounter_name_that_defeats_the_addon_prefix_test(self):
+    def test_dungeon_encounter_title_is_fine_for_the_substring_test(self):
+        # "Harlan" is contained in DungeonEncounter "Lord Harlan": no finding.
         f, _ = v.check_lockouts(self.ours, self.game)
-        (hit,) = self.find(f, "lockout", "18")
+        self.assertEqual(self.find(f, "lockout", "18"), [])
+
+    def test_dungeon_encounter_name_that_defeats_the_addon_substring_test(self):
+        f, _ = v.check_lockouts(self.ours, self.game)
+        (hit,) = self.find(f, "lockout", "19")
         self.assertEqual((hit["kind"], hit["severity"]), ("dungeon-encounter-name-differs", "warn"))
         self.assertIn("Lord Harlan", hit["suggestion"])
+
+    def test_addon_match_naming_two_bosses_of_the_instance_warns(self):
+        f, _ = v.check_lockouts(self.ours, self.game)
+        (hit,) = self.find(f, "lockout", "20", kind="addon-ambiguous-match")
+        self.assertEqual(hit["severity"], "warn")
+        self.assertIn("King Gear", hit["detail"])
+        self.assertIn("The Lich King", hit["detail"])
+        self.assertEqual(self.find(f, "lockout", "17", kind="addon-ambiguous-match"), [])
 
     def test_boss_lockouts_use_route_mounts(self):
         f, table = v.check_lockouts(self.ours, self.game)

@@ -20,6 +20,10 @@
 -- LFR (17) is not tracked in v1 (Ruling R10): LFR kills are not expected to show up
 -- in the saved-instance list, so a spec listing 17 could never complete.
 --
+-- Boss names match the saved-instance list when either contains the other,
+-- case-insensitively (Logic/Lockouts.lua): "Harlan Sweete" matches "Lord Harlan
+-- Sweete", "High Tinker Mekkatorque" matches "Mekkatorque".
+--
 -- Boss encounter names and difficulties partly derived from Rarity
 -- (https://github.com/WowRarity/Rarity, DB/Mounts/*.lua `lockBossName`,
 -- `instanceDifficulties`, `lockDungeonId`), GPL-2.0.
@@ -101,7 +105,9 @@ ns.Data.Lockouts = {
   [1217] = { instance = 2070, boss = "High Tinker Mekkatorque", difficulties = { 14, 15, 16 }, reset = "weekly" }, -- G.M.O.D.
   [1219] = { instance = 2070, boss = "Lady Jaina Proudmoore", difficulties = { 16 }, reset = "weekly" }, -- Glacial Tidestorm, Mythic only -- verify in game
   [995]  = { instance = 1754, boss = "Harlan Sweete", difficulties = { 23 }, reset = "weekly" }, -- Sharkbait, Freehold Mythic
-  [1040] = { instance = 1762, boss = "Dazar, The First King", difficulties = { 23 }, reset = "weekly" }, -- Tomb Stalker, King's Rest Mythic
+  -- Tomb Stalker: the journal name; DungeonEncounter has no row for it on map 1762 (tools/verify_data.py),
+  -- so the saved-instance name is unconfirmed.
+  [1040] = { instance = 1762, boss = "Dazar, The First King", difficulties = { 23 }, reset = "weekly" }, -- Tomb Stalker, King's Rest Mythic -- verify in game
   [1053] = { instance = 1841, boss = "Unbound Abomination", difficulties = { 23 }, reset = "weekly" }, -- Underrot Crawg, Underrot Mythic
   [1252] = { instance = 2097, boss = "HK-8 Aerial Oppression Unit", difficulties = { 23 }, reset = "weekly" }, -- Mechagon Peacekeeper, Mythic
   [1227] = { instance = 2097, boss = "King Mechagon", difficulties = { 23 }, reset = "weekly" }, -- Aerial Unit R-21/X, Mythic hard mode

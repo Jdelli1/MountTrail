@@ -379,3 +379,9 @@ Boss-aware hover and pins (F10 carry-over): a checklist or route row's tooltip `
 - [ ] Checklist > Weekly > Wrath of the Lich King: kill Koralon only (10 or 25), then hover the Koralon row and the Archavon row: Koralon reads `Lockout: Saved` only once both sizes are done, Archavon reads `Lockout: Available`; Emalon / Toravon rows each show their own state.
 - [ ] Route tab: hover the Vault of Archavon kill row: the `Lockout:` line follows the boss the row targets (the first one not done).
 - [ ] The Koralon / Emalon / Toravon rows show the map pin (not the zone icon); click: waypoint at the Vault of Archavon entrance.
+
+Boss names (data verifier, build 12.1.5.70448): a lockout spec's boss now matches the saved-instance boss when either name contains the other, ignoring case (was: one a prefix of the other). The game's DungeonEncounter table names Sharkbait's boss `Lord Harlan Sweete` (spec: `Harlan Sweete`) and G.M.O.D.'s `Mekkatorque` (spec: `High Tinker Mekkatorque`); both now match either way. The verifier warns when a spec's name would also match another boss of the same instance (none today).
+
+- [ ] Freehold Mythic: kill Harlan Sweete; `/azt dump` lists the boss name the client uses; the Sharkbait row is ticked `auto` (Checklist) and its tooltip reads `Lockout: Saved`.
+- [ ] Battle of Dazar'alor (Normal or higher): kill Mekkatorque; `/azt dump` shows its name; G.M.O.D. reads `Lockout: Saved`.
+- [ ] King's Rest Mythic: kill Dazar; `/azt dump`: note the exact boss name (the game's DungeonEncounter table has no row for `Dazar, The First King`); the Tomb Stalker row should tick `auto`. If it does not, report the dumped name.

@@ -8,7 +8,7 @@ ns.Lockouts = Lockouts
 -- rows: { {instance=, difficulty=, bosses={ {name=, killed=bool} }} } or nil
 -- -> snap[instance][difficulty][bossName] = true, killed bosses only.
 -- Rows with a nil instance or difficulty and bosses with a nil or empty name
--- are skipped (an empty name would prefix-match every boss).
+-- are skipped (an empty name would match every boss).
 function Lockouts.Snapshot(rows)
   local snap = {}
   for _, row in ipairs(rows or {}) do
@@ -44,20 +44,23 @@ function Lockouts.SpecFor(mountID, routeBoss)
   return nil
 end
 
--- Plain-string prefix test (no patterns): is `prefix` the start of `s`?
-local function startsWith(s, prefix)
-  return string.sub(s, 1, #prefix) == prefix
+-- Plain-string containment (string.find with plain = true: no patterns).
+local function contains(s, part)
+  return string.find(s, part, 1, true) ~= nil
 end
 
--- A spec boss matches a snapshot boss if equal, or either is a prefix of the
--- other ("Fyrakk" vs "Fyrakk the Blazing"). An empty name on either side
--- never matches.
+-- A spec boss matches a snapshot boss if either name contains the other,
+-- case-insensitively ("Fyrakk" vs "Fyrakk the Blazing", "Harlan Sweete" vs
+-- "Lord Harlan Sweete", "High Tinker Mekkatorque" vs "Mekkatorque": the
+-- saved-instance list and the journal disagree on titles). An empty name on
+-- either side never matches.
 local function bossMatches(specBoss, snapBoss)
   if type(specBoss) ~= "string" or type(snapBoss) ~= "string"
     or specBoss == "" or snapBoss == "" then
     return false
   end
-  return specBoss == snapBoss or startsWith(snapBoss, specBoss) or startsWith(specBoss, snapBoss)
+  local a, b = string.lower(specBoss), string.lower(snapBoss)
+  return contains(b, a) or contains(a, b)
 end
 
 local function killedOn(snap, instance, difficulty, specBoss)

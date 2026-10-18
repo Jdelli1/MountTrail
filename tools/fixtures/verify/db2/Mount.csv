@@ -16,3 +16,5 @@ Name_lang,SourceText_lang,Description_lang,ID,MountTypeID,Flags,SourceTypeEnum,S
 "Omicron Serpent","","",16,0,0,0,1016
 "Pi Drake","|cFFFFD200Drop: |rKing Gear","",17,0,0,0,1017
 "Rho Shark","","",18,0,0,0,1018
+"Sigma Shark","","",19,0,0,0,1019
+"Tau Gear","","",20,0,0,0,1020

@@ -116,7 +116,31 @@ describe("lockouts", function()
       eq(L.State(s, killed(1, 16, "Fyrakk the Blazing")), "done")
       local s2 = { instance = 1, boss = "Fyrakk the Blazing", difficulties = { 16 }, reset = "weekly" }
       eq(L.State(s2, killed(1, 16, "Fyrakk")), "done")
-      eq(L.State(s, killed(1, 16, "Not Fyrakk")), "open")
+      eq(L.State(s, killed(1, 16, "Someone Else")), "open")
+    end)
+
+    -- F12: the game's saved-instance names can carry a title the journal
+    -- leaves out, or the other way round (DungeonEncounter vs JournalEncounter,
+    -- tools/verify_data.py): plain substring containment either way.
+    it("boss name matches when either contains the other, case-insensitively", function()
+      local L = load().Lockouts
+      local sweete = { instance = 1754, boss = "Harlan Sweete", difficulties = { 23 }, reset = "weekly" }
+      eq(L.State(sweete, killed(1754, 23, "Lord Harlan Sweete")), "done", "title in the game's name")
+      local gmod = { instance = 2070, boss = "High Tinker Mekkatorque", difficulties = { 16 }, reset = "weekly" }
+      eq(L.State(gmod, killed(2070, 16, "Mekkatorque")), "done", "title in the spec's name")
+      eq(L.State(gmod, killed(2070, 16, "high tinker MEKKATORQUE")), "done", "case-insensitive")
+    end)
+
+    it("does not match another boss of the same instance", function()
+      local L = load().Lockouts
+      local archavon = { instance = 624, boss = "Archavon the Stone Watcher", difficulties = { 3 }, reset = "weekly" }
+      local others = merge(killed(624, 3, "Koralon the Flame Watcher"), killed(624, 3, "Emalon the Storm Watcher"),
+        killed(624, 3, "Toravon the Ice Watcher"))
+      eq(L.State(archavon, others), "open")
+      local deathwing = { instance = 967, boss = "Madness of Deathwing", difficulties = { { 3, 4, 5, 6 } }, reset = "weekly" }
+      eq(L.State(deathwing, killed(967, 5, "Spine of Deathwing")), "open")
+      local ultraxion = { instance = 967, boss = "Ultraxion", difficulties = { { 3, 4, 5, 6 } }, reset = "weekly" }
+      eq(L.State(ultraxion, killed(967, 5, "Madness of Deathwing")), "open")
     end)
 
     it("an empty name never matches, on either side", function()
@@ -134,6 +158,9 @@ describe("lockouts", function()
       eq(L.State(s, killed(1, 2, "Kael'thas (Sunstrider)-")), "done")
       local s2 = { instance = 1, boss = "A.c", difficulties = { 2 }, reset = "daily" }
       eq(L.State(s2, killed(1, 2, "Abc")), "open")
+      eq(L.State(s2, killed(1, 2, "XA.cY")), "done", "contained literally")
+      local s3 = { instance = 1, boss = "%a+", difficulties = { 2 }, reset = "daily" }
+      eq(L.State(s3, killed(1, 2, "Onyxia")), "open", "no pattern magic")
     end)
 
     it("quest spec uses isQuestDone", function()

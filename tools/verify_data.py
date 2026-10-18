@@ -309,10 +309,11 @@ def boss_match(ours, journal):
 
 
 def addon_match(spec_boss, game_name):
-    """Logic/Lockouts.lua bossMatches: case-sensitive equality or plain prefix either way."""
+    """Logic/Lockouts.lua bossMatches: either name contains the other (plain, case-insensitive)."""
     if not spec_boss or not game_name:
         return False
-    return game_name.startswith(spec_boss) or spec_boss.startswith(game_name)
+    a, b = spec_boss.lower(), game_name.lower()
+    return a in b or b in a
 
 
 def mentions(text, name):
@@ -615,27 +616,39 @@ def check_lockouts(ours, game):
         kind, enc = scored[0]
         row["encounter"], row["match"] = enc["Name_lang"], kind
         # The addon compares spec.boss with GetSavedInstanceEncounterInfo names using a
-        # case-sensitive prefix test; DungeonEncounter / JournalEncounter names are the
-        # game's candidates for those names.
+        # case-insensitive substring test either way; DungeonEncounter / JournalEncounter
+        # names are the game's candidates for those names.
         dnames = sorted({d["Name_lang"] for d in game.dungeon_encounters_by_map.get(map_id, [])
                          if boss_match(boss, d["Name_lang"])})
         row["dungeon_encounter"] = " / ".join(dnames)
         candidates = [e["Name_lang"] for _, e in scored] + dnames
         if not any(addon_match(boss, c) for c in candidates):
             out.append(finding("lockout", "addon-name-mismatch", "warn", mid, name,
-                               "%s: %r only matches %s loosely; the addon's case-sensitive prefix "
+                               "%s: %r only matches %s loosely; the addon's substring "
                                "test would not match it" % (label, boss, " / ".join(sorted(set(candidates)))),
                                "set boss = %r" % (dnames[0] if dnames else enc["Name_lang"]), key))
         elif dnames and not any(addon_match(boss, d) for d in dnames):
             out.append(finding("lockout", "dungeon-encounter-name-differs", "warn", mid, name,
                                "%s: %r matches journal %r, but DungeonEncounter calls it %s; if the "
-                               "saved-instance list uses that name, the addon's prefix test fails"
+                               "saved-instance list uses that name, the addon's substring test fails"
                                % (label, boss, enc["Name_lang"], " / ".join(repr(d) for d in dnames)),
                                "check with /azt dump; consider boss = %r" % dnames[0], key))
         elif kind != "exact":
             out.append(finding("lockout", "loose-boss-match", "info", mid, name,
                                "%s: %r matched journal %r (%s)" % (label, boss, enc["Name_lang"], kind),
                                "", key))
+        # The substring test must not also match another boss of the instance (a
+        # kill of that boss would tick this spec).
+        journal_hits = sorted({e["Name_lang"] for e in encs if addon_match(boss, e["Name_lang"])},
+                              key=str.lower)
+        de_hits = sorted({d["Name_lang"] for d in game.dungeon_encounters_by_map.get(map_id, [])
+                          if addon_match(boss, d["Name_lang"])}, key=str.lower)
+        if len({n.lower() for n in journal_hits}) > 1 or len({n.lower() for n in de_hits}) > 1:
+            out.append(finding("lockout", "addon-ambiguous-match", "warn", mid, name,
+                               "%s: %r is contained in (or contains) several bosses of %s: %s"
+                               % (label, boss, row["instance"], " / ".join(
+                                   sorted(set(journal_hits) | set(de_hits), key=str.lower))),
+                               "use the boss's full name", key))
         enc_ids = {_int(e["ID"]) for _, e in scored}
         missing = []
         for m_id in mids:
