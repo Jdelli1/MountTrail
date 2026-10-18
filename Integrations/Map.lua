@@ -43,6 +43,7 @@ local function realApi()
     C_Map = C_Map,
     C_SuperTrack = C_SuperTrack,
     C_EncounterJournal = C_EncounterJournal,
+    EJ_GetInstanceInfo = EJ_GetInstanceInfo,
     UiMapPoint = UiMapPoint,
     OpenWorldMap = OpenWorldMap,
     TomTom = TomTom,
@@ -114,43 +115,106 @@ local function positionXY(position)
   return nil
 end
 
--- Finds the entrance of the journal instance for instance map m by walking up
--- the parent maps. -> parentMapID, x, y (0-1) or nil.
-local function findEntrance(api, m)
-  local journalInstance = try(api.C_EncounterJournal, "GetInstanceForGameMap", m)
-  if not journalInstance or journalInstance == 0 then return nil end
-  local seen = { [m] = true }
-  local current = m
+-- The entrance of journal instance `jid` listed on map m. -> x, y (0-1) or nil.
+local function entranceOn(api, m, jid)
+  local entrances = try(api.C_EncounterJournal, "GetDungeonEntrancesForMap", m)
+  if type(entrances) ~= "table" then return nil end
+  for _, entrance in ipairs(entrances) do
+    if type(entrance) == "table" and entrance.journalInstanceID == jid then
+      local x, y = positionXY(entrance.position)
+      if x then return x, y end
+    end
+  end
+  return nil
+end
+
+-- Finds journal instance `jid`'s entrance by walking up the parent maps from
+-- `start` (start itself first when includeStart). -> mapID, x, y (0-1) or nil.
+local function walkForEntrance(api, start, jid, includeStart)
+  if not (start and jid) then return nil end
+  if includeStart then
+    local x, y = entranceOn(api, start, jid)
+    if x then return start, x, y end
+  end
+  local seen = { [start] = true }
+  local current = start
   for _ = 1, MAX_PARENT_STEPS do
     local info = try(api.C_Map, "GetMapInfo", current)
     local parent = type(info) == "table" and info.parentMapID or nil
     if not parent or parent == 0 or seen[parent] then return nil end
     seen[parent] = true
-    local entrances = try(api.C_EncounterJournal, "GetDungeonEntrancesForMap", parent)
-    if type(entrances) == "table" then
-      for _, entrance in ipairs(entrances) do
-        if type(entrance) == "table" and entrance.journalInstanceID == journalInstance then
-          local x, y = positionXY(entrance.position)
-          if x then return parent, x, y end
-        end
-      end
-    end
+    local x, y = entranceOn(api, parent, jid)
+    if x then return parent, x, y end
     current = parent
   end
   return nil
 end
 
+-- Finds the entrance of the journal instance for instance map m by walking up
+-- the parent maps. -> parentMapID, x, y (0-1) or nil.
+local function findEntrance(api, m)
+  local journalInstance = try(api.C_EncounterJournal, "GetInstanceForGameMap", m)
+  if not journalInstance or journalInstance == 0 then return nil end
+  return walkForEntrance(api, m, journalInstance, false)
+end
+
+-- The game instance ID (a game map ID, as GetSavedInstanceInfo reports it) of
+-- a raid / dungeon mount, from its lockout spec: the route boss's per-boss
+-- spec first (UI.RouteBoss, looked up at call time), else the mount's own.
+-- nil for mounts without an instance spec.
+local function instanceOf(mountID)
+  local lockouts = ns.Lockouts
+  if not (lockouts and type(lockouts.SpecFor) == "function") then return nil end
+  local ui = ns.UI
+  local boss
+  if ui and type(ui.RouteBoss) == "function" then
+    local good, b = guarded(ui.RouteBoss, mountID)
+    if good then boss = b end
+  end
+  local good, spec = guarded(lockouts.SpecFor, mountID, boss)
+  if good and type(spec) == "table" and type(spec.instance) == "number" then return spec.instance end
+  return nil
+end
+
+-- The entrance of a raid / dungeon mount's instance, from its lockout spec:
+-- GetInstanceForGameMap(game instance ID) -> journal instance, whose own map
+-- (EJ_GetInstanceInfo, 7th return) is walked up to the zone listing the
+-- entrance; the mount's coords map is tried too (a zone map may list the
+-- entrance itself). -> mapID, x, y (0-1) or nil.
+local function instanceEntrance(api, mountID, coordsMap)
+  local game = instanceOf(mountID)
+  if not game then return nil end
+  local jid = try(api.C_EncounterJournal, "GetInstanceForGameMap", game)
+  if not jid or jid == 0 then return nil end
+  if type(api.EJ_GetInstanceInfo) == "function" then
+    local area = select(7, (function(good, ...)
+      if not good then return end
+      return ...
+    end)(guarded(api.EJ_GetInstanceInfo, jid)))
+    if type(area) == "number" and area > 0 then
+      local m, x, y = walkForEntrance(api, area, jid, true)
+      if m then return m, x, y end
+    end
+  end
+  return walkForEntrance(api, coordsMap, jid, true)
+end
+
 -- Decides where a mount's waypoint goes. -> { map=, x=, y=, kind= } with x/y in
 -- percent (0-100) and kind one of:
 --   "pin"      x/y on a map that takes a user waypoint
---   "entrance" the dungeon entrance of an instance map, on a parent map
+--   "entrance" the dungeon / raid entrance (on the zone that lists it)
 --   "open"     only open the world map at `map` (no pin)
 --   "none"     no location known
+-- A raid / dungeon mount with an instance lockout spec always goes to its
+-- instance's entrance when the Encounter Journal knows it; its coords are
+-- the fallback.
 function Map.Resolve(mountID, api)
   api = api or realApi()
   local coords = coordsFor(mountID)
   if not coords then return { kind = "none" } end
   local m, x, y = coords.m, coords.x, coords.y
+  local em, ex0, ey0 = instanceEntrance(api, mountID, m)
+  if em then return { map = em, x = ex0 * 100, y = ey0 * 100, kind = "entrance" } end
   local hasXY = type(x) == "number" and type(y) == "number"
   local canSet = try(api.C_Map, "CanSetUserWaypointOnMap", m) == true
   if hasXY and canSet then return { map = m, x = x, y = y, kind = "pin" } end
