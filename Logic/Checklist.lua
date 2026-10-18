@@ -311,7 +311,24 @@ end
 -- header counts them. opts.collapsed = { [key] = true }; opts.filters =
 -- { [category] = false } (ns.db.char.checklistFilters, Checklist.Shown):
 -- hidden categories' entries are left out of the rows and of every count.
+-- opts.status(entry) -> text or nil (F17, event rares' live status): each
+-- entry row carries its text as `status`, and a header (any level) carries
+-- it too when every entry still to do under it has the same text.
 local OTHER = "Other"
+
+-- The status text every open entry of `entries` shares, else nil.
+local function sharedStatus(entries, statusOf)
+  if not statusOf then return nil end
+  local text
+  for _, e in ipairs(entries) do
+    if not e.done then
+      local s = statusOf(e)
+      if s == nil or (text ~= nil and s ~= text) then return nil end
+      text = s
+    end
+  end
+  return text
+end
 
 local function expGroups(list)
   local groups, byKey = {}, {}
@@ -367,11 +384,13 @@ function Checklist.Rows(built, opts)
   opts = opts or {}
   local collapsed = opts.collapsed or {}
   local filters = opts.filters
+  local statusOf = type(opts.status) == "function" and opts.status or nil
   local rows = {}
   local function addEntries(entries, depth)
     for _, e in ipairs(entries) do
       if not e.done then
-        rows[#rows + 1] = { id = e.id, m = e.m, entry = e, done = e.done, depth = depth }
+        rows[#rows + 1] = { id = e.id, m = e.m, entry = e, done = e.done, depth = depth,
+          status = statusOf and statusOf(e) or nil }
       end
     end
   end
@@ -388,7 +407,7 @@ function Checklist.Rows(built, opts)
       rows[#rows + 1] = {
         header = true, depth = depth + 1, key = ckey, reset = reset, exp = exp, category = group.key,
         text = Checklist.CategoryLabel(group.key), owned = group.done, total = #group.entries,
-        collapsed = cCollapsed,
+        collapsed = cCollapsed, status = sharedStatus(group.entries, statusOf),
       }
       if not cCollapsed then addEntries(group.entries, depth + 1) end
     end
@@ -406,7 +425,7 @@ function Checklist.Rows(built, opts)
       rows[#rows + 1] = {
         header = true, depth = 1, key = key, reset = reset,
         text = opts.label and opts.label(reset) or L[LABELS[reset]],
-        owned = done, total = #list, collapsed = isCollapsed,
+        owned = done, total = #list, collapsed = isCollapsed, status = sharedStatus(list, statusOf),
       }
       if not isCollapsed then
         local shown = withOpen(expGroups(list))
@@ -419,7 +438,7 @@ function Checklist.Rows(built, opts)
             rows[#rows + 1] = {
               header = true, depth = 2, key = gkey, reset = reset, exp = group.exp,
               text = L[group.key], owned = group.done, total = #group.entries,
-              collapsed = gCollapsed,
+              collapsed = gCollapsed, status = sharedStatus(group.entries, statusOf),
             }
             if not gCollapsed then addCategories(group.entries, 2, gkey, reset, group.exp) end
           end

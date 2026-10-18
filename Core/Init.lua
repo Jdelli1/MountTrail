@@ -207,6 +207,11 @@ function addon:OnEnable()
   -- may hide encounter details.
   self:RegisterEvent("BOSS_KILL", "OnKill")
   self:RegisterEvent("ENCOUNTER_END", "OnKill")
+  -- Event rares' live status (F17): assault POIs and warfront contributions
+  -- changed; the checklist re-reads them and redraws, throttled
+  -- (UI.EventStatusChanged in UI\ChecklistView.lua).
+  self:RegisterEvent("AREA_POIS_UPDATED", "OnEventStatus")
+  self:RegisterEvent("CONTRIBUTION_COLLECTOR_UPDATE", "OnEventStatus")
 end
 
 function addon:OnEnteringWorld()
@@ -235,6 +240,11 @@ end
 
 function addon:OnCalendarUpdate()
   ns.Refresh()
+end
+
+function addon:OnEventStatus()
+  local UI = ns.UI
+  if UI and type(UI.EventStatusChanged) == "function" then UI.EventStatusChanged() end
 end
 
 -- Slash commands --------------------------------------------------------------

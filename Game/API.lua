@@ -452,3 +452,86 @@ function Game.OpenAchievement(achievementID)
     AchievementFrame_SelectAchievement(achievementID)
   end)
 end
+
+-- Event rares' live status (F17, Logic/Events.lua) ----------------------------
+-- Shapes per Blizzard_APIDocumentationGenerated (AreaPoiInfoDocumentation,
+-- ContributionCollectorDocumentation, GarrisonConstantsDocumentation for
+-- Enum.ContributionState). Every call is pcall-guarded (`call`); a missing
+-- API, an error or an odd value gives nil, never a Lua error.
+
+-- C_AreaPoiInfo.GetAreaPOIForMap(uiMapID) -> its AreaPOI IDs (numbers only),
+-- nil when the API is missing, errors or returns no table.
+function Game.AreaPOIsForMap(uiMapID)
+  if type(uiMapID) ~= "number" then return nil end
+  local list = call(C_AreaPoiInfo, "GetAreaPOIForMap", uiMapID)
+  if type(list) ~= "table" then return nil end
+  local out = {}
+  for _, id in ipairs(list) do
+    if type(id) == "number" then out[#out + 1] = id end
+  end
+  return out
+end
+
+-- C_AreaPoiInfo.GetAreaPOIInfo(uiMapID, areaPoiID) (AreaPOIInfo) -> { name=,
+-- isCurrentEvent= }, nil when it returns nothing (MayReturnNothing), the API
+-- is missing or errors.
+function Game.AreaPOIInfo(uiMapID, areaPoiID)
+  if type(areaPoiID) ~= "number" then return nil end
+  local info = call(C_AreaPoiInfo, "GetAreaPOIInfo", uiMapID, areaPoiID)
+  if type(info) ~= "table" then return nil end
+  return { name = info.name, isCurrentEvent = info.isCurrentEvent }
+end
+
+-- C_AreaPoiInfo.GetAreaPOISecondsLeft(areaPoiID) -> seconds until the POI
+-- expires, nil when unknown (MayReturnNothing), not positive, or the API is
+-- missing / errors.
+function Game.AreaPOISecondsLeft(areaPoiID)
+  if type(areaPoiID) ~= "number" then return nil end
+  local seconds = call(C_AreaPoiInfo, "GetAreaPOISecondsLeft", areaPoiID)
+  if type(seconds) == "number" and seconds > 0 then return seconds end
+  return nil
+end
+
+-- The warfront contributions the map shows this character, read the way
+-- Blizzard's map pin does (ContributionCollectorDataProvider): each
+-- C_ContributionCollector.GetContributionCollectorsForMap(uiMapID)
+-- collector's GetManagedContributionsForCreatureID(collectorCreatureID),
+-- then per contribution GetName, GetState (state = Enum.ContributionState,
+-- percent = contributionPercentageComplete 0..1, timeOfNextStateChange) and
+-- GetContributionAppearance(id, state) (stateName, tooltipUseTimeRemaining).
+-- -> { { id=, name=, state=, percent=, seconds= (until the next state
+-- change, by GetServerTime), stateName=, useTime= } } ({} when the map has
+-- no collector), nil when the API is missing or errors.
+function Game.ContributionsForMap(uiMapID)
+  if type(uiMapID) ~= "number" then return nil end
+  local lib = C_ContributionCollector
+  local collectors = call(lib, "GetContributionCollectorsForMap", uiMapID)
+  if type(collectors) ~= "table" then return nil end
+  local out, seen = {}, {}
+  for _, collector in ipairs(collectors) do
+    local creature = type(collector) == "table" and collector.collectorCreatureID or nil
+    if type(creature) == "number" then
+      for _, id in ipairs({ call(lib, "GetManagedContributionsForCreatureID", creature) }) do
+        if type(id) == "number" and not seen[id] then
+          seen[id] = true
+          local row = { id = id }
+          local name = call(lib, "GetName", id)
+          if type(name) == "string" and name ~= "" then row.name = name end
+          local state, percent, nextChange = call(lib, "GetState", id)
+          if type(state) == "number" then row.state = state end
+          if type(percent) == "number" then row.percent = percent end
+          if type(nextChange) == "number" then row.seconds = nextChange - Game.Now() end
+          if row.state then
+            local appearance = call(lib, "GetContributionAppearance", id, row.state)
+            if type(appearance) == "table" then
+              if type(appearance.stateName) == "string" then row.stateName = appearance.stateName end
+              row.useTime = appearance.tooltipUseTimeRemaining == true
+            end
+          end
+          out[#out + 1] = row
+        end
+      end
+    end
+  end
+  return out
+end

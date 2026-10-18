@@ -635,6 +635,7 @@ end
 -- holiday on the calendar now) paint the name and badge in the game's
 -- GREEN_FONT_COLOR.
 local ACTIVE_GREEN = "|cff19ff19"
+local STATUS_BLUE = "|cff71d5ff"
 function UI.HeaderText(row)
   local text = row.text or ""
   if row.active then text = ACTIVE_GREEN .. text .. "|r" end
@@ -643,6 +644,10 @@ function UI.HeaderText(row)
   end
   if row.badge and row.badge ~= "" then
     text = text .. "  " .. (row.active and ACTIVE_GREEN or GREEN) .. row.badge .. "|r"
+  end
+  -- A checklist header's event status (F17, Checklist.Rows opts.status).
+  if row.status and row.status ~= "" then
+    text = text .. "  " .. STATUS_BLUE .. row.status .. "|r"
   end
   return text
 end

@@ -14,6 +14,8 @@ Checks (see docs/data-verification.md for the latest report):
   identity  Data/Mounts.lua ids, names, spells and items vs Mount.db2 / ItemEffect.
   route     Data/Route.lua kill rows: is the mount in that boss's Encounter Journal loot?
   lockout   Data/Lockouts.lua instance specs: map ID, boss name and loot.
+  events    Data/Events.lua (F17): assault AreaPOI IDs, warfront Contribution IDs and their
+            UiMap IDs resolve to the names the data claims.
   candidates Mounts in Encounter Journal loot with no lockout spec and no Rarity quest.
 
 Allowlist (tools/verify_allow.json): {"route": {"<mount>@<boss>": "reason"},
@@ -53,14 +55,18 @@ TABLES = (
     "ItemEffect",
     "ItemXItemEffect",
     "LfgDungeons",
+    "AreaPOI",
+    "Contribution",
+    "UiMap",
 )
 SEVERITIES = ("error", "warn", "info")
-CHECKS = ("identity", "route", "unavailable", "lockout")
+CHECKS = ("identity", "route", "unavailable", "lockout", "events")
 CHECK_TITLES = {
     "identity": "1. Mount identity (Mount.db2, ItemEffect)",
     "route": "2. Route drop claims (JournalEncounterItem)",
     "unavailable": "2b. Unavailable route rows still in Encounter Journal loot (JournalEncounterItem)",
     "lockout": "3. Lockout specs (JournalInstance, JournalEncounter, DungeonEncounter, LfgDungeons)",
+    "events": "4. Event status IDs (AreaPOI, Contribution, UiMap)",
 }
 # Mount.SourceTypeEnum (same values as the pet journal's source filter).
 SOURCE_TYPES = {
@@ -264,7 +270,9 @@ def load_our_data(data_dir=DATA):
             return fh.read()
     mounts_src, route_src, lock_src = read("Mounts.lua"), read("Route.lua"), read("Lockouts.lua")
     holidays_src = read("Holidays.lua") if os.path.isfile(os.path.join(data_dir, "Holidays.lua")) else ""
+    events_src = read("Events.lua") if os.path.isfile(os.path.join(data_dir, "Events.lua")) else ""
     return {
+        "events": (lua_assignment(events_src, "ns.Data.EventGroups") if events_src else None) or {},
         "holidays": (lua_assignment(holidays_src, "ns.Data.Holidays") if holidays_src else None) or {},
         "mounts": lua_assignment(mounts_src, "ns.Data.Mounts") or {},
         "expansions": lua_assignment(mounts_src, "ns.Data.Expansions") or [],
@@ -381,6 +389,9 @@ class Game:
             self.dungeon_encounters_by_map.setdefault(_int(r["MapID"]), []).append(r)
             self.dungeon_encounters[_int(r["ID"])] = r
         self.lfg_dungeons = {_int(r["ID"]): r for r in rows("LfgDungeons")}
+        self.area_pois = {_int(r["ID"]): r for r in rows("AreaPOI")}
+        self.contributions = {_int(r["ID"]): r for r in rows("Contribution")}
+        self.ui_maps = {_int(r["ID"]): r for r in rows("UiMap")}
 
     def mount_spell(self, mount_id, ours=None):
         row = self.mounts.get(mount_id)
@@ -788,6 +799,61 @@ def check_lfg(ours, game):
     return out, table
 
 
+# --- check 4: event status IDs (Data/Events.lua, F17) -------------------------------------
+
+def check_events(ours, game):
+    """Each Data/Events.lua group: its maps are UiMap rows named `zone`, its assault POIs
+    AreaPOI rows named "Assault: <name>", its warfront contributions Contribution rows
+    named `contribution`, and some mount in Data/Mounts.lua has the group. Returns
+    (findings, table rows {group, table, id, name, detail})."""
+    out, table = [], []
+    mount_groups = {m.get("group") for m in ours["mounts"].values() if isinstance(m, dict)}
+    for key in sorted(ours.get("events") or {}):
+        d = ours["events"][key]
+        if not isinstance(d, dict):
+            continue
+
+        def err(kind, detail, suggestion=""):
+            out.append(finding("events", kind, "error", 0, key, detail, suggestion, key))
+
+        if key not in mount_groups:
+            out.append(finding("events", "unknown-group", "warn", 0, key,
+                               "no mount in Data/Mounts.lua has group %r" % key,
+                               "use the SimpleArmory group name exactly", key))
+        zone = str(d.get("zone") or "")
+        for map_id in [_int(x) for x in d.get("maps") or []]:
+            row = game.ui_maps.get(map_id)
+            if row is None:
+                err("unknown-map", "map %d: no UiMap row has this ID" % map_id)
+                continue
+            table.append({"group": key, "table": "UiMap", "id": map_id, "name": row["Name_lang"], "detail": ""})
+            if row["Name_lang"] != zone:
+                err("map-name-differs", "map %d is UiMap %r, not %r" % (map_id, row["Name_lang"], zone))
+        pois = d.get("pois") or {}
+        for poi_id in sorted(k for k in pois if isinstance(k, int)):
+            want = "Assault: %s" % pois[poi_id]
+            row = game.area_pois.get(poi_id)
+            if row is None:
+                err("unknown-poi", "AreaPOI %d: no AreaPOI row has this ID (wanted %r)" % (poi_id, want))
+                continue
+            table.append({"group": key, "table": "AreaPOI", "id": poi_id, "name": row["Name_lang"],
+                          "detail": row.get("Description_lang", "")})
+            if row["Name_lang"] != want:
+                err("poi-name-differs", "AreaPOI %d is %r, not %r" % (poi_id, row["Name_lang"], want))
+        want = str(d.get("contribution") or "")
+        for cid in [_int(x) for x in d.get("contributions") or []]:
+            row = game.contributions.get(cid)
+            if row is None:
+                err("unknown-contribution", "Contribution %d: no Contribution row has this ID (wanted %r)"
+                    % (cid, want))
+                continue
+            table.append({"group": key, "table": "Contribution", "id": cid, "name": row["Name_lang"],
+                          "detail": row.get("Description_lang", "")})
+            if row["Name_lang"] != want:
+                err("contribution-name-differs", "Contribution %d is %r, not %r" % (cid, row["Name_lang"], want))
+    return out, table
+
+
 # --- candidates: farmable lockouts we do not track --------------------------------------
 
 def covered_mounts(ours):
@@ -899,7 +965,8 @@ def summarise(findings):
     return counts, totals
 
 
-def render_report(build, findings, lock_table, candidates, source_cands, ours, expansions=(), lfg_table=()):
+def render_report(build, findings, lock_table, candidates, source_cands, ours, expansions=(), lfg_table=(),
+                  event_table=()):
     counts, totals = summarise(findings)
     lines = [
         "# Data verification",
@@ -976,6 +1043,20 @@ def render_report(build, findings, lock_table, candidates, source_cands, ours, e
             _md(r["key"]), _md(r["name"]), r["lfg"], _md(r["dungeon"]), r["map"], r["group"]))
     lines += [
         "",
+        "## Event status IDs resolved against the game",
+        "",
+        "Each ID in `Data/Events.lua` (F17: the checklist's live status of assault and warfront",
+        "rares) and the DB2 row it names. Which assault a rare belongs to is not in these tables,",
+        "so the checklist shows the zone's current assault as information only.",
+        "",
+        "| Group | Table | ID | Name | Description |",
+        "|---|---|---:|---|---|",
+    ]
+    for r in event_table:
+        lines.append("| %s | %s | %d | %s | %s |" % (
+            _md(r["group"]), r["table"], r["id"], _md(r["name"]), _md(r["detail"])))
+    lines += [
+        "",
         "## Candidate lockouts with no spec",
         "",
         "Mounts with no entry in `Data/Lockouts.lua` and no Rarity `quest` in `Data/Mounts.lua`",
@@ -1030,8 +1111,10 @@ def run(ours, game, allow):
     findings = check_identity(ours, game) + check_route(ours, game) + check_unavailable(ours, game)
     lock_findings, lock_table = check_lockouts(ours, game)
     lfg_findings, lfg_table = check_lfg(ours, game)
-    findings = apply_allowlist(findings + lock_findings + lfg_findings, allow)
-    return findings, lock_table, lockout_candidates(ours, game), source_candidates(ours, game), lfg_table
+    event_findings, event_table = check_events(ours, game)
+    findings = apply_allowlist(findings + lock_findings + lfg_findings + event_findings, allow)
+    return (findings, lock_table, lockout_candidates(ours, game), source_candidates(ours, game), lfg_table,
+            event_table)
 
 
 def main(argv=None):
@@ -1057,9 +1140,10 @@ def main(argv=None):
     folder = fetch_tables(build, args.cache, offline=args.offline)
     ours = load_our_data(args.data)
     game = Game(folder)
-    findings, lock_table, candidates, source_cands, lfg_table = run(ours, game, load_allowlist(args.allow))
+    findings, lock_table, candidates, source_cands, lfg_table, event_table = run(
+        ours, game, load_allowlist(args.allow))
     report = render_report(build, findings, lock_table, candidates, source_cands, ours,
-                           ours.get("expansions") or (), lfg_table)
+                           ours.get("expansions") or (), lfg_table, event_table)
     if args.report == "-":
         sys.stdout.write(report)
     else:
@@ -1068,6 +1152,7 @@ def main(argv=None):
     if args.json:
         with open(args.json, "w", encoding="utf-8") as fh:
             json.dump({"build": build, "findings": findings, "lockouts": lock_table, "lfg": lfg_table,
+                       "events": event_table,
                        "candidates": candidates, "source_candidates": source_cands},
                       fh, indent=1, default=list)
     _, totals = summarise(findings)

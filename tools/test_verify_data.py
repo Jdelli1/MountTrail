@@ -151,7 +151,7 @@ class ChecksTest(unittest.TestCase):
         f = v.check_route(self.ours, self.game)
         (hit,) = self.find(f, "route", "10@Timed Reward", "not-in-loot")
         self.assertEqual(hit["severity"], "warn")
-        findings, _, _, _, _ = self.run_all({"route": {"3@Trash": "AQ trash drop"}})
+        findings = self.run_all({"route": {"3@Trash": "AQ trash drop"}})[0]
         (trash,) = self.find(findings, "route", "3@Trash")
         self.assertEqual(trash["severity"], "info")
         self.assertEqual(trash["allowed"], "AQ trash drop")
@@ -187,7 +187,7 @@ class ChecksTest(unittest.TestCase):
         counts, _ = v.summarise(f)
         self.assertEqual(counts["unavailable"]["warn"], 3, "a report section of its own")
         # Part of the full run.
-        findings, _, _, _, _ = v.run(ours, self.game, {})
+        findings = v.run(ours, self.game, {})[0]
         self.assertEqual(len(self.find(findings, "unavailable", "1@Fyrakk")), 1)
         # The fixture route has no unavailable rows.
         self.assertEqual(v.check_unavailable(self.ours, self.game), [])
@@ -302,6 +302,39 @@ class ChecksTest(unittest.TestCase):
             self.assertEqual(v.load_our_data(tmp)["holidays"], {})
         self.assertEqual(self.ours["holidays"]["midsummer"]["lfg"], 286)
 
+    # events (F17): Data/Events.lua IDs against AreaPOI / Contribution / UiMap
+    def test_event_groups_load(self):
+        ev = self.ours["events"]
+        self.assertEqual(ev["Assault: Uldum"]["pois"], {6487: "Amathet", 6488: "Aqir"})
+        self.assertEqual(ev["Warfront: Arathi"]["contributions"], [11, 116, 555])
+
+    def test_events_file_is_optional(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for name in ("Mounts.lua", "Route.lua", "Lockouts.lua"):
+                with open(os.path.join(DATA, name), encoding="utf-8") as src,                         open(os.path.join(tmp, name), "w", encoding="utf-8") as dst:
+                    dst.write(src.read())
+            self.assertEqual(v.load_our_data(tmp)["events"], {})
+
+    def test_event_ids_resolve(self):
+        f, table = v.check_events(self.ours, self.game)
+        self.assertEqual(self.find(f, "events", "Assault: Uldum"), [])
+        self.assertEqual(self.find(f, "events", "Warfront: Arathi", "unknown-group"), [])
+        rows = {(r["group"], r["table"], r["id"]): r for r in table}
+        self.assertEqual(rows[("Assault: Uldum", "AreaPOI", 6488)]["name"], "Assault: Aqir")
+        self.assertEqual(rows[("Assault: Uldum", "UiMap", 249)]["name"], "Uldum")
+        self.assertEqual(rows[("Warfront: Arathi", "Contribution", 116)]["name"], "Battle for Stromgarde")
+
+    def test_event_id_errors(self):
+        f, _ = v.check_events(self.ours, self.game)
+        kinds = sorted((x["kind"], x["severity"]) for x in self.find(f, "events", "Assault: Bad"))
+        self.assertEqual(kinds, [("map-name-differs", "error"), ("poi-name-differs", "error"),
+                                 ("unknown-group", "warn"), ("unknown-map", "error"), ("unknown-poi", "error")])
+        (wrong,) = self.find(f, "events", "Assault: Bad", "poi-name-differs")
+        self.assertIn("Assault: Mogu", wrong["detail"])
+        (missing,) = self.find(f, "events", "Warfront: Arathi", "unknown-contribution")
+        self.assertIn("555", missing["detail"])
+        self.assertEqual(missing["severity"], "error")
+
     # candidates
     def test_journal_candidates_skip_specs_quests_and_boss_lockouts(self):
         groups = v.lockout_candidates(self.ours, self.game)
@@ -348,6 +381,8 @@ class ChecksTest(unittest.TestCase):
             self.assertIn("| Mount | Drop | Where", text)
             self.assertIn("## LFG specs resolved against LfgDungeons", text)
             self.assertIn("The Frost Lord Ahune", text)
+            self.assertIn("## Event status IDs resolved against the game", text)
+            self.assertIn("| Assault: Uldum | AreaPOI | 6488 | Assault: Aqir |", text)
             with open(out_json, encoding="utf-8") as fh:
                 dumped = json.load(fh)
             self.assertEqual(dumped["build"], "1.2.3.4")

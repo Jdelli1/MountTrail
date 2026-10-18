@@ -384,3 +384,76 @@ describe("checklist filter menu", function()
     eq(UI.ChecklistFiltersAreDefault(nil), true)
   end)
 end)
+
+-- F17: live status of event rares on the checklist.
+describe("checklist event status", function()
+  local function withEvents(game)
+    local calls = { pois = 0, contributions = 0 }
+    local ns = loadUI(game)
+    ns.Game.AreaPOIsForMap = function(map)
+      calls.pois = calls.pois + 1
+      if map == 1527 then return { 6488 } end
+      return {}
+    end
+    ns.Game.AreaPOIInfo = function(map, id) return { name = "x" } end
+    ns.Game.AreaPOISecondsLeft = function(id) if id == 6488 then return 7200 end end
+    ns.Game.ContributionsForMap = function(map)
+      calls.contributions = calls.contributions + 1
+      if map == 14 then return { { id = 116, state = 1, stateName = "Contributing", percent = 0.25 } } end
+      return nil
+    end
+    return ns, calls
+  end
+
+  it("UI.EventStatusTexts: one line per event group from the Game wrappers", function()
+    local ns = withEvents()
+    local texts = ns.UI.EventStatusTexts(NOW)
+    eq(texts["Assault: Uldum"], "Uldum: Aqir assault — " .. ns.UI.FormatDuration(7200) .. " left")
+    eq(texts["Assault: Vale of Eternal Blossoms"], "Status unknown (open the map once)")
+    eq(texts["Warfront: Arathi"], "Arathi warfront: Contributing (25%)")
+    eq(texts["Warfront: Darkshore"], "Status unknown (open the map once)")
+  end)
+
+  it("is cached: re-read after 60 s or once the game reports a change (EventStatusChanged)", function()
+    local ns, calls = withEvents()
+    ns.UI.EventStatusTexts(NOW)
+    local after = calls.pois
+    ok(after > 0, "read once")
+    ns.UI.EventStatusTexts(NOW + 59)
+    eq(calls.pois, after, "cached within 60 s")
+    ns.UI.EventStatusTexts(NOW + 60)
+    eq(calls.pois, after * 2, "re-read after 60 s")
+    local timers = {}
+    local oldTimer = C_Timer
+    C_Timer = { After = function(delay, fn) timers[#timers + 1] = { delay, fn } end }
+    ns.UI.EventStatusChanged()
+    ns.UI.EventStatusChanged()
+    eq(#timers, 1, "one redraw for a burst of events")
+    eq(timers[1][1], 2, "throttled to one every 2 s")
+    ns.UI.EventStatusTexts(NOW + 61)
+    eq(calls.pois, after * 3, "a reported change re-reads at once")
+    timers[1][2]() -- the redraw runs (no window: nothing to draw, no error)
+    ns.UI.EventStatusChanged()
+    eq(#timers, 2, "the next burst schedules again")
+    C_Timer = oldTimer
+  end)
+
+  it("UI.ChecklistStatusOf maps an entry's mount group to its line", function()
+    local ns = withEvents()
+    local statusOf = ns.UI.ChecklistStatusOf({ ["Assault: Uldum"] = "U", ["Warfront: Arathi"] = "A" })
+    eq(statusOf({ m = { group = "Assault: Uldum" } }), "U")
+    eq(statusOf({ m = { group = "Warfront: Arathi" } }), "A")
+    eq(statusOf({ m = { group = "Rare Spawn" } }), nil)
+    eq(statusOf({}), nil)
+  end)
+
+  it("UI.ChecklistStatusDesc appends the line in light blue; HeaderText shows a header's", function()
+    local ns = withEvents()
+    eq(ns.UI.ChecklistStatusDesc("Drop: Ishak", "Uldum: Aqir assault"),
+      "Drop: Ishak \194\183 |cff71d5ffUldum: Aqir assault|r")
+    eq(ns.UI.ChecklistStatusDesc("", "S"), "|cff71d5ffS|r")
+    eq(ns.UI.ChecklistStatusDesc("D", nil), "D")
+    eq(ns.UI.HeaderText({ text = "Rares", owned = 0, total = 2, status = "Uldum: Aqir assault" }),
+      "Rares  |cff9d9d9d(0/2)|r  |cff71d5ffUldum: Aqir assault|r")
+  end)
+end)

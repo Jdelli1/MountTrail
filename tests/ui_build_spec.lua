@@ -1340,6 +1340,48 @@ describe("ui build", function()
     eq(frames[plain].Name:GetText(), rows[plain].m.name, "single-mount rows keep the mount name")
   end)
 
+  -- F17: event rares' live status on their rows and, when shared, headers.
+  it("Checklist: event rares show their zone's assault / warfront status; a header shares it", function()
+    local ns = loadUI()
+    ns.Game.AreaPOIsForMap = function(map) if map == 1527 then return { 6488 } end return {} end
+    ns.Game.AreaPOIInfo = function() return { name = "Assault: Aqir" } end
+    ns.Game.AreaPOISecondsLeft = function() return 7200 end
+    ns.Game.ContributionsForMap = function() return nil end
+    ns.ToggleWindow()
+    ns.UI.SelectTab("checklist")
+    local box = content(ns, "checklist").children[2].children[1].Checklist.ScrollBox
+    local uldum = "Uldum: Aqir assault \226\128\148 " .. ns.UI.FormatDuration(7200) .. " left"
+    local frames = render(box)
+    local seen = {}
+    for i, row in ipairs(box.provider.rows) do
+      local group = row.entry and row.entry.m and row.entry.m.group
+      if group == "Assault: Uldum" then
+        seen.uldum = true
+        eq(row.status, uldum)
+        ok(frames[i].Source:GetText():find(uldum, 1, true), frames[i].Source:GetText())
+      elseif group == "Warfront: Darkshore" then
+        seen.darkshore = true
+        eq(row.status, "Status unknown (open the map once)")
+      elseif row.entry and not ns.Data.EventGroups[group] then
+        eq(row.status, nil, "not an event rare: " .. tostring(group))
+      end
+    end
+    ok(seen.uldum and seen.darkshore, "event rares listed")
+
+    -- Only the Uldum rares left to get: their headers share the line.
+    local uldumIDs = { [1314] = true, [1317] = true, [1319] = true }
+    ns.Game.IsOwned = function(id) return not uldumIDs[id] end
+    ns.Refresh()
+    local rares
+    for _, row in ipairs(box.provider.rows) do
+      if row.header and row.category == "rares" then rares = row end
+    end
+    ok(rares, "the Rares header")
+    eq(rares.status, uldum)
+    frames = render(box)
+    ok(frames[1].Label:GetText():find(uldum, 1, true), "the header label shows it")
+  end)
+
   it("Checklist tick boxes fall back to the classic checkbox", function()
     local ns = loadUI()
     STUB_TEMPLATES.MinimalCheckboxTemplate = nil

@@ -409,6 +409,37 @@ describe("Checklist.Rows", function()
     eq(rows[#rows - 1].text, "Other")
   end)
 
+  -- F17: event rares' live status (opts.status(entry) -> text or nil).
+  it("opts.status: entry rows carry their line; a header gets it when every open entry under it shares it", function()
+    local entry = function(id, exp, cat) return { id = id, key = id, done = false, exp = exp, expRank = 1, category = cat } end
+    local lines = { [1] = "Uldum: Aqir assault", [2] = "Uldum: Aqir assault", [3] = "Arathi warfront: Active" }
+    local list = { entry(1, "Battle for Azeroth", "rares"), entry(2, "Battle for Azeroth", "rares"),
+      entry(4, "Legion", "rares"), entry(5, "Legion", "dungeons") }
+    local done = { id = 6, key = 6, done = true, exp = "Battle for Azeroth", expRank = 1, category = "rares" }
+    list[#list + 1] = done
+    local rows = load().Rows({ daily = list, weekly = {} }, { status = function(e) return lines[e.id] end })
+    local byKey, byId = {}, {}
+    for _, r in ipairs(rows) do
+      if r.header then byKey[r.key] = r else byId[r.id] = r end
+    end
+    eq(byId[1].status, "Uldum: Aqir assault")
+    eq(byId[4].status, nil, "no event, no line")
+    eq(byKey["checklist|daily|Battle for Azeroth|rares"].status, "Uldum: Aqir assault",
+      "both open rares share it (the done one is not listed)")
+    eq(byKey["checklist|daily|Battle for Azeroth"].status, "Uldum: Aqir assault", "the expansion too")
+    eq(byKey["checklist|daily|Legion|rares"].status, nil)
+    eq(byKey["checklist|daily"].status, nil, "mixed under the reset header")
+
+    -- A third rare with another event: the category no longer shares one line.
+    list[#list + 1] = entry(3, "Battle for Azeroth", "rares")
+    rows = load().Rows({ daily = list, weekly = {} }, { status = function(e) return lines[e.id] end })
+    for _, r in ipairs(rows) do
+      if r.header then eq(r.status, nil, r.key) end
+    end
+    -- Without opts.status nothing changes.
+    for _, r in ipairs(load().Rows({ daily = list, weekly = {} })) do eq(r.status, nil) end
+  end)
+
   it("stays flat when Other is the only expansion (as the list sections do)", function()
     local rows = load().Rows({ daily = {}, weekly = { { id = 1, key = 1, done = false } } })
     eq(#rows, 2)

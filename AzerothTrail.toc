@@ -13,10 +13,12 @@ Data\Mounts.lua
 Data\Route.lua
 Data\Lockouts.lua
 Data\Holidays.lua
+Data\Events.lua
 Logic\Resets.lua
 Logic\Lockouts.lua
 Logic\Route.lua
 Logic\Checklist.lua
+Logic\Events.lua
 Logic\Journal.lua
 Logic\Zone.lua
 Logic\Attempts.lua

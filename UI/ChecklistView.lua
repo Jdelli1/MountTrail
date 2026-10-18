@@ -22,7 +22,10 @@ local ADDON, ns = ...
 -- Done entries disappear on their own (Checklist.Rows); the headers count them.
 -- A lockout that drops several mounts (e.g. Malygos' two drakes) is one row named
 -- after its boss ("<instance> · <n> mounts", hover lists the mounts:
--- UI.ChecklistGroupLines). Also defines UI.ChecklistRemaining for the
+-- UI.ChecklistGroupLines). Rares of the N'Zoth assaults and the Arathi /
+-- Darkshore warfronts add a light-blue live status to their grey line (F17,
+-- UI.EventStatusTexts over Logic/Events.lua), and a header whose open entries
+-- all share one shows it too. Also defines UI.ChecklistRemaining for the
 -- minimap tooltip.
 --
 -- The pure helpers (ChecklistContext, ChecklistBuild, ChecklistRemaining,
@@ -81,6 +84,74 @@ function UI.ChecklistRemaining(now)
   local char = ns.db and ns.db.char
   local filters = char and type(char.checklistFilters) == "table" and char.checklistFilters or nil
   return ns.Checklist.Remaining(UI.ChecklistBuild(now), filters)
+end
+
+-- Event rares' live status (F17) -------------------------------------------------
+-- Rows whose mount is in a Data/Events.lua group (N'Zoth assaults in Uldum
+-- and the Vale, the Arathi / Darkshore warfronts) get that group's line from
+-- Logic/Events.lua; a header whose open entries all share one shows it too
+-- (Checklist.Rows opts.status). Read through the Game wrappers at most once
+-- a minute, sooner when the game reports a change (AREA_POIS_UPDATED,
+-- CONTRIBUTION_COLLECTOR_UPDATE: UI.EventStatusChanged, Core/Init.lua).
+
+local STATUS_TTL = 60 -- seconds a read stays fresh
+local STATUS_THROTTLE = 2 -- seconds between redraws for reported changes
+local STATUS_COLOR = "|cff71d5ff" -- light blue: information, not a done / open state
+local statusCache = { texts = nil, at = nil }
+local redrawPending = false
+
+-- { [group key] = line } at `now` (default Game.Now()), cached for a minute.
+function UI.EventStatusTexts(now)
+  local Game = ns.Game
+  now = now or Game.Now()
+  local at = statusCache.at
+  if statusCache.texts and at and now >= at and now - at < STATUS_TTL then return statusCache.texts end
+  statusCache.texts = ns.Events.Statuses(ns.Data and ns.Data.EventGroups, {
+    poisForMap = Game.AreaPOIsForMap,
+    poiInfo = Game.AreaPOIInfo,
+    secondsLeft = Game.AreaPOISecondsLeft,
+    contributionsForMap = Game.ContributionsForMap,
+    formatDuration = UI.FormatDuration,
+  })
+  statusCache.at = now
+  return statusCache.texts
+end
+
+-- The game reported a change: the next read is fresh, and the checklist (when
+-- on screen) redraws once within STATUS_THROTTLE seconds, however many events
+-- arrive (AREA_POIS_UPDATED fires often).
+function UI.EventStatusChanged()
+  statusCache.texts = nil
+  if redrawPending then return end
+  redrawPending = true
+  local function redraw()
+    redrawPending = false
+    local checklist = UI.ChecklistView
+    if checklist and checklist.IsShown() then checklist.Refresh() end
+  end
+  if type(C_Timer) == "table" and type(C_Timer.After) == "function" then
+    C_Timer.After(STATUS_THROTTLE, redraw)
+  else
+    redraw()
+  end
+end
+
+-- Checklist.Rows opts.status over `texts` (UI.EventStatusTexts): an entry's
+-- line by its mount's event group, nil for other entries.
+function UI.ChecklistStatusOf(texts)
+  local groups = ns.Data and ns.Data.EventGroups
+  return function(entry)
+    local key = ns.Events.GroupOf(entry and entry.m, groups)
+    return key and texts and texts[key] or nil
+  end
+end
+
+-- A row's grey line with its status appended in light blue.
+function UI.ChecklistStatusDesc(desc, status)
+  if not status or status == "" then return desc end
+  local colored = STATUS_COLOR .. status .. "|r"
+  if not desc or desc == "" then return colored end
+  return desc .. DOT .. colored
 end
 
 -- Grey row line of an entry: "<boss> · <instance>" for route rows (either
@@ -472,6 +543,7 @@ function view.Refresh()
     collapsed = collapsedDB() or {},
     filters = filters,
     label = function(reset) return UI.ChecklistHeaderLabel(reset, untilDaily, untilWeekly) end,
+    status = UI.ChecklistStatusOf(UI.EventStatusTexts(Game.Now())),
   })
   local sourceText = UI.MemoText(Game.MountSourceText)
   local n = 0
@@ -483,7 +555,7 @@ function view.Refresh()
       local e = row.entry
       row.owned = false
       row.alt = n % 2 == 0
-      row.desc = UI.ChecklistDescription(e, sourceText(e.id))
+      row.desc = UI.ChecklistStatusDesc(UI.ChecklistDescription(e, sourceText(e.id)), row.status)
       row.tag = e.auto and L["auto"] or nil
       row.pin = UI.LocationIcon(e.id, e.boss)
       -- The click goes to this lockout's boss (its instance's entrance) and
@@ -512,6 +584,11 @@ function view.Refresh()
   local filter = header.ChecklistFilter
   if filter and type(filter.ValidateResetState) == "function" then filter:ValidateResetState() end
   return built
+end
+
+-- True while the tab is on screen.
+function view.IsShown()
+  return root ~= nil and root:IsVisible() and true or false
 end
 
 UI.RegisterView("checklist", view)

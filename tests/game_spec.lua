@@ -7,7 +7,7 @@ local API_GLOBALS = {
   "C_QuestLog", "GetLFGDungeonRewards", "RequestRaidInfo", "RequestLFDPlayerLockInfo",
   "GetServerTime", "geterrorhandler", "GetStatistic", "InCombatLockdown", "C_Map",
   "C_Item", "Item", "C_EncounterJournal", "EJ_GetInstanceInfo",
-  "IsInInstance", "GetInstanceInfo",
+  "IsInInstance", "GetInstanceInfo", "C_AreaPoiInfo", "C_ContributionCollector",
 }
 local ORIGINAL = {}
 for _, name in ipairs(API_GLOBALS) do ORIGINAL[name] = _G[name] end
@@ -394,6 +394,106 @@ describe("game adapter", function()
     end)
   end)
 
+  -- F17: live status of event rares. Shapes per Blizzard's
+  -- AreaPoiInfoDocumentation / ContributionCollectorDocumentation.
+  describe("event status (F17)", function()
+    it("AreaPOIsForMap is GetAreaPOIForMap(uiMapID)'s numbers; nil when missing, erroring or not a table", function()
+      C_AreaPoiInfo = { GetAreaPOIForMap = function(id)
+        if id == 1527 then return { 6488, "junk", 7000 } end
+        if id == 4 then error("boom") end
+        if id == 5 then return "nope" end
+        return {}
+      end }
+      local G = loadGame().Game
+      eq(G.AreaPOIsForMap(1527), { 6488, 7000 })
+      eq(G.AreaPOIsForMap(249), {}, "the map has none")
+      eq(G.AreaPOIsForMap(4), nil, "error caught")
+      eq(G.AreaPOIsForMap(5), nil)
+      eq(G.AreaPOIsForMap(nil), nil)
+      C_AreaPoiInfo = nil
+      eq(loadGame().Game.AreaPOIsForMap(1527), nil, "no C_AreaPoiInfo")
+    end)
+
+    it("AreaPOIInfo copies name and isCurrentEvent from GetAreaPOIInfo(uiMapID, areaPoiID); nil otherwise", function()
+      C_AreaPoiInfo = { GetAreaPOIInfo = function(map, id)
+        if map == 1527 and id == 6488 then
+          return { areaPoiID = 6488, name = "Assault: Aqir", isCurrentEvent = false, position = {} }
+        end
+        if id == 4 then error("boom") end
+      end }
+      local G = loadGame().Game
+      eq(G.AreaPOIInfo(1527, 6488), { name = "Assault: Aqir", isCurrentEvent = false })
+      eq(G.AreaPOIInfo(1527, 6487), nil, "MayReturnNothing")
+      eq(G.AreaPOIInfo(1527, 4), nil, "error caught")
+      eq(G.AreaPOIInfo(1527, nil), nil)
+      C_AreaPoiInfo = {}
+      eq(loadGame().Game.AreaPOIInfo(1527, 6488), nil)
+    end)
+
+    it("AreaPOISecondsLeft is GetAreaPOISecondsLeft(areaPoiID); nil when missing, erroring or not positive", function()
+      C_AreaPoiInfo = { GetAreaPOISecondsLeft = function(id)
+        if id == 6488 then return 3600 end
+        if id == 6487 then return 0 end
+        if id == 4 then error("boom") end
+      end }
+      local G = loadGame().Game
+      eq(G.AreaPOISecondsLeft(6488), 3600)
+      eq(G.AreaPOISecondsLeft(6487), nil)
+      eq(G.AreaPOISecondsLeft(6486), nil, "MayReturnNothing")
+      eq(G.AreaPOISecondsLeft(4), nil, "error caught")
+      C_AreaPoiInfo = nil
+      eq(loadGame().Game.AreaPOISecondsLeft(6488), nil)
+    end)
+
+    it("ContributionsForMap: each map collector's managed contributions with state, appearance and time left", function()
+      GetServerTime = function() return 1000 end
+      local asked = {}
+      C_ContributionCollector = {
+        GetContributionCollectorsForMap = function(map)
+          if map == 14 then
+            return { { areaPoiID = 1, name = "Collector", collectorCreatureID = 130000, atlasName = "x", position = {} },
+              { name = "no creature" }, "junk" }
+          end
+          if map == 4 then error("boom") end
+          return {}
+        end,
+        GetManagedContributionsForCreatureID = function(creature)
+          eq(creature, 130000)
+          return 116, 11, 116
+        end,
+        GetName = function(id) return "Battle for Stromgarde" end,
+        GetState = function(id)
+          asked[#asked + 1] = id
+          if id == 116 then return 1, 0.634, nil, 900 end
+          return 2, 1, 4600, 500
+        end,
+        GetContributionAppearance = function(id, state)
+          if id == 116 then return { stateName = "Contributing", tooltipUseTimeRemaining = false } end
+          return { stateName = "Active", tooltipUseTimeRemaining = true }
+        end,
+      }
+      local G = loadGame().Game
+      eq(G.ContributionsForMap(14), {
+        { id = 116, name = "Battle for Stromgarde", state = 1, percent = 0.634, stateName = "Contributing", useTime = false },
+        { id = 11, name = "Battle for Stromgarde", state = 2, percent = 1, seconds = 3600, stateName = "Active", useTime = true },
+      })
+      eq(asked, { 116, 11 }, "each contribution once")
+      eq(G.ContributionsForMap(62), {}, "no collector on the map")
+      eq(G.ContributionsForMap(4), nil, "error caught")
+      eq(G.ContributionsForMap(nil), nil)
+      C_ContributionCollector = nil
+      eq(loadGame().Game.ContributionsForMap(14), nil, "no C_ContributionCollector")
+    end)
+
+    it("ContributionsForMap survives a missing appearance or state call", function()
+      C_ContributionCollector = {
+        GetContributionCollectorsForMap = function() return { { collectorCreatureID = 1 } } end,
+        GetManagedContributionsForCreatureID = function() return 117 end,
+      }
+      eq(loadGame().Game.ContributionsForMap(62), { { id = 117 } })
+    end)
+  end)
+
   describe("wrappers", function()
     it("reads mount info, quests, lfg, resets and expansion logos", function()
       C_MountJournal = { GetMountInfoByID = function(id)
@@ -728,6 +828,18 @@ describe("init", function()
     ns.Refresh = function() calls = calls + 1 end
     fire_event(ns.addon, "CALENDAR_UPDATE_EVENT_LIST")
     eq(calls, 1)
+  end)
+
+  it("AREA_POIS_UPDATED and CONTRIBUTION_COLLECTOR_UPDATE tell the checklist's event status (F17)", function()
+    local ns = setup()
+    local calls, refreshes = 0, 0
+    ns.Refresh = function() refreshes = refreshes + 1 end
+    fire_event(ns.addon, "AREA_POIS_UPDATED") -- no UI loaded: nothing to tell, no error
+    ns.UI = { EventStatusChanged = function() calls = calls + 1 end }
+    fire_event(ns.addon, "AREA_POIS_UPDATED")
+    fire_event(ns.addon, "CONTRIBUTION_COLLECTOR_UPDATE")
+    eq(calls, 2)
+    eq(refreshes, 0, "no full refresh: the checklist redraws itself, throttled")
   end)
 
   it("BOSS_KILL and ENCOUNTER_END request fresh lockouts", function()
