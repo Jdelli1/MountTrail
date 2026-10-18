@@ -16,6 +16,7 @@ Data\Holidays.lua
 Logic\Resets.lua
 Logic\Lockouts.lua
 Logic\Route.lua
+Logic\Checklist.lua
 Logic\Journal.lua
 Logic\Zone.lua
 Logic\Attempts.lua
