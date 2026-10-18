@@ -10,7 +10,7 @@ local ADDON, ns = ...
 -- tick box in front of the icon, working like the route's (UI.RouteCheck /
 -- UI.RouteToggle on a one-boss route row, so the ticks are the route's own).
 -- Done entries disappear on their own (Checklist.Rows); the headers count them.
--- A lockout that drops several mounts (Chrono-Lord Deios) is one row named
+-- A lockout that drops several mounts (e.g. Malygos' two drakes) is one row named
 -- after its boss ("<instance> · <n> mounts", hover lists the mounts:
 -- UI.ChecklistGroupLines). UI/RouteView.lua owns the header and the Route ·
 -- Checklist switch and calls UI.ChecklistView.Build / Refresh.
@@ -329,6 +329,8 @@ function view.Refresh()
       row.desc = UI.ChecklistDescription(e, sourceText(e.id))
       row.tag = e.auto and L["auto"] or nil
       row.pin = UI.LocationIcon(e.id)
+      -- The click goes to this lockout's boss (its instance's entrance).
+      row.routeBoss = e.boss
       if e.grouped then
         -- One lockout, several mounts: the boss names the row and the
         -- tooltip lists what it can drop (UI.InitMountRow's hooks).

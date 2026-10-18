@@ -248,6 +248,34 @@ class BuildDataTests(unittest.TestCase):
         self.assertIsNone(ulduar["bosses"][1].get("note"))
         self.assertIs(root["steps"][2]["unavailable"], True)
 
+    def test_route_drops_quantum_courser_rows(self):
+        # Owner-confirmed bogus planner rows: Chrono-Lord Deios "from Quantum
+        # Courser item" (old dungeon mounts). They go, and a step left with no
+        # bosses goes with them (and a travel step left with no steps).
+        planner = {"steps": [{
+            "title": "Hearth",
+            "steps": [
+                {"title": "Flightpath to Dawn", "steps": [{
+                    "title": "Run Dawn of the Infinites (Dungeon)",
+                    "bosses": [
+                        {"ID": 69, "name": "Chrono-Lord Deios", "note": "Mythic only - from Quantum Courser item"},
+                        {"ID": 185, "name": "Chrono-Lord Deios", "note": "Mythic only - from quantum courser item"},
+                    ],
+                }]},
+                {"title": "Run Mixed (Dungeon)", "bosses": [
+                    {"ID": 1, "name": "Real", "note": "Mythic only"},
+                    {"ID": 2, "name": "Fake", "note": "from Quantum Courser item"},
+                ]},
+                {"title": "Take the portal"},
+            ],
+        }]}
+        route = build_data.build_route(planner)
+        hearth = route[0]
+        self.assertEqual([s["title"] for s in hearth["steps"]], ["Run Mixed (Dungeon)", "Take the portal"])
+        self.assertEqual([b["mount"] for b in hearth["steps"][0]["bosses"]], [1])
+        # A titled step that never had bosses (travel) is kept as before.
+        self.assertNotIn("bosses", hearth["steps"][1])
+
     def test_route_emit(self):
         text = build_data.emit_lua(route=self.route)
         self.assertIn("ns.Data.Route = {", text)

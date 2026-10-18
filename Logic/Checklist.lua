@@ -110,7 +110,7 @@ end
 -- does not name at all (boss nil). Holiday mounts only while their holiday is
 -- active. Owned mounts and mounts the gate excludes are left out.
 -- Members spending the same lockout (Checklist.LockoutKey: e.g. every
--- Chrono-Lord Deios row) are ONE entry: one kill, one state, one row.
+-- Vault of Archavon watcher's rows) are ONE entry: one kill, one state, one row.
 -- -> { daily = { entry }, weekly = { entry } }; entry = { id= (first member),
 -- m=, boss=, title= (route node), holiday= (key), key= (first member's tick
 -- key), spec=, reset=, state=, done=, auto= (done by the game), locked=,
@@ -118,8 +118,9 @@ end
 -- display names }, grouped= (#mounts > 1) }. A grouped entry's name is its
 -- boss (route boss, else the spec's boss, else the holiday's title, else the
 -- first mount's name). A spec without a reset files under daily (as hand
--- ticks default to daily). Sorted: not done first, then expansion order (of
--- the first member), then name (case-insensitive), id, route order.
+-- ticks default to daily). Sorted: not done first, then expansion order (the
+-- spec's `exp` when it has one, e.g. a per-boss spec, else the first
+-- member's), then name (case-insensitive), id, route order.
 function Checklist.Build(ctx)
   ctx = ctx or {}
   local mounts = ctx.mounts or {}
@@ -172,7 +173,7 @@ function Checklist.Build(ctx)
       auto = state == "done",
       locked = locked, lockedText = locked and req.text or nil,
       name = name, order = order,
-      expRank = rank[m.exp] or unknownRank,
+      expRank = rank[spec.exp] or rank[m.exp] or unknownRank,
       mounts = { id }, names = { name }, grouped = false,
     }
     list[#list + 1] = entry

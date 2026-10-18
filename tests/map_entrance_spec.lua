@@ -142,3 +142,64 @@ describe("Map.Resolve for a mount whose map is the instance itself", function()
     eq(api.log[#api.log], { "Print", "Waypoint: " .. place })
   end)
 end)
+
+-- A checklist / route row names the boss it is about: a mount whose own
+-- source is an old dungeon but whose row is a raid boss's per-boss spec
+-- (Data.BossLockouts) goes to that boss's instance entrance.
+describe("Map.Resolve / SetWaypoint / OpenMap with a route boss", function()
+  local RIVENDARE = { name = "Rivendare's Deathcharger", tab = "journal", section = "dungeon",
+    coords = { m = 317, x = 14, y = 7 } }
+  local MANUAL = { manual = true, reset = "daily", repeatable = true }
+  local HOARD = { instance = 2579, boss = "Grand Hoarder", difficulties = { 23 }, reset = "weekly" }
+  local WORLD = {
+    games = { [2579] = 1209 }, areas = { [236] = 317, [1209] = 2190 },
+    parents = { [317] = 23, [23] = 13, [2190] = 2025, [2025] = 1978 },
+    entrances = {
+      [23] = { { journalInstanceID = 236, name = "Stratholme", position = { x = 0.27, y = 0.11 } } },
+      [2025] = { { journalInstanceID = 1209, name = "Hoard Vault", position = { x = 0.61, y = 0.84 } } },
+    },
+    canSet = { [23] = true, [2025] = true },
+    names = { [317] = "Stratholme", [23] = "Eastern Plaguelands", [2025] = "Thaldraszus" },
+  }
+
+  local function load(mounts)
+    local Map, ns = loadMap(mounts or { [69] = RIVENDARE }, { [69] = MANUAL })
+    ns.Data.BossLockouts = { ["Grand Hoarder"] = HOARD }
+    ns.UI = { RouteBoss = function(id) return id == 69 and "Baron Rivendare" or nil end }
+    return Map, ns
+  end
+
+  it("without a route boss: the mount's own (first route row's) place, as before", function()
+    local Map = load()
+    eq(Map.Resolve(69, fakeApi(WORLD)), { map = 23, x = 27, y = 11, kind = "entrance" })
+  end)
+
+  it("the given route boss's spec wins: that instance's entrance", function()
+    local Map = load()
+    eq(Map.Resolve(69, fakeApi(WORLD), "Grand Hoarder"), { map = 2025, x = 61, y = 84, kind = "entrance" })
+    -- A boss without a per-boss spec changes nothing.
+    eq(Map.Resolve(69, fakeApi(WORLD), "Baron Rivendare"), { map = 23, x = 27, y = 11, kind = "entrance" })
+  end)
+
+  it("a mount without coords still finds the boss's entrance", function()
+    local Map = load({ [69] = { name = "No Coords" } })
+    eq(Map.Resolve(69, fakeApi(WORLD), "Grand Hoarder"), { map = 2025, x = 61, y = 84, kind = "entrance" })
+    eq(Map.Resolve(69, fakeApi(WORLD)), { kind = "none" })
+  end)
+
+  it("SetWaypoint pins the boss's entrance and names that instance", function()
+    local Map = load()
+    local api = fakeApi(WORLD)
+    local place, kind = Map.SetWaypoint(69, api, "Grand Hoarder")
+    eq(kind, "entrance")
+    eq(api.log[1], { "SetUserWaypoint", { m = 2025, x = 0.61, y = 0.84 } })
+    eq(place, "Instance 1209 (entrance)", "the journal's instance name, not Stratholme")
+    eq(api.log[#api.log], { "Print", "Waypoint: Instance 1209 (entrance)" })
+  end)
+
+  it("OpenMap opens the boss's entrance map", function()
+    local Map = load()
+    eq(Map.OpenMap(69, fakeApi(WORLD), "Grand Hoarder").map, 2025)
+    eq(Map.OpenMap(69, fakeApi(WORLD)).map, 23)
+  end)
+end)

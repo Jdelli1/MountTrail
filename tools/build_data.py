@@ -490,6 +490,26 @@ def _boss(b):
     return {k: v for k, v in out.items() if v is not None}
 
 
+# Planner boss rows known to be wrong (owner-confirmed in game): SimpleArmory
+# lists Chrono-Lord Deios (Dawn of the Infinites, Mythic) as dropping a
+# "Quantum Courser" item that teaches 16 old dungeon mounts; it does not.
+# Rows whose note mentions it are left out of Data/Route.lua.
+_BOGUS_BOSS_NOTES = ("quantum courser",)
+
+
+def _bogus_boss(b):
+    note = b.get("note")
+    if not isinstance(note, str):
+        return False
+    low = note.lower()
+    return any(s in low for s in _BOGUS_BOSS_NOTES)
+
+
+# A node emptied only by the exclusion above (it had bosses or steps, all
+# dropped): removed like an empty node, so no bossless "Run ..." step is left.
+_PRUNED = object()
+
+
 def _node(n):
     if not isinstance(n, dict):
         return None
@@ -499,13 +519,20 @@ def _node(n):
         if v is None or v is False or v == "":
             continue
         out[dst] = v
-    bosses = [_boss(b) for b in n.get("bosses") or [] if isinstance(b, dict)]
+    raw = [b for b in n.get("bosses") or [] if isinstance(b, dict)]
+    kept = [b for b in raw if not _bogus_boss(b)]
+    pruned = len(kept) < len(raw)
+    bosses = [_boss(b) for b in kept]
     bosses = [b for b in bosses if "mount" in b]
     if bosses:
         out["bosses"] = bosses
-    steps = [s for s in (_node(c) for c in n.get("steps") or []) if s]
+    children = [_node(c) for c in n.get("steps") or []]
+    pruned = pruned or any(c is _PRUNED for c in children)
+    steps = [s for s in children if s and s is not _PRUNED]
     if steps:
         out["steps"] = steps
+    if pruned and not bosses and not steps:
+        return _PRUNED
     if not out.get("title") and not bosses and not steps:
         return None
     return out
@@ -514,7 +541,7 @@ def _node(n):
 def build_route(planner):
     """SimpleArmory planner tree -> list of nodes with renamed keys."""
     steps = planner.get("steps", []) if isinstance(planner, dict) else planner
-    return [s for s in (_node(n) for n in steps) if s]
+    return [s for s in (_node(n) for n in steps) if s and s is not _PRUNED]
 
 
 # --- Lua emission ---------------------------------------------------------------------

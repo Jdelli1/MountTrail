@@ -208,24 +208,24 @@ describe("checklist tick boxes", function()
   end)
 end)
 
--- F10: a kill that can drop several mounts (Chrono-Lord Deios) is one
+-- F10: a kill that can drop several mounts (a synthetic "Grand Hoarder" boss) is one
 -- checklist entry: the boss as the name, "<instance> · <n> mounts" below,
 -- and a tooltip listing the mounts it can drop.
-local DEIOS = { instance = 2579, boss = "Chrono-Lord Deios", difficulties = { 23 }, reset = "weekly" }
+local HOARD = { instance = 2579, boss = "Grand Hoarder", difficulties = { 23 }, reset = "weekly" }
 
--- loadUI plus a Dawn of the Infinite node whose `n` rows (mounts 101..)
--- share Data.BossLockouts["Chrono-Lord Deios"].
-local function loadDeios(n, game)
+-- loadUI plus a Hoard Vault node whose `n` rows (mounts 101..)
+-- share Data.BossLockouts["Grand Hoarder"].
+local function loadHoard(n, game)
   local ns = loadUI(game)
   local mounts, bosses = {}, {}
   for id, m in pairs(MOUNTS) do mounts[id] = m end
   for i = 1, n do
     mounts[100 + i] = { name = "Legacy " .. i, exp = "Classic" }
-    bosses[i] = { mount = 100 + i, boss = "Chrono-Lord Deios" }
+    bosses[i] = { mount = 100 + i, boss = "Grand Hoarder" }
   end
-  local route = { { title = "Run Dawn of the Infinite (Dungeon)", bosses = bosses } }
+  local route = { { title = "Run Hoard Vault (Dungeon)", bosses = bosses } }
   for _, node in ipairs(ROUTE) do route[#route + 1] = node end
-  local boss = { ["Chrono-Lord Deios"] = DEIOS }
+  local boss = { ["Grand Hoarder"] = HOARD }
   for k, v in pairs(BOSS) do boss[k] = v end
   ns.Data.Mounts = mounts
   ns.Data.Route = route
@@ -233,9 +233,9 @@ local function loadDeios(n, game)
   return ns
 end
 
-local function deiosEntry(out)
+local function hoardEntry(out)
   for _, e in ipairs(out.weekly) do
-    if e.boss == "Chrono-Lord Deios" then return e end
+    if e.boss == "Grand Hoarder" then return e end
   end
   return nil
 end
@@ -247,23 +247,23 @@ local function texts(lines)
 end
 
 describe("checklist lockout groups", function()
-  it("one entry per lockout: the Deios rows are one weekly entry", function()
-    local ns = loadDeios(3)
+  it("one entry per lockout: the Hoarder rows are one weekly entry", function()
+    local ns = loadHoard(3)
     local out = ns.UI.ChecklistBuild(NOW)
-    local e = deiosEntry(out)
+    local e = hoardEntry(out)
     eq(e.mounts, { 101, 102, 103 })
     eq(e.id, 101)
-    eq(e.name, "Chrono-Lord Deios")
+    eq(e.name, "Grand Hoarder")
     eq(e.grouped, true)
-    eq(e.key, "101@Chrono-Lord Deios")
-    eq(keys(out.weekly), { "101@Chrono-Lord Deios", 12, "12@Koralon", 15 }, "one row, not three")
+    eq(e.key, "101@Grand Hoarder")
+    eq(keys(out.weekly), { "101@Grand Hoarder", 12, "12@Koralon", 15 }, "one row, not three")
   end)
 
   it("grey line: <instance> · <n> mounts; single-mount entries unchanged", function()
-    local ns = loadDeios(3)
+    local ns = loadHoard(3)
     local UI = ns.UI
     local out = UI.ChecklistBuild(NOW)
-    eq(UI.ChecklistDescription(deiosEntry(out)), "Dawn of the Infinite · 3 mounts")
+    eq(UI.ChecklistDescription(hoardEntry(out)), "Hoard Vault · 3 mounts")
     eq(UI.ChecklistDescription(out.weekly[3]), "Koralon · Vault of Archavon")
     -- No instance known: the usual description (the name line already is
     -- the boss), then the count.
@@ -274,18 +274,18 @@ describe("checklist lockout groups", function()
   end)
 
   it("UI.ChecklistGroupLines: boss, instance, Can drop: and the mounts, then the click hint", function()
-    local ns = loadDeios(3)
-    local lines = ns.UI.ChecklistGroupLines(deiosEntry(ns.UI.ChecklistBuild(NOW)))
+    local ns = loadHoard(3)
+    local lines = ns.UI.ChecklistGroupLines(hoardEntry(ns.UI.ChecklistBuild(NOW)))
     eq(texts(lines), {
-      "Chrono-Lord Deios", "Dawn of the Infinite", "Can drop:", "Legacy 1", "Legacy 2", "Legacy 3",
+      "Grand Hoarder", "Hoard Vault", "Can drop:", "Legacy 1", "Legacy 2", "Legacy 3",
       "Click: waypoint · Shift-click: map · Ctrl-click: preview",
     })
     eq({ lines[4].r, lines[4].g, lines[4].b }, { 1, 1, 1 }, "mount names in white")
   end)
 
   it("UI.ChecklistGroupLines: at most 15 mounts, then +N more", function()
-    local ns = loadDeios(18)
-    local lines = texts(ns.UI.ChecklistGroupLines(deiosEntry(ns.UI.ChecklistBuild(NOW))))
+    local ns = loadHoard(18)
+    local lines = texts(ns.UI.ChecklistGroupLines(hoardEntry(ns.UI.ChecklistBuild(NOW))))
     eq(lines[3], "Can drop:")
     eq(lines[4], "Legacy 1")
     eq(lines[18], "Legacy 15")
@@ -294,7 +294,7 @@ describe("checklist lockout groups", function()
   end)
 
   it("UI.ShowChecklistGroupTooltip paints the lines on GameTooltip", function()
-    local ns = loadDeios(2)
+    local ns = loadHoard(2)
     local calls, tip = {}, {}
     function tip:SetOwner(owner, anchor) calls[#calls + 1] = { "SetOwner", anchor } end
     function tip:SetText(text) calls[#calls + 1] = { "SetText", text } end
@@ -302,11 +302,11 @@ describe("checklist lockout groups", function()
     function tip:Show() calls[#calls + 1] = { "Show" } end
     local old = GameTooltip
     GameTooltip = tip
-    ns.UI.ShowChecklistGroupTooltip({}, deiosEntry(ns.UI.ChecklistBuild(NOW)))
+    ns.UI.ShowChecklistGroupTooltip({}, hoardEntry(ns.UI.ChecklistBuild(NOW)))
     GameTooltip = old
     eq(calls[1], { "SetOwner", "ANCHOR_RIGHT" })
-    eq(calls[2], { "SetText", "Chrono-Lord Deios" })
-    eq(calls[3], { "AddLine", "Dawn of the Infinite" })
+    eq(calls[2], { "SetText", "Grand Hoarder" })
+    eq(calls[3], { "AddLine", "Hoard Vault" })
     eq(calls[4], { "AddLine", "Can drop:" })
     eq(calls[#calls], { "Show" })
   end)

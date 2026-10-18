@@ -325,15 +325,15 @@ describe("ui route", function()
       local ns = loadUI(nil, {
         Route = {
           kill("Vortex Pinnacle", { { mount = 395, boss = "Altairus" } }),
-          kill("Dawn of the Infinites", { { mount = 395, boss = "Chrono-Lord Deios" } }),
+          kill("Hoard Vault", { { mount = 395, boss = "Grand Hoarder" } }),
         },
         Lockouts = { [395] = { manual = true, reset = "daily" } },
-        BossLockouts = { ["Chrono-Lord Deios"] = { manual = true, reset = "weekly" } },
+        BossLockouts = { ["Grand Hoarder"] = { manual = true, reset = "weekly" } },
       })
       local rows = ns.Route.Build(ns.Data.Route, ns.UI.RouteContext(NOW))
       ns.UI.RouteToggle(rows[2], ns.db.char.ticks, NOW, 100, 5000)
       local ctx = ns.UI.RouteContext(NOW)
-      eq(ctx.stateOf(395, "Chrono-Lord Deios"), "manual-done")
+      eq(ctx.stateOf(395, "Grand Hoarder"), "manual-done")
       eq(ctx.stateOf(395, "Altairus"), "manual-open")
       eq(ns.UI.RouteRemaining(NOW), 1)
     end)
@@ -382,6 +382,14 @@ describe("ui route", function()
       eq(t({ kind = "travel", bosses = {} }), nil)
       eq(t({ kind = "travel" }), nil)
       eq(t(nil), nil)
+    end)
+
+    it("also returns the target's route boss", function()
+      local ns = loadUI()
+      local t = ns.UI.RouteTargetMount
+      eq({ t({ kind = "kill", bosses = { { mount = 1, boss = "A", state = "done" }, { mount = 2, boss = "B" } } }) },
+        { 2, "B" })
+      eq({ t({ kind = "kill", bosses = { { mount = 1, boss = "A", state = "done" } } }) }, { 1, "A" })
     end)
   end)
 
@@ -505,7 +513,7 @@ describe("ui route", function()
         { mount = 286, boss = "Koralon", alliance = true },
         { mount = 286, boss = "Archavon" },
       }),
-      kill("Dawn of the Infinites", { { mount = 781, boss = "Chrono-Lord Deios" } }),
+      kill("Hoard Vault", { { mount = 781, boss = "Grand Hoarder" } }),
     }
 
     it("uses the first route boss's BossLockouts spec", function()
@@ -513,7 +521,7 @@ describe("ui route", function()
         SavedRows = function()
           return { { instance = 624, difficulty = 3, bosses = { { name = "Koralon the Flame Watcher", killed = true } } },
                    { instance = 624, difficulty = 4, bosses = { { name = "Koralon the Flame Watcher", killed = true } } },
-                   { instance = 2579, difficulty = 23, bosses = { { name = "Chrono-Lord Deios", killed = true } } } }
+                   { instance = 2579, difficulty = 23, bosses = { { name = "Grand Hoarder", killed = true } } } }
         end,
       }, {
         Route = route,
@@ -523,12 +531,12 @@ describe("ui route", function()
         },
         BossLockouts = {
           ["Koralon"] = { instance = 624, boss = "Koralon the Flame Watcher", difficulties = { 3, 4 }, reset = "weekly" },
-          ["Chrono-Lord Deios"] = { instance = 2579, boss = "Chrono-Lord Deios", difficulties = { 23 }, reset = "weekly" },
+          ["Grand Hoarder"] = { instance = 2579, boss = "Grand Hoarder", difficulties = { 23 }, reset = "weekly" },
         },
       })
       eq(ns.UI.RouteBoss(286), "Koralon")
       eq(ns.UI.LockoutStatus(286), "saved", "Koralon spec, not Archavon's")
-      eq(ns.UI.LockoutStatus(781), "saved", "Deios spec instead of manual")
+      eq(ns.UI.LockoutStatus(781), "saved", "Hoarder spec instead of manual")
     end)
   end)
 end)

@@ -112,7 +112,6 @@ ns.Data.Lockouts = {
 
   -- Dragonflight -------------------------------------------------------------
   -- Infinite Timereaver drops from any Timewalking boss (no lockout); "daily" is a pacing choice.
-  -- Its Dawn of the Infinites route row uses BossLockouts["Chrono-Lord Deios"].
   [781]  = { manual = true, reset = "daily", repeatable = true }, -- Infinite Timereaver: any Timewalking dungeon boss, no lockout (repeatable)
   [1818] = { instance = 2549, boss = "Fyrakk the Blazing", difficulties = { 16 }, reset = "weekly" }, -- Anu'relos, Mythic only (Rarity: "Fyrakk") -- verify in game
 
@@ -149,11 +148,8 @@ ns.Data.Lockouts = {
 -- Data/Route.lua bosses[].boss -> spec, for rows whose mount's own spec above
 -- describes a different source. Each name must belong to a single route node.
 ns.Data.BossLockouts = {
-  -- Dawn of the Infinites, Mythic: Chrono-Lord Deios can drop a Quantum Courser
-  -- item that teaches an older dungeon mount (all rows of that node).
-  ["Chrono-Lord Deios"] = { instance = 2579, boss = "Chrono-Lord Deios", difficulties = { 23 }, reset = "weekly" },
   -- Vault of Archavon: the other three watchers (Archavon is the mount spec itself).
-  ["Koralon"] = { instance = 624, boss = "Koralon the Flame Watcher", difficulties = { 3, 4 }, reset = "weekly" }, -- verify in game
-  ["Emalon"]  = { instance = 624, boss = "Emalon the Storm Watcher", difficulties = { 3, 4 }, reset = "weekly" }, -- verify in game
-  ["Toravon"] = { instance = 624, boss = "Toravon the Ice Watcher", difficulties = { 3, 4 }, reset = "weekly" }, -- verify in game
+  ["Koralon"] = { instance = 624, boss = "Koralon the Flame Watcher", difficulties = { 3, 4 }, reset = "weekly", exp = "Wrath of the Lich King" }, -- verify in game
+  ["Emalon"]  = { instance = 624, boss = "Emalon the Storm Watcher", difficulties = { 3, 4 }, reset = "weekly", exp = "Wrath of the Lich King" }, -- verify in game
+  ["Toravon"] = { instance = 624, boss = "Toravon the Ice Watcher", difficulties = { 3, 4 }, reset = "weekly", exp = "Wrath of the Lich King" }, -- verify in game
 }

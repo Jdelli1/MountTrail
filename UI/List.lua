@@ -48,8 +48,9 @@ ns.UI = UI
 -- Pure helpers -------------------------------------------------------------------
 
 -- mountID -> { boss=, title=, instance= (UI.InstanceName) } for the first route boss row of each mount
--- (depth-first, Data.Route order). Built once, on first use.
-local routeIndex
+-- (depth-first, Data.Route order); routeBossIndex: route boss name -> the
+-- instance name of its first route step. Built once, on first use.
+local routeIndex, routeBossIndex
 
 local function stripRun(title)
   if type(title) ~= "string" then return nil end
@@ -73,7 +74,7 @@ function UI.InstanceName(title)
 end
 
 local function buildRouteIndex()
-  local index = {}
+  local index, byBoss = {}, {}
   local function walk(nodes)
     if type(nodes) ~= "table" then return end
     for _, node in ipairs(nodes) do
@@ -83,18 +84,32 @@ local function buildRouteIndex()
             index[boss.mount] = { boss = boss.boss, title = stripRun(node.title),
               instance = UI.InstanceName(node.title) }
           end
+          if type(boss) == "table" and boss.boss and not byBoss[boss.boss] then
+            byBoss[boss.boss] = UI.InstanceName(node.title)
+          end
         end
         walk(node.steps)
       end
     end
   end
   walk(ns.Data and ns.Data.Route)
-  return index
+  return index, byBoss
+end
+
+local function ensureRouteIndex()
+  if not routeIndex then routeIndex, routeBossIndex = buildRouteIndex() end
 end
 
 local function routeEntry(mountID)
-  routeIndex = routeIndex or buildRouteIndex()
+  ensureRouteIndex()
   return routeIndex[mountID]
+end
+
+-- Instance name (UI.InstanceName) of a route boss's first route step, or nil.
+function UI.RouteBossInstance(boss)
+  if boss == nil then return nil end
+  ensureRouteIndex()
+  return routeBossIndex[boss]
 end
 
 -- The mount's first route row (Data.Route order): { boss=, title= (step
@@ -805,15 +820,16 @@ local function trace(fmt, ...)
 end
 UI.DebugTrace = trace
 
--- Calls ns.Map[method](mountID); an error goes to Game.ReportError (/azt
--- debug) instead of breaking the click. Traced with /azt debug.
-local function mapAction(method, mountID)
+-- Calls ns.Map[method](mountID, nil, routeBoss); an error goes to
+-- Game.ReportError (/azt debug) instead of breaking the click. Traced with
+-- /azt debug.
+local function mapAction(method, mountID, routeBoss)
   local map = ns.Map
   if not (map and type(map[method]) == "function") then
     trace("%s missing", method)
     return
   end
-  local good, place, kind = pcall(map[method], mountID)
+  local good, place, kind = pcall(map[method], mountID, nil, routeBoss)
   if not good then
     trace("%s(%s) failed: %s", method, tostring(mountID), tostring(place))
     if ns.Game and ns.Game.ReportError then ns.Game.ReportError(place) end
@@ -823,8 +839,10 @@ local function mapAction(method, mountID)
 end
 
 -- OnClick of a mount row (lists and Route): reads the modifier keys and
--- runs UI.RowClickAction's action for `mountID`.
-function UI.HandleRowClick(mountID, button)
+-- runs UI.RowClickAction's action for `mountID`. `routeBoss` (optional): the
+-- route / checklist row's boss, so the waypoint and map go to that boss's
+-- instance (Map.SetWaypoint / Map.OpenMap) rather than the mount's own place.
+function UI.HandleRowClick(mountID, button, routeBoss)
   if not mountID then
     trace("click %s on a row with no mount", tostring(button))
     return
@@ -834,9 +852,9 @@ function UI.HandleRowClick(mountID, button)
   local action = UI.RowClickAction(button, ctrl, shift)
   trace("click %s on mount %s -> %s", tostring(button), tostring(mountID), tostring(action))
   if action == "waypoint" then
-    mapAction("SetWaypoint", mountID)
+    mapAction("SetWaypoint", mountID, routeBoss)
   elseif action == "map" then
-    mapAction("OpenMap", mountID)
+    mapAction("OpenMap", mountID, routeBoss)
   elseif action == "preview" then
     UI.PreviewMount(mountID)
   elseif action == "achievement" then
@@ -1094,7 +1112,7 @@ local function setupRow(row)
   row:SetScript("OnClick", function(self, button)
     -- Left-click waypoint, Shift+left-click world map, Ctrl+left-click
     -- preview, Shift+right-click achievement (UI.RowClickAction).
-    UI.HandleRowClick(self.mountID, button)
+    UI.HandleRowClick(self.mountID, button, self.routeBoss)
   end)
 end
 
@@ -1102,6 +1120,7 @@ local function initRow(row, data)
   if not row.Icon then setupRow(row) end
   row.mountID = data.id
   row.tooltip = data.tooltip
+  row.routeBoss = data.routeBoss
   -- Under a sub-header the icon lines up with the sub-header's indicator.
   row.Icon:SetPoint("LEFT", row, "LEFT", data.depth == 2 and SUB_INDENT or ROW_ICON_LEFT, 0)
   local name = data.name or ns.Game.MountInfo(data.id)
@@ -1129,7 +1148,8 @@ end
 -- ScrollBox element initializer for "Button" frames. data: { id=, m=,
 -- owned=, depth= (2: indented), desc= (UI.RowDescription), tag=, alt=
 -- (striped), pin= (UI.HasLocation), name= (overrides the mount's name),
--- tooltip= (function(row) shown on hover instead of the mount tooltip) }.
+-- tooltip= (function(row) shown on hover instead of the mount tooltip),
+-- routeBoss= (the row's route boss, passed to the click: UI.HandleRowClick) }.
 -- Rows are UI.MOUNT_ROW_HEIGHT tall.
 UI.InitMountRow = initRow
 UI.MOUNT_ROW_HEIGHT = ROW_HEIGHT

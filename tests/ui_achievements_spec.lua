@@ -135,8 +135,8 @@ describe("ui achievements", function()
       local ns = loadUI(function() return nil, "none" end)
       local got = {}
       ns.Map = {
-        SetWaypoint = function(id) got[#got + 1] = { "waypoint", id } end,
-        OpenMap = function(id) got[#got + 1] = { "map", id } end,
+        SetWaypoint = function(id, api, boss) got[#got + 1] = { "waypoint", id, boss } end,
+        OpenMap = function(id, api, boss) got[#got + 1] = { "map", id, boss } end,
       }
       local shift = false
       IsControlKeyDown = function() return false end
@@ -147,6 +147,13 @@ describe("ui achievements", function()
       shift = false
       ns.UI.HandleRowClick(264, "RightButton")
       eq(got, { { "waypoint", 262 }, { "map", 263 } })
+      -- A row about a route boss passes it on (Map: that boss's instance).
+      ns.UI.HandleRowClick(262, "LeftButton", "Koralon")
+      shift = true
+      ns.UI.HandleRowClick(263, "LeftButton", "Koralon")
+      shift = false
+      eq(got[3], { "waypoint", 262, "Koralon" })
+      eq(got[4], { "map", 263, "Koralon" })
       ns.Map = nil
       ns.UI.HandleRowClick(262, "LeftButton") -- no Map module: must not error
       ns.Map = { SetWaypoint = function() error("boom") end }

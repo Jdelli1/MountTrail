@@ -14,7 +14,7 @@ describe("data", function()
   -- Spec shape check shared by Lockouts (keyed by mountID) and BossLockouts
   -- (keyed by route boss name). difficulties entries (R9): a number, or a
   -- non-empty table of numbers = one lockout group satisfied by any of its IDs.
-  local function checkSpec(id, s, fail)
+  local function checkSpec(id, s, fail, expansions)
     if type(s) ~= "table" then fail(id, "spec not a table") return end
     local kinds = 0
     if s.instance ~= nil then kinds = kinds + 1 end
@@ -46,6 +46,12 @@ describe("data", function()
     if s.quest ~= nil and type(s.quest) ~= "number" then fail(id, "quest not a number") end
     if s.lfg ~= nil and type(s.lfg) ~= "number" then fail(id, "lfg not a number") end
     if s.manual ~= nil and s.manual ~= true then fail(id, "manual must be true") end
+    -- exp (checklist sort order): a Data.Expansions name.
+    if s.exp ~= nil then
+      local known = false
+      for _, e in ipairs(expansions or {}) do if e == s.exp then known = true end end
+      if not known then fail(id, "exp " .. tostring(s.exp) .. " is not a Data.Expansions name") end
+    end
     if s.requires ~= nil then
       if type(s.requires) ~= "table" or type(s.requires.quest) ~= "number"
         or type(s.requires.text) ~= "string" or s.requires.text == "" then
@@ -68,7 +74,7 @@ describe("data", function()
     for id, s in pairs(ns.Data.Lockouts) do
       if type(id) ~= "number" then fail(id, "key not a number") end
       if not ns.Data.Mounts[id] then fail(id, "unknown mount") end
-      checkSpec(id, s, fail)
+      checkSpec(id, s, fail, ns.Data.Expansions)
     end
     table.sort(bad)
     eq(bad, {})
@@ -84,6 +90,11 @@ describe("data", function()
     checkSpec("empty", { instance = 1, boss = "B", difficulties = { {} }, reset = "weekly" }, fail)
     checkSpec("str", { instance = 1, boss = "B", difficulties = { { "3" } }, reset = "weekly" }, fail)
     eq(bad, { "empty: empty difficulty group", "str: difficulty in group not a number" })
+    bad = {}
+    checkSpec("exp", { manual = true, reset = "weekly", exp = "Classic" }, fail, { "Classic" })
+    eq(bad, {})
+    checkSpec("badexp", { manual = true, reset = "weekly", exp = "Classik" }, fail, { "Classic" })
+    eq(bad, { "badexp: exp Classik is not a Data.Expansions name" })
   end)
 
   it("no instance spec tracks LFR (R10)", function()
@@ -135,13 +146,27 @@ describe("data", function()
         for _ in pairs(nodes) do count = count + 1 end
         if count ~= 1 then fail(name, "boss name used by " .. count .. " route nodes") end
       end
-      checkSpec(name, s, fail)
+      checkSpec(name, s, fail, ns.Data.Expansions)
     end
     table.sort(bad)
     eq(bad, {})
-    for _, name in ipairs({ "Chrono-Lord Deios", "Koralon", "Emalon", "Toravon" }) do
+    for _, name in ipairs({ "Koralon", "Emalon", "Toravon" }) do
       ok(ns.Data.BossLockouts[name], "BossLockouts has " .. name)
+      eq(ns.Data.BossLockouts[name].exp, "Wrath of the Lich King", name .. " sorts under Wrath")
     end
+    -- The Quantum Courser rows (bogus planner data) are gone with their spec.
+    eq(ns.Data.BossLockouts["Chrono-Lord Deios"], nil)
+    local bogus = {}
+    local function walkNotes(node)
+      for _, b in ipairs(node.bosses or {}) do
+        if type(b.note) == "string" and b.note:lower():find("quantum courser", 1, true) then
+          bogus[#bogus + 1] = b.mount
+        end
+      end
+      for _, c in ipairs(node.steps or {}) do walkNotes(c) end
+    end
+    for _, n in ipairs(ns.Data.Route) do walkNotes(n) end
+    eq(bogus, {}, "no Quantum Courser route rows")
   end)
 
   it("defines the three holiday-boss events with their LFG dungeons", function()

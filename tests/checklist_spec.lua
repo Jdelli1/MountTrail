@@ -354,7 +354,7 @@ describe("Checklist.Rows", function()
 end)
 
 -- F10: one entry per lockout. Mounts sharing one lockout (a per-boss spec
--- such as Chrono-Lord Deios, an identical instance spec, one quest / LFG
+-- such as a synthetic "Grand Hoarder" row set, an identical instance spec, one quest / LFG
 -- flag) become a single entry listing its mounts; manual specs never group.
 describe("Checklist.Build lockout groups", function()
   local GROUP_MOUNTS = {
@@ -385,15 +385,15 @@ describe("Checklist.Build lockout groups", function()
     [62] = { quest = 900, reset = "weekly" },
   }
   local GROUP_BOSS = {
-    Deios = { instance = 2579, boss = "Chrono-Lord Deios", difficulties = { 23 }, reset = "weekly" },
+    Hoarder = { instance = 2579, boss = "Grand Hoarder", difficulties = { 23 }, reset = "weekly" },
   }
   local GROUP_TREE = {
     {
-      title = "Run Dawn of the Infinite (Dungeon)",
+      title = "Run Hoard Vault (Dungeon)",
       bosses = {
-        { mount = 51, boss = "Deios" },
-        { mount = 52, boss = "Deios" },
-        { mount = 53, boss = "Deios", horde = true },
+        { mount = 51, boss = "Hoarder" },
+        { mount = 52, boss = "Hoarder" },
+        { mount = 53, boss = "Hoarder", horde = true },
       },
     },
     { title = "Run Dragon Soul (Raid)", bosses = {
@@ -433,17 +433,17 @@ describe("Checklist.Build lockout groups", function()
 
   it("a per-boss spec shared by several route rows is one entry listing its mounts", function()
     local out = load().Build(groupCtx())
-    local deios = find(out.weekly, function(e) return e.boss == "Deios" end)
-    ok(deios, "Deios listed")
-    eq(deios.id, 51, "the first mount (icon / click / waypoint)")
-    eq(deios.mounts, { 51, 52 }, "the Horde-only row stays out for an Alliance character")
-    eq(deios.names, { "Deathcharger", "Bronze Drake" })
-    eq(deios.key, "51@Deios", "the first member's tick key")
-    eq(deios.grouped, true)
-    eq(deios.name, "Deios", "named after the boss")
-    eq(deios.title, "Run Dawn of the Infinite (Dungeon)")
+    local hoard = find(out.weekly, function(e) return e.boss == "Hoarder" end)
+    ok(hoard, "Hoarder listed")
+    eq(hoard.id, 51, "the first mount (icon / click / waypoint)")
+    eq(hoard.mounts, { 51, 52 }, "the Horde-only row stays out for an Alliance character")
+    eq(hoard.names, { "Deathcharger", "Bronze Drake" })
+    eq(hoard.key, "51@Hoarder", "the first member's tick key")
+    eq(hoard.grouped, true)
+    eq(hoard.name, "Hoarder", "named after the boss")
+    eq(hoard.title, "Run Hoard Vault (Dungeon)")
     local n = 0
-    for _, e in ipairs(out.weekly) do if e.boss == "Deios" then n = n + 1 end end
+    for _, e in ipairs(out.weekly) do if e.boss == "Hoarder" then n = n + 1 end end
     eq(n, 1, "one row per lockout")
   end)
 
@@ -452,7 +452,7 @@ describe("Checklist.Build lockout groups", function()
     local rows = C.Rows(C.Build(groupCtx()))
     local weekly
     for _, r in ipairs(rows) do if r.key == "checklist|weekly" then weekly = r end end
-    -- Deios, Deathwing (54 + 55), Ultraxion, Rare One + Two, Hand A, Hand B.
+    -- Hoarder, Deathwing (54 + 55), Ultraxion, Rare One + Two, Hand A, Hand B.
     eq(weekly.total, 6)
   end)
 
@@ -483,12 +483,12 @@ describe("Checklist.Build lockout groups", function()
 
   it("owned members drop out of the list; the next one leads", function()
     local out = load().Build(groupCtx({ gate = function(id) return id == 51 end }))
-    local deios = find(out.weekly, function(e) return e.boss == "Deios" end)
-    eq(deios.id, 52)
-    eq(deios.mounts, { 52 })
-    eq(deios.grouped, false, "one mount left: a plain entry")
-    eq(deios.name, "Bronze Drake")
-    eq(deios.key, "52@Deios")
+    local hoard = find(out.weekly, function(e) return e.boss == "Hoarder" end)
+    eq(hoard.id, 52)
+    eq(hoard.mounts, { 52 })
+    eq(hoard.grouped, false, "one mount left: a plain entry")
+    eq(hoard.name, "Bronze Drake")
+    eq(hoard.key, "52@Hoarder")
   end)
 
   it("all members owned or gated: the entry is gone", function()
@@ -497,34 +497,53 @@ describe("Checklist.Build lockout groups", function()
       if id == 52 then return nil end
       return false
     end }))
-    eq(find(out.weekly, function(e) return e.boss == "Deios" end), nil)
+    eq(find(out.weekly, function(e) return e.boss == "Hoarder" end), nil)
   end)
 
   it("the faction rule applies per member", function()
     local out = load().Build(groupCtx({ faction = "Horde" }))
-    local deios = find(out.weekly, function(e) return e.boss == "Deios" end)
-    eq(deios.mounts, { 51, 52, 53 })
+    local hoard = find(out.weekly, function(e) return e.boss == "Hoarder" end)
+    eq(hoard.mounts, { 51, 52, 53 })
   end)
 
   it("one lockout, one state: the first member's", function()
     local out = load().Build(groupCtx({ stateOf = function(id) return id == 51 and "done" or "open" end }))
-    local deios = find(out.weekly, function(e) return e.boss == "Deios" end)
-    eq(deios.done, true)
-    eq(deios.auto, true)
+    local hoard = find(out.weekly, function(e) return e.boss == "Hoarder" end)
+    eq(hoard.done, true)
+    eq(hoard.auto, true)
+  end)
+
+  it("a spec's exp sorts the entry before the members' own expansion", function()
+    local boss = { Hoarder = { instance = 2579, boss = "Grand Hoarder", difficulties = { 23 }, reset = "weekly",
+      exp = "Cataclysm" } }
+    local out = load().Build(groupCtx({
+      bossLockouts = boss,
+      specFor = function(id, b)
+        if b and boss[b] then return boss[b] end
+        return GROUP_SPECS[id]
+      end,
+    }))
+    local hoard = find(out.weekly, function(e) return e.boss == "Hoarder" end)
+    eq(hoard.expRank, 3, "Cataclysm (spec), not Classic (first member)")
+    -- Hand A / Hand B are Classic manual rows: they now come first.
+    eq(out.weekly[1].id, 59)
+    eq(out.weekly[2].id, 60)
+    local ul = find(out.weekly, function(e) return e.id == 56 end)
+    eq(ul.expRank, 3, "no spec exp: the mount's")
   end)
 
   it("without bossLockouts the per-boss spec groups by its signature", function()
     local out = load().Build(groupCtx({ bossLockouts = false }))
-    local deios = find(out.weekly, function(e) return e.boss == "Deios" end)
-    eq(deios.mounts, { 51, 52 })
+    local hoard = find(out.weekly, function(e) return e.boss == "Hoarder" end)
+    eq(hoard.mounts, { 51, 52 })
   end)
 end)
 
 describe("Checklist.LockoutKey", function()
   it("names one lockout: per-boss spec, instance signature, quest, LFG; manual -> nil", function()
     local K = load().LockoutKey
-    local boss = { Deios = { instance = 1, boss = "D", difficulties = { 23 }, reset = "weekly" } }
-    eq(K(boss.Deios, "Deios", boss), "boss:Deios")
+    local boss = { Hoarder = { instance = 1, boss = "D", difficulties = { 23 }, reset = "weekly" } }
+    eq(K(boss.Hoarder, "Hoarder", boss), "boss:Hoarder")
     local a = { instance = 967, boss = "X", difficulties = { { 3, 4 }, 5 }, reset = "weekly" }
     local b = { instance = 967, boss = "X", difficulties = { { 3, 4 }, 5 }, reset = "weekly" }
     local c = { instance = 967, boss = "X", difficulties = { { 3, 4 } }, reset = "weekly" }

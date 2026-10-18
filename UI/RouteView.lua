@@ -76,8 +76,8 @@ end
 
 -- Key of a route boss's hand tick in ns.db.char.ticks: the mountID, or
 -- "<mountID>@<routeBoss>" when a per-boss spec (Data.BossLockouts) governs
--- the row, so ticking e.g. the Dawn of the Infinites row does not also tick
--- the same mounts' own dungeon rows.
+-- the row, so ticking e.g. a Koralon row does not also tick the same
+-- mount's own (Archavon) row.
 function UI.RouteTickKey(mountID, routeBoss)
   local per = ns.Data and ns.Data.BossLockouts
   if routeBoss and per and per[routeBoss] then
@@ -195,14 +195,15 @@ end
 
 -- The mount a route row's clicks, pin and tooltip are about: the first boss
 -- not done by the game or by hand (as the route arrow targets), else the
--- first boss; nil for rows without bosses.
+-- first boss; nil for rows without bosses. Second return: that boss's name
+-- (for the click: its instance's entrance, Map.SetWaypoint's routeBoss).
 function UI.RouteTargetMount(row)
   local bosses = type(row) == "table" and row.bosses or nil
   if not (type(bosses) == "table" and bosses[1]) then return nil end
   for _, b in ipairs(bosses) do
-    if b.state ~= "done" and b.state ~= "manual-done" then return b.mount end
+    if b.state ~= "done" and b.state ~= "manual-done" then return b.mount, b.boss end
   end
-  return bosses[1].mount
+  return bosses[1].mount, bosses[1].boss
 end
 
 local function mountName(mountID)
@@ -338,7 +339,8 @@ local function setupRow(frame)
     -- As on the mount lists (UI.RowClickAction): left-click waypoint,
     -- Shift+left-click world map, Ctrl+left-click preview,
     -- Shift+right-click achievement.
-    UI.HandleRowClick(UI.RouteTargetMount(self.data), button)
+    local id, boss = UI.RouteTargetMount(self.data)
+    UI.HandleRowClick(id, button, boss)
   end)
 end
 

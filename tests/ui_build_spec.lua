@@ -468,7 +468,7 @@ describe("ui build", function()
     ns.Map.Resolve = function() error("Resolve must not run on refresh") end
     ns.Map.HasLocation = function() return true end
     local got = {}
-    ns.UI.HandleRowClick = function(id, button) got[#got + 1] = { id, button } end
+    ns.UI.HandleRowClick = function(id, button, boss) got[#got + 1] = { id, button, boss } end
     ns.ToggleWindow()
     ns.UI.SelectTab("route")
     local root = content(ns, "route").children[2]
@@ -489,11 +489,12 @@ describe("ui build", function()
     end
     ok(kills > 0, "kill rows rendered")
     -- A row whose first boss is done targets the next one.
-    local data = { kind = "kill", title = "Run X", bosses = { { mount = 11, state = "done" }, { mount = 22, state = "open" } } }
+    local data = { kind = "kill", title = "Run X", bosses = { { mount = 11, boss = "One", state = "done" },
+      { mount = 22, boss = "Two", state = "open" } } }
     local f = frames[1]
     box.view.factory(function(_, init) init(f, data) end, data)
     f:RunScript("OnClick", "LeftButton")
-    eq(got[#got], { 22, "LeftButton" })
+    eq(got[#got], { 22, "LeftButton", "Two" }, "the target boss rides along (its instance's entrance)")
   end)
 
   -- Mount rows under each section header of a provider -> { [key] = n }.
@@ -976,6 +977,18 @@ describe("ui build", function()
 
   it("Checklist: a lockout that drops several mounts is one row with the group tooltip", function()
     local ns = loadUI()
+    -- A synthetic boss whose per-boss spec three route rows share.
+    for _, id in ipairs({ 900001, 900002, 900004 }) do
+      ns.Data.Mounts[id] = { name = "Hoard " .. id, exp = "Classic" }
+    end
+    table.insert(ns.Data.Route, 1, { title = "Run Hoard Vault (Raid)", bosses = {
+      { mount = 900001, boss = "Grand Hoarder" }, { mount = 900002, boss = "Grand Hoarder" },
+      { mount = 900004, boss = "Grand Hoarder" },
+    } })
+    ns.Data.BossLockouts["Grand Hoarder"] = { instance = 99999, boss = "Grand Hoarder", difficulties = { 16 },
+      reset = "weekly", exp = "Dragonflight" }
+    local got = {}
+    ns.UI.HandleRowClick = function(id, button, boss) got[#got + 1] = { id, button, boss } end
     ns.db.char.routeView = "checklist"
     ns.ToggleWindow()
     ns.UI.SelectTab("route")
@@ -985,15 +998,18 @@ describe("ui build", function()
     local frames = render(box)
     local n, at = 0, nil
     for i, r in ipairs(rows) do
-      if r.entry and r.entry.boss == "Chrono-Lord Deios" then n = n + 1; at = i end
+      if r.entry and r.entry.boss == "Grand Hoarder" then n = n + 1; at = i end
     end
-    eq(n, 1, "Chrono-Lord Deios: one row")
+    eq(n, 1, "Grand Hoarder: one row")
     local f, row = frames[at], rows[at]
     local e = row.entry
-    ok(#e.mounts > 1, "several mounts on the real data")
-    eq(f.Name:GetText(), "Chrono-Lord Deios", "named after the boss")
-    eq(f.Source:GetText(), "Dawn of the Infinites \194\183 " .. #e.mounts .. " mounts")
+    eq(e.mounts, { 900001, 900002, 900004 })
+    eq(e.expRank, 10, "sorted by the spec's expansion (Dragonflight), not the first mount's")
+    eq(f.Name:GetText(), "Grand Hoarder", "named after the boss")
+    eq(f.Source:GetText(), "Hoard Vault \194\183 3 mounts")
     eq(f.mountID, e.id, "click / waypoint on the first mount")
+    f:RunScript("OnClick", "LeftButton")
+    eq(got[#got], { 900001, "LeftButton", "Grand Hoarder" }, "the click names the boss (its instance's entrance)")
 
     local lines, tip = {}, {}
     function tip:SetOwner() end
@@ -1007,7 +1023,7 @@ describe("ui build", function()
     GameTooltip = tip
     f:RunScript("OnEnter")
     f:RunScript("OnLeave")
-    eq(lines[1], "Chrono-Lord Deios")
+    eq(lines[1], "Grand Hoarder")
     eq(lines[3], "Can drop:")
 
     -- A plain row of the same list keeps the mount tooltip.

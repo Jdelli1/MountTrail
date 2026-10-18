@@ -653,33 +653,6 @@ ns.Data.Route = {
         notes = "Set Hearthstone to Faction Capital",
         steps = {
           {
-            title = "Flightpath to Dawn of the Infinites",
-            steps = {
-              {
-                title = "Run Dawn of the Infinites (Dungeon)",
-                type = "Raid",
-                bosses = {
-                  { mount = 69, boss = "Chrono-Lord Deios", note = "Mythic only - from Quantum Courser item" },
-                  { mount = 185, boss = "Chrono-Lord Deios", note = "Mythic only - from Quantum Courser item" },
-                  { mount = 213, boss = "Chrono-Lord Deios", note = "Mythic only - from Quantum Courser item" },
-                  { mount = 264, boss = "Chrono-Lord Deios", note = "Mythic only - from Quantum Courser item" },
-                  { mount = 395, boss = "Chrono-Lord Deios", note = "Mythic only - from Quantum Courser item" },
-                  { mount = 397, boss = "Chrono-Lord Deios", note = "Mythic only - from Quantum Courser item" },
-                  { mount = 410, boss = "Chrono-Lord Deios", note = "Mythic only - from Quantum Courser item" },
-                  { mount = 411, boss = "Chrono-Lord Deios", note = "Mythic only - from Quantum Courser item" },
-                  { mount = 781, boss = "Chrono-Lord Deios", note = "Mythic only - from Quantum Courser item" },
-                  { mount = 875, boss = "Chrono-Lord Deios", note = "Mythic only - from Quantum Courser item" },
-                  { mount = 995, boss = "Chrono-Lord Deios", note = "Mythic only - from Quantum Courser item" },
-                  { mount = 1040, boss = "Chrono-Lord Deios", note = "Mythic only - from Quantum Courser item" },
-                  { mount = 1053, boss = "Chrono-Lord Deios", note = "Mythic only - from Quantum Courser item" },
-                  { mount = 1252, boss = "Chrono-Lord Deios", note = "Mythic only - from Quantum Courser item" },
-                  { mount = 1406, boss = "Chrono-Lord Deios", note = "Mythic only - from Quantum Courser item" },
-                  { mount = 1481, boss = "Chrono-Lord Deios", note = "Mythic only - from Quantum Courser item" },
-                },
-              },
-            },
-          },
-          {
             title = "Take the portal to the Emerald Dream in the Emerald Enclave",
             steps = {
               {

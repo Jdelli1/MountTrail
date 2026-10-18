@@ -221,14 +221,15 @@ end
 
 -- The game instance ID (a game map ID, as GetSavedInstanceInfo reports it) of
 -- a raid / dungeon mount, from its lockout spec: the route boss's per-boss
--- spec first (UI.RouteBoss, looked up at call time), else the mount's own.
--- nil for mounts without an instance spec.
-local function instanceOf(mountID)
+-- spec first (`routeBoss` when the clicked row names one, else UI.RouteBoss,
+-- looked up at call time), else the mount's own. nil for mounts without an
+-- instance spec.
+local function instanceOf(mountID, routeBoss)
   local lockouts = ns.Lockouts
   if not (lockouts and type(lockouts.SpecFor) == "function") then return nil end
+  local boss = routeBoss
   local ui = ns.UI
-  local boss
-  if ui and type(ui.RouteBoss) == "function" then
+  if boss == nil and ui and type(ui.RouteBoss) == "function" then
     local good, b = guarded(ui.RouteBoss, mountID)
     if good then boss = b end
   end
@@ -237,13 +238,21 @@ local function instanceOf(mountID)
   return nil
 end
 
+-- Whether a per-boss spec (Data.BossLockouts) governs `routeBoss`: then the
+-- boss, not the mount's own source, decides where a click goes.
+local function bossSpec(routeBoss)
+  local per = routeBoss and ns.Data and ns.Data.BossLockouts
+  local spec = per and per[routeBoss]
+  return type(spec) == "table" and type(spec.instance) == "number"
+end
+
 -- The entrance of a raid / dungeon mount's instance, from its lockout spec:
 -- GetInstanceForGameMap(game instance ID) -> journal instance, whose own map
 -- (EJ_GetInstanceInfo, 7th return) is walked up to the zone listing the
 -- entrance; the mount's coords map is tried too (a zone map may list the
 -- entrance itself). -> mapID, x, y (0-1) or nil.
-local function instanceEntrance(api, mountID, coordsMap)
-  local game = instanceOf(mountID)
+local function instanceEntrance(api, mountID, coordsMap, routeBoss)
+  local game = instanceOf(mountID, routeBoss)
   if not game then return nil end
   local jid = try(api.C_EncounterJournal, "GetInstanceForGameMap", game)
   if not jid or jid == 0 then return nil end
@@ -263,13 +272,22 @@ end
 --   "none"     no location known
 -- A raid / dungeon mount with an instance lockout spec always goes to its
 -- instance's entrance when the Encounter Journal knows it; its coords are
--- the fallback.
-function Map.Resolve(mountID, api)
+-- the fallback. `routeBoss` (optional): the route / checklist row's boss,
+-- whose per-boss spec (e.g. a Vault of Archavon watcher) picks the instance
+-- before the mount's first route row; with such a spec the entrance is
+-- found even for a mount without coords.
+function Map.Resolve(mountID, api, routeBoss)
   api = api or realApi()
   local coords = coordsFor(mountID)
-  if not coords then return { kind = "none" } end
+  if not coords then
+    if bossSpec(routeBoss) then
+      local em, ex0, ey0 = instanceEntrance(api, mountID, nil, routeBoss)
+      if em then return { map = em, x = ex0 * 100, y = ey0 * 100, kind = "entrance" } end
+    end
+    return { kind = "none" }
+  end
   local m, x, y = coords.m, coords.x, coords.y
-  local em, ex0, ey0 = instanceEntrance(api, mountID, m)
+  local em, ex0, ey0 = instanceEntrance(api, mountID, m, routeBoss)
   if em then return { map = em, x = ex0 * 100, y = ey0 * 100, kind = "entrance" } end
   local hasXY = type(x) == "number" and type(y) == "number"
   local canSet = try(api.C_Map, "CanSetUserWaypointOnMap", m) == true
@@ -377,7 +395,20 @@ end
 --            step), else the entrance's (parent) map name
 --   open     the map's name, else the source text's "Zone:"
 -- The mount's name when nothing else is known.
-local function placeLabel(api, mountID, target)
+local function placeLabel(api, mountID, target, routeBoss)
+  if target.kind == "entrance" and bossSpec(routeBoss) then
+    -- The boss's instance, not the mount's own source zone.
+    local game = instanceOf(mountID, routeBoss)
+    local jid = game and try(api.C_EncounterJournal, "GetInstanceForGameMap", game)
+    local name
+    if jid and jid ~= 0 and type(api.EJ_GetInstanceInfo) == "function" then
+      local good, n = guarded(api.EJ_GetInstanceInfo, jid)
+      if good then name = nonEmpty(n) end
+    end
+    name = name or (ns.UI and type(ns.UI.RouteBossInstance) == "function" and ns.UI.RouteBossInstance(routeBoss))
+      or mapName(api, target.map) or mountName(mountID)
+    return string.format(L["%s (entrance)"], name)
+  end
   if target.kind == "entrance" then
     local coords = coordsFor(mountID)
     local instance = sourceZone(mountID) or mapName(api, coords and coords.m) or routeInstance(mountID)
@@ -459,14 +490,14 @@ end
 -- <place>". Out of combat only: in combat chat says the map can't be opened.
 -- none: chat "No map location for <mount>".
 -- -> the place label (nil for none), the Map.Resolve kind.
-function Map.SetWaypoint(mountID, api)
+function Map.SetWaypoint(mountID, api, routeBoss)
   api = api or realApi()
-  local target = Map.Resolve(mountID, api)
+  local target = Map.Resolve(mountID, api, routeBoss)
   if target.kind == "none" then
     noLocation(api, mountID)
     return nil, "none"
   end
-  local place = placeLabel(api, mountID, target)
+  local place = placeLabel(api, mountID, target, routeBoss)
   if target.x and target.y then
     local mode = MODES[api.waypointMode] and api.waypointMode or Map.WaypointMode()
     local set, tomtom = false, false
@@ -503,9 +534,9 @@ end
 -- location (Map.Resolve's map) without setting a waypoint; in combat chat
 -- says the map can't be opened. none: chat "No map location for <mount>".
 -- -> the Map.Resolve result.
-function Map.OpenMap(mountID, api)
+function Map.OpenMap(mountID, api, routeBoss)
   api = api or realApi()
-  local target = Map.Resolve(mountID, api)
+  local target = Map.Resolve(mountID, api, routeBoss)
   if target.kind == "none" then
     noLocation(api, mountID)
     return target
