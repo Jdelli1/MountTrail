@@ -17,6 +17,7 @@ local MOUNTS = {
   [15] = { name = "Rare", exp = "Legion", quest = 500 },
   [16] = { name = "Kodo", exp = "Classic", tab = "holiday", section = "brewfest" },
   [17] = { name = "Old", exp = "Classic", unobtainable = true },
+  [18] = { name = "Garn Nighthowl", exp = "Wrath of the Lich King", group = "Rare Spawn" },
 }
 
 local ROUTE = {
@@ -45,6 +46,7 @@ local LOCKOUTS = {
   [14] = { manual = true, reset = "weekly" },
   [16] = { lfg = 287, reset = "daily" },
   [17] = { manual = true, reset = "weekly" },
+  [18] = { camp = true, zone = "Frostfire Ridge" },
 }
 local BOSS = {
   Koralon = { instance = 624, boss = "Koralon the Flame Watcher", difficulties = { 3 }, reset = "weekly" },
@@ -348,15 +350,18 @@ describe("checklist filter menu", function()
       kinds[#kinds + 1] = item.kind
       labels[#labels + 1] = item.label or "-"
     end
-    eq(kinds, { "checkbox", "checkbox", "checkbox", "checkbox", "checkbox", "checkbox", "divider", "button", "button" })
+    eq(kinds, { "checkbox", "checkbox", "checkbox", "checkbox", "checkbox", "checkbox", "checkbox", "divider",
+      "button", "button" })
     eq(labels, { "Show raids", "Show dungeons", "Show world bosses", "Show rares", "Show holidays", "Show other",
-      "-", "Check all", "Uncheck all" })
+      "Show rare spawns (no lockout)", "-", "Check all", "Uncheck all" })
     eq(items[1].key, "raids")
     eq(items[1].checked, true)
     eq(items[4].key, "rares")
     eq(items[4].checked, false)
-    eq(items[8].action, "checkAll")
-    eq(items[9].action, "uncheckAll")
+    eq(items[7].key, "camp")
+    eq(items[7].checked, true)
+    eq(items[9].action, "checkAll")
+    eq(items[10].action, "uncheckAll")
     eq(UI.ChecklistFilterItems(nil)[1].checked, true, "no store: all shown")
   end)
 
@@ -374,7 +379,8 @@ describe("checklist filter menu", function()
     local filters = {}
     eq(UI.ChecklistFiltersAreDefault(filters), true)
     UI.ApplyChecklistFilterAction(filters, "uncheckAll")
-    eq(filters, { raids = false, dungeons = false, worldbosses = false, rares = false, holidays = false, other = false })
+    eq(filters, { raids = false, dungeons = false, worldbosses = false, rares = false, holidays = false, other = false,
+      camp = false })
     eq(UI.ChecklistFiltersAreDefault(filters), false)
     UI.ApplyChecklistFilterAction(filters, "checkAll")
     eq(filters, {})
@@ -491,5 +497,79 @@ describe("checklist event status", function()
     eq(ns.UI.ChecklistStatusDesc("D", nil), "D")
     eq(ns.UI.HeaderText({ text = "Rares", owned = 0, total = 2, status = "Uldum: Aqir assault" }),
       "Rares  |cff9d9d9d(0/2)|r  |cff71d5ffUldum: Aqir assault|r")
+  end)
+end)
+
+-- Rare spawns with no lockout (camp specs): their own checklist group, with a
+-- "last checked" box per row (ns.db.char.campChecked).
+describe("checklist rare spawns (no lockout)", function()
+  it("UI.ChecklistBuild lists camp mounts in their own group", function()
+    local out = loadUI().UI.ChecklistBuild(NOW)
+    eq(keys(out.camp), { 18 })
+    eq(out.camp[1].zone, "Frostfire Ridge")
+    eq(out.camp[1].done, false)
+  end)
+
+  it("UI.FormatAgo: short minutes / hours / days", function()
+    local UI = loadUI().UI
+    eq(UI.FormatAgo(0), "1 min")
+    eq(UI.FormatAgo(59), "1 min")
+    eq(UI.FormatAgo(23 * 60 + 30), "23 min")
+    eq(UI.FormatAgo(3600), "1 hr")
+    eq(UI.FormatAgo(3 * 3600 + 1800), "3 hr")
+    eq(UI.FormatAgo(86400), "1 day")
+    eq(UI.FormatAgo(2 * 86400 + 5), "2 days")
+    eq(UI.FormatAgo(-30), "1 min", "clock skew: never negative")
+  end)
+
+  it("UI.CampMark / CampClear / CampCheckedText over the store", function()
+    local UI = loadUI().UI
+    local store = {}
+    eq(UI.CampCheckedText(store, 18, NOW), nil, "never checked: no text")
+    UI.CampMark(store, 18, NOW - 3 * 3600)
+    eq(store, { [18] = NOW - 3 * 3600 })
+    eq(UI.CampCheckedText(store, 18, NOW), "Last checked 3 hr ago")
+    UI.CampMark(store, 18, NOW - 60)
+    eq(UI.CampCheckedText(store, 18, NOW), "Last checked 1 min ago", "a second click updates the time")
+    UI.CampClear(store, 18)
+    eq(store, {})
+    eq(UI.CampCheckedText(nil, 18, NOW), nil)
+  end)
+
+  it("the camp row's box: always enabled, checked while a time is stored, never auto", function()
+    local ns = loadUI()
+    local entry = ns.UI.ChecklistBuild(NOW).camp[1]
+    eq({ ns.UI.ChecklistCheck(entry, {}) }, { false, true, false })
+    eq({ ns.UI.ChecklistCheck(entry, { [18] = NOW }) }, { true, true, false })
+  end)
+
+  it("UI.ChecklistCampClick: left marks (again), right clears; other entries are not camp rows", function()
+    local ns = loadUI()
+    local UI = ns.UI
+    local out = UI.ChecklistBuild(NOW)
+    local store = {}
+    eq(UI.ChecklistCampClick(out.camp[1], store, NOW, "LeftButton"), true)
+    eq(store, { [18] = NOW })
+    eq(UI.ChecklistCampClick(out.camp[1], store, NOW + 600, "LeftButton"), true)
+    eq(store, { [18] = NOW + 600 }, "clicking again updates the time, it does not untick")
+    eq(UI.ChecklistCampClick(out.camp[1], store, NOW, "RightButton"), true)
+    eq(store, {})
+    eq(UI.ChecklistCampClick(out.daily[1], store, NOW, "LeftButton"), false)
+    eq(store, {})
+  end)
+
+  it("the row line appends the last check; the header label has no reset timer", function()
+    local ns = loadUI()
+    local UI = ns.UI
+    eq(UI.ChecklistCampDesc("Drop: Nok-Karosh · Frostfire Ridge", "Last checked 3 hr ago"),
+      "Drop: Nok-Karosh · Frostfire Ridge \194\183 Last checked 3 hr ago")
+    eq(UI.ChecklistCampDesc("Drop: X", nil), "Drop: X")
+    eq(UI.ChecklistCampDesc("", "Last checked 1 min ago"), "Last checked 1 min ago")
+    eq(UI.ChecklistHeaderLabel("camp", 3600, 86400), "Rare spawns (no lockout)")
+    eq(UI.HeaderText({ text = "Gorgrond", left = 3 }), "Gorgrond  |cff9d9d9d(3 left)|r")
+  end)
+
+  it("the AceDB default store is empty", function()
+    eq(loadUI().db.char.campChecked, {})
   end)
 end)

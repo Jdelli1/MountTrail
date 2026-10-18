@@ -227,6 +227,16 @@ L["Show rares"] = "Show rares"
 L["Show holidays"] = "Show holidays"
 L["Show other"] = "Show other"
 
+-- Checklist rare spawns with no lockout (camp specs)
+L["Rare spawns (no lockout)"] = "Rare spawns (no lockout)"
+L["Show rare spawns (no lockout)"] = "Show rare spawns (no lockout)"
+L["%d left"] = "%d left"
+L["Last checked %s ago"] = "Last checked %s ago"
+L["%d min"] = "%d min"
+L["%d hr"] = "%d hr"
+L["%d day"] = "%d day"
+L["%d days"] = "%d days"
+
 -- Event rares' live status (F17, Logic/Events.lua, Data/Events.lua)
 L["Status unknown — click to load"] = "Status unknown — click to load"
 L["%s: %s assault — %s left"] = "%s: %s assault — %s left"

@@ -185,6 +185,7 @@ function addon:OnInitialize()
       routeMode = "list", -- the parked route arrow (UI\Arrow.lua): always "list" (ns.RetireRoute)
       checklistHideDone = false, -- Checklist: hide done lockouts
       checklistFilters = {}, -- Checklist Filter menu: { [category] = false } for hidden ones (Logic\Checklist.lua)
+      campChecked = {}, -- Checklist rare spawns with no lockout: { [tick key] = time the player last checked the spawn }
     },
   }, true)
   -- Pre-F15 saved variables kept the Journal's source filters as flat keys.

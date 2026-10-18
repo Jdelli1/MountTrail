@@ -696,6 +696,10 @@ function UI.HeaderText(row)
   if row.active then text = ACTIVE_GREEN .. text .. "|r" end
   if row.total then
     text = text .. "  " .. GREY .. "(" .. (row.owned or 0) .. "/" .. row.total .. ")|r"
+  elseif row.left then
+    -- A count where owned/total means nothing (the checklist's rare spawns
+    -- with no lockout: mounts still to get).
+    text = text .. "  " .. GREY .. "(" .. string.format(L["%d left"], row.left) .. ")|r"
   end
   if row.badge and row.badge ~= "" then
     text = text .. "  " .. (row.active and ACTIVE_GREEN or GREEN) .. row.badge .. "|r"

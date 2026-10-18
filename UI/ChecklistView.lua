@@ -27,6 +27,12 @@ local ADDON, ns = ...
 -- UI.EventStatusTexts over Logic/Events.lua), and a header whose open entries
 -- all share one shows it too. Also defines UI.ChecklistRemaining for the
 -- minimap tooltip.
+-- After Daily and Weekly, "Rare spawns (no lockout)" lists the camp specs
+-- (rares with no kill flag and no reset) by expansion and zone, headers
+-- counting the mounts left ("(12 left)"); each row's box records when the
+-- player last checked the spawn (UI.ChecklistCampClick, right-click clears),
+-- shown as "Last checked 3 hr ago" and aged by a 60 s ticker while the tab
+-- is on screen. The Filter's "Show rare spawns (no lockout)" hides the group.
 --
 -- The pure helpers (ChecklistContext, ChecklistBuild, ChecklistRemaining,
 -- ChecklistDescription, ChecklistHeaderLabel, ChecklistCheck,
@@ -221,8 +227,10 @@ end
 
 local LABELS = { daily = "Daily", weekly = "Weekly" }
 
--- Header label of a reset group: "Daily · resets in 1 Hr".
+-- Header label of a reset group: "Daily · resets in 1 Hr"; the rare spawns
+-- with no lockout ("camp") have no reset: "Rare spawns (no lockout)".
 function UI.ChecklistHeaderLabel(reset, untilDaily, untilWeekly)
+  if reset == "camp" then return L["Rare spawns (no lockout)"] end
   local seconds = reset == "weekly" and untilWeekly or untilDaily
   return string.format(L["%s · resets in %s"], L[LABELS[reset] or reset], UI.FormatDuration(seconds))
 end
@@ -282,13 +290,15 @@ end
 local FILTER_LABELS = {
   raids = "Show raids", dungeons = "Show dungeons", worldbosses = "Show world bosses",
   rares = "Show rares", holidays = "Show holidays", other = "Show other",
+  camp = "Show rare spawns (no lockout)",
 }
 
--- UI.CreateFilterDropdown items: a "Show <category>" checkbox per category,
+-- UI.CreateFilterDropdown items: a "Show <category>" checkbox per filter key
+-- (Checklist.FILTERS: the categories, then the rare spawns with no lockout),
 -- then Check all / Uncheck all. `filters` may be nil (all shown).
 function UI.ChecklistFilterItems(filters)
   local items = {}
-  for _, key in ipairs(ns.Checklist.CATEGORIES) do
+  for _, key in ipairs(ns.Checklist.FILTERS) do
     items[#items + 1] = { kind = "checkbox", key = key, label = L[FILTER_LABELS[key]],
       checked = ns.Checklist.Shown(filters, key) }
   end
@@ -308,7 +318,7 @@ end
 -- "checkAll" / "reset" (the dropdown's reset arrow): every category shown;
 -- "uncheckAll": every category hidden.
 function UI.ApplyChecklistFilterAction(filters, action)
-  for _, key in ipairs(ns.Checklist.CATEGORIES) do
+  for _, key in ipairs(ns.Checklist.FILTERS) do
     if action == "uncheckAll" then
       filters[key] = false
     elseif action == "checkAll" or action == "reset" then
@@ -319,7 +329,7 @@ end
 
 -- True when every category is shown (no reset arrow).
 function UI.ChecklistFiltersAreDefault(filters)
-  for _, key in ipairs(ns.Checklist.CATEGORIES) do
+  for _, key in ipairs(ns.Checklist.FILTERS) do
     if not ns.Checklist.Shown(filters, key) then return false end
   end
   return true
@@ -335,8 +345,69 @@ local function tickRow(entry)
   }
 end
 
--- Tick box of an entry -> checked, enabled, auto (UI.RouteCheck).
-function UI.ChecklistCheck(entry)
+-- Rare spawns with no lockout (camp entries) -------------------------------------
+-- Their box is not a lockout tick: a click records when the player last
+-- checked the spawn (ns.db.char.campChecked = { [tick key] = Game.Now() }),
+-- shown on the row as "Last checked 3 hr ago". The row is never done; it
+-- leaves the list when the mount is owned.
+
+local function isCamp(entry)
+  return type(entry) == "table" and entry.reset == "camp"
+end
+
+-- Seconds -> "23 min" / "3 hr" / "1 day" / "2 days" (at least "1 min").
+function UI.FormatAgo(seconds)
+  seconds = math.max(0, math.floor(tonumber(seconds) or 0))
+  if seconds < 3600 then return string.format(L["%d min"], math.max(1, math.floor(seconds / 60))) end
+  if seconds < 86400 then return string.format(L["%d hr"], math.floor(seconds / 3600)) end
+  local days = math.floor(seconds / 86400)
+  return string.format(days == 1 and L["%d day"] or L["%d days"], days)
+end
+
+-- Records a check of `key`'s spawn at `now` (a later click moves it on).
+function UI.CampMark(store, key, now)
+  store[key] = now
+end
+
+function UI.CampClear(store, key)
+  store[key] = nil
+end
+
+-- "Last checked 3 hr ago", or nil when never checked.
+function UI.CampCheckedText(store, key, now)
+  local at = type(store) == "table" and store[key] or nil
+  if type(at) ~= "number" then return nil end
+  return string.format(L["Last checked %s ago"], UI.FormatAgo(now - at))
+end
+
+-- A camp row's grey line with its last check appended.
+function UI.ChecklistCampDesc(desc, checked)
+  if not checked or checked == "" then return desc end
+  if not desc or desc == "" then return checked end
+  return desc .. DOT .. checked
+end
+
+-- Click on a camp row's box: the right button clears the time, any other
+-- marks it at `now`. -> true for camp entries, false (nothing stored) else.
+function UI.ChecklistCampClick(entry, store, now, button)
+  if not isCamp(entry) then return false end
+  if button == "RightButton" then
+    UI.CampClear(store, entry.key)
+  else
+    UI.CampMark(store, entry.key, now)
+  end
+  return true
+end
+
+-- Tick box of an entry -> checked, enabled, auto (UI.RouteCheck). A camp
+-- entry's box is always enabled and checked while `campStore` (default
+-- ns.db.char.campChecked) has a time for it.
+function UI.ChecklistCheck(entry, campStore)
+  if isCamp(entry) then
+    local char = ns.db and ns.db.char
+    local store = campStore or (char and char.campChecked)
+    return (type(store) == "table" and store[entry.key] ~= nil) and true or false, true, false
+  end
   return UI.RouteCheck(tickRow(entry))
 end
 
@@ -410,13 +481,24 @@ function view.CreateFilterDropdown(parent)
   })
 end
 
-local function onTick(self)
+local function onTick(self, button)
   local row = self:GetParent()
   local entry = row and row.entry
   local char = charDB()
   if not (entry and char) then return end
-  char.ticks = char.ticks or {}
   local Game = ns.Game
+  if isCamp(entry) then
+    if type(char.campChecked) ~= "table" then char.campChecked = {} end
+    UI.ChecklistCampClick(entry, char.campChecked, Game.Now(), button)
+    if UI.DebugTrace then
+      UI.DebugTrace("checked box on mount %s (rare spawn, %s)", tostring(entry.id), tostring(button))
+    end
+    ns.Refresh()
+    return
+  end
+  -- Only camp rows take the right button (the redraw resets the box).
+  if button == "RightButton" then ns.Refresh() return end
+  char.ticks = char.ticks or {}
   local toggled = UI.ChecklistToggle(entry, char.ticks, Game.Now(), Game.UntilDaily(), Game.UntilWeekly())
   if UI.DebugTrace then
     UI.DebugTrace("tick box on mount %s (checklist) -> %s", tostring(entry.id), toggled and "toggled" or "not tickable")
@@ -433,6 +515,7 @@ local function initRow(row, data)
       UI.TemplateChain("MinimalCheckboxTemplate", "SettingsCheckboxTemplate", "UICheckButtonTemplate"))
     check:SetSize(CHECK_SIZE, CHECK_SIZE)
     check:SetScript("OnClick", onTick)
+    if check.RegisterForClicks then check:RegisterForClicks("LeftButtonUp", "RightButtonUp") end
     row.Check = check
   end
   row.entry = data.entry
@@ -557,6 +640,9 @@ function view.Build(parent)
   empty:SetText(L["No lockouts left to farm on this character."])
   empty:Hide()
   frame.Empty = empty
+  root:HookScript("OnShow", view.StartTicker)
+  root:HookScript("OnHide", view.StopTicker)
+  if root:IsVisible() then view.StartTicker() end
   return root
 end
 
@@ -576,6 +662,9 @@ function view.Refresh()
     status = UI.ChecklistStatusOf(statusTexts),
   })
   local sourceText = UI.MemoText(Game.MountSourceText)
+  local char = charDB()
+  local campStore = char and char.campChecked
+  local now = Game.Now()
   local n = 0
   for _, row in ipairs(rows) do
     if row.header then
@@ -586,6 +675,9 @@ function view.Refresh()
       row.owned = false
       row.alt = n % 2 == 0
       row.desc = UI.ChecklistStatusDesc(UI.ChecklistDescription(e, sourceText(e.id)), row.status)
+      if row.camp then
+        row.desc = UI.ChecklistCampDesc(row.desc, UI.CampCheckedText(campStore, e.key, now))
+      end
       row.tag = e.auto and L["auto"] or nil
       row.pin = UI.LocationIcon(e.id, e.boss)
       -- The click goes to this lockout's boss (its instance's entrance) and
@@ -620,6 +712,24 @@ end
 -- True while the tab is on screen.
 function view.IsShown()
   return root ~= nil and root:IsVisible() and true or false
+end
+
+-- A light 60 s ticker while the tab is on screen, so the rare spawns' "Last
+-- checked ... ago" lines age without an OnUpdate per row (started on show,
+-- cancelled on hide; none without C_Timer.NewTicker).
+local AGE_TICK = 60
+local ticker
+
+function view.StartTicker()
+  if ticker or not (type(C_Timer) == "table" and type(C_Timer.NewTicker) == "function") then return end
+  ticker = C_Timer.NewTicker(AGE_TICK, function()
+    if view.IsShown() then view.Refresh() end
+  end)
+end
+
+function view.StopTicker()
+  if ticker and type(ticker.Cancel) == "function" then ticker:Cancel() end
+  ticker = nil
 end
 
 UI.RegisterView("checklist", view)

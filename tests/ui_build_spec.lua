@@ -691,7 +691,7 @@ describe("ui build", function()
     eq(boxes, 0, "no route list beside the checklist")
     -- Everything done: the Oregon line.
     ns.db.char.checklistFilters = { raids = false, dungeons = false, worldbosses = false, rares = false,
-      holidays = false, other = false }
+      holidays = false, other = false, camp = false }
     ns.Refresh()
     eq(header.Flavour:GetText(), "Tester has reached Oregon. Nothing left to farm until reset.")
     ok(header.Checklist.Empty:IsShown(), "empty line")
@@ -1149,7 +1149,8 @@ describe("ui build", function()
     local calls = openMenu(dd)
     local labels = {}
     for _, c in ipairs(calls) do if c.kind == "checkbox" then labels[#labels + 1] = c.text end end
-    eq(labels, { "Show raids", "Show dungeons", "Show world bosses", "Show rares", "Show holidays", "Show other" })
+    eq(labels, { "Show raids", "Show dungeons", "Show world bosses", "Show rares", "Show holidays", "Show other",
+      "Show rare spawns (no lockout)" })
 
     local box = header.Checklist.ScrollBox
     local function count(category)
@@ -1192,6 +1193,61 @@ describe("ui build", function()
     assert(good, none)
     eq(none, nil)
     eq(ns.UI.TemplateFallbacks["DropdownButton:SetupMenu"], "checklist filter (all categories shown)")
+  end)
+
+  it("Checklist rare spawns (no lockout): their group, a last-checked box per row, a 60 s ticker", function()
+    local tickers = {}
+    local oldTimer = C_Timer
+    C_Timer = { NewTicker = function(seconds, fn)
+      local t = { seconds = seconds, fn = fn }
+      function t:Cancel() self.cancelled = true end
+      tickers[#tickers + 1] = t
+      return t
+    end }
+    local ns = loadUI()
+    ns.Data.Lockouts[614] = { camp = true, zone = "Nagrand" } -- Mottled Meadowstomper (not owned: 614 % 3 ~= 0)
+    ns.ToggleWindow()
+    ns.UI.SelectTab("checklist")
+    local root = content(ns, "checklist").children[2]
+    local header = root.children[1]
+    local box = header.Checklist.ScrollBox
+    local function find(pred)
+      for i, r in ipairs(box.provider.rows) do if pred(r) then return i, r end end
+    end
+    local hi, top = find(function(r) return r.key == "checklist|camp" end)
+    ok(hi, "the camp group is listed")
+    local frames = render(box)
+    local label = frames[hi].Label:GetText()
+    ok(label:find("^Rare spawns %(no lockout%)"), label)
+    ok(label:find("(" .. top.left .. " left)", 1, true), label)
+    ok(not label:find("resets in", 1, true), "no reset timer")
+    ok(find(function(r) return r.key == "checklist|camp|Warlords of Draenor|Nagrand" end), "expansion -> zone")
+
+    local ri = find(function(r) return r.entry and r.entry.id == 614 end)
+    ok(ri, "the camp row")
+    local f = frames[ri]
+    ok(f.Check:IsShown() ~= false, "a box on the camp row")
+    eq(f.Check.enabled ~= false, true, "enabled")
+    ok(not f.Source:GetText():find("Last checked", 1, true), "never checked: no text")
+    f.Check:RunScript("OnClick", "LeftButton")
+    eq(ns.db.char.campChecked[614], 1700000000)
+    ri = find(function(r) return r.entry and r.entry.id == 614 end)
+    ok(ri, "still listed: a camp row is never done")
+    f = render(box)[ri]
+    ok(f.Source:GetText():find("Last checked 1 min ago", 1, true), f.Source:GetText())
+    eq(f.Check:GetChecked(), true)
+    f.Check:RunScript("OnClick", "RightButton")
+    eq(ns.db.char.campChecked[614], nil, "right-click clears")
+
+    -- The ticker: one while the tab is shown, cancelled on hide.
+    eq(#tickers, 1)
+    eq(tickers[1].seconds, 60)
+    tickers[1].fn()
+    root:Hide()
+    eq(tickers[1].cancelled, true)
+    root:Show()
+    eq(#tickers, 2, "a new ticker on show")
+    C_Timer = oldTimer
   end)
 
   it("Checklist rows: headers with reset timers and done/total, tick boxes, clicks, collapse, Hide done", function()
