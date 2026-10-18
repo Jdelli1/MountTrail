@@ -421,3 +421,23 @@ Misc is split by SimpleArmory category (regenerated from the pinned commit; only
 - [ ] Reset arrow per tab: hide a Misc category, switch to Holidays: no reset arrow there; click the arrow on Misc: Misc categories back and Collected off, the Holidays choices untouched.
 - [ ] Upgrade from an earlier version with a Journal source unticked (e.g. raid): after login it is still unticked on the Journal (`/dump AzerothTrailDB.global.filters` shows `journal = { raid = false }` and no flat `raid` key); Collected kept.
 - [ ] `/reload`: every tab keeps its filter choices.
+
+## F14: Checklist levels and filter
+
+Route tab > Checklist: under each expansion sub-header the lockouts are split again into collapsible category headers, in this order: Raids, Dungeons, World bosses, Rares, Holidays, Other, each with its own done/total (smaller, one step further in than the expansion; rows under them indented to match). An instance lockout is a raid when any of its difficulties is a raid one (legacy 10/25, 40-player, Normal/Heroic/Mythic/LFR raid), else a dungeon; a hand-ticked or quest-flag lockout follows the mount's journal section (raid / dungeon) or its SimpleArmory group (`World Boss`; rare spawns: `Rare Spawn`, `<covenant> Rare Spawn`, `Warfront: ...`, `Assault: ...`); LFG holiday bosses and holiday mounts are Holidays; the rest Other. A lone category keeps its header (e.g. Weekly > Classic > Raids) unless it is Other. Collapse keys: `checklist|<reset>|<expansion>|<category>`.
+
+Real data (every obtainable spec'd mount, nothing owned, all holidays on; per character the numbers drop with what you own): Daily 55 = Dungeons 9, Rares 42, Holidays 4; Weekly 74 = Raids 48, Dungeons 11, World bosses 6, Other 9 (vendor / quest / garrison flags such as Shadowhide Pearltusk, Loyal Gorger, Hand of Bahmethra).
+
+- [ ] Checklist > Weekly > Shadowlands: `Raids` (Sanctum Gloomcharger, Vengeance, Zereth Overseer), `Dungeons` (Marrowfang, Cartel Master's Gearglider), `Other`; Battle for Azeroth > Dungeons lists Sharkbait, Underrot Crawg, Tomb Stalker, Aerial Unit R-21/X, Mechagon Peacekeeper; Midnight > Dungeons lists The Writhing Brood, Midnight > Raids Ashes of Belo'ren.
+- [ ] Mists of Pandaria under Weekly shows `Raids` and `World bosses` (Son of Galleon, the Cloud Serpents, Cobalt Primordial Direhorn); Daily > Battle for Azeroth > `Rares` holds the Warfront / Assault rares.
+- [ ] Weekly > Wrath of the Lich King > Raids holds the four Grand Black War Mammoth rows (Archavon, Koralon, Emalon, Toravon in the grey line); Daily > Wrath > Dungeons the Blue Proto-Drake and the Bronze Drake (tick box).
+- [ ] During a holiday: Daily > Other > `Holidays` (the queue bosses, which have no expansion: last, under the `Other` expansion sub-header).
+- [ ] Collapse Weekly > Shadowlands > Raids, `/reload`: still collapsed; Dungeons under it stays open. Collapsing Weekly > Shadowlands hides its categories too.
+- [ ] Category header looks: the same small font and faint band as the expansion sub-headers, the +/- one step further right; the rows under it line up with that step (tick box and icon).
+
+Filter: on the Checklist the Route header shows a `Filter` button at the top right (where `Show completed` sits on the route; hidden on the route). Its menu: `Show raids`, `Show dungeons`, `Show world bosses`, `Show rares`, `Show holidays`, `Show other`, Check all / Uncheck all. Saved per character (`ns.db.char.checklistFilters`, only unticked ones stored).
+
+- [ ] Untick `Show rares`: Daily drops every Rares header at once, Daily's done/total and the flavour line (`You have N lockouts left`) drop by the same number; the reset arrow appears next to the button. Tick it again: back, arrow gone.
+- [ ] Untick everything but `Show dungeons`: only Dungeons headers remain (e.g. Weekly > Shadowlands > Dungeons: Marrowfang, Cartel Master's Gearglider). Click the reset arrow: every category back.
+- [ ] Log in on another character: its filters are its own (all shown by default). `/reload`: the choices stay.
+- [ ] Switch to Route: no Filter button; back to Checklist: the button and its choices are back.
