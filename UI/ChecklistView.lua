@@ -6,7 +6,13 @@ local ADDON, ns = ...
 -- header rows, collapse state in ns.db.global.collapsed under
 -- "checklist|daily" / "checklist|weekly"), each split into collapsible
 -- expansion sub-headers ("checklist|daily|<exp>", done/total, Checklist.Rows;
--- rows under them indented like the lists'). Rows look like the mount lists
+-- rows under them indented like the lists'), each split again into
+-- collapsible category headers (Raids, Dungeons, World bosses, Rares,
+-- Holidays, Other: "checklist|daily|<exp>|<category>", one step further in).
+-- A Filter button in the Route header (view.CreateFilterDropdown:
+-- UI.CreateFilterDropdown with "Show raids" ... "Show other", saved per
+-- character in ns.db.char.checklistFilters) hides categories; every count
+-- follows it. Rows look like the mount lists
 -- (UI.InitMountRow: icon, name, grey "boss · instance" line, pin; click =
 -- waypoint, hover = tooltip). Only lockouts the game can't report get a
 -- tick box in front of the icon, working like the route's (UI.RouteCheck /
@@ -19,7 +25,8 @@ local ADDON, ns = ...
 --
 -- The pure helpers (RouteSubView, SetRouteSubView, ChecklistContext,
 -- ChecklistBuild, ChecklistDescription, ChecklistHeaderLabel, ChecklistCheck,
--- ChecklistToggle) are unit-tested in tests/ui_checklist_spec.lua; the
+-- ChecklistToggle, ChecklistFilterItems, ToggleChecklistFilter,
+-- ApplyChecklistFilterAction, ChecklistFiltersAreDefault) are unit-tested in tests/ui_checklist_spec.lua; the
 -- widget code is built under a stub by tests/ui_build_spec.lua.
 
 local L = ns.L
@@ -170,6 +177,56 @@ function UI.ShowChecklistGroupTooltip(owner, entry)
   tip:Show()
 end
 
+-- Filter menu (F14) -------------------------------------------------------------
+-- Categories as Logic/Checklist.lua orders them; ns.db.char.checklistFilters
+-- = { [category] = false } stores only hidden ones (missing = shown).
+
+local FILTER_LABELS = {
+  raids = "Show raids", dungeons = "Show dungeons", worldbosses = "Show world bosses",
+  rares = "Show rares", holidays = "Show holidays", other = "Show other",
+}
+
+-- UI.CreateFilterDropdown items: a "Show <category>" checkbox per category,
+-- then Check all / Uncheck all. `filters` may be nil (all shown).
+function UI.ChecklistFilterItems(filters)
+  local items = {}
+  for _, key in ipairs(ns.Checklist.CATEGORIES) do
+    items[#items + 1] = { kind = "checkbox", key = key, label = L[FILTER_LABELS[key]],
+      checked = ns.Checklist.Shown(filters, key) }
+  end
+  items[#items + 1] = { kind = "divider" }
+  items[#items + 1] = { kind = "button", action = "checkAll", label = L["Check all"] }
+  items[#items + 1] = { kind = "button", action = "uncheckAll", label = L["Uncheck all"] }
+  return items
+end
+
+-- Flips category `key` in `filters` -> its new state (shown = nothing stored).
+function UI.ToggleChecklistFilter(filters, key)
+  local on = not ns.Checklist.Shown(filters, key)
+  if on then filters[key] = nil else filters[key] = false end
+  return on
+end
+
+-- "checkAll" / "reset" (the dropdown's reset arrow): every category shown;
+-- "uncheckAll": every category hidden.
+function UI.ApplyChecklistFilterAction(filters, action)
+  for _, key in ipairs(ns.Checklist.CATEGORIES) do
+    if action == "uncheckAll" then
+      filters[key] = false
+    elseif action == "checkAll" or action == "reset" then
+      filters[key] = nil
+    end
+  end
+end
+
+-- True when every category is shown (no reset arrow).
+function UI.ChecklistFiltersAreDefault(filters)
+  for _, key in ipairs(ns.Checklist.CATEGORIES) do
+    if not ns.Checklist.Shown(filters, key) then return false end
+  end
+  return true
+end
+
 -- An entry as a one-boss route kill row, for UI.RouteCheck / UI.RouteToggle.
 local function tickRow(entry)
   return {
@@ -197,7 +254,7 @@ end
 local CHECK_SIZE = 22
 local CHECK_LEFT = 6
 local ICON_LEFT = CHECK_LEFT + CHECK_SIZE + 4
-local SUB_OFFSET = 16 -- under an expansion sub-header (UI/List.lua: sub-header indicator 22 vs 6)
+local SUB_OFFSET = 16 -- per header level under the reset header (UI/List.lua: sub-header indicator 22 vs 6, +16 per level)
 local HEADER_HEIGHT = 24 -- UI/List.lua section headers
 local SUB_HEADER_HEIGHT = 20 -- UI/List.lua sub-headers
 
@@ -215,6 +272,41 @@ local function collapsedDB()
   if not global then return nil end
   if type(global.collapsed) ~= "table" then global.collapsed = {} end
   return global.collapsed
+end
+
+-- This character's checklist filters (ns.db.char.checklistFilters), nil
+-- before the database is up.
+function view.Filters()
+  local char = charDB()
+  if not char then return nil end
+  if type(char.checklistFilters) ~= "table" then char.checklistFilters = {} end
+  return char.checklistFilters
+end
+
+-- The Filter button for the checklist (UI.CreateFilterDropdown) on
+-- `parent` (the Route header), or nil on clients without the 11.x dropdown.
+function view.CreateFilterDropdown(parent)
+  return UI.CreateFilterDropdown(parent, {
+    items = function() return UI.ChecklistFilterItems(view.Filters()) end,
+    onChange = function(kind, value)
+      local filters = view.Filters()
+      if not filters then return end
+      if kind == "toggle" then
+        UI.ToggleChecklistFilter(filters, value)
+      else
+        UI.ApplyChecklistFilterAction(filters, value)
+      end
+      ns.Refresh()
+    end,
+    isDefault = function() return UI.ChecklistFiltersAreDefault(view.Filters()) end,
+    reset = function()
+      local filters = view.Filters()
+      if filters then
+        UI.ApplyChecklistFilterAction(filters, "reset")
+        ns.Refresh()
+      end
+    end,
+  })
 end
 
 local function onTick(self)
@@ -244,7 +336,7 @@ local function initRow(row, data)
   end
   row.entry = data.entry
   -- Recycled rows: re-anchor for this row's depth (indented under a sub-header).
-  local inset = data.depth == 2 and SUB_OFFSET or 0
+  local inset = math.max(0, (data.depth or 1) - 1) * SUB_OFFSET
   row.Check:ClearAllPoints()
   row.Check:SetPoint("LEFT", row, "LEFT", CHECK_LEFT + inset, 0)
   row.Icon:SetPoint("LEFT", row, "LEFT", ICON_LEFT + inset, 0)
@@ -290,7 +382,7 @@ function view.Build(parent, top)
 
   local listView = CreateScrollBoxListLinearView()
   listView:SetElementExtentCalculator(function(_, row)
-    if row.header then return row.depth == 2 and SUB_HEADER_HEIGHT or HEADER_HEIGHT end
+    if row.header then return (row.depth or 1) >= 2 and SUB_HEADER_HEIGHT or HEADER_HEIGHT end
     return UI.MOUNT_ROW_HEIGHT
   end)
   listView:SetElementFactory(function(factory, row)
@@ -321,6 +413,7 @@ function view.Refresh()
   local untilDaily, untilWeekly = Game.UntilDaily(), Game.UntilWeekly()
   local rows = ns.Checklist.Rows(built, {
     collapsed = collapsedDB() or {},
+    filters = view.Filters(),
     label = function(reset) return UI.ChecklistHeaderLabel(reset, untilDaily, untilWeekly) end,
   })
   local sourceText = UI.MemoText(Game.MountSourceText)

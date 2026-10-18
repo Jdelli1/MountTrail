@@ -311,3 +311,56 @@ describe("checklist lockout groups", function()
     eq(calls[#calls], { "Show" })
   end)
 end)
+
+-- F14: the checklist's Filter menu (UI.CreateFilterDropdown items) over
+-- ns.db.char.checklistFilters = { [category] = false }.
+describe("checklist filter menu", function()
+  it("AceDB default: every category shown", function()
+    local ns = loadUI()
+    eq(ns.db.char.checklistFilters, {})
+  end)
+
+  it("one Show checkbox per category, then Check all / Uncheck all", function()
+    local UI = loadUI().UI
+    local items = UI.ChecklistFilterItems({ rares = false })
+    local labels, kinds = {}, {}
+    for _, item in ipairs(items) do
+      kinds[#kinds + 1] = item.kind
+      labels[#labels + 1] = item.label or "-"
+    end
+    eq(kinds, { "checkbox", "checkbox", "checkbox", "checkbox", "checkbox", "checkbox", "divider", "button", "button" })
+    eq(labels, { "Show raids", "Show dungeons", "Show world bosses", "Show rares", "Show holidays", "Show other",
+      "-", "Check all", "Uncheck all" })
+    eq(items[1].key, "raids")
+    eq(items[1].checked, true)
+    eq(items[4].key, "rares")
+    eq(items[4].checked, false)
+    eq(items[8].action, "checkAll")
+    eq(items[9].action, "uncheckAll")
+    eq(UI.ChecklistFilterItems(nil)[1].checked, true, "no store: all shown")
+  end)
+
+  it("toggling stores only hidden categories", function()
+    local UI = loadUI().UI
+    local filters = {}
+    eq(UI.ToggleChecklistFilter(filters, "raids"), false)
+    eq(filters, { raids = false })
+    eq(UI.ToggleChecklistFilter(filters, "raids"), true)
+    eq(filters, {}, "shown again: nothing stored")
+  end)
+
+  it("Check all / Uncheck all / reset, and the defaults test", function()
+    local UI = loadUI().UI
+    local filters = {}
+    eq(UI.ChecklistFiltersAreDefault(filters), true)
+    UI.ApplyChecklistFilterAction(filters, "uncheckAll")
+    eq(filters, { raids = false, dungeons = false, worldbosses = false, rares = false, holidays = false, other = false })
+    eq(UI.ChecklistFiltersAreDefault(filters), false)
+    UI.ApplyChecklistFilterAction(filters, "checkAll")
+    eq(filters, {})
+    filters.dungeons = false
+    UI.ApplyChecklistFilterAction(filters, "reset")
+    eq(filters, {})
+    eq(UI.ChecklistFiltersAreDefault(nil), true)
+  end)
+end)

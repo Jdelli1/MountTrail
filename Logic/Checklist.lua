@@ -88,6 +88,63 @@ local function rankOf(list)
   return rank
 end
 
+-- Lockout categories, in display order (F14): the third checklist level.
+local CATEGORIES = { "raids", "dungeons", "worldbosses", "rares", "holidays", "other" }
+local CATEGORY_LABELS = {
+  raids = "Raids", dungeons = "Dungeons", worldbosses = "World bosses",
+  rares = "Rares", holidays = "Holidays", other = "Other",
+}
+local CATEGORY_RANK = rankOf(CATEGORIES)
+Checklist.CATEGORIES = CATEGORIES
+
+-- Localised label of a category key ("raids" -> "Raids").
+function Checklist.CategoryLabel(key)
+  return L[CATEGORY_LABELS[key] or CATEGORY_LABELS.other]
+end
+
+-- Raid difficulty IDs (legacy 10/25 normal / heroic, 40-player, flexible,
+-- Normal / Heroic / Mythic / LFR, Timewalking raid).
+local RAID_DIFFICULTIES = {
+  [3] = true, [4] = true, [5] = true, [6] = true, [7] = true, [9] = true,
+  [14] = true, [15] = true, [16] = true, [17] = true, [33] = true,
+}
+
+local function anyRaidDifficulty(list)
+  if type(list) ~= "table" then return RAID_DIFFICULTIES[list] == true end
+  for _, d in ipairs(list) do
+    if anyRaidDifficulty(d) then return true end
+  end
+  return false
+end
+
+-- Category of a lockout: an LFG flag or a holiday mount (`holiday` key, or
+-- a holiday-tab mount) -> "holidays"; an instance spec -> "raids" when any
+-- difficulty is a raid one, else "dungeons"; anything else from the mount's
+-- journal section (raid / dungeon) or SimpleArmory group ("World Boss" ->
+-- "worldbosses", a rare-spawn group -> "rares", Lockouts.IsRareGroup);
+-- else "other".
+function Checklist.Category(spec, m, holiday)
+  m = type(m) == "table" and m or {}
+  spec = type(spec) == "table" and spec or {}
+  if holiday or spec.lfg or m.tab == "holiday" then return "holidays" end
+  if spec.instance then
+    return anyRaidDifficulty(spec.difficulties) and "raids" or "dungeons"
+  end
+  if m.section == "raid" then return "raids" end
+  if m.section == "dungeon" then return "dungeons" end
+  if m.group == "World Boss" then return "worldbosses" end
+  local Lockouts = ns.Lockouts
+  if Lockouts and Lockouts.IsRareGroup and Lockouts.IsRareGroup(m.group) then return "rares" end
+  return "other"
+end
+
+-- Whether `filters` ({ [category] = false }, only hidden ones stored:
+-- ns.db.char.checklistFilters) shows `category` (nil counts as "other").
+function Checklist.Shown(filters, category)
+  if type(filters) ~= "table" then return true end
+  return filters[category or "other"] ~= false
+end
+
 -- ctx (all optional):
 --   tree       ns.Data.Route-shaped node list (bosses = { {mount=, boss=} }, steps)
 --   mounts     { [id] = m } (ns.Data.Mounts)
@@ -115,7 +172,8 @@ end
 -- m=, boss=, title= (route node), holiday= (key), key= (first member's tick
 -- key), spec=, reset=, state=, done=, auto= (done by the game), locked=,
 -- lockedText=, name=, exp= (the spec's `exp`, else the first member's;
--- nil when unknown), expRank=, mounts= { member ids, data order }, names= { their
+-- nil when unknown), expRank=, category= (Checklist.Category of the spec and
+-- the first member), mounts= { member ids, data order }, names= { their
 -- display names }, grouped= (#mounts > 1) }. A grouped entry's name is its
 -- boss (route boss, else the spec's boss, else the holiday's title, else the
 -- first mount's name). A spec without a reset files under daily (as hand
@@ -177,6 +235,7 @@ function Checklist.Build(ctx)
       locked = locked, lockedText = locked and req.text or nil,
       name = name, order = order,
       exp = exp, expRank = rank[exp] or unknownRank,
+      category = Checklist.Category(spec, m, holiday),
       mounts = { id }, names = { name }, grouped = false,
     }
     list[#list + 1] = entry
@@ -226,21 +285,32 @@ function Checklist.Build(ctx)
   return out
 end
 
--- Checklist.Build output -> ScrollBox rows: per non-empty reset group (daily,
--- then weekly) a header { header = true, depth = 1, key = "checklist|<reset>",
--- reset =, text = opts.label(reset) (default "Daily" / "Weekly"), owned =
--- done count, total =, collapsed = } (owned / total as UI.HeaderText reads
--- them), then unless collapsed one expansion sub-header per expansion with
--- an entry still to do (F4's sub-header rows): { header = true, depth = 2,
--- key = "checklist|<reset>|<exp>", reset =, exp =, text = the expansion,
--- owned = done, total =, collapsed = }, in expansion order (entry.expRank:
--- Data.Expansions order, unknown ones after by name, entries without an
--- expansion last as "Other"), then unless collapsed its entries still to do
--- as { id=, m=, entry=, done=, depth = 2 } (entries already sorted). Done
--- entries are never listed: they disappear on their own, while the header
--- counts span the whole group. A group whose only expansion is "Other" stays
--- flat (no sub-header, entries at depth nil), as the list sections do.
--- opts.collapsed = { [key] = true }.
+-- Checklist.Build output -> ScrollBox rows, three collapsible levels above
+-- the entries: reset -> expansion -> category (F14).
+--   Per non-empty reset group (daily, then weekly) a header { header = true,
+--   depth = 1, key = "checklist|<reset>", reset =, text = opts.label(reset)
+--   (default "Daily" / "Weekly"), owned = done count, total =, collapsed = }
+--   (owned / total as UI.HeaderText reads them).
+--   Unless collapsed, one expansion sub-header per expansion with an entry
+--   still to do (F4's sub-header rows): { header = true, depth = 2, key =
+--   "checklist|<reset>|<exp>", reset =, exp =, text = the expansion, owned =,
+--   total =, collapsed = }, in expansion order (entry.expRank: Data.Expansions
+--   order, unknown ones after by name, entries without an expansion last as
+--   "Other"). A group whose only expansion is "Other" has no expansion level:
+--   its categories hang under the reset header.
+--   Unless collapsed, one category header per category with an entry still
+--   to do: { header = true, depth = parent depth + 1, key =
+--   "checklist|<reset>|<exp or Other>|<category>", reset =, exp =, category =,
+--   text = Checklist.CategoryLabel, owned =, total =, collapsed = }, in
+--   Checklist.CATEGORIES order. A lone category still gets its header, except
+--   a lone "other": those entries hang under the parent header.
+--   Unless collapsed, its entries still to do as { id=, m=, entry=, done=,
+--   depth = the parent header's depth (nil right under a reset header) }
+--   (entries already sorted).
+-- Done entries are never listed: they disappear on their own, while every
+-- header counts them. opts.collapsed = { [key] = true }; opts.filters =
+-- { [category] = false } (ns.db.char.checklistFilters, Checklist.Shown):
+-- hidden categories' entries are left out of the rows and of every count.
 local OTHER = "Other"
 
 local function expGroups(list)
@@ -265,9 +335,38 @@ local function expGroups(list)
   return groups
 end
 
+-- Entries -> category groups in Checklist.CATEGORIES order (an unknown or
+-- missing category counts as "other").
+local function categoryGroups(entries)
+  local groups, byKey = {}, {}
+  for _, e in ipairs(entries) do
+    local key = CATEGORY_RANK[e.category] and e.category or "other"
+    local group = byKey[key]
+    if not group then
+      group = { key = key, entries = {}, done = 0, open = 0 }
+      byKey[key] = group
+      groups[#groups + 1] = group
+    end
+    group.entries[#group.entries + 1] = e
+    if e.done then group.done = group.done + 1 else group.open = group.open + 1 end
+  end
+  table.sort(groups, function(a, b) return CATEGORY_RANK[a.key] < CATEGORY_RANK[b.key] end)
+  return groups
+end
+
+-- Groups with an entry still to do (the others get no header).
+local function withOpen(groups)
+  local shown = {}
+  for _, group in ipairs(groups) do
+    if group.open > 0 then shown[#shown + 1] = group end
+  end
+  return shown
+end
+
 function Checklist.Rows(built, opts)
   opts = opts or {}
   local collapsed = opts.collapsed or {}
+  local filters = opts.filters
   local rows = {}
   local function addEntries(entries, depth)
     for _, e in ipairs(entries) do
@@ -276,8 +375,29 @@ function Checklist.Rows(built, opts)
       end
     end
   end
+  -- The category level under the header at `depth` keyed `key`.
+  local function addCategories(entries, depth, key, reset, exp)
+    local shown = withOpen(categoryGroups(entries))
+    if #shown == 1 and shown[1].key == "other" then
+      addEntries(shown[1].entries, depth > 1 and depth or nil)
+      return
+    end
+    for _, group in ipairs(shown) do
+      local ckey = key .. "|" .. group.key
+      local cCollapsed = collapsed[ckey] == true
+      rows[#rows + 1] = {
+        header = true, depth = depth + 1, key = ckey, reset = reset, exp = exp, category = group.key,
+        text = Checklist.CategoryLabel(group.key), owned = group.done, total = #group.entries,
+        collapsed = cCollapsed,
+      }
+      if not cCollapsed then addEntries(group.entries, depth + 1) end
+    end
+  end
   for _, reset in ipairs(RESETS) do
-    local list = (built and built[reset]) or {}
+    local list = {}
+    for _, e in ipairs((built and built[reset]) or {}) do
+      if Checklist.Shown(filters, e.category) then list[#list + 1] = e end
+    end
     if #list > 0 then
       local done = 0
       for _, e in ipairs(list) do if e.done then done = done + 1 end end
@@ -289,12 +409,9 @@ function Checklist.Rows(built, opts)
         owned = done, total = #list, collapsed = isCollapsed,
       }
       if not isCollapsed then
-        local shown = {}
-        for _, group in ipairs(expGroups(list)) do
-          if group.open > 0 then shown[#shown + 1] = group end
-        end
+        local shown = withOpen(expGroups(list))
         if #shown == 1 and shown[1].exp == nil then
-          addEntries(shown[1].entries, nil)
+          addCategories(shown[1].entries, 1, key .. "|" .. OTHER, reset, nil)
         else
           for _, group in ipairs(shown) do
             local gkey = key .. "|" .. group.key
@@ -304,7 +421,7 @@ function Checklist.Rows(built, opts)
               text = L[group.key], owned = group.done, total = #group.entries,
               collapsed = gCollapsed,
             }
-            if not gCollapsed then addEntries(group.entries, 2) end
+            if not gCollapsed then addCategories(group.entries, 2, gkey, reset, group.exp) end
           end
         end
       end
@@ -313,12 +430,13 @@ function Checklist.Rows(built, opts)
   return rows
 end
 
--- Entries of a Checklist.Build output not done yet.
-function Checklist.Remaining(built)
+-- Entries of a Checklist.Build output not done yet, in the categories
+-- `filters` shows (Checklist.Shown; nil = all).
+function Checklist.Remaining(built, filters)
   local n = 0
   for _, reset in ipairs(RESETS) do
     for _, e in ipairs((built and built[reset]) or {}) do
-      if not e.done then n = n + 1 end
+      if not e.done and Checklist.Shown(filters, e.category) then n = n + 1 end
     end
   end
   return n

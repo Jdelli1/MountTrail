@@ -6,7 +6,9 @@ local ADDON, ns = ...
 -- (clicks as on the mount lists, aimed at UI.RouteTargetMount). A second
 -- segmented control (Route / Checklist, ns.db.char.routeView) swaps the list
 -- for the daily / weekly checklist (UI\ChecklistView.lua) under the same
--- header (done checklist entries disappear on their own). Also
+-- header (done checklist entries disappear on their own), with a Filter
+-- button for the checklist's lockout categories in the header's top right
+-- (UI.ChecklistView.CreateFilterDropdown; hidden on the route). Also
 -- defines ns.UI.RouteRemaining for the minimap tooltip and ns.UI.RouteNextStep
 -- for the route arrow (UI\Arrow.lua).
 --
@@ -456,11 +458,17 @@ local function refreshChecklist(Game)
   scrollBar:Hide()
   header.ShowCompleted:Hide()
   checklist.SetShown(true)
+  local filter = header.ChecklistFilter
+  if filter then
+    filter:Show()
+    if type(filter.ValidateResetState) == "function" then filter:ValidateResetState() end
+  end
   local built = checklist.Refresh()
   local name = Game.PlayerName()
   header.Name:SetText(name or "")
   header.Resets:SetText(resetsText(Game))
-  header.Flavour:SetText(UI.RouteFlavour(built and ns.Checklist.Remaining(built) or 0, name))
+  -- Lockouts left in the categories the Filter menu shows.
+  header.Flavour:SetText(UI.RouteFlavour(built and ns.Checklist.Remaining(built, checklist.Filters()) or 0, name))
   paintMode()
 end
 
@@ -471,6 +479,7 @@ local function refresh()
     return refreshChecklist(Game)
   end
   if header.Checklist then UI.ChecklistView.SetShown(false) end
+  if header.ChecklistFilter then header.ChecklistFilter:Hide() end
   scrollBox:Show()
   scrollBar:Show()
   header.ShowCompleted:Show()
@@ -621,8 +630,19 @@ local function build(parent)
   listView:SetElementFactory(function(factory) factory("Button", initRow) end)
   ScrollUtil.InitScrollBoxListWithScrollBar(scrollBox, scrollBar, listView)
 
-  -- The Checklist sub-view under the same header (UI\ChecklistView.lua).
-  if UI.ChecklistView then header.Checklist = UI.ChecklistView.Build(root, header) end
+  -- The Checklist sub-view under the same header (UI\ChecklistView.lua),
+  -- with its Filter button (lockout categories) where Show completed sits on
+  -- the route; shown on the checklist only. Clients without the 11.x
+  -- dropdown get no checklist filter (every category shown).
+  if UI.ChecklistView then
+    header.Checklist = UI.ChecklistView.Build(root, header)
+    local filter = UI.ChecklistView.CreateFilterDropdown(header)
+    if filter then
+      filter:SetPoint("TOPRIGHT", header, "TOPRIGHT", -8, -4)
+      filter:Hide()
+      header.ChecklistFilter = filter
+    end
+  end
 end
 
 view.Build = build

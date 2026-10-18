@@ -938,6 +938,7 @@ local HEADER_HEIGHT = 24
 local SUB_HEADER_HEIGHT = 20
 local INDICATOR_SIZE = 14
 local SUB_INDENT = 22 -- sub-header indicator inset (section headers: 6); icons of rows under it
+local DEPTH_STEP = 16 -- each deeper header level (the checklist's depth 3) moves in this much more
 local ROW_ICON_LEFT = 4 -- icon inset of other mount rows
 local ROW_HEIGHT = 40
 local ICON_SIZE = 32
@@ -1025,7 +1026,8 @@ local function collapsedDB()
 end
 
 -- Section header (depth 1) and sub-header (depth 2, indented, smaller font,
--- fainter band). A plain Frame (not a Button) so the ScrollBox pools it apart
+-- fainter band; depth 3 -- the checklist's categories -- looks the same, one
+-- DEPTH_STEP further in). A plain Frame (not a Button) so the ScrollBox pools it apart
 -- from the mount rows; left-click (OnMouseUp) calls frame.onToggle(key).
 local function initHeader(frame, data)
   if not frame.Label then
@@ -1065,14 +1067,15 @@ local function initHeader(frame, data)
       self.onToggle(self.key)
     end)
   end
-  local sub = data.depth == 2
+  local depth = data.depth or 1
+  local sub = depth >= 2
   frame.key = data.key
   -- Recycled frames: the hover band follows the mouse, not the last use.
   frame.Hover:SetShown(type(frame.IsMouseOver) == "function" and frame:IsMouseOver() == true)
   frame.Bg:SetColorTexture(1, 1, 1, sub and 0.025 or 0.05)
   frame.Rule:SetColorTexture(1, 0.82, 0, sub and 0.1 or 0.25)
   frame.Indicator:ClearAllPoints()
-  frame.Indicator:SetPoint("LEFT", frame, "LEFT", sub and SUB_INDENT or 6, 0)
+  frame.Indicator:SetPoint("LEFT", frame, "LEFT", sub and (SUB_INDENT + (depth - 2) * DEPTH_STEP) or 6, 0)
   local atlas, glyph = UI.HeaderIcon(data.collapsed == true)
   if atlas then
     frame.Indicator:SetAtlas(atlas)

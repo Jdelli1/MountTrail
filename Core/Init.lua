@@ -170,6 +170,7 @@ function addon:OnInitialize()
       routeMode = "list", -- "list" | "arrow" (UI\Arrow.lua)
       routeView = "route", -- Route tab sub-view: "route" | "checklist" (UI\ChecklistView.lua)
       checklistHideDone = false, -- Checklist: hide done lockouts
+      checklistFilters = {}, -- Checklist Filter menu: { [category] = false } for hidden ones (Logic\Checklist.lua)
     },
   }, true)
   -- Pre-F15 saved variables kept the Journal's source filters as flat keys.

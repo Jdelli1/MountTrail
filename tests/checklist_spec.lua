@@ -3,7 +3,7 @@
 -- route does not list, with injected spec / state / gate lookups.
 
 local function load()
-  return load_addon({ "Core/Locale.lua", "Logic/Checklist.lua" }).Checklist
+  return load_addon({ "Core/Locale.lua", "Logic/Lockouts.lua", "Logic/Checklist.lua" }).Checklist
 end
 
 local EXPANSIONS = { "Classic", "Wrath of the Lich King", "Cataclysm" }
@@ -325,13 +325,13 @@ describe("Checklist.Rows", function()
     eq(rows[1].owned, 1, "done count (UI.HeaderText reads owned/total)")
     eq(rows[1].total, 3)
     eq(rows[1].collapsed, false)
-    eq(rows[3].id, 2)
-    eq(rows[3].entry.key, 2)
-    eq(rows[4].id, 1)
-    eq(rows[5].key, "checklist|weekly", "the done entry (9) is not listed")
-    eq(rows[5].owned, 0)
-    eq(rows[5].total, 4)
-    eq(#rows, 11)
+    eq(rows[4].id, 2)
+    eq(rows[4].entry.key, 2)
+    eq(rows[5].id, 1)
+    eq(rows[6].key, "checklist|weekly", "the done entry (9) is not listed")
+    eq(rows[6].owned, 0)
+    eq(rows[6].total, 4)
+    eq(#rows, 13)
   end)
 
   it("splits each reset group into expansion sub-headers (Data.Expansions order) with done/total", function()
@@ -339,10 +339,12 @@ describe("Checklist.Rows", function()
     eq(shape(rows), {
       "checklist|daily (1/3)",
       -- Classic holds only the done Ram: no shown entry, no sub-header.
-      "checklist|daily|Cataclysm (0/2)", "2@2", "1@2",
+      "checklist|daily|Cataclysm (0/2)", "checklist|daily|Cataclysm|dungeons (0/2)", "2@3", "1@3",
       "checklist|weekly (0/4)",
+      -- Classic holds only "Other" entries: no category level.
       "checklist|weekly|Classic (0/2)", "12@2", "8@2",
-      "checklist|weekly|Wrath of the Lich King (0/2)", "3@2", "3@Koralon@2",
+      "checklist|weekly|Wrath of the Lich King (0/2)", "checklist|weekly|Wrath of the Lich King|raids (0/2)",
+      "3@3", "3@Koralon@3",
     })
     local sub = rows[2]
     eq(sub.header, true)
@@ -368,17 +370,18 @@ describe("Checklist.Rows", function()
     eq(rows[1].collapsed, true)
     eq(rows[1].total, 3)
     eq(rows[2].key, "checklist|weekly")
-    eq(#rows, 8)
+    eq(#rows, 9)
   end)
 
   it("a collapsed sub-header hides only its own entries", function()
     local rows = load().Rows(built(), { collapsed = { ["checklist|weekly|Classic"] = true } })
     eq(shape(rows), {
       "checklist|daily (1/3)",
-      "checklist|daily|Cataclysm (0/2)", "2@2", "1@2",
+      "checklist|daily|Cataclysm (0/2)", "checklist|daily|Cataclysm|dungeons (0/2)", "2@3", "1@3",
       "checklist|weekly (0/4)",
       "checklist|weekly|Classic (0/2) +",
-      "checklist|weekly|Wrath of the Lich King (0/2)", "3@2", "3@Koralon@2",
+      "checklist|weekly|Wrath of the Lich King (0/2)", "checklist|weekly|Wrath of the Lich King|raids (0/2)",
+      "3@3", "3@Koralon@3",
     })
   end)
 
@@ -386,9 +389,9 @@ describe("Checklist.Rows", function()
     local rows = load().Rows(built())
     eq(rows[1].owned, 1)
     eq(rows[1].total, 3)
-    eq(rows[3].id, 2)
-    eq(rows[4].id, 1)
-    eq(rows[5].key, "checklist|weekly")
+    eq(rows[4].id, 2)
+    eq(rows[5].id, 1)
+    eq(rows[6].key, "checklist|weekly")
   end)
 
   it("unknown expansions sort after known ones (by name), a missing one last as Other", function()
@@ -637,5 +640,225 @@ describe("Checklist.LockoutKey", function()
     eq(K({ lfg = 287, reset = "daily" }), "lfg:287")
     eq(K({ manual = true, reset = "weekly" }), nil)
     eq(K(nil), nil)
+  end)
+end)
+
+-- F14: reset -> expansion -> category -> entries. Categories: Raids,
+-- Dungeons, World bosses, Rares, Holidays, Other.
+describe("Checklist.Category", function()
+  local C = load()
+
+  it("instance specs: Raids when any difficulty is a raid one, else Dungeons", function()
+    for _, d in ipairs({ 3, 4, 5, 6, 7, 9, 14, 15, 16, 17, 33 }) do
+      eq(C.Category({ instance = 1, difficulties = { d } }, {}), "raids", "difficulty " .. d)
+    end
+    eq(C.Category({ instance = 1, difficulties = { { 3, 4, 5, 6 } } }, {}), "raids", "nested lockout group")
+    eq(C.Category({ instance = 1, difficulties = { 2, 16 } }, {}), "raids", "any raid difficulty")
+    for _, d in ipairs({ 1, 2, 8, 23 }) do
+      eq(C.Category({ instance = 1, difficulties = { d } }, { section = "raid" }), "dungeons", "difficulty " .. d)
+    end
+    eq(C.Category({ instance = 1 }, { section = "raid" }), "dungeons", "no difficulties: a dungeon")
+  end)
+
+  it("the Vault of Archavon per-boss spec is a raid", function()
+    eq(C.Category({ instance = 624, boss = "Koralon", difficulties = { 3, 4 }, reset = "weekly" },
+      { section = "world" }), "raids")
+  end)
+
+  it("manual / quest specs: the mount's journal section", function()
+    -- Midnight dungeons: instance IDs unknown, hand ticks.
+    eq(C.Category({ manual = true, reset = "weekly" }, { section = "dungeon", group = "Dungeon Drop" }), "dungeons")
+    eq(C.Category({ manual = true, reset = "weekly" }, { section = "raid", group = "Raid Drop" }), "raids")
+    eq(C.Category({ quest = 1 }, { section = "dungeon" }), "dungeons")
+  end)
+
+  it("world bosses and rares by SimpleArmory group", function()
+    eq(C.Category({ quest = 1 }, { section = "world", group = "World Boss" }), "worldbosses")
+    eq(C.Category({ quest = 1 }, { section = "world", group = "Rare Spawn" }), "rares")
+    eq(C.Category({ quest = 1 }, { section = "world", group = "Necrolord Rare Spawn" }), "rares")
+    eq(C.Category({ quest = 1 }, { section = "activity", group = "Warfront: Arathi" }), "rares")
+    eq(C.Category({ quest = 1 }, { section = "activity", group = "Assault: Uldum" }), "rares")
+    eq(C.Category({ quest = 1 }, { section = "world", group = "Tormentors" }), "other")
+    eq(C.Category({ quest = 1 }, { section = "activity", group = "Garrison" }), "other")
+    eq(C.Category({ quest = 1 }, { section = "vendor", group = "Necrolord Vendor" }), "other")
+  end)
+
+  it("LFG specs and holiday mounts: Holidays", function()
+    eq(C.Category({ lfg = 287, reset = "daily" }, { tab = "holiday", section = "brewfest" }), "holidays")
+    eq(C.Category({ lfg = 285, reset = "daily" }, {}), "holidays", "LFG flag alone")
+    eq(C.Category({ quest = 9 }, {}, "brewfest"), "holidays", "a holiday's own mount")
+    eq(C.Category({ quest = 9 }, { tab = "holiday", section = "lunarfestival" }), "holidays")
+  end)
+
+  it("anything else (and no data) is Other", function()
+    eq(C.Category({ manual = true }, {}), "other")
+    eq(C.Category(nil, nil), "other")
+    eq(C.Category({ quest = 1 }, { section = "quest", group = "Quest" }), "other")
+  end)
+
+  it("lists the categories in order with their labels", function()
+    eq(C.CATEGORIES, { "raids", "dungeons", "worldbosses", "rares", "holidays", "other" })
+    eq(C.CategoryLabel("raids"), "Raids")
+    eq(C.CategoryLabel("dungeons"), "Dungeons")
+    eq(C.CategoryLabel("worldbosses"), "World bosses")
+    eq(C.CategoryLabel("rares"), "Rares")
+    eq(C.CategoryLabel("holidays"), "Holidays")
+    eq(C.CategoryLabel("other"), "Other")
+  end)
+
+  it("Build records each entry's category", function()
+    local out = load().Build(ctxFor())
+    local byKey = {}
+    for _, reset in ipairs({ "daily", "weekly" }) do
+      for _, e in ipairs(out[reset]) do byKey[e.key] = e.category end
+    end
+    eq(byKey[9], "holidays")
+    eq(byKey[1], "dungeons")
+    eq(byKey[3], "raids")
+    eq(byKey["3@Koralon"], "raids")
+    eq(byKey[8], "other")
+    eq(byKey[12], "other")
+  end)
+end)
+
+describe("Checklist.Rows categories", function()
+  local function e(id, exp, rank, category, done)
+    return { id = id, key = id, exp = exp, expRank = rank, category = category, done = done == true }
+  end
+
+  local function shape(rows)
+    local out = {}
+    for _, r in ipairs(rows) do
+      if r.header then
+        out[#out + 1] = r.key .. " (" .. r.owned .. "/" .. r.total .. ")" .. (r.collapsed and " +" or "")
+          .. " d" .. r.depth
+      else
+        out[#out + 1] = tostring(r.entry.key) .. "@" .. tostring(r.depth)
+      end
+    end
+    return out
+  end
+
+  local BUILT = { daily = {}, weekly = {
+    e(1, "Shadowlands", 9, "other"),
+    e(2, "Shadowlands", 9, "dungeons"),
+    e(3, "Shadowlands", 9, "raids"),
+    e(4, "Shadowlands", 9, "holidays"),
+    e(5, "Shadowlands", 9, "rares"),
+    e(6, "Shadowlands", 9, "worldbosses"),
+    e(7, "Shadowlands", 9, "dungeons", true),
+    e(8, "Legion", 7, "dungeons"),
+    e(9, "Legion", 7, nil), -- no category: Other
+  } }
+
+  it("nests reset -> expansion -> category (Raids, Dungeons, World bosses, Rares, Holidays, Other)", function()
+    eq(shape(load().Rows(BUILT)), {
+      "checklist|weekly (1/9) d1",
+      "checklist|weekly|Legion (0/2) d2",
+      "checklist|weekly|Legion|dungeons (0/1) d3", "8@3",
+      "checklist|weekly|Legion|other (0/1) d3", "9@3",
+      "checklist|weekly|Shadowlands (1/7) d2",
+      "checklist|weekly|Shadowlands|raids (0/1) d3", "3@3",
+      "checklist|weekly|Shadowlands|dungeons (1/2) d3", "2@3",
+      "checklist|weekly|Shadowlands|worldbosses (0/1) d3", "6@3",
+      "checklist|weekly|Shadowlands|rares (0/1) d3", "5@3",
+      "checklist|weekly|Shadowlands|holidays (0/1) d3", "4@3",
+      "checklist|weekly|Shadowlands|other (0/1) d3", "1@3",
+    })
+  end)
+
+  it("category headers carry their label, reset, expansion and category", function()
+    local rows = load().Rows(BUILT)
+    local h = rows[3]
+    eq(h.header, true)
+    eq(h.text, "Dungeons")
+    eq(h.reset, "weekly")
+    eq(h.exp, "Legion")
+    eq(h.category, "dungeons")
+    eq(h.collapsed, false)
+  end)
+
+  it("a lone category still shows its header; a lone Other does not", function()
+    local rows = load().Rows({ daily = {}, weekly = {
+      e(1, "Legion", 7, "dungeons"), e(2, "Legion", 7, "dungeons"), e(3, "Classic", 1, "other"),
+    } })
+    eq(shape(rows), {
+      "checklist|weekly (0/3) d1",
+      "checklist|weekly|Classic (0/1) d2", "3@2",
+      "checklist|weekly|Legion (0/2) d2",
+      "checklist|weekly|Legion|dungeons (0/2) d3", "1@3", "2@3",
+    })
+  end)
+
+  it("a category with only done entries gets no header (as expansions)", function()
+    local rows = load().Rows({ daily = {}, weekly = {
+      e(1, "Legion", 7, "dungeons", true), e(2, "Legion", 7, "raids"),
+    } })
+    eq(shape(rows), {
+      "checklist|weekly (1/2) d1",
+      "checklist|weekly|Legion (1/2) d2",
+      "checklist|weekly|Legion|raids (0/1) d3", "2@3",
+    })
+  end)
+
+  it("without an expansion level the categories hang under the reset header", function()
+    local rows = load().Rows({ daily = { e(1, nil, 99, "holidays"), e(2, nil, 99, "holidays") }, weekly = {} })
+    eq(shape(rows), {
+      "checklist|daily (0/2) d1",
+      "checklist|daily|Other|holidays (0/2) d2", "1@2", "2@2",
+    })
+  end)
+
+  it("a collapsed category hides only its own entries", function()
+    local rows = load().Rows(BUILT, { collapsed = { ["checklist|weekly|Shadowlands|raids"] = true } })
+    local s = shape(rows)
+    eq(s[8], "checklist|weekly|Shadowlands|raids (0/1) + d3")
+    eq(s[9], "checklist|weekly|Shadowlands|dungeons (1/2) d3")
+    -- A collapsed expansion hides its categories too.
+    rows = load().Rows(BUILT, { collapsed = { ["checklist|weekly|Shadowlands"] = true } })
+    eq(shape(rows)[#rows], "checklist|weekly|Shadowlands (1/7) + d2")
+  end)
+
+  it("filters drop hidden categories from the rows and every count", function()
+    local rows = load().Rows(BUILT, { filters = { raids = false, other = false, dungeons = false } })
+    eq(shape(rows), {
+      "checklist|weekly (0/3) d1",
+      "checklist|weekly|Shadowlands (0/3) d2",
+      "checklist|weekly|Shadowlands|worldbosses (0/1) d3", "6@3",
+      "checklist|weekly|Shadowlands|rares (0/1) d3", "5@3",
+      "checklist|weekly|Shadowlands|holidays (0/1) d3", "4@3",
+    })
+  end)
+
+  it("a reset group with every entry filtered out disappears", function()
+    local rows = load().Rows({ daily = { e(1, "Legion", 7, "rares") }, weekly = { e(2, "Legion", 7, "raids") } },
+      { filters = { rares = false } })
+    eq(rows[1].key, "checklist|weekly")
+    eq(#rows, 4)
+  end)
+
+  it("an entry without a category counts as Other for the filter", function()
+    local rows = load().Rows({ daily = {}, weekly = { e(1, "Legion", 7, nil), e(2, "Legion", 7, "raids") } },
+      { filters = { other = false } })
+    eq(shape(rows), {
+      "checklist|weekly (0/1) d1",
+      "checklist|weekly|Legion (0/1) d2",
+      "checklist|weekly|Legion|raids (0/1) d3", "2@3",
+    })
+  end)
+
+  it("Remaining honours the filters", function()
+    eq(load().Remaining(BUILT), 8)
+    eq(load().Remaining(BUILT, { raids = false, dungeons = false }), 5)
+    eq(load().Remaining(BUILT, {}), 8)
+  end)
+
+  it("Shown: a category is shown unless its filter is false", function()
+    local C = load()
+    eq(C.Shown(nil, "raids"), true)
+    eq(C.Shown({}, "raids"), true)
+    eq(C.Shown({ raids = false }, "raids"), false)
+    eq(C.Shown({ raids = false }, "dungeons"), true)
+    eq(C.Shown({ other = false }, nil), false, "nil category = other")
   end)
 end)

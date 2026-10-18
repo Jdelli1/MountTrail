@@ -1196,6 +1196,62 @@ describe("ui build", function()
     ok(routeBox:IsShown() and not checklist:IsShown(), "back to the route")
   end)
 
+  it("Checklist Filter dropdown: per-character category filters, shown on the checklist only", function()
+    local ns = loadUI()
+    ns.Arrow = { Mode = function() return "list" end, SetMode = function() end }
+    ns.ToggleWindow()
+    ns.UI.SelectTab("route")
+    local header = content(ns, "route").children[2].children[1]
+    local dd = header.ChecklistFilter
+    ok(dd, "Filter dropdown built")
+    eq(dd.template, "WowStyle1FilterDropdownTemplate")
+    eq({ dd:GetPoint(1) }, { "TOPRIGHT", header, "TOPRIGHT", -8, -4 }, "top right, where Show completed sits on the route")
+    ok(not dd:IsShown(), "hidden on the route")
+
+    header.ChecklistViewButton:RunScript("OnClick")
+    ok(dd:IsShown(), "shown on the checklist")
+    eq(dd.resetShown, false, "defaults: no reset arrow")
+    local calls = openMenu(dd)
+    local labels = {}
+    for _, c in ipairs(calls) do if c.kind == "checkbox" then labels[#labels + 1] = c.text end end
+    eq(labels, { "Show raids", "Show dungeons", "Show world bosses", "Show rares", "Show holidays", "Show other" })
+
+    local box = header.Checklist.ScrollBox
+    local function count(category)
+      local n = 0
+      for _, r in ipairs(box.provider.rows) do
+        if r.entry and r.entry.category == category then n = n + 1 end
+      end
+      return n
+    end
+    ok(count("raids") > 0, "raid lockouts listed")
+    local weeklyTotal
+    for _, r in ipairs(box.provider.rows) do if r.key == "checklist|weekly" then weeklyTotal = r.total end end
+
+    local raids = find(calls, "Show raids")
+    eq(raids.isSelected(), true)
+    raids.setSelected()
+    eq(ns.db.char.checklistFilters.raids, false, "saved per character")
+    eq(raids.isSelected(), false)
+    eq(count("raids"), 0, "raids gone from the rows")
+    local after
+    for _, r in ipairs(box.provider.rows) do if r.key == "checklist|weekly" then after = r.total end end
+    ok(after < weeklyTotal, "header counts reflect the filter")
+    eq(dd.resetShown, true, "reset arrow once a filter differs")
+
+    eq(find(calls, "Uncheck all").fn(), MenuResponse.Refresh, "menu stays open")
+    eq(#box.provider.rows, 0, "everything hidden")
+    eq(find(calls, "Check all").fn(), MenuResponse.Refresh)
+    eq(ns.db.char.checklistFilters, {})
+    ns.db.char.checklistFilters.dungeons = false
+    dd.defaultCallback()
+    eq(ns.db.char.checklistFilters, {}, "reset shows every category")
+    eq(dd.resetShown, false)
+
+    header.RouteViewButton:RunScript("OnClick")
+    ok(not dd:IsShown(), "hidden again on the route")
+  end)
+
   it("Checklist rows: headers with reset timers and done/total, tick boxes, clicks, collapse, Hide done", function()
     local ns = loadUI()
     ns.Map.HasLocation = function(id) return id % 2 == 0 end
@@ -1223,9 +1279,19 @@ describe("ui build", function()
     eq(box.view.extent(1, rows[2]), 20, "sub-header height")
     ok(frames[2].Label:GetText():find("(0/" .. rows[2].total .. ")", 1, true), "sub-header done/total")
 
+    -- F14: then a category header (Raids, Dungeons, ...) one step further in.
+    eq(rows[3].header, true)
+    eq(rows[3].depth, 3)
+    ok(rows[3].key:find("^" .. rows[2].key:gsub("%p", "%%%0") .. "|"), rows[3].key)
+    ok(rows[3].category, "category header")
+    eq(box.view.extent(1, rows[3]), 20, "category header: sub-header height")
+    eq({ frames[3].Indicator:GetPoint(1) }, { "LEFT", frames[3], "LEFT", 22 + 16, 0 }, "indented a step further")
+    eq(frames[3].Label.font, "GameFontNormalSmall")
+    ok(frames[3].Label:GetText():find("(0/" .. rows[3].total .. ")", 1, true), "category done/total")
+
     -- A row: list look, pin, click, hover. A game-tracked lockout has no
     -- tick box (the game decides); the icon keeps its place either way.
-    local f, row = frames[3], rows[3]
+    local f, row = frames[4], rows[4]
     -- F12: hover and pin use the row's boss (the lockout line of that boss).
     local shown = {}
     local oldShow = ns.UI.ShowMountTooltip
@@ -1235,10 +1301,10 @@ describe("ui build", function()
     eq(shown[1], { row.id, row.entry.boss }, "hover names the row's boss")
     eq(row.routeBoss, row.entry.boss)
     ok(not row.entry.spec.manual, "the first daily entry is game-tracked")
-    eq(row.depth, 2, "under its expansion sub-header")
+    eq(row.depth, 3, "under its category header")
     eq(f.Check:IsShown(), false, "no tick box on a game-tracked lockout")
-    eq({ f.Icon:GetPoint(1) }, { "LEFT", f, "LEFT", 6 + 22 + 4 + 16, 0 }, "icon after the tick-box column, indented")
-    eq({ f.Check:GetPoint(1) }, { "LEFT", f, "LEFT", 6 + 16, 0 }, "tick-box column indented")
+    eq({ f.Icon:GetPoint(1) }, { "LEFT", f, "LEFT", 6 + 22 + 4 + 32, 0 }, "icon after the tick-box column, indented")
+    eq({ f.Check:GetPoint(1) }, { "LEFT", f, "LEFT", 6 + 32, 0 }, "tick-box column indented")
     eq(f.Pin:IsShown(), row.id % 2 == 0)
     ok(f.Source:GetText() ~= "", "grey description line")
     f:RunScript("OnClick", "LeftButton")
