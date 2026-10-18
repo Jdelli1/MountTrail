@@ -51,21 +51,18 @@ Journal.GENERAL = "General"
 -- mounts" option is on (query.showUnobtainable); listed last.
 Journal.UNOBTAINABLE = "unobtainable"
 
--- True when a mount moves to Misc's Unobtainable section: unobtainable, not
--- owned, and the option on. Owned ones stay in their own view.
-local function movedToMisc(m, showUnobtainable, owned)
-  return showUnobtainable == true and m.unobtainable and not owned
-end
-
 -- The list view a mount belongs to: "journal", "holidays", "achievements",
 -- "timewalking" or "misc". Timewalking takes the holiday timewalking section
 -- and any SimpleArmory "Timewalking" subcat (group); Achievements takes the
 -- misc achievement section. Every mount is in exactly one view.
 -- opts (optional): { showUnobtainable = bool, owned = bool }: with
--- showUnobtainable a not-owned unobtainable mount is in "misc" (section
--- Journal.UNOBTAINABLE) whatever its data tab.
+-- showUnobtainable a not-owned unobtainable mount is in "misc" whatever its
+-- data tab, and the second return value names its section,
+-- Journal.UNOBTAINABLE (owned ones stay in their own view).
 function Journal.ViewOf(m, opts)
-  if opts and movedToMisc(m, opts.showUnobtainable, opts.owned) then return "misc" end
+  if opts and opts.showUnobtainable == true and m.unobtainable and not opts.owned then
+    return "misc", Journal.UNOBTAINABLE
+  end
   local tab, section = m.tab, m.section
   if m.group == "Timewalking" or (tab == "holiday" and section == "timewalking") then
     return "timewalking"
@@ -155,27 +152,31 @@ function Journal.Select(mounts, query)
     needle = query.search:lower()
   end
 
-  -- With showUnobtainable, whether a mount moved to Misc's Unobtainable
-  -- section (ownership asked of unobtainable mounts only).
-  local function moved(id, m)
-    return showUnobtainable and m.unobtainable and not isOwned(id) or false
+  -- Journal.ViewOf of a mount in this query: with showUnobtainable,
+  -- unobtainable mounts are asked about ownership (only they need it).
+  local function viewOf(id, m)
+    if showUnobtainable and m.unobtainable then
+      return Journal.ViewOf(m, { showUnobtainable = true, owned = isOwned(id) and true or false })
+    end
+    return Journal.ViewOf(m)
   end
 
   -- Section of a mount in this list, or nil when it is not in the list.
   local sectionIn
   if view == "achievements" then
     sectionIn = function(id, m)
-      if moved(id, m) or Journal.ViewOf(m) ~= view then return nil end
+      if viewOf(id, m) ~= view then return nil end
       return m.exp or Journal.GENERAL
     end
   elseif view == "timewalking" then
     sectionIn = function(id, m)
-      return not moved(id, m) and Journal.ViewOf(m) == view and "timewalking" or nil
+      return viewOf(id, m) == view and "timewalking" or nil
     end
   elseif view then
     sectionIn = function(id, m)
-      if moved(id, m) then return view == "misc" and Journal.UNOBTAINABLE or nil end
-      return Journal.ViewOf(m) == view and Journal.SectionOf(id, m, sourceText) or nil
+      local v, section = viewOf(id, m)
+      if v ~= view then return nil end
+      return section or Journal.SectionOf(id, m, sourceText)
     end
   else
     sectionIn = function(id, m)

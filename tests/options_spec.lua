@@ -245,6 +245,16 @@ describe("options", function()
       local early = loadOptions({ noInit = true })
       eq(early.Options.ShowUnobtainable(), false)
     end)
+
+    it("ShowUnobtainable delegates to UI.ShowUnobtainable when the list is loaded", function()
+      local ns = loadOptions()
+      ns.UI = ns.UI or {}
+      local answer = true
+      ns.UI.ShowUnobtainable = function() return answer end
+      eq(ns.Options.ShowUnobtainable(), true, "the list's reader, not the saved false")
+      answer = false
+      eq(ns.Options.ShowUnobtainable(), false)
+    end)
   end)
 
   describe("minimap checkbox", function()

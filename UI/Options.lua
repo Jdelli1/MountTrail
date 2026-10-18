@@ -66,9 +66,12 @@ local function setWaypoints(value)
   if VALID[value] then settings().waypoints = value end
 end
 
--- Whether not-owned unobtainable mounts are listed (on Misc); false without
--- a db.
+-- Whether not-owned unobtainable mounts are listed (on Misc): the list's own
+-- reader (UI.ShowUnobtainable, UI\List.lua) when loaded, else the saved
+-- setting; false without a db.
 function Options.ShowUnobtainable()
+  local UI = ns.UI
+  if UI and type(UI.ShowUnobtainable) == "function" then return UI.ShowUnobtainable() end
   local global = ns.db and ns.db.global
   local saved = global and global.settings
   return type(saved) == "table" and saved.showUnobtainable == true
