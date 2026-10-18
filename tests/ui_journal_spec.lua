@@ -1094,6 +1094,38 @@ describe("ui journal", function()
       eq(SM(5), nil)
     end)
 
+    it("DisplayMarkup keeps textures and atlases, sized to the text", function()
+      local ns = loadUI()
+      local DM = ns.UI.DisplayMarkup
+      eq(DM("|cFFFFD200Cost:|r 2000|TINTERFACE\\MONEYFRAME\\UI-GOLDICON.BLP:0|t"),
+        "Cost: 2000|TINTERFACE\\MONEYFRAME\\UI-GOLDICON.BLP:0|t")
+      eq(DM("5|T463446:16:16:2:0|t"), "5|T463446:0|t", "fileID, size fields rewritten")
+      eq(DM("x |A:raceicon-dwarf-male:16:16|a y"), "x |Araceicon-dwarf-male:0:0|a y")
+      eq(DM("a|n|Hitem:1|hLink|h"), "a\nLink")
+      eq(DM(nil), nil)
+    end)
+
+    it("SourcePairs keeps icons in values only with keepIcons", function()
+      local ns = loadUI()
+      local SP = ns.UI.SourcePairs
+      local src = "|cFFFFD200Vendor:|r Mei Francis|n|cFFFFD200Zone:|r Dalaran|n|cFFFFD200Cost:|r 2000|TINTERFACE\\MONEYFRAME\\UI-GOLDICON.BLP:0|t"
+      eq(SP(src)[3], { label = "Cost:", value = "2000" }, "stripped by default")
+      eq(SP(src, true), {
+        { label = "Vendor:", value = "Mei Francis" }, { label = "Zone:", value = "Dalaran" },
+        { label = "Cost:", value = "2000|TINTERFACE\\MONEYFRAME\\UI-GOLDICON.BLP:0|t" },
+      })
+      eq(SP("Cost: |T1357489:14|t 5 |T1357489:14|t", true)[1],
+        { label = "Cost:", value = "|T1357489:0|t 5 |T1357489:0|t" }, "value starts and ends with an icon")
+      eq(SP("|T1357489:14|tCost: 5", true)[1], { label = "Cost:", value = "5" }, "icon before the label")
+      eq(ns.UI.SourceZone("Zone: Dalaran |T1:0|t"), "Dalaran", "zone matching stays stripped")
+    end)
+
+    it("RowDescription keeps icons", function()
+      local ns = loadUI(nil, { Mounts = {}, Route = ROUTE })
+      ns.AchievementScan.Lookup = function() return nil, "none" end
+      eq(ns.UI.RowDescription(1, "Quest: Reward |T463446:16:16|t"), "Quest: Reward |T463446:0|t")
+    end)
+
     it("SourcePairs splits labelled lines and keeps the client's labels", function()
       local ns = loadUI()
       local SP = ns.UI.SourcePairs

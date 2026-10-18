@@ -215,6 +215,55 @@ function UI.StripMarkup(text)
   return text
 end
 
+-- Icon markup for display: a texture (|Tpath-or-fileID:h:w...|t) or atlas
+-- (|Aname:h:w...|a) with its size fields rewritten to 0, which WoW scales to
+-- the font height, so the icon lines up with the text around it.
+local function normalizeTexture(body)
+  local file = string.match(body, "^([^:]*)")
+  if file == "" then return "" end
+  return "|T" .. file .. ":0|t"
+end
+
+local function normalizeAtlas(body)
+  local name = string.match(body, "^:?([^:]*)")
+  if name == "" then return "" end
+  return "|A" .. name .. ":0:0|a"
+end
+
+-- Placeholders ("\1" + a byte >= 128) stand in for icons while the text is
+-- split into labels and values (UI.SourcePairs, keepIcons), so a fileID's
+-- digits or an icon next to a label never confuse the label detection.
+local PLACEHOLDER = "\1[\128-\255]"
+local MAX_ICONS = 120
+
+local function hideIcons(text)
+  local icons = {}
+  local function hide(markup)
+    if markup == "" or #icons >= MAX_ICONS then return "" end
+    icons[#icons + 1] = markup
+    return "\1" .. string.char(127 + #icons)
+  end
+  text = string.gsub(text, "|T(.-)|t", function(body) return hide(normalizeTexture(body)) end)
+  text = string.gsub(text, "|A(.-)|a", function(body) return hide(normalizeAtlas(body)) end)
+  return text, icons
+end
+
+local function showIcons(text, icons)
+  return (string.gsub(text, PLACEHOLDER, function(mark) return icons[string.byte(mark, 2) - 127] or "" end))
+end
+
+local function dropIcons(text)
+  return (string.gsub(text, PLACEHOLDER, ""))
+end
+
+-- UI.StripMarkup that keeps the icons (normalised, see above): the sanitiser
+-- for text that is shown. Text that is compared stays on UI.StripMarkup.
+function UI.DisplayMarkup(text)
+  if type(text) ~= "string" then return nil end
+  local hidden, icons = hideIcons(text)
+  return showIcons(UI.StripMarkup(hidden), icons)
+end
+
 local FULLWIDTH_COLON = "\239\188\154" -- U+FF1A, zhCN / zhTW labels
 local MAX_LABEL = 40 -- bytes; longer "labels" are sentences with a colon
 
@@ -225,6 +274,7 @@ end
 -- Comparable form of a label: lower case, without the colon and spaces.
 local function labelKey(label)
   if type(label) ~= "string" then return nil end
+  label = dropIcons(label)
   label = string.gsub(label, FULLWIDTH_COLON, "")
   label = string.gsub(label, ":", "")
   label = trim(label)
@@ -311,10 +361,13 @@ end
 -- the client's own (localised) text with the colon; lines and values are
 -- trimmed; empty lines and labels with an empty value are left out. Several
 -- labels on one line become several pairs: coloured labels always, plain
--- ones when the label is a known word (UI.SourceLabelKind).
-function UI.SourcePairs(text)
+-- ones when the label is a known word (UI.SourceLabelKind). With keepIcons
+-- the values keep their (normalised) icons; labels never do.
+function UI.SourcePairs(text, keepIcons)
   local out = {}
   if type(text) ~= "string" then return out end
+  local icons
+  if keepIcons then text, icons = hideIcons(text) end
   text = UI.StripMarkup(breakColouredLabels(text))
   local kinds = labelKinds()
   for line in string.gmatch(text .. "\n", "([^\n]*)\n") do
@@ -326,11 +379,13 @@ function UI.SourcePairs(text)
         while label do
           local head, nextLabel, tail = splitKnown(value, kinds)
           if head then value = head end
-          if value ~= "" then out[#out + 1] = { label = trim(label), value = value } end
+          if value ~= "" then
+            out[#out + 1] = { label = trim(dropIcons(label)), value = icons and showIcons(value, icons) or value }
+          end
           label, value = nextLabel, tail
         end
       else
-        out[#out + 1] = { value = line }
+        out[#out + 1] = { value = icons and showIcons(line, icons) or line }
       end
     end
   end
@@ -379,7 +434,7 @@ end
 function UI.RowDescription(mountID, sourceText)
   local kinds = labelKinds()
   local first, zone, unlabelled, other = {}, nil, nil, nil
-  for _, pair in ipairs(UI.SourcePairs(sourceText)) do
+  for _, pair in ipairs(UI.SourcePairs(sourceText, true)) do
     if pair.label then
       local kind = UI.SourceLabelKind(pair.label, kinds)
       if kind == "zone" then

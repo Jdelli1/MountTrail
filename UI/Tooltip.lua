@@ -108,7 +108,7 @@ end
 -- and no line already names it. The instance is the route step's, else the
 -- source text's zone.
 local function sourceLines(lines, mountID, text)
-  local pairsList = UI.SourcePairs and UI.SourcePairs(text) or {}
+  local pairsList = UI.SourcePairs and UI.SourcePairs(text, true) or {}
   local zone
   for _, pair in ipairs(pairsList) do
     if pair.label then
