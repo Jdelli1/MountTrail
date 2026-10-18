@@ -147,4 +147,114 @@ describe("attempts", function()
       eq(A.Get(store, 7), 1)
     end)
   end)
+
+  describe("AddForChar", function()
+    it("counts per character, creating the character's table", function()
+      local A = load().Attempts
+      local byChar = {}
+      A.AddForChar(byChar, "Me-Realm", 5)
+      A.AddForChar(byChar, "Me-Realm", 5)
+      A.AddForChar(byChar, "Alt-Realm", 5)
+      A.AddForChar(byChar, "Alt-Realm", 7)
+      eq(byChar, { ["Me-Realm"] = { [5] = 2 }, ["Alt-Realm"] = { [5] = 1, [7] = 1 } })
+    end)
+
+    it("replaces a non-table entry for the character", function()
+      local A = load().Attempts
+      local byChar = { ["Me-Realm"] = "junk" }
+      A.AddForChar(byChar, "Me-Realm", 5)
+      eq(byChar, { ["Me-Realm"] = { [5] = 1 } })
+    end)
+  end)
+
+  -- Summary(mountID, ctx) -> { this =, total = } (F8): this character's
+  -- attempts and the total over every character.
+  describe("Summary", function()
+    local ME = "Me-Realm"
+    local function ctx(t)
+      t.charKey = t.charKey or ME
+      return t
+    end
+
+    it("nothing recorded anywhere -> 0 / 0", function()
+      local A = load().Attempts
+      eq(A.Summary(5, ctx({})), { this = 0, total = 0 })
+      eq(A.Summary(5, ctx({ hasStats = true, stats = {}, byChar = {}, legacy = {} })), { this = 0, total = 0 })
+    end)
+
+    it("counters: this character's own; total = every character + legacy", function()
+      local A = load().Attempts
+      local c = ctx({
+        byChar = { [ME] = { [5] = 3 }, ["Alt-Realm"] = { [5] = 4, [6] = 9 } },
+        legacy = { [5] = 10 },
+      })
+      eq(A.Summary(5, c), { this = 3, total = 17 })
+      eq(A.Summary(6, c), { this = 0, total = 9 }, "only an alt has counted")
+    end)
+
+    it("legacy counter counts only in the total, never for this character", function()
+      local A = load().Attempts
+      eq(A.Summary(5, ctx({ legacy = { [5] = 6 } })), { this = 0, total = 6 })
+    end)
+
+    it("statistics: this character's reading and the sum over characters", function()
+      local A = load().Attempts
+      local c = ctx({
+        hasStats = true,
+        stats = { [ME] = { [5] = 20 }, ["Alt-Realm"] = { [5] = 10 } },
+        byChar = { [ME] = { [5] = 99 } }, legacy = { [5] = 99 },
+      })
+      eq(A.Summary(5, c), { this = 20, total = 30 }, "statistics win over counters")
+    end)
+
+    it("statistics from another character only: total from statistics, this = own counter", function()
+      local A = load().Attempts
+      local c = ctx({
+        hasStats = true,
+        stats = { ["Alt-Realm"] = { [5] = 4 } },
+        byChar = { [ME] = { [5] = 2 } },
+      })
+      eq(A.Summary(5, c), { this = 2, total = 4 })
+    end)
+
+    it("statistics without any reading fall back to the counters", function()
+      local A = load().Attempts
+      local c = ctx({
+        hasStats = true,
+        stats = { [ME] = { [6] = 9 } },
+        byChar = { [ME] = { [5] = 2 } }, legacy = { [5] = 1 },
+      })
+      eq(A.Summary(5, c), { this = 2, total = 3 })
+    end)
+
+    it("readings are ignored for mounts without statistics (stale data)", function()
+      local A = load().Attempts
+      local c = ctx({ stats = { [ME] = { [5] = 9 } }, byChar = { [ME] = { [5] = 5 } } })
+      eq(A.Summary(5, c), { this = 5, total = 5 })
+    end)
+
+    it("Rarity's count raises the total when larger, never this character", function()
+      local A = load().Attempts
+      local c = ctx({ byChar = { [ME] = { [5] = 7 } }, rarity = 42 })
+      eq(A.Summary(5, c), { this = 7, total = 42 })
+      c.rarity = 3
+      eq(A.Summary(5, c), { this = 7, total = 7 }, "smaller Rarity count ignored")
+      c.rarity = "lots"
+      eq(A.Summary(5, c), { this = 7, total = 7 }, "unreadable Rarity count ignored")
+      local s = ctx({ hasStats = true, stats = { [ME] = { [5] = 20 } }, rarity = 500 })
+      eq(A.Summary(5, s), { this = 20, total = 500 }, "also over statistics")
+    end)
+
+    it("tolerates junk entries in the stores", function()
+      local A = load().Attempts
+      local c = ctx({
+        hasStats = true,
+        stats = { [ME] = "junk", ["Alt-Realm"] = { [5] = "x" } },
+        byChar = { [ME] = "junk", ["Alt-Realm"] = { [5] = 2 } },
+        legacy = { [5] = "x" },
+      })
+      eq(A.Summary(5, c), { this = 0, total = 2 })
+      eq(A.Summary(5, nil), { this = 0, total = 0 }, "no ctx")
+    end)
+  end)
 end)

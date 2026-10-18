@@ -47,11 +47,76 @@ function Attempts.Newly(prev, curr, mountIDs, specFor, isOwned)
   return out
 end
 
--- store: account-wide { [mountID] = count }.
+-- store: { [mountID] = count } (one character's counters, or the legacy
+-- account-wide ns.db.global.attempts from before F8).
 function Attempts.Add(store, mountID)
   store[mountID] = (store[mountID] or 0) + 1
 end
 
 function Attempts.Get(store, mountID)
   return store[mountID] or 0
+end
+
+-- byChar: ns.db.global.attemptsByChar = { [charKey] = { [mountID] = count } }.
+-- +1 for `mountID` on `charKey`, creating (or replacing junk with) its table.
+function Attempts.AddForChar(byChar, charKey, mountID)
+  local mine = byChar[charKey]
+  if type(mine) ~= "table" then
+    mine = {}
+    byChar[charKey] = mine
+  end
+  Attempts.Add(mine, mountID)
+end
+
+local function count(store, mountID)
+  local n = type(store) == "table" and store[mountID] or nil
+  return type(n) == "number" and n or nil
+end
+
+-- Sum of `mountID` over every character of { [charKey] = { [mountID] = n } }
+-- -> total or nil when no character has a number, and this character's n.
+local function overChars(byChar, mountID, charKey)
+  if type(byChar) ~= "table" then return nil, nil end
+  local total, mine = nil, nil
+  for key, counts in pairs(byChar) do
+    local n = count(counts, mountID)
+    if n then
+      total = (total or 0) + n
+      if key == charKey then mine = n end
+    end
+  end
+  return total, mine
+end
+
+-- Attempts on a mount for the tooltip (F8) -> { this =, total = }.
+-- ctx = {
+--   charKey  = this character's key (Game.CharKey),
+--   hasStats = the mount has kill statistic IDs (Data.Mounts `stats`),
+--   stats    = ns.db.global.stats { [charKey] = { [mountID] = kills } },
+--   byChar   = ns.db.global.attemptsByChar (our per-character counters),
+--   legacy   = ns.db.global.attempts (the account-wide counter of earlier
+--              versions: counted in the total only, never as this character's),
+--   rarity   = Rarity's attempt count, or nil when unreadable,
+-- }
+-- this: this character's statistics reading when the mount has statistics
+-- and one exists, else this character's own counter.
+-- total: the statistics summed over characters when the mount has
+-- statistics and any reading, else every character's counter + legacy; then
+-- Rarity's count when larger. Stale readings of a mount without statistics
+-- are ignored.
+function Attempts.Summary(mountID, ctx)
+  ctx = type(ctx) == "table" and ctx or {}
+  local charKey = ctx.charKey
+  local statTotal, statMine
+  if ctx.hasStats then statTotal, statMine = overChars(ctx.stats, mountID, charKey) end
+  local counted, counterMine = overChars(ctx.byChar, mountID, charKey)
+
+  local this = statMine or counterMine or 0
+  local total = statTotal
+  if not total then
+    total = (counted or 0) + (count(ctx.legacy, mountID) or 0)
+  end
+  local rarity = ctx.rarity
+  if type(rarity) == "number" and rarity > total then total = rarity end
+  return { this = this, total = total }
 end

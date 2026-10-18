@@ -6,8 +6,9 @@ local ADDON, ns = ...
 --   the client's source lines (gold label, white value) and "Dropped by
 --   <boss> in <instance>" from the route when no line names the boss,
 --   "1 in N chance", "Lucky if you obtain in K or less" (Logic/Odds.lua),
---   "Attempts  A" (kill statistics over every character, else the larger of
---   our counter and Rarity's), "(this character: N)", "Chance so far  P%",
+--   "Attempts (this character)  N" and "Total attempts  T" (Attempts.Summary:
+--   kill statistics, else our per-character counters; the total also takes
+--   Rarity's count when larger), "Chance so far  P%" (of T),
 --   this character's lockout state, the achievement block for achievement
 --   mounts (UI.AchievementLines) and the click hints.
 -- The lines are built by pure helpers (UI.TooltipLines -> structured lines,
@@ -126,24 +127,21 @@ local function sourceLines(lines, mountID, text)
   end
 end
 
--- Attempts A: the kill statistics' total over every character when the
--- mount has statistics and a reading, else the larger of our attempt counter
--- and Rarity's count (when readable). -> A, and this character's kills when
--- several characters have readings (else nil).
+-- { this =, total = } attempts on the mount (Attempts.Summary over the
+-- saved statistics, our per-character counters, the legacy account-wide
+-- counter and Rarity's count when readable).
 local function attempts(mountID, m)
   local global = ns.db and ns.db.global or {}
-  if m.stats and ns.Stats then
-    local total, mine, chars = ns.Stats.Totals(global.stats, mountID, ns.Game.CharKey())
-    if total then
-      return total, (chars > 1 and mine) or nil
-    end
-  end
-  local count = ns.Attempts.Get(global.attempts or {}, mountID)
-  if m.item and ns.RarityBridge then
-    local rarity = ns.RarityBridge.Attempts(m.item)
-    if type(rarity) == "number" and rarity > count then count = rarity end
-  end
-  return count, nil
+  local rarity
+  if m.item and ns.RarityBridge then rarity = ns.RarityBridge.Attempts(m.item) end
+  return ns.Attempts.Summary(mountID, {
+    charKey = ns.Game.CharKey(),
+    hasStats = m.stats ~= nil and ns.Stats ~= nil,
+    stats = global.stats,
+    byChar = global.attemptsByChar,
+    legacy = global.attempts,
+    rarity = rarity,
+  })
 end
 
 -- Whether attempts are worth showing for a mount: it has a drop chance,
@@ -157,8 +155,8 @@ function UI.IsTracked(mountID, m)
 end
 
 -- -> the tooltip's lines after the item tooltip / name + flavor, in order,
--- each { left =, r =, g =, b = [, wrap = true] } or, for "Attempts" and
--- "Chance so far", { double = true, left =, right =, r, g, b (left colour),
+-- each { left =, r =, g =, b = [, wrap = true] } or, for the two Attempts
+-- lines and "Chance so far", { double = true, left =, right =, r, g, b (left colour),
 -- rr, rg, rb (right colour) }. See the file header for the order.
 function UI.TooltipLines(mountID)
   local m = mountData(mountID) or {}
@@ -177,11 +175,11 @@ function UI.TooltipLines(mountID)
     lines[#lines + 1] = line(string.format(L["Lucky if you obtain in %d or less"], ns.Odds.LuckyBy(n)), GREY)
   end
   if UI.IsTracked(mountID, m) then
-    local count, mine = attempts(mountID, m)
-    lines[#lines + 1] = double(L["Attempts"], tostring(count))
-    if mine then lines[#lines + 1] = line(string.format(L["(this character: %d)"], mine), GREY) end
+    local counts = attempts(mountID, m)
+    lines[#lines + 1] = double(L["Attempts (this character)"], tostring(counts.this))
+    lines[#lines + 1] = double(L["Total attempts"], tostring(counts.total))
     if n then
-      lines[#lines + 1] = double(L["Chance so far"], ns.Odds.Percent(ns.Odds.ChanceSoFar(n, count)))
+      lines[#lines + 1] = double(L["Chance so far"], ns.Odds.Percent(ns.Odds.ChanceSoFar(n, counts.total)))
     end
   end
 

@@ -92,7 +92,8 @@ end
 
 -- Compares the last stored observation with a fresh one and counts the new
 -- attempts of unowned mounts (Attempts.Newly: one per newly satisfied
--- difficulty group, or per quest / LFG flag going open -> done). Returns the
+-- difficulty group, or per quest / LFG flag going open -> done) on this
+-- character's counters (ns.db.global.attemptsByChar). Returns the
 -- mountIDs counted (a mount once per attempt). Does nothing until
 -- saved-instance data has arrived. freshInstances: true on
 -- UPDATE_INSTANCE_INFO (re-read the saved instances), else the last snapshot
@@ -104,7 +105,11 @@ function ns.UpdateAttempts(freshInstances)
   local curr = observe(prev, freshInstances)
   local newly = ns.Attempts.Newly(prev, curr, tracking().mounts, specFor,
     function(mountID) return ns.Game.IsOwned(mountID) end)
-  for _, mountID in ipairs(newly) do ns.Attempts.Add(global.attempts, mountID) end
+  if type(global.attemptsByChar) ~= "table" then global.attemptsByChar = {} end
+  local charKey = ns.Game.CharKey()
+  for _, mountID in ipairs(newly) do
+    ns.Attempts.AddForChar(global.attemptsByChar, charKey, mountID)
+  end
   char.last = curr
   return newly
 end
@@ -140,7 +145,12 @@ function addon:OnInitialize()
   ns.db = LibStub("AceDB-3.0"):New("AzerothTrailDB", {
     global = {
       filters = copyTable(ns.Journal.DefaultFilters),
+      -- Attempt counters per character: { [charKey] = { [mountID] = n } }.
+      -- `attempts` ({ [mountID] = n }) is the account-wide counter of earlier
+      -- versions, kept as a legacy bucket: counted in the tooltip's total only
+      -- (Attempts.Summary), never incremented again.
       attempts = {},
+      attemptsByChar = {},
       stats = {}, -- kill statistics: { [charKey] = { [mountID] = kills } } (Logic\Stats.lua)
       minimap = { hide = false },
       window = {},

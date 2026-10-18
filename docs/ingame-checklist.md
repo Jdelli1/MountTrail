@@ -285,3 +285,15 @@ The Route tab header has a second segmented control, `Route | Checklist`, just l
 - [ ] `Hide done`: tick it: done rows vanish, the counts stay; untick: they return. The setting is per character (`AzerothTrailDB.char.checklistHideDone`).
 - [ ] Everything done: with every row done and `Hide done` on, both headers remain with full counts; a character with nothing to farm shows "No lockouts left to farm on this character."
 - [ ] Route arrow: with the arrow mode on, switching to Checklist leaves the arrow frame working (it follows the route).
+
+## F8: Attempts per character and in total
+
+The tooltip's attempt block is now two right-aligned double lines, `Attempts (this character)  N` and `Total attempts  T`, replacing the single `Attempts` line and the grey `(this character: N)` line; `Chance so far` is computed from T. N = this character's kill statistics reading (statistic mounts, see F3), else this character's own attempt counter. T = the kill statistics summed over every character when the mount has statistics and any reading, else every character's counter plus the old account-wide counter; then Rarity's count when it is larger. Our counter is now per character: `AzerothTrailDB.global.attemptsByChar["Name-Realm"][mountID]`. The account-wide `AzerothTrailDB.global.attempts` from earlier versions is kept as a legacy bucket: it is counted in `Total attempts` only (never as this character's) and is no longer incremented.
+
+- [ ] Upgrade: on a character with attempts counted before this version, `/dump AzerothTrailDB.global.attempts` still shows the old numbers. Hover one of those mounts: `Attempts (this character)  0` and `Total attempts  <old number>` (or Rarity's count if larger).
+- [ ] Counting: kill a tracked non-statistic boss (e.g. Altairus in The Vortex Pinnacle, Drake of the North Wind): a few seconds later (`UPDATE_INSTANCE_INFO`) both lines go up by one without `/reload`; `/dump AzerothTrailDB.global.attemptsByChar` shows `["Name-Realm"] = { [395] = 1 }` and `global.attempts` did not change.
+- [ ] Alt: log in another character and hover the same mount: `Attempts (this character)  0`, `Total attempts` unchanged (it includes the first character). Kill it there too: this character 1, total +1.
+- [ ] Statistic mount (e.g. Rivendare's Deathcharger) on two characters with readings: `Attempts (this character)` is this character's kill statistic, `Total attempts` the sum over both. On a character that has no reading yet (logged in before this version and not since): this character shows its own counter (usually 0) and the total is the other characters' statistics.
+- [ ] Rarity installed with a higher count than ours on a mount: `Total attempts` shows Rarity's number, `Attempts (this character)` stays ours. Disable Rarity: the total drops back to ours.
+- [ ] `Chance so far` follows the total: e.g. a 1 in 100 mount with `Total attempts  30` reads `26.03%` whatever the per-character number is.
+- [ ] Layout: both labels gold, numbers white and right-aligned; no grey `(this character: N)` line anywhere. Vendor / shop mounts still have no attempt lines.

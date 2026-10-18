@@ -336,8 +336,9 @@ describe("ui journal", function()
         MountSourceText = function() return "|cFFFFD200Drop:|r Ultraxion|n|cFFFFD200Zone:|r Dragon Soul" end,
       }, { Mounts = { [445] = EXPERIMENT }, Route = DS_ROUTE })
       ns.db.global.stats = { ["Me-Realm"] = { [445] = 20 }, ["Alt-Realm"] = { [445] = 10 } }
-      ns.db.global.attempts[445] = 99 -- statistics win over our counter
-      ns.RarityBridge.Attempts = function() return 500 end -- and over Rarity's
+      ns.db.global.attempts[445] = 99 -- statistics win over our (legacy) counter
+      ns.db.global.attemptsByChar = { ["Me-Realm"] = { [445] = 99 } } -- and this character's
+      ns.RarityBridge.Attempts = function() return 25 end -- a smaller Rarity count does not lower it
       eq(ns.UI.TooltipLines(445), {
         line("Mount |cffffd100[CATA]|r", WHITE),
         line("Drops from NPC(s)", BLUE),
@@ -345,8 +346,8 @@ describe("ui journal", function()
         line("|cffffd100Zone:|r Dragon Soul", WHITE, true),
         line("1 in 100 chance", WHITE),
         line("Lucky if you obtain in 69 or less", GREY),
-        double("Attempts", "30"),
-        line("(this character: 20)", GREY),
+        double("Attempts (this character)", "20"),
+        double("Total attempts", "30"),
         double("Chance so far", "26.03%"),
         line("Lockout: —", GOLD),
         line("Click: waypoint · Shift-click: map · Ctrl-click: preview", HINT),
@@ -380,37 +381,50 @@ describe("ui journal", function()
       eq(dropped(9999), nil, "no route entry")
     end)
 
-    it("Attempts without statistics: the larger of our counter and Rarity's", function()
-      local ns = loadUI(nil, { Mounts = { [10] = { name = "M", item = 5555, quest = 111 } } })
-      ns.db.global.attempts[10] = 7
+    it("Attempts without statistics: this character's counter; total = all characters + legacy, or Rarity's if larger", function()
+      local ns = loadUI({ CharKey = function() return "Me-Realm" end },
+        { Mounts = { [10] = { name = "M", item = 5555, quest = 111 } } })
+      ns.db.global.attemptsByChar = { ["Me-Realm"] = { [10] = 2 }, ["Alt-Realm"] = { [10] = 3 } }
+      ns.db.global.attempts[10] = 2 -- legacy account-wide counter: total only
       local rarity = 42
       ns.RarityBridge.Attempts = function(item) if item == 5555 then return rarity end end
-      eq(lefts(ns.UI.TooltipLines(10)), { "Mount", "Attempts=42", "Lockout: Available", "Click: waypoint · Shift-click: map · Ctrl-click: preview" },
-        "no chance: Attempts only")
+      eq(lefts(ns.UI.TooltipLines(10)), { "Mount", "Attempts (this character)=2", "Total attempts=42",
+        "Lockout: Available", "Click: waypoint · Shift-click: map · Ctrl-click: preview" },
+        "no chance: the two Attempts lines only")
       rarity = 3
-      eq(lefts(ns.UI.TooltipLines(10))[2], "Attempts=7")
+      eq(lefts(ns.UI.TooltipLines(10))[3], "Total attempts=7")
       rarity = nil
-      eq(lefts(ns.UI.TooltipLines(10))[2], "Attempts=7", "Rarity unreadable")
+      eq(lefts(ns.UI.TooltipLines(10))[3], "Total attempts=7", "Rarity unreadable")
+      ns.db.global.attemptsByChar = {}
       ns.db.global.attempts[10] = nil
-      eq(lefts(ns.UI.TooltipLines(10))[2], "Attempts=0")
+      eq(lefts(ns.UI.TooltipLines(10))[2], "Attempts (this character)=0")
+      eq(lefts(ns.UI.TooltipLines(10))[3], "Total attempts=0")
     end)
 
-    it("statistics: every character's total; this character's split only with several", function()
+    it("statistics: this character's reading and every character's total; Chance so far uses the total", function()
       local ns = loadUI({ CharKey = function() return "Me-Realm" end }, { Mounts = {
         [40] = { name = "Stat Mount", item = 7777, stats = { 1, 2 }, chance = 20 },
       } })
-      ns.RarityBridge.Attempts = function() return 11 end
+      local rarity
+      ns.RarityBridge.Attempts = function() return rarity end
       ns.db.global.attempts[40] = 2
+      ns.db.global.attemptsByChar = { ["Me-Realm"] = { [40] = 2 } }
       ns.db.global.stats = { ["Me-Realm"] = { [40] = 3 } }
       eq(lefts(ns.UI.TooltipLines(40)), { "Mount", "1 in 20 chance", "Lucky if you obtain in 14 or less",
-        "Attempts=3", "Chance so far=14.26%", "Lockout: —", "Click: waypoint · Shift-click: map · Ctrl-click: preview" })
+        "Attempts (this character)=3", "Total attempts=3", "Chance so far=14.26%", "Lockout: —",
+        "Click: waypoint · Shift-click: map · Ctrl-click: preview" })
+      ns.db.global.stats = { ["Me-Realm"] = { [40] = 3 }, ["Alt-Realm"] = { [40] = 4 } }
+      eq(lefts(ns.UI.TooltipLines(40))[5], "Total attempts=7")
+      eq(lefts(ns.UI.TooltipLines(40))[6], "Chance so far=30.17%", "the total, not this character's")
       ns.db.global.stats = { ["Alt-Realm"] = { [40] = 4 } }
-      eq(lefts(ns.UI.TooltipLines(40))[4], "Attempts=4", "no reading for this character: no split")
-      eq(lefts(ns.UI.TooltipLines(40))[5], "Chance so far=18.55%")
+      eq(lefts(ns.UI.TooltipLines(40))[4], "Attempts (this character)=2", "no reading here: own counter")
+      eq(lefts(ns.UI.TooltipLines(40))[5], "Total attempts=4")
       ns.db.global.stats = { ["Me-Realm"] = { [41] = 9 } }
-      eq(lefts(ns.UI.TooltipLines(40))[4], "Attempts=11", "no reading yet: counter / Rarity")
+      eq(lefts(ns.UI.TooltipLines(40))[5], "Total attempts=4", "no reading yet: counters + legacy")
       ns.db.global.stats = nil
-      eq(lefts(ns.UI.TooltipLines(40))[4], "Attempts=11", "no stats table at all")
+      eq(lefts(ns.UI.TooltipLines(40))[5], "Total attempts=4", "no stats table at all")
+      rarity = 11
+      eq(lefts(ns.UI.TooltipLines(40))[5], "Total attempts=11", "Rarity's larger count")
     end)
 
     it("statistics are ignored for mounts without stats (stale readings)", function()
@@ -419,7 +433,8 @@ describe("ui journal", function()
       ns.RarityBridge.Attempts = function() return nil end
       ns.db.global.attempts[41] = 5
       ns.db.global.stats = { ["Me-Realm"] = { [41] = 9 } }
-      eq(lefts(ns.UI.TooltipLines(41))[2], "Attempts=5")
+      eq(lefts(ns.UI.TooltipLines(41))[2], "Attempts (this character)=0")
+      eq(lefts(ns.UI.TooltipLines(41))[3], "Total attempts=5")
     end)
 
     it("untracked mounts (no chance, statistics or lockout spec) show no Attempts block", function()
@@ -433,14 +448,15 @@ describe("ui journal", function()
       ns.db.global.attempts[20] = 3
       ns.RarityBridge.Attempts = function() return 8 end
       eq(lefts(ns.UI.TooltipLines(20)), { "Mount", "In-game shop", "Lockout: —", "Click: waypoint · Shift-click: map · Ctrl-click: preview" })
-      eq(lefts(ns.UI.TooltipLines(21))[4], "Attempts=0", "route boss with a BossLockouts spec")
-      eq(lefts(ns.UI.TooltipLines(22))[3], "Attempts=0", "own lockout spec")
+      eq(lefts(ns.UI.TooltipLines(21))[4], "Attempts (this character)=0", "route boss with a BossLockouts spec")
+      eq(lefts(ns.UI.TooltipLines(21))[5], "Total attempts=0")
+      eq(lefts(ns.UI.TooltipLines(22))[3], "Attempts (this character)=0", "own lockout spec")
     end)
 
     it("a chance with no attempts yet shows 0.00%", function()
       local ns = loadUI(nil, { Mounts = { [30] = { name = "A", chance = 33.4 } } })
       eq(lefts(ns.UI.TooltipLines(30)), { "Mount", "1 in 33 chance", "Lucky if you obtain in 23 or less",
-        "Attempts=0", "Chance so far=0.00%", "Lockout: —", "Click: waypoint · Shift-click: map · Ctrl-click: preview" })
+        "Attempts (this character)=0", "Total attempts=0", "Chance so far=0.00%", "Lockout: —", "Click: waypoint · Shift-click: map · Ctrl-click: preview" })
     end)
 
     it("expansion badges", function()
@@ -495,8 +511,8 @@ describe("ui journal", function()
         Lockouts = { [31] = { manual = true, reset = "weekly" } },
       })
       local a, m = lefts(ns.UI.TooltipLines(30)), lefts(ns.UI.TooltipLines(31))
-      eq(a[3], "Lockout: Available")
-      eq(m[3], "Lockout: Manual")
+      eq(a[4], "Lockout: Available", "after the two Attempts lines")
+      eq(m[4], "Lockout: Manual")
     end)
   end)
 
@@ -542,7 +558,8 @@ describe("ui journal", function()
         { "AddLine", "Drops from NPC(s)", 0.4, 0.78, 1 },
         { "AddLine", "1 in 50 chance", 1, 1, 1 },
         { "AddLine", "Lucky if you obtain in 35 or less", 0.6, 0.6, 0.6 },
-        { "AddDoubleLine", "Attempts", "0", 1, 0.82, 0, 1, 1, 1 },
+        { "AddDoubleLine", "Attempts (this character)", "0", 1, 0.82, 0, 1, 1, 1 },
+        { "AddDoubleLine", "Total attempts", "0", 1, 0.82, 0, 1, 1, 1 },
         { "AddDoubleLine", "Chance so far", "0.00%", 1, 0.82, 0, 1, 1, 1 },
         { "AddLine", "Lockout: —", 1, 0.82, 0 },
         { "AddLine", "Click: waypoint · Shift-click: map · Ctrl-click: preview", 0.5, 0.9, 0.5 },
@@ -578,7 +595,8 @@ describe("ui journal", function()
       GameTooltip = tip
       ns.UI.ShowMountTooltip("owner", 20)
       GameTooltip = old
-      eq(calls[4], { "AddLine", "Attempts  0", 1, 0.82, 0 })
+      eq(calls[4], { "AddLine", "Attempts (this character)  0", 1, 0.82, 0 })
+      eq(calls[5], { "AddLine", "Total attempts  0", 1, 0.82, 0 })
     end)
 
     it("item data not cached yet: repaints a frame after it loads, one callback per owner and mount", function()

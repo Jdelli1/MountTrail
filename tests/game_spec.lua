@@ -481,6 +481,7 @@ describe("init", function()
     ns.Game.IsOwned = function(id) return owned[id] == true end
     ns.Game.RequestLockouts = function() end
     ns.Game.Now = function() return 1000 end
+    ns.Game.CharKey = function() return "Me-Realm" end
     ns.addon:OnInitialize()
     ns.addon:OnEnable()
     local function kill()
@@ -489,11 +490,17 @@ describe("init", function()
     return ns, { rows = rows, quests = quests, lfg = lfg, owned = owned, kill = kill }
   end
 
+  -- This character's attempt counters (F8: ns.db.global.attemptsByChar).
+  local function mine(ns)
+    return ns.db.global.attemptsByChar["Me-Realm"] or {}
+  end
+
   it("db defaults: filters is a copy of Journal.DefaultFilters", function()
     local ns = setup()
     eq(ns.db.global.filters, ns.Journal.DefaultFilters)
     ok(ns.db.global.filters ~= ns.Journal.DefaultFilters, "a copy, not the same table")
     eq(ns.db.global.attempts, {})
+    eq(ns.db.global.attemptsByChar, {})
     eq(ns.db.global.stats, {})
     eq(ns.db.global.minimap, { hide = false })
     eq(ns.db.global.window, {})
@@ -504,13 +511,13 @@ describe("init", function()
   it("first observation counts nothing, then open -> done adds +1", function()
     local ns, w = setup()
     fire_event(ns.addon, "UPDATE_INSTANCE_INFO")
-    eq(ns.db.global.attempts, {})
+    eq(mine(ns), {})
     ok(ns.db.char.last, "last stored")
     w.kill()
     fire_event(ns.addon, "UPDATE_INSTANCE_INFO")
-    eq(ns.db.global.attempts, { [1] = 1 })
+    eq(mine(ns), { [1] = 1 })
     fire_event(ns.addon, "UPDATE_INSTANCE_INFO")
-    eq(ns.db.global.attempts, { [1] = 1 }, "done -> done does not count again")
+    eq(mine(ns), { [1] = 1 }, "done -> done does not count again")
   end)
 
   it("quest and lfg transitions count via their events", function()
@@ -521,7 +528,7 @@ describe("init", function()
     fire_event(ns.addon, "QUEST_TURNED_IN", 900)
     w.lfg[285] = true
     fire_event(ns.addon, "LFG_UPDATE_RANDOM_INFO")
-    eq(ns.db.global.attempts, { [2] = 1, [4] = 1 })
+    eq(mine(ns), { [2] = 1, [4] = 1 })
   end)
 
   it("owned mounts are not counted", function()
@@ -530,7 +537,7 @@ describe("init", function()
     w.owned[1] = true
     w.kill()
     fire_event(ns.addon, "NEW_MOUNT_ADDED", 1)
-    eq(ns.db.global.attempts, {})
+    eq(mine(ns), {})
   end)
 
   it("a kill seen last session is not recounted when instance data arrives late", function()
@@ -541,7 +548,7 @@ describe("init", function()
     fire_event(ns.addon, "QUEST_TURNED_IN", 1)
     w.kill()
     fire_event(ns.addon, "UPDATE_INSTANCE_INFO")
-    eq(ns.db.global.attempts, {})
+    eq(mine(ns), {})
   end)
 
   it("only UPDATE_INSTANCE_INFO re-reads saved instances; other events reuse the last snapshot", function()
@@ -560,7 +567,7 @@ describe("init", function()
     -- The full list comes back: the kill is not counted as new.
     w.kill()
     fire_event(ns.addon, "UPDATE_INSTANCE_INFO")
-    eq(ns.db.global.attempts, { [4] = 1 }, "only the quest counted")
+    eq(mine(ns), { [4] = 1 }, "only the quest counted")
   end)
 
   it("a kill is counted on UPDATE_INSTANCE_INFO, not on another event", function()
@@ -568,9 +575,9 @@ describe("init", function()
     fire_event(ns.addon, "UPDATE_INSTANCE_INFO")
     w.kill()
     fire_event(ns.addon, "QUEST_TURNED_IN", 1)
-    eq(ns.db.global.attempts, {})
+    eq(mine(ns), {})
     fire_event(ns.addon, "UPDATE_INSTANCE_INFO")
-    eq(ns.db.global.attempts, { [1] = 1 })
+    eq(mine(ns), { [1] = 1 })
   end)
 
   it("an lfg done last session is not recounted when lfg data arrives late", function()
@@ -579,7 +586,18 @@ describe("init", function()
     fire_event(ns.addon, "UPDATE_INSTANCE_INFO") -- lfg data not loaded yet: IsLfgDone false
     w.lfg[285] = true
     fire_event(ns.addon, "LFG_UPDATE_RANDOM_INFO")
-    eq(ns.db.global.attempts, {})
+    eq(mine(ns), {})
+  end)
+
+  it("counts per character; the legacy account-wide counter is kept but never incremented", function()
+    local ns, w = setup()
+    ns.db.global.attempts[1] = 5 -- counted before F8
+    ns.db.global.attemptsByChar["Alt-Realm"] = { [1] = 2 }
+    fire_event(ns.addon, "UPDATE_INSTANCE_INFO")
+    w.kill()
+    fire_event(ns.addon, "UPDATE_INSTANCE_INFO")
+    eq(ns.db.global.attemptsByChar, { ["Me-Realm"] = { [1] = 1 }, ["Alt-Realm"] = { [1] = 2 } })
+    eq(ns.db.global.attempts, { [1] = 5 }, "legacy bucket untouched")
   end)
 
   it("fires ns.Refresh looked up at call time", function()
