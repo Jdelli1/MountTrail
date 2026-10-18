@@ -109,7 +109,7 @@ describe("data", function()
       eq(L[id].difficulties, { 3, 4 }, "mount " .. id)
     end
     eq(L[363].difficulties, { 6 }, "mount 363")
-    eq(L[781], { manual = true, reset = "daily" }, "mount 781")
+    eq(L[781], { manual = true, reset = "daily", repeatable = true }, "mount 781")
   end)
 
   it("boss lockouts name route bosses of a single node and are well-formed (R12)", function()
@@ -208,5 +208,13 @@ describe("data", function()
       if not listed[id] then missing[#missing + 1] = id end
     end
     eq(missing, {})
+  end)
+end)
+
+describe("repeatable no-lockout content", function()
+  it("Rivendare's Deathcharger and the Infinite Timereaver are repeatable (no lockout)", function()
+    local ns = load_addon({"Data/Mounts.lua","Data/Route.lua","Data/Lockouts.lua"})
+    eq(ns.Data.Lockouts[69].repeatable, true)
+    eq(ns.Data.Lockouts[781].repeatable, true)
   end)
 end)

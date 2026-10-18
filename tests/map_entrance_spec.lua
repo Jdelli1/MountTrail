@@ -98,3 +98,47 @@ describe("Map.Resolve for raid and dungeon mounts", function()
     ok(place:find("(entrance)", 1, true), place)
   end)
 end)
+
+describe("Map.Resolve for a mount whose map is the instance itself", function()
+  -- Rivendare's Deathcharger: no instance lockout spec (Stratholme has no
+  -- lockout), coords on the Stratholme dungeon map (no user waypoints there).
+  local RIVENDARE = { name = "Rivendare's Deathcharger", tab = "journal", section = "dungeon",
+    coords = { m = 317, x = 14, y = 7 } }
+  local MANUAL = { manual = true, reset = "daily", repeatable = true }
+
+  it("pins the entrance on the zone whose entrance list has that instance map", function()
+    local Map = loadMap({ [69] = RIVENDARE }, { [69] = MANUAL })
+    local api = fakeApi({
+      parents = { [317] = 23, [23] = 13 }, areas = { [236] = 317 },
+      entrances = { [23] = { { journalInstanceID = 236, name = "Stratholme", position = { x = 0.27, y = 0.11 } } } },
+      canSet = { [23] = true }, names = { [317] = "Stratholme", [23] = "Eastern Plaguelands" },
+    })
+    eq(Map.Resolve(69, api), { map = 23, x = 27, y = 11, kind = "entrance" })
+  end)
+
+  it("matches the entrance by name when the journal gives no instance map", function()
+    local Map = loadMap({ [69] = RIVENDARE }, { [69] = MANUAL })
+    local api = fakeApi({
+      parents = { [317] = 23, [23] = 13 },
+      entrances = { [23] = {
+        { journalInstanceID = 999, name = "Scholomance", position = { x = 0.6, y = 0.7 } },
+        { journalInstanceID = 236, name = "Stratholme", position = { x = 0.27, y = 0.11 } },
+      } },
+      canSet = { [23] = true }, names = { [317] = "Stratholme", [23] = "Eastern Plaguelands" },
+    })
+    eq(Map.Resolve(69, api), { map = 23, x = 27, y = 11, kind = "entrance" })
+  end)
+
+  it("a click pins it (no world map opened)", function()
+    local Map = loadMap({ [69] = RIVENDARE }, { [69] = MANUAL })
+    local api = fakeApi({
+      parents = { [317] = 23, [23] = 13 }, areas = { [236] = 317 },
+      entrances = { [23] = { { journalInstanceID = 236, name = "Stratholme", position = { x = 0.27, y = 0.11 } } } },
+      canSet = { [23] = true }, names = { [317] = "Stratholme", [23] = "Eastern Plaguelands" },
+    })
+    local place, kind = Map.SetWaypoint(69, api)
+    eq(kind, "entrance")
+    for _, entry in ipairs(api.log) do ok(entry[1] ~= "OpenWorldMap", "no map opened") end
+    eq(api.log[#api.log], { "Print", "Waypoint: " .. place })
+  end)
+end)

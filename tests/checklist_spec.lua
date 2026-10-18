@@ -273,6 +273,29 @@ describe("Checklist.Build", function()
   end)
 end)
 
+describe("Checklist.Build repeatable content", function()
+  it("leaves out repeatable no-lockout specs (they stay route steps only)", function()
+    local base = load().Build(ctxFor())
+    local function has(out, id)
+      for _, list in pairs(out) do
+        for _, e in ipairs(list) do if e.id == id then return true end end
+      end
+      return false
+    end
+    local any
+    for _, list in pairs(base) do if list[1] then any = list[1] end end
+    ok(any, "the test data lists something")
+    local out = load().Build(ctxFor({
+      specFor = function(id, boss)
+        if id == any.id then return { manual = true, reset = "daily", repeatable = true } end
+        if boss and BOSS_SPECS[boss] then return BOSS_SPECS[boss] end
+        return SPECS[id]
+      end,
+    }))
+    eq(has(out, any.id), false, "repeatable: not on the checklist")
+  end)
+end)
+
 describe("Checklist.Rows", function()
   local function built()
     return load().Build(ctxFor({

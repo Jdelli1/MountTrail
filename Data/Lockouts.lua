@@ -9,6 +9,8 @@
 --     10-player kill AND a 25-player kill (separate lockouts).
 --   { quest=<questID>, reset=... }   { lfg=<LFG dungeonID>, reset="daily" }   { manual=true, reset=... }
 --   any spec may add requires={ quest=<questID>, text="<unlock needed>" }
+--   repeatable=true: no lockout at all (run as often as you like): a route
+--   step, never a daily / weekly checklist entry
 -- Mounts with a Rarity quest flag (Data/Mounts.lua `quest`) and no entry here are
 -- treated as { quest=<that quest>, reset="weekly" } (MoP world bosses, Rukhmar).
 --
@@ -33,7 +35,7 @@ ns.Data.Lockouts = {
   [118] = { manual = true, reset = "weekly" }, -- Red Qiraji Battle Tank: Ahn'Qiraj trash
   [119] = { manual = true, reset = "weekly" }, -- Yellow Qiraji Battle Tank: Ahn'Qiraj trash
   [120] = { manual = true, reset = "weekly" }, -- Green Qiraji Battle Tank: Ahn'Qiraj trash
-  [69]  = { manual = true, reset = "daily" },  -- Rivendare's Deathcharger: Stratholme is normal-only and has no lockout; "daily" is a pacing choice
+  [69]  = { manual = true, reset = "daily", repeatable = true },  -- Rivendare's Deathcharger: Stratholme is normal-only and has no lockout (repeatable: a route step, not a checklist entry)
   [168] = { instance = 532, boss = "Attumen the Huntsman", difficulties = { 3 }, reset = "weekly" }, -- Fiery Warhorse, Karazhan (10-player) -- verify in game
   [183] = { instance = 550, boss = "Kael'thas Sunstrider", difficulties = { 4 }, reset = "weekly" }, -- Ashes of Al'ar, Tempest Keep (25-player) -- verify in game
   [185] = { instance = 556, boss = "Anzu", difficulties = { 2 }, reset = "daily" }, -- Raven Lord, Sethekk Halls -- verify in game
@@ -111,7 +113,7 @@ ns.Data.Lockouts = {
   -- Dragonflight -------------------------------------------------------------
   -- Infinite Timereaver drops from any Timewalking boss (no lockout); "daily" is a pacing choice.
   -- Its Dawn of the Infinites route row uses BossLockouts["Chrono-Lord Deios"].
-  [781]  = { manual = true, reset = "daily" }, -- Infinite Timereaver
+  [781]  = { manual = true, reset = "daily", repeatable = true }, -- Infinite Timereaver: any Timewalking dungeon boss, no lockout (repeatable)
   [1818] = { instance = 2549, boss = "Fyrakk the Blazing", difficulties = { 16 }, reset = "weekly" }, -- Anu'relos, Mythic only (Rarity: "Fyrakk") -- verify in game
 
   -- The War Within -----------------------------------------------------------

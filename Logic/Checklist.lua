@@ -101,7 +101,9 @@ function Checklist.Build(ctx)
     local m = mounts[id]
     if not m then return end
     local spec = specFor(id, boss)
-    if not spec then return end
+    -- No spec, or repeatable content with no lockout (e.g. Stratholme, run
+    -- as often as you like): nothing to do "today", so not on the checklist.
+    if not spec or spec.repeatable then return end
     local key = keyOf(id, boss)
     if seen[key] then return end
     local holiday = holidayOf(id, m)

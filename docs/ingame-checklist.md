@@ -223,6 +223,7 @@ The mount tooltip now follows Rarity's layout. After the item's own tooltip (or 
 - [ ] Holidays tab while an event is on the calendar (e.g. Darkmoon Faire, first week of the month): its section is at the top with the header name in green and the green `Active now` badge; the other holidays follow in the usual order with normal header text. With two events active at once, both are on top in the usual order. When nothing is active the order is unchanged.
 
 ## F5: Click a row to set a waypoint
+- [ ] Instance-map mounts: click Rivendare's Deathcharger: the pin goes on the Stratholme entrance in Eastern Plaguelands (dungeon maps take no pins), chat `Waypoint: Stratholme (entrance)`, and no dungeon map opens.
 - [ ] Raid / dungeon entrances: click Onyxian Drake, Drake of the South Wind (Throne of the Four Winds) and Invincible's Reins (Icecrown Citadel): each pins the instance entrance (chat `Waypoint: <instance> (entrance)`), not a spot inside the zone and not just an opened map. Note any raid / dungeon mount that still says "Opened map" or "No exact spot".
 - [ ] Location icons: a map-pin icon on rows where a click drops a waypoint (exact spot, or a dungeon / raid entrance, e.g. Onyxian Drake -> Dustwallow Marsh entrance); a map icon on rows known only by zone (e.g. Great Sea Ray). Clicking a zone-only row opens that zone's map and chat says "No exact spot for <mount> (anywhere in <zone>): opened the map".
 
@@ -273,6 +274,7 @@ A slim panel (260 px) docked to the main window's right edge lists "Mounts in <z
 
 
 ## F7: Daily / weekly checklist
+- [ ] Repeatable content is not on the checklist: Rivendare's Deathcharger (Stratholme, no lockout) and the Infinite Timereaver (Timewalking) are absent from Daily; they stay Route steps.
 
 The Route tab header has a second segmented control, `Route | Checklist`, just left of `List | Arrow` on the reset-timer line (saved per character in `AzerothTrailDB.char.routeView`). Checklist lists every lockout this character can still spend on a mount: one row per route (mount, boss) pair whose boss has a lockout spec (Lockouts / BossLockouts / Rarity quest flag / LFG / manual), plus spec'd mounts the route does not name (rare-spawn quest flags; holiday-boss mounts only while their holiday is on the calendar). Owned, other-faction and unobtainable mounts are left out. Rows sit under two collapsible headers, `Daily · resets in <time>` and `Weekly · resets in <time>`, each with `(done/total)`; not-done rows first, then expansion order, then name. The tick box works exactly like the route's (game kills tick it and tag it `auto`; only manual lockouts the game can't report can be ticked by hand until the next reset; game-tracked rows are display-only; the ticks are the route's own). `Hide done` (in the `Show completed` spot) hides finished rows; the header counts stay.
 

@@ -150,12 +150,73 @@ local function walkForEntrance(api, start, jid, includeStart)
   return nil
 end
 
--- Finds the entrance of the journal instance for instance map m by walking up
--- the parent maps. -> parentMapID, x, y (0-1) or nil.
+-- Lower-cased name without a leading "The " (entrance / map name matching).
+local function nameKey(s)
+  if type(s) ~= "string" or s == "" then return nil end
+  s = string.lower(s)
+  if string.sub(s, 1, 4) == "the " then s = string.sub(s, 5) end
+  return s
+end
+
+-- The instance's own map (EJ_GetInstanceInfo's 7th return) for journal
+-- instance jid, or nil.
+local function instanceArea(api, jid)
+  if type(api.EJ_GetInstanceInfo) ~= "function" then return nil end
+  local area = select(7, (function(good, ...)
+    if not good then return end
+    return ...
+  end)(guarded(api.EJ_GetInstanceInfo, jid)))
+  if type(area) == "number" and area > 0 then return area end
+  return nil
+end
+
+-- The entrance on map `on` that belongs to the instance whose (dungeon) map
+-- is m: an entrance whose journal instance's own map is m, else one whose
+-- name matches m's name. -> x, y (0-1) or nil.
+local function entranceForInstanceMap(api, on, m, mKey)
+  local entrances = try(api.C_EncounterJournal, "GetDungeonEntrancesForMap", on)
+  if type(entrances) ~= "table" then return nil end
+  local byName
+  for _, entrance in ipairs(entrances) do
+    if type(entrance) == "table" then
+      local x, y = positionXY(entrance.position)
+      if x then
+        if entrance.journalInstanceID and instanceArea(api, entrance.journalInstanceID) == m then
+          return x, y
+        end
+        if not byName and mKey and nameKey(entrance.name) == mKey then byName = { x, y } end
+      end
+    end
+  end
+  if byName then return byName[1], byName[2] end
+  return nil
+end
+
+-- Finds the entrance of the instance whose dungeon map is m (a map that takes
+-- no user waypoint) by walking up the parent maps to the zone that lists it.
+-- GetInstanceForGameMap wants a game map ID, so a UI map only works there by
+-- chance; the zone's entrance list (matched by the instance's own map, else
+-- by name) is the reliable way. -> mapID, x, y (0-1) or nil.
 local function findEntrance(api, m)
   local journalInstance = try(api.C_EncounterJournal, "GetInstanceForGameMap", m)
-  if not journalInstance or journalInstance == 0 then return nil end
-  return walkForEntrance(api, m, journalInstance, false)
+  if journalInstance and journalInstance ~= 0 then
+    local em, ex, ey = walkForEntrance(api, m, journalInstance, false)
+    if em then return em, ex, ey end
+  end
+  local info = try(api.C_Map, "GetMapInfo", m)
+  local mKey = type(info) == "table" and nameKey(info.name) or nil
+  local seen = { [m] = true }
+  local current = m
+  for _ = 1, MAX_PARENT_STEPS do
+    local parentInfo = try(api.C_Map, "GetMapInfo", current)
+    local parent = type(parentInfo) == "table" and parentInfo.parentMapID or nil
+    if not parent or parent == 0 or seen[parent] then return nil end
+    seen[parent] = true
+    local x, y = entranceForInstanceMap(api, parent, m, mKey)
+    if x then return parent, x, y end
+    current = parent
+  end
+  return nil
 end
 
 -- The game instance ID (a game map ID, as GetSavedInstanceInfo reports it) of
@@ -186,15 +247,10 @@ local function instanceEntrance(api, mountID, coordsMap)
   if not game then return nil end
   local jid = try(api.C_EncounterJournal, "GetInstanceForGameMap", game)
   if not jid or jid == 0 then return nil end
-  if type(api.EJ_GetInstanceInfo) == "function" then
-    local area = select(7, (function(good, ...)
-      if not good then return end
-      return ...
-    end)(guarded(api.EJ_GetInstanceInfo, jid)))
-    if type(area) == "number" and area > 0 then
-      local m, x, y = walkForEntrance(api, area, jid, true)
-      if m then return m, x, y end
-    end
+  local area = instanceArea(api, jid)
+  if area then
+    local m, x, y = walkForEntrance(api, area, jid, true)
+    if m then return m, x, y end
   end
   return walkForEntrance(api, coordsMap, jid, true)
 end
