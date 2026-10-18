@@ -15,7 +15,9 @@ end
 -- map ID -> GetMapInfo name. TomTom (unless opts.tomtom == false) hands out
 -- uids "uid1", "uid2", ... and records RemoveWaypoint as "TomTomRemove".
 -- opts.combat: InCombat() result. opts.clock: { now = seconds } read by
--- GetTime (absent: no GetTime, so no chat de-duplication).
+-- GetTime (absent: no GetTime, so no chat de-duplication). opts.mode: the
+-- waypoint setting (F9) as api.waypointMode, "both" by default so the specs
+-- written before F9 keep testing the game pin + TomTom behaviour.
 local function fakeApi(opts)
   opts = opts or {}
   local log = {}
@@ -40,6 +42,7 @@ local function fakeApi(opts)
     OpenWorldMap = function(m) rec("OpenWorldMap", m) end,
     Print = function(msg) rec("Print", msg) end,
     InCombat = function() return opts.combat == true end,
+    waypointMode = opts.mode or "both",
   }
   if opts.clock then api.GetTime = function() return opts.clock.now end end
   if opts.tomtom ~= false then
@@ -501,5 +504,118 @@ describe("integrations toc", function()
     ok(ns.Map and ns.Map.Resolve and ns.Map.SetWaypoint and ns.Map.OpenMap and ns.Map.HasLocation, "ns.Map loaded")
     eq(ns.Map.Show, nil, "Map.Show removed (no callers since F5)")
     ok(ns.RarityBridge and ns.RarityBridge.Attempts, "ns.RarityBridge loaded")
+  end)
+end)
+
+-- F9: the "Waypoints" setting (ns.db.global.settings.waypoints).
+describe("Map.WaypointMode", function()
+  it("reads the setting; missing or unknown values are the in-game pin", function()
+    local Map, ns = loadMap({})
+    eq(Map.WaypointMode(), "game", "no ns.db yet")
+    ns.db = { global = {} }
+    eq(Map.WaypointMode(), "game", "no settings table")
+    for _, mode in ipairs({ "game", "tomtom", "both" }) do
+      ns.db.global.settings = { waypoints = mode }
+      eq(Map.WaypointMode(), mode)
+    end
+    ns.db.global.settings = { waypoints = "arrow" }
+    eq(Map.WaypointMode(), "game", "unknown value")
+    ns.db.global.settings = "junk"
+    eq(Map.WaypointMode(), "game", "junk settings")
+  end)
+end)
+
+describe("Map.SetWaypoint waypoint modes", function()
+  local function serpentApi(opts)
+    opts.canSet = opts.canSet or { [379] = true }
+    opts.names = { [379] = "Kun-Lai Summit" }
+    return fakeApi(opts)
+  end
+
+  it("game: only the user waypoint and super-track, never TomTom", function()
+    local Map = loadMap({ [517] = SERPENT })
+    local api = serpentApi({ mode = "game" })
+    eq({ Map.SetWaypoint(517, api) }, { "Kun-Lai Summit", "pin" })
+    eq(#logOf(api, "SetUserWaypoint"), 1)
+    eq(logOf(api, "SuperTrack"), { { "SuperTrack", true } })
+    eq(#logOf(api, "TomTom"), 0, "TomTom installed but not used")
+    eq(#logOf(api, "TomTomRemove"), 0)
+    eq(logOf(api, "Print"), { { "Print", "Waypoint: Kun-Lai Summit" } }, "chat line unchanged")
+  end)
+
+  it("game: an entrance map without user waypoints opens the world map, not TomTom", function()
+    local Map = loadMap({ [395] = DRAKE })
+    local api = fakeApi({ mode = "game", journal = { [325] = 68 }, parents = { [325] = 249 },
+      entrances = { [249] = { { journalInstanceID = 68, position = { x = 0.5, y = 0.25 } } } },
+      names = { [325] = "The Vortex Pinnacle" } })
+    eq({ Map.SetWaypoint(395, api) }, { "The Vortex Pinnacle (entrance)", "entrance" })
+    eq(#logOf(api, "TomTom"), 0, "TomTom installed but the mode is game")
+    eq(logOf(api, "OpenWorldMap"), { { "OpenWorldMap", 249 } })
+    eq(logOf(api, "Print"), { { "Print", "Opened map: The Vortex Pinnacle (entrance)" } })
+  end)
+
+  it("tomtom: only the TomTom waypoint (replacing ours), no user waypoint", function()
+    local Map = loadMap({ [517] = SERPENT })
+    local api = serpentApi({ mode = "tomtom" })
+    eq({ Map.SetWaypoint(517, api) }, { "Kun-Lai Summit", "pin" })
+    eq(#logOf(api, "SetUserWaypoint"), 0)
+    eq(#logOf(api, "SuperTrack"), 0)
+    eq(logOf(api, "TomTom")[1], { "TomTom", 379, 0.536, 0.644, { title = "Heavenly Onyx Cloud Serpent", persistent = false } })
+    eq(logOf(api, "Print"), { { "Print", "Waypoint: Kun-Lai Summit" } })
+    Map.SetWaypoint(517, api)
+    eq(logOf(api, "TomTomRemove"), { { "TomTomRemove", "uid1" } }, "still one AzerothTrail TomTom waypoint")
+    eq(#logOf(api, "SetUserWaypoint"), 0)
+  end)
+
+  it("tomtom: falls back to the in-game pin when TomTom is missing or fails", function()
+    local Map = loadMap({ [517] = SERPENT })
+    local api = serpentApi({ mode = "tomtom", tomtom = false })
+    eq(Map.SetWaypoint(517, api), "Kun-Lai Summit")
+    eq(#logOf(api, "SetUserWaypoint"), 1, "TomTom not loaded: the game pin")
+    eq(logOf(api, "SuperTrack"), { { "SuperTrack", true } })
+    eq(logOf(api, "Print"), { { "Print", "Waypoint: Kun-Lai Summit" } })
+    api = serpentApi({ mode = "tomtom", tomtom = false })
+    api.TomTom = { AddWaypoint = function() error("tomtom broke") end }
+    Map.SetWaypoint(517, api)
+    eq(#logOf(api, "SetUserWaypoint"), 1, "TomTom failed: the game pin")
+    api = serpentApi({ mode = "tomtom", tomtom = false })
+    api.TomTom = {} -- loaded without AddWaypoint
+    Map.SetWaypoint(517, api)
+    eq(#logOf(api, "SetUserWaypoint"), 1)
+  end)
+
+  it("both: the user waypoint and TomTom, as before F9", function()
+    local Map = loadMap({ [517] = SERPENT })
+    local api = serpentApi({ mode = "both" })
+    Map.SetWaypoint(517, api)
+    eq(#logOf(api, "SetUserWaypoint"), 1)
+    eq(#logOf(api, "TomTom"), 1)
+    eq(logOf(api, "Print"), { { "Print", "Waypoint: Kun-Lai Summit" } })
+  end)
+
+  it("without api.waypointMode the saved setting decides (default: the in-game pin)", function()
+    local Map, ns = loadMap({ [517] = SERPENT })
+    local api = serpentApi({})
+    api.waypointMode = nil
+    Map.SetWaypoint(517, api)
+    eq(#logOf(api, "SetUserWaypoint"), 1)
+    eq(#logOf(api, "TomTom"), 0, "default: game only")
+    ns.db = { global = { settings = { waypoints = "tomtom" } } }
+    api = serpentApi({})
+    api.waypointMode = nil
+    Map.SetWaypoint(517, api)
+    eq(#logOf(api, "SetUserWaypoint"), 0)
+    eq(#logOf(api, "TomTom"), 1, "the saved setting")
+  end)
+
+  it("open and none targets ignore the mode", function()
+    local Map = loadMap({ [118] = TANK, [6] = { name = "Brown Horse" } })
+    for _, mode in ipairs({ "game", "tomtom", "both" }) do
+      local api = fakeApi({ mode = mode, names = { [319] = "Ahn'Qiraj" } })
+      eq({ Map.SetWaypoint(118, api) }, { "Ahn'Qiraj", "open" }, mode)
+      eq(logOf(api, "OpenWorldMap"), { { "OpenWorldMap", 319 } }, mode)
+      eq(#logOf(api, "TomTom"), 0, mode)
+      eq({ Map.SetWaypoint(6, api) }, { nil, "none" }, mode)
+    end
   end)
 end)

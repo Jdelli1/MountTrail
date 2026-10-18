@@ -1,8 +1,9 @@
 local ADDON, ns = ...
 
 -- Points the player at a mount's farm location: a user waypoint (super-tracked)
--- on the world map, the dungeon entrance for instance maps, and a TomTom
--- waypoint when TomTom is installed (Map.SetWaypoint, a row's left-click), or
+-- on the world map, the dungeon entrance for instance maps, and / or a TomTom
+-- waypoint, as the "Waypoints" setting says (Map.WaypointMode, F9;
+-- Map.SetWaypoint, a row's left-click), or
 -- just the world map there (Map.OpenMap, Shift+left-click; never in combat).
 -- Map.HasLocation is the cheap check behind the rows' pin icons. (Map.Show,
 -- the old Map button's action, was removed with the buttons in F5.) This is an integration layer, so it calls
@@ -23,9 +24,22 @@ local function defaultPrint(msg)
   if addon and addon.Print then addon:Print(msg) else print(msg) end
 end
 
+local MODES = { game = true, tomtom = true, both = true }
+
+-- The "Waypoints" setting (Options > AddOns > AzerothTrail, UI/Options.lua):
+-- "game" (the in-game map pin, default), "tomtom" (only TomTom; the in-game
+-- pin when TomTom is missing) or "both". Missing or unknown -> "game".
+function Map.WaypointMode()
+  local db = ns.db
+  local settings = db and type(db.global) == "table" and db.global.settings or nil
+  local mode = type(settings) == "table" and settings.waypoints or nil
+  return MODES[mode] and mode or "game"
+end
+
 -- The real WoW globals, looked up at call time.
 local function realApi()
   return {
+    waypointMode = Map.WaypointMode(),
     C_Map = C_Map,
     C_SuperTrack = C_SuperTrack,
     C_EncounterJournal = C_EncounterJournal,
@@ -284,10 +298,12 @@ local function openWorldMap(api, m)
 end
 
 -- Left-click on a mount row: points the player at the mount without opening
--- the world map. pin / entrance: the game's user waypoint (super-tracked) and
--- a TomTom waypoint (replacing the previous AzerothTrail one), chat
--- "Waypoint: <place>"; when neither could be set (the map takes no user
--- waypoint and TomTom is missing or failed) it falls back to opening the map.
+-- the world map. pin / entrance, by the waypoint mode (api.waypointMode, else
+-- Map.WaypointMode()): game -> the game's user waypoint (super-tracked) only;
+-- tomtom -> a TomTom waypoint only (replacing the previous AzerothTrail one),
+-- the user waypoint instead when TomTom is missing or fails; both -> both.
+-- Chat "Waypoint: <place>"; when nothing could be set (the map takes no user
+-- waypoint and TomTom is not used) it falls back to opening the map.
 -- open (no point to pin): opens the world map there, chat "Opened map:
 -- <place>". Out of combat only: in combat chat says the map can't be opened.
 -- none: chat "No map location for <mount>".
@@ -301,8 +317,13 @@ function Map.SetWaypoint(mountID, api)
   end
   local place = placeLabel(api, mountID, target)
   if target.x and target.y then
-    local set = setUserWaypoint(api, target)
-    local tomtom = replaceTomTom(api, target.map, target.x / 100, target.y / 100, mountName(mountID))
+    local mode = MODES[api.waypointMode] and api.waypointMode or Map.WaypointMode()
+    local set, tomtom = false, false
+    if mode ~= "tomtom" then set = setUserWaypoint(api, target) end
+    if mode ~= "game" then
+      tomtom = replaceTomTom(api, target.map, target.x / 100, target.y / 100, mountName(mountID))
+    end
+    if mode == "tomtom" and not tomtom then set = setUserWaypoint(api, target) end
     if set or tomtom then
       say(api, string.format(L["Waypoint: %s"], place))
       return place, target.kind

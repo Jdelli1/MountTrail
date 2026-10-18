@@ -158,6 +158,7 @@ function addon:OnInitialize()
       debug = false, -- /azt debug: show caught map / arrow errors
       achievementMap = {}, -- { build=, ids={[mountID]=achievementID|false} } (Integrations\AchievementScan.lua)
       zonePanel = { open = false }, -- zone side panel shown with the window (UI\ZonePanel.lua)
+      settings = { waypoints = "game" }, -- Options > AddOns > AzerothTrail: waypoints = "game" | "tomtom" | "both" (UI\Options.lua, Integrations\Map.lua)
       collapsed = {}, -- list headers the player collapsed: { ["<view>|<exp>|<section>[|<sub-group>]"] = true } (UI\List.lua)
     },
     char = {
@@ -259,8 +260,15 @@ function addon:OnSlash(input)
     else
       self:Print(L["The window is not available yet. Type /azt help for commands."])
     end
+  elseif cmd == "options" then
+    if ns.Options and ns.Options.Open then
+      ns.Options.Open()
+    else
+      self:Print(L["The options page is not available on this client."])
+    end
   elseif cmd == "debug" then
     ns.db.global.debug = not ns.db.global.debug
+    if ns.Options and ns.Options.Changed then ns.Options.Changed(ns.Options.DEBUG) end
     self:Print(ns.db.global.debug and L["Debug: on (caught map and arrow errors go to the error handler)"]
       or L["Debug: off"])
     -- Templates the window could not use on this client (UI.Template).
@@ -280,6 +288,7 @@ function addon:OnSlash(input)
     self:Print(L["/azt dump - list saved instances (instance ID, difficulty ID, bosses)"])
     self:Print(L["/azt arrow - switch the route between list and arrow"])
     self:Print(L["/azt zone - show or hide the zone panel (mounts in your current zone)"])
+    self:Print(L["/azt options - open the AzerothTrail options (Options > AddOns)"])
     self:Print(L["/azt debug - show or hide caught map and arrow errors"])
     self:Print(L["/azt help - this list"])
   end
