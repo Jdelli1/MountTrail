@@ -1301,6 +1301,16 @@ describe("ui build", function()
 
     header.RouteViewButton:RunScript("OnClick")
     ok(not dd:IsShown(), "hidden again on the route")
+
+    -- Without the 11.x menu API /azt debug names what the checklist gets instead.
+    local saved = STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate
+    ns.UI.TemplateFallbacks["DropdownButton:SetupMenu"] = nil
+    STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate = nil
+    local good, none = pcall(ns.UI.ChecklistView.CreateFilterDropdown, header)
+    STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate = saved
+    assert(good, none)
+    eq(none, nil)
+    eq(ns.UI.TemplateFallbacks["DropdownButton:SetupMenu"], "checklist filter (all categories shown)")
   end)
 
   it("Checklist rows: headers with reset timers and done/total, tick boxes, clicks, collapse, Hide done", function()

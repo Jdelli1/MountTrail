@@ -287,6 +287,8 @@ end
 -- `parent` (the Route header), or nil on clients without the 11.x dropdown.
 function view.CreateFilterDropdown(parent)
   return UI.CreateFilterDropdown(parent, {
+    -- /azt debug: without the dropdown there is no checklist filter.
+    fallbackName = "checklist filter (all categories shown)",
     items = function() return UI.ChecklistFilterItems(view.Filters()) end,
     onChange = function(kind, value)
       local filters = view.Filters()
