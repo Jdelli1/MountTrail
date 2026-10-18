@@ -31,22 +31,28 @@ local RARE_SPAWN = "Rare Spawn"
 -- BfA zone rares: the warfront zones' and the N'Zoth assaults' rare spawns.
 local DAILY_PREFIXES = { "Warfront: ", "Assault: " }
 
--- Reset of a Rarity quest flag, from the mount's SimpleArmory group: a rare
--- spawn ("Rare Spawn", or a group ending in it such as "Necrolord Rare
--- Spawn", or a BfA zone rare group starting "Warfront: " / "Assault: ") is
--- looted once a day -> "daily"; a world boss ("World Boss") and anything
--- else -> "weekly" (Data/Lockouts.lua entries override both).
-function Lockouts.QuestReset(mount)
-  local group = type(mount) == "table" and mount.group or nil
-  if type(group) ~= "string" then return "weekly" end
+-- Whether a SimpleArmory group names rare spawns: "Rare Spawn", a group
+-- ending in it such as "Necrolord Rare Spawn", or a BfA zone rare group
+-- starting "Warfront: " / "Assault: ".
+function Lockouts.IsRareGroup(group)
+  if type(group) ~= "string" then return false end
   if #group >= #RARE_SPAWN and string.sub(group, -#RARE_SPAWN) == RARE_SPAWN
     and (#group == #RARE_SPAWN or string.sub(group, -#RARE_SPAWN - 1, -#RARE_SPAWN - 1) == " ") then
-    return "daily"
+    return true
   end
   for _, prefix in ipairs(DAILY_PREFIXES) do
-    if string.sub(group, 1, #prefix) == prefix then return "daily" end
+    if string.sub(group, 1, #prefix) == prefix then return true end
   end
-  return "weekly"
+  return false
+end
+
+-- Reset of a Rarity quest flag, from the mount's SimpleArmory group: a rare
+-- spawn (Lockouts.IsRareGroup) is looted once a day -> "daily"; a world boss
+-- ("World Boss") and anything else -> "weekly" (Data/Lockouts.lua entries
+-- override both).
+function Lockouts.QuestReset(mount)
+  local group = type(mount) == "table" and mount.group or nil
+  return Lockouts.IsRareGroup(group) and "daily" or "weekly"
 end
 
 -- Which spec governs a mount: a per-boss spec for the route boss, else the
