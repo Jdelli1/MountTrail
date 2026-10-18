@@ -52,13 +52,14 @@ TABLES = (
     "DungeonEncounter",
     "ItemEffect",
     "ItemXItemEffect",
+    "LfgDungeons",
 )
 SEVERITIES = ("error", "warn", "info")
 CHECKS = ("identity", "route", "lockout")
 CHECK_TITLES = {
     "identity": "1. Mount identity (Mount.db2, ItemEffect)",
     "route": "2. Route drop claims (JournalEncounterItem)",
-    "lockout": "3. Lockout specs (JournalInstance, JournalEncounter, DungeonEncounter)",
+    "lockout": "3. Lockout specs (JournalInstance, JournalEncounter, DungeonEncounter, LfgDungeons)",
 }
 # Mount.SourceTypeEnum (same values as the pet journal's source filter).
 SOURCE_TYPES = {
@@ -261,7 +262,9 @@ def load_our_data(data_dir=DATA):
         with open(os.path.join(data_dir, name), encoding="utf-8") as fh:
             return fh.read()
     mounts_src, route_src, lock_src = read("Mounts.lua"), read("Route.lua"), read("Lockouts.lua")
+    holidays_src = read("Holidays.lua") if os.path.isfile(os.path.join(data_dir, "Holidays.lua")) else ""
     return {
+        "holidays": (lua_assignment(holidays_src, "ns.Data.Holidays") if holidays_src else None) or {},
         "mounts": lua_assignment(mounts_src, "ns.Data.Mounts") or {},
         "expansions": lua_assignment(mounts_src, "ns.Data.Expansions") or [],
         "route": lua_assignment(route_src, "ns.Data.Route") or [],
@@ -375,6 +378,7 @@ class Game:
         self.dungeon_encounters_by_map = {}
         for r in rows("DungeonEncounter"):
             self.dungeon_encounters_by_map.setdefault(_int(r["MapID"]), []).append(r)
+        self.lfg_dungeons = {_int(r["ID"]): r for r in rows("LfgDungeons")}
 
     def mount_spell(self, mount_id, ours=None):
         row = self.mounts.get(mount_id)
@@ -680,6 +684,46 @@ def check_lockouts(ours, game):
     return out, table
 
 
+def check_lfg(ours, game):
+    """LFG specs (Lockouts[mount].lfg) and Data/Holidays.lua `lfg` against LfgDungeons.
+    Returns (findings, table rows {key, mounts, name, lfg, dungeon, map, group})."""
+    out, table = [], []
+
+    def resolve(key, mids, name, label, lfg_id):
+        row = game.lfg_dungeons.get(lfg_id)
+        if row is None:
+            out.append(finding("lockout", "unknown-lfg", "error", mids[0] if mids else 0, name,
+                               "%s: no LfgDungeons row has ID %d" % (label, lfg_id),
+                               "check the LFG dungeon ID (GetLFGDungeonInfo)", key))
+            return
+        table.append({"key": key, "mounts": mids, "name": name, "lfg": lfg_id,
+                      "dungeon": row["Name_lang"], "map": _int(row["MapID"]),
+                      "group": _int(row.get("Group_ID"))})
+
+    for mid in sorted(k for k in ours["lockouts"] if isinstance(k, int)):
+        spec = ours["lockouts"][mid]
+        if isinstance(spec, dict) and spec.get("lfg") is not None:
+            resolve(str(mid), [mid], ours["mounts"].get(mid, {}).get("name", ""), str(mid), _int(spec["lfg"]))
+    holidays = ours.get("holidays") or {}
+    for hkey in sorted(holidays):
+        h = holidays[hkey]
+        if not isinstance(h, dict) or h.get("lfg") is None:
+            continue
+        lfg_id = _int(h["lfg"])
+        mids = [_int(x) for x in h.get("mounts") or []]
+        resolve("holiday:" + hkey, mids, str(h.get("title") or hkey), "holiday " + hkey, lfg_id)
+        for m_id in mids:
+            spec = ours["lockouts"].get(m_id)
+            got = _int(spec.get("lfg")) if isinstance(spec, dict) and spec.get("lfg") is not None else None
+            if got != lfg_id:
+                out.append(finding("lockout", "holiday-lfg-differs", "warn", m_id,
+                                   ours["mounts"].get(m_id, {}).get("name", ""),
+                                   "%d: holiday %s queues LFG %d, but the mount's spec is %s"
+                                   % (m_id, hkey, lfg_id, "lfg %d" % got if got is not None else repr(spec)),
+                                   "give the mount { lfg = %d, reset = \"daily\" }" % lfg_id, str(m_id)))
+    return out, table
+
+
 # --- candidates: farmable lockouts we do not track --------------------------------------
 
 def covered_mounts(ours):
@@ -791,7 +835,7 @@ def summarise(findings):
     return counts, totals
 
 
-def render_report(build, findings, lock_table, candidates, source_cands, ours, expansions=()):
+def render_report(build, findings, lock_table, candidates, source_cands, ours, expansions=(), lfg_table=()):
     counts, totals = summarise(findings)
     lines = [
         "# Data verification",
@@ -855,6 +899,19 @@ def render_report(build, findings, lock_table, candidates, source_cands, ours, e
             r["match"], _md(r["dungeon_encounter"]), r["loot"]))
     lines += [
         "",
+        "## LFG specs resolved against LfgDungeons",
+        "",
+        "Each `lfg` spec in `Data/Lockouts.lua` and each holiday `lfg` in `Data/Holidays.lua`:",
+        "the LfgDungeons row with that ID (Group_ID 11 is the holiday-boss group).",
+        "",
+        "| Spec | Mount / holiday | LFG ID | LfgDungeons name | Map | Group_ID |",
+        "|---|---|---:|---|---:|---:|",
+    ]
+    for r in lfg_table:
+        lines.append("| %s | %s | %d | %s | %d | %d |" % (
+            _md(r["key"]), _md(r["name"]), r["lfg"], _md(r["dungeon"]), r["map"], r["group"]))
+    lines += [
+        "",
         "## Candidate lockouts with no spec",
         "",
         "Mounts with no entry in `Data/Lockouts.lua` and no Rarity `quest` in `Data/Mounts.lua`",
@@ -908,8 +965,9 @@ def render_report(build, findings, lock_table, candidates, source_cands, ours, e
 def run(ours, game, allow):
     findings = check_identity(ours, game) + check_route(ours, game)
     lock_findings, lock_table = check_lockouts(ours, game)
-    findings = apply_allowlist(findings + lock_findings, allow)
-    return findings, lock_table, lockout_candidates(ours, game), source_candidates(ours, game)
+    lfg_findings, lfg_table = check_lfg(ours, game)
+    findings = apply_allowlist(findings + lock_findings + lfg_findings, allow)
+    return findings, lock_table, lockout_candidates(ours, game), source_candidates(ours, game), lfg_table
 
 
 def main(argv=None):
@@ -935,9 +993,9 @@ def main(argv=None):
     folder = fetch_tables(build, args.cache, offline=args.offline)
     ours = load_our_data(args.data)
     game = Game(folder)
-    findings, lock_table, candidates, source_cands = run(ours, game, load_allowlist(args.allow))
+    findings, lock_table, candidates, source_cands, lfg_table = run(ours, game, load_allowlist(args.allow))
     report = render_report(build, findings, lock_table, candidates, source_cands, ours,
-                           ours.get("expansions") or ())
+                           ours.get("expansions") or (), lfg_table)
     if args.report == "-":
         sys.stdout.write(report)
     else:
@@ -945,7 +1003,7 @@ def main(argv=None):
             fh.write(report)
     if args.json:
         with open(args.json, "w", encoding="utf-8") as fh:
-            json.dump({"build": build, "findings": findings, "lockouts": lock_table,
+            json.dump({"build": build, "findings": findings, "lockouts": lock_table, "lfg": lfg_table,
                        "candidates": candidates, "source_candidates": source_cands},
                       fh, indent=1, default=list)
     _, totals = summarise(findings)

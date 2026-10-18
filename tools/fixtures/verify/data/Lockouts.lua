@@ -15,6 +15,8 @@ ns.Data.Lockouts = {
   [18] = { instance = 200, boss = "Harlan", difficulties = { 23 }, reset = "weekly" },
   [19] = { instance = 200, boss = "The Harlan", difficulties = { 23 }, reset = "weekly" },
   [20] = { instance = 200, boss = "King", difficulties = { 23 }, reset = "weekly" },
+  [21] = { lfg = 286, reset = "daily" },
+  [22] = { lfg = 777, reset = "daily" },
 }
 
 ns.Data.BossLockouts = {

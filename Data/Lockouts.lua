@@ -155,6 +155,7 @@ ns.Data.Lockouts = {
   [352]  = { lfg = 288, reset = "daily" }, -- X-45 Heartbreaker
   [2328] = { lfg = 288, reset = "daily" }, -- Love Witch's Sweeper
   [2492] = { lfg = 288, reset = "daily" }, -- Spring Butterfly
+  [3036] = { lfg = 286, reset = "daily" }, -- Sun Festival's Painted Roc: Ahune (LfgDungeons 286, tools/verify_data.py) -- verify in game
 }
 
 -- Per-route-row overrides (Ruling R12): route boss name exactly as in

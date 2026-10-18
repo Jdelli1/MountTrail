@@ -175,6 +175,10 @@ describe("data", function()
     eq(H.hallowsend.lfg, 285)
     eq(H.brewfest.lfg, 287)
     eq(H.loveisintheair.lfg, 288)
+    -- F12: LfgDungeons 286 "The Frost Lord Ahune" (Group_ID 11, holiday bosses; build 12.1.5.70448).
+    eq(H.midsummer.lfg, 286)
+    eq(H.midsummer.mounts, { 3036 })
+    eq(ns.Data.Lockouts[3036], { lfg = 286, reset = "daily" })
     eq(H.hallowsend.title, "Hallow's End")
     eq(H.brewfest.title, "Brewfest")
     eq(H.loveisintheair.title, "Love is in the Air")
@@ -227,7 +231,7 @@ describe("data", function()
       for _, id in ipairs(h.mounts) do listed[id] = true end
     end
     -- the mounts dropped by the holiday dungeon bosses (Rarity lockDungeonId 285/287/288)
-    local expected = {219, 2623, 202, 226, 2640, 352, 2328, 2492}
+    local expected = {219, 2623, 202, 226, 2640, 352, 2328, 2492, 3036}
     local missing = {}
     for _, id in ipairs(expected) do
       if not listed[id] then missing[#missing + 1] = id end

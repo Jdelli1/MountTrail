@@ -31,11 +31,19 @@ ns.Data.Holidays = {
     mounts = { 352, 2328, 2492 },
     stepTitle = "Queue for Apothecary Hummel (Love is in the Air)",
   },
+  -- LfgDungeons 286 "The Frost Lord Ahune" (Group_ID 11 with 285/287/288; MapID 547, The Slave Pens),
+  -- build 12.1.5.70448 (tools/verify_data.py). Mount.db2 3036: "Drop: Ahune; Holiday: Midsummer".
+  -- No coords: the map location is not in the verified tables -- verify in game.
+  midsummer = {
+    title = "Midsummer Fire Festival",
+    lfg = 286, -- The Frost Lord Ahune
+    mounts = { 3036 },
+    stepTitle = "Queue for Ahune (Midsummer Fire Festival)",
+  },
 
   -- Calendar titles only (no holiday-boss mounts).
   noblegarden   = { title = "Noblegarden", mounts = {} },
   winterveil    = { title = "Feast of Winter Veil", mounts = {} },
   lunarfestival = { title = "Lunar Festival", mounts = {} },
-  midsummer     = { title = "Midsummer Fire Festival", mounts = {} },
   darkmoon      = { title = "Darkmoon Faire", mounts = {} },
 }

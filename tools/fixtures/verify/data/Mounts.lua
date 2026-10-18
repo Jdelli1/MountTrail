@@ -25,4 +25,6 @@ ns.Data.Mounts = {
   [18] = { name = "Rho Shark", spell = 1018, item = 518 },
   [19] = { name = "Sigma Shark", spell = 1019, item = 519 },
   [20] = { name = "Tau Gear", spell = 1020, item = 520 },
+  [21] = { name = "Upsilon Roc", spell = 1021 },
+  [22] = { name = "Phi Kodo", spell = 1022 },
 }

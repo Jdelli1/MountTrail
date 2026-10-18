@@ -151,7 +151,7 @@ class ChecksTest(unittest.TestCase):
         f = v.check_route(self.ours, self.game)
         (hit,) = self.find(f, "route", "10@Timed Reward", "not-in-loot")
         self.assertEqual(hit["severity"], "warn")
-        findings, _, _, _ = self.run_all({"route": {"3@Trash": "AQ trash drop"}})
+        findings, _, _, _, _ = self.run_all({"route": {"3@Trash": "AQ trash drop"}})
         (trash,) = self.find(findings, "route", "3@Trash")
         self.assertEqual(trash["severity"], "info")
         self.assertEqual(trash["allowed"], "AQ trash drop")
@@ -225,6 +225,41 @@ class ChecksTest(unittest.TestCase):
         self.assertEqual(row["mounts"], [2])
         self.assertEqual(self.find(f, "lockout", "boss:Deios"), [])
 
+    # LFG specs (LfgDungeons)
+    def test_lfg_specs_resolve_against_lfg_dungeons(self):
+        f, table = v.check_lfg(self.ours, self.game)
+        byKey = {r["key"]: r for r in table}
+        self.assertEqual((byKey["15"]["lfg"], byKey["15"]["dungeon"], byKey["15"]["map"]),
+                         (285, "The Headless Horseman", 1004))
+        self.assertEqual(byKey["21"]["dungeon"], "The Frost Lord Ahune")
+        self.assertEqual(byKey["holiday:midsummer"]["mounts"], [21])
+        self.assertEqual(self.find(f, "lockout", "15"), [])
+        self.assertEqual(self.find(f, "lockout", "21"), [])
+        self.assertEqual(self.find(f, "lockout", "holiday:midsummer"), [])
+        self.assertNotIn("holiday:noblegarden", byKey, "a holiday without lfg is not an LFG spec")
+
+    def test_unknown_lfg_dungeon_is_an_error(self):
+        f, _ = v.check_lfg(self.ours, self.game)
+        (spec,) = self.find(f, "lockout", "22", kind="unknown-lfg")
+        self.assertEqual(spec["severity"], "error")
+        (hol,) = self.find(f, "lockout", "holiday:brewfest", kind="unknown-lfg")
+        self.assertEqual(hol["severity"], "error")
+
+    def test_holiday_lfg_must_match_its_mounts_specs(self):
+        f, _ = v.check_lfg(self.ours, self.game)
+        (hit,) = self.find(f, "lockout", "22", kind="holiday-lfg-differs")
+        self.assertEqual(hit["severity"], "warn")
+        self.assertIn("287", hit["detail"])
+        self.assertEqual(self.find(f, "lockout", "21", kind="holiday-lfg-differs"), [])
+
+    def test_holidays_file_is_optional(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for name in ("Mounts.lua", "Route.lua", "Lockouts.lua"):
+                with open(os.path.join(DATA, name), encoding="utf-8") as src,                         open(os.path.join(tmp, name), "w", encoding="utf-8") as dst:
+                    dst.write(src.read())
+            self.assertEqual(v.load_our_data(tmp)["holidays"], {})
+        self.assertEqual(self.ours["holidays"]["midsummer"]["lfg"], 286)
+
     # candidates
     def test_journal_candidates_skip_specs_quests_and_boss_lockouts(self):
         groups = v.lockout_candidates(self.ours, self.game)
@@ -269,6 +304,8 @@ class ChecksTest(unittest.TestCase):
             self.assertLess(text.index("### Errors"), text.index("### Warnings"))
             self.assertIn("allowlisted (warn): trash", text)
             self.assertIn("| Mount | Drop | Where", text)
+            self.assertIn("## LFG specs resolved against LfgDungeons", text)
+            self.assertIn("The Frost Lord Ahune", text)
             with open(out_json, encoding="utf-8") as fh:
                 dumped = json.load(fh)
             self.assertEqual(dumped["build"], "1.2.3.4")

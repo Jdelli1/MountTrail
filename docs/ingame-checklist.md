@@ -391,3 +391,9 @@ Rare-spawn resets: a mount whose only lockout is its Rarity quest flag now reset
 - [ ] Checklist > Daily lists the rare-spawn mounts (e.g. Legion > Vile Fiend, Shadowlands > Gorespine, The War Within > Darkfuse Spy-Eye), Weekly the world bosses (e.g. Mists of Pandaria > Son of Galleon, Warlords of Draenor > Solar Spirehawk).
 - [ ] Kill one daily rare (e.g. a Mechagon or Korthia rare with a mount): its row ticks `auto`; after the daily reset it is back. If it stays ticked until the weekly reset instead, report the mount (it needs a weekly entry in Data/Lockouts.lua).
 - [ ] Tanaan Jungle (Tundra Icehoof, Armored Razorback, Warsong Direfang share quest 39287): one Daily row; confirm it returns after the daily reset.
+
+Ahune (Midsummer Fire Festival): the game's LfgDungeons table has ID 286 `The Frost Lord Ahune` in the holiday-boss group (Group_ID 11, with 285 / 287 / 288), so Sun Festival's Painted Roc (3036, Mount.db2 `Drop: Ahune; Holiday: Midsummer`) gets a daily `lfg = 286` spec and Midsummer a route step `Queue for Ahune (Midsummer Fire Festival)`. The step has no map pin (the location is not in the verified tables). The verifier now also checks every `lfg` spec and holiday `lfg` against LfgDungeons.
+
+- [ ] During Midsummer: Checklist > Daily lists Sun Festival's Painted Roc (description `Queue for Ahune (Midsummer Fire Festival)`); the Route tab shows the queue step.
+- [ ] Queue for and kill Ahune: the row ticks `auto` (the daily LFG reward is marked done) and comes back after the daily reset. If it does not tick, report it (the LFG ID may not be the one the reward check uses).
+- [ ] Holidays tab > Midsummer Fire Festival: the Painted Roc row shows `Lockout: Available` / `Saved` like the Brewfest mounts.
