@@ -144,8 +144,8 @@ describe("events", function()
 
     it("unknown or missing status: the hint", function()
       local E = load().Events
-      eq(E.StatusText(ULDUM, { kind = "assault", known = false }, fmt), "Status unknown (open the map once)")
-      eq(E.StatusText(ARATHI, nil, fmt), "Status unknown (open the map once)")
+      eq(E.StatusText(ULDUM, { kind = "assault", known = false }, fmt), "Status unknown — click to load")
+      eq(E.StatusText(ARATHI, nil, fmt), "Status unknown — click to load")
     end)
   end)
 
@@ -177,7 +177,7 @@ describe("events", function()
       eq(texts, {
         ["Assault: Uldum"] = "Uldum: Amathet assault",
         ["Assault: Vale of Eternal Blossoms"] = "Vale of Eternal Blossoms: Mantid assault — 120s left",
-        ["Warfront: Arathi"] = "Status unknown (open the map once)",
+        ["Warfront: Arathi"] = "Status unknown — click to load",
         ["Warfront: Darkshore"] = "Darkshore warfront: Contributing (50%)",
       })
       table.sort(asked)
@@ -203,7 +203,7 @@ describe("events", function()
         pois = function() error("boom") end,
         contributions = function() error("boom") end,
       }))
-      for key, text in pairs(texts) do eq(text, "Status unknown (open the map once)", key) end
+      for key, text in pairs(texts) do eq(text, "Status unknown — click to load", key) end
       eq(ns.Events.Statuses(nil, lookups({})), {})
     end)
   end)

@@ -904,7 +904,9 @@ end
 -- runs UI.RowClickAction's action for `mountID`. `routeBoss` (optional): the
 -- route / checklist row's boss, so the waypoint and map go to that boss's
 -- instance (Map.SetWaypoint / Map.OpenMap) rather than the mount's own place.
-function UI.HandleRowClick(mountID, button, routeBoss)
+-- `eventMap` (optional, checklist rows with an unknown event status): a plain
+-- left-click opens that zone's map instead (UI.OpenEventMap).
+function UI.HandleRowClick(mountID, button, routeBoss, eventMap)
   if not mountID then
     trace("click %s on a row with no mount", tostring(button))
     return
@@ -913,7 +915,9 @@ function UI.HandleRowClick(mountID, button, routeBoss)
   local shift = type(IsShiftKeyDown) == "function" and IsShiftKeyDown() and true or false
   local action = UI.RowClickAction(button, ctrl, shift)
   trace("click %s on mount %s -> %s", tostring(button), tostring(mountID), tostring(action))
-  if action == "waypoint" then
+  if action == "waypoint" and eventMap and UI.OpenEventMap then
+    UI.OpenEventMap(eventMap)
+  elseif action == "waypoint" then
     mapAction("SetWaypoint", mountID, routeBoss)
   elseif action == "map" then
     mapAction("OpenMap", mountID, routeBoss)
@@ -1196,7 +1200,7 @@ local function setupRow(row)
   row:SetScript("OnClick", function(self, button)
     -- Left-click waypoint, Shift+left-click world map, Ctrl+left-click
     -- preview, Shift+right-click achievement (UI.RowClickAction).
-    UI.HandleRowClick(self.mountID, button, self.routeBoss)
+    UI.HandleRowClick(self.mountID, button, self.routeBoss, self.eventMap)
   end)
 end
 
@@ -1205,6 +1209,7 @@ local function initRow(row, data)
   row.mountID = data.id
   row.tooltip = data.tooltip
   row.routeBoss = data.routeBoss
+  row.eventMap = data.eventMap
   -- Under a sub-header the icon lines up with the sub-header's indicator.
   row.Icon:SetPoint("LEFT", row, "LEFT", data.depth == 2 and SUB_INDENT or ROW_ICON_LEFT, 0)
   local name = data.name or ns.Game.MountInfo(data.id)

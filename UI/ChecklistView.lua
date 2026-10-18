@@ -146,6 +146,35 @@ function UI.ChecklistStatusOf(texts)
   end
 end
 
+-- The UiMap a click on this entry's row opens: its event zone while the
+-- group's line reads "status unknown", else nil (the normal waypoint click).
+function UI.ChecklistEventMap(entry, texts)
+  local key, def = ns.Events.GroupOf(entry and entry.m, ns.Data and ns.Data.EventGroups)
+  if not key or not ns.Events.IsUnknown(texts and texts[key]) then return nil end
+  return ns.Events.ZoneMap(def)
+end
+
+local mapHooked = false
+-- Opens the event zone's world map so the client loads its data, and drops the
+-- cached lines so the checklist redraws once the data arrives. Not in combat
+-- (Map.OpenZone says so). The map closing also invalidates the cache (guarded,
+-- hooked once).
+function UI.OpenEventMap(uiMapID)
+  local map = ns.Map
+  if not (map and type(map.OpenZone) == "function") then return false end
+  local good, opened = pcall(map.OpenZone, uiMapID)
+  if not good then
+    if ns.Game and ns.Game.ReportError then ns.Game.ReportError(opened) end
+    return false
+  end
+  if not opened then return false end
+  if not mapHooked and type(WorldMapFrame) == "table" and type(WorldMapFrame.HookScript) == "function" then
+    mapHooked = pcall(WorldMapFrame.HookScript, WorldMapFrame, "OnHide", function() UI.EventStatusChanged() end)
+  end
+  UI.EventStatusChanged()
+  return true
+end
+
 -- A row's grey line with its status appended in light blue.
 function UI.ChecklistStatusDesc(desc, status)
   if not status or status == "" then return desc end
@@ -539,11 +568,12 @@ function view.Refresh()
   local built = UI.ChecklistBuild(Game.Now())
   local untilDaily, untilWeekly = Game.UntilDaily(), Game.UntilWeekly()
   local filters = view.Filters()
+  local statusTexts = UI.EventStatusTexts(Game.Now())
   local rows = ns.Checklist.Rows(built, {
     collapsed = collapsedDB() or {},
     filters = filters,
     label = function(reset) return UI.ChecklistHeaderLabel(reset, untilDaily, untilWeekly) end,
-    status = UI.ChecklistStatusOf(UI.EventStatusTexts(Game.Now())),
+    status = UI.ChecklistStatusOf(statusTexts),
   })
   local sourceText = UI.MemoText(Game.MountSourceText)
   local n = 0
@@ -561,6 +591,7 @@ function view.Refresh()
       -- The click goes to this lockout's boss (its instance's entrance) and
       -- the hover's lockout line is that boss's (UI.InitMountRow).
       row.routeBoss = e.boss
+      row.eventMap = UI.ChecklistEventMap(e, statusTexts)
       if e.grouped then
         -- One lockout, several mounts: the boss names the row and the
         -- tooltip lists what it can drop (UI.InitMountRow's hooks).

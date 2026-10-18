@@ -484,6 +484,15 @@ local function openWorldMap(api, m)
   return true
 end
 
+-- Opens the world map on `uiMapID` (a zone, no mount): the client then loads
+-- that zone's POI / contribution data (checklist rows with an unknown event
+-- status). In combat chat says the map can't be opened. -> true when opened.
+function Map.OpenZone(uiMapID, api)
+  api = api or realApi()
+  if type(uiMapID) ~= "number" then return false end
+  return openWorldMap(api, uiMapID)
+end
+
 -- Left-click on a mount row: points the player at the mount without opening
 -- the world map. pin / entrance, by the waypoint mode (api.waypointMode, else
 -- Map.WaypointMode()): game -> the game's user waypoint (super-tracked) only;

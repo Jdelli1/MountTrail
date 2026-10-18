@@ -1361,7 +1361,7 @@ describe("ui build", function()
         ok(frames[i].Source:GetText():find(uldum, 1, true), frames[i].Source:GetText())
       elseif group == "Warfront: Darkshore" then
         seen.darkshore = true
-        eq(row.status, "Status unknown (open the map once)")
+        eq(row.status, "Status unknown — click to load")
       elseif row.entry and not ns.Data.EventGroups[group] then
         eq(row.status, nil, "not an event rare: " .. tostring(group))
       end

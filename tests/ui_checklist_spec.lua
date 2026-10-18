@@ -409,9 +409,9 @@ describe("checklist event status", function()
     local ns = withEvents()
     local texts = ns.UI.EventStatusTexts(NOW)
     eq(texts["Assault: Uldum"], "Uldum: Aqir assault — " .. ns.UI.FormatDuration(7200) .. " left")
-    eq(texts["Assault: Vale of Eternal Blossoms"], "Status unknown (open the map once)")
+    eq(texts["Assault: Vale of Eternal Blossoms"], "Status unknown — click to load")
     eq(texts["Warfront: Arathi"], "Arathi warfront: Contributing (25%)")
-    eq(texts["Warfront: Darkshore"], "Status unknown (open the map once)")
+    eq(texts["Warfront: Darkshore"], "Status unknown — click to load")
   end)
 
   it("is cached: re-read after 60 s or once the game reports a change (EventStatusChanged)", function()
@@ -445,6 +445,42 @@ describe("checklist event status", function()
     eq(statusOf({ m = { group = "Warfront: Arathi" } }), "A")
     eq(statusOf({ m = { group = "Rare Spawn" } }), nil)
     eq(statusOf({}), nil)
+  end)
+
+  it("UI.ChecklistEventMap: the zone map of a row whose status is unknown, else nil", function()
+    local ns = withEvents()
+    local texts = ns.UI.EventStatusTexts(NOW)
+    local entry = function(group) return { m = { group = group } } end
+    eq(ns.UI.ChecklistEventMap(entry("Assault: Vale of Eternal Blossoms"), texts), 1530)
+    eq(ns.UI.ChecklistEventMap(entry("Warfront: Arathi"), texts), nil, "known status: normal click")
+    eq(ns.UI.ChecklistEventMap(entry("Assault: Uldum"), texts), nil, "known status: normal click")
+    eq(ns.UI.ChecklistEventMap(entry("Warfront: Darkshore"), texts), 62)
+    eq(ns.UI.ChecklistEventMap(entry("Rare Spawn"), texts), nil)
+    eq(ns.UI.ChecklistEventMap({}, texts), nil)
+  end)
+
+  it("a click on an unknown-status row opens its zone map and refreshes the status", function()
+    local ns = withEvents()
+    local opened, redraws = {}, 0
+    ns.Map.OpenZone = function(map) opened[#opened + 1] = map; return true end
+    local waypoints = 0
+    ns.Map.SetWaypoint = function() waypoints = waypoints + 1 end
+    IsControlKeyDown, IsShiftKeyDown = nil, nil
+    local before = ns.UI.EventStatusTexts(NOW)
+    ns.UI.ChecklistView = { IsShown = function() return true end, Refresh = function() redraws = redraws + 1 end }
+    local timers = {}
+    local oldTimer = C_Timer
+    C_Timer = { After = function(delay, fn) timers[#timers + 1] = fn end }
+    ns.UI.HandleRowClick(10, "LeftButton", "Boss", 1530)
+    eq(opened, { 1530 })
+    eq(waypoints, 0, "no waypoint on an unknown row")
+    ok(ns.UI.EventStatusTexts(NOW) ~= before, "cache cleared: re-read")
+    timers[1]()
+    eq(redraws, 1, "checklist redrawn")
+    ns.UI.HandleRowClick(10, "LeftButton", "Boss") -- known status: waypoint
+    eq(waypoints, 1)
+    eq(opened, { 1530 })
+    C_Timer = oldTimer
   end)
 
   it("UI.ChecklistStatusDesc appends the line in light blue; HeaderText shows a header's", function()

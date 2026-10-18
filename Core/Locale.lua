@@ -228,7 +228,7 @@ L["Show holidays"] = "Show holidays"
 L["Show other"] = "Show other"
 
 -- Event rares' live status (F17, Logic/Events.lua, Data/Events.lua)
-L["Status unknown (open the map once)"] = "Status unknown (open the map once)"
+L["Status unknown — click to load"] = "Status unknown — click to load"
 L["%s: %s assault — %s left"] = "%s: %s assault — %s left"
 L["%s: %s assault"] = "%s: %s assault"
 L["%s — %s left"] = "%s — %s left"

@@ -11,13 +11,13 @@ local ADDON, ns = ...
 -- assault rare can't be tied to its assault from the client's data, so rows
 -- never claim a rare is up), and each warfront contribution's state as the
 -- game names it (no claim about which rares a phase spawns). Anything the
--- game does not report reads "Status unknown (open the map once)".
+-- game does not report reads "Status unknown — click to load".
 local Events = {}
 ns.Events = Events
 
 local L = ns.L or setmetatable({}, { __index = function(_, k) return k end })
 
-local UNKNOWN = "Status unknown (open the map once)"
+local UNKNOWN = "Status unknown — click to load"
 
 -- Enum.ContributionState (GarrisonConstantsDocumentation): None 0,
 -- Building 1, Active 2, UnderAttack 3, Destroyed 4. The game's own state
@@ -82,6 +82,16 @@ function Events.WarfrontStatus(def, contributions)
   end
   if #parts == 0 then return { kind = "warfront", known = false } end
   return { kind = "warfront", known = true, parts = parts }
+end
+
+-- True for the "status unknown" line (the row's click then opens the map).
+function Events.IsUnknown(text)
+  return text == L[UNKNOWN]
+end
+
+-- The UiMap the game needs open to report `def`'s status: its first map.
+function Events.ZoneMap(def)
+  return type(def) == "table" and type(def.maps) == "table" and def.maps[1] or nil
 end
 
 -- The checklist line of a group's status; formatDuration(seconds) -> text.
