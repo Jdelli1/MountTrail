@@ -52,6 +52,36 @@ local function holidayLookup(holidays)
   end
 end
 
+-- Stable text of a difficulties list (nested lists too): { {3,4}, 5 } -> "{3,4},5".
+local function listText(list)
+  if type(list) ~= "table" then return tostring(list) end
+  local parts = {}
+  for i, v in ipairs(list) do
+    parts[i] = type(v) == "table" and ("{" .. listText(v) .. "}") or tostring(v)
+  end
+  return table.concat(parts, ",")
+end
+
+-- Identity of the lockout a spec spends, so entries sharing one kill become
+-- one checklist entry: "boss:<route boss>" when a per-boss spec
+-- (Data.BossLockouts, `bossLockouts`) governs the route boss, else the
+-- instance spec's signature (instance, boss, difficulties, reset), else
+-- "quest:<id>" / "lfg:<id>". Manual specs (hand ticks per mount) and
+-- anything else -> nil: never grouped.
+function Checklist.LockoutKey(spec, routeBoss, bossLockouts)
+  if type(spec) ~= "table" or spec.manual then return nil end
+  if routeBoss and type(bossLockouts) == "table" and bossLockouts[routeBoss] then
+    return "boss:" .. tostring(routeBoss)
+  end
+  if spec.instance then
+    return "instance:" .. tostring(spec.instance) .. "|" .. tostring(spec.boss)
+      .. "|" .. listText(spec.difficulties) .. "|" .. tostring(spec.reset)
+  end
+  if spec.quest then return "quest:" .. tostring(spec.quest) end
+  if spec.lfg then return "lfg:" .. tostring(spec.lfg) end
+  return nil
+end
+
 local function rankOf(list)
   local rank = {}
   for i, key in ipairs(list or {}) do rank[key] = i end
@@ -73,16 +103,23 @@ end
 --              one lockout (default: the mountID, one entry per mount)
 --   isQuestDone(questID) -> bool, for a spec's `requires` unlock
 --   nameOf(id, m) -> display name (default m.name)
--- Entries: one per route (mount, boss) pair whose spec exists (first in
+--   bossLockouts Data.BossLockouts (route boss -> spec), for lockout identity
+-- Members: one per route (mount, boss) pair whose spec exists (first in
 -- depth-first order per key; route nodes / bosses that are unavailable or for
 -- the other faction are skipped), then every mount with a spec the route
 -- does not name at all (boss nil). Holiday mounts only while their holiday is
 -- active. Owned mounts and mounts the gate excludes are left out.
--- -> { daily = { entry }, weekly = { entry } }; entry = { id=, m=, boss=,
--- title= (route node), holiday= (key), key=, spec=, reset=, state=, done=,
--- auto= (done by the game), locked=, lockedText=, name= }. A spec without a
--- reset files under daily (as hand ticks default to daily). Sorted: not done
--- first, then expansion order, then name (case-insensitive), id, route order.
+-- Members spending the same lockout (Checklist.LockoutKey: e.g. every
+-- Chrono-Lord Deios row) are ONE entry: one kill, one state, one row.
+-- -> { daily = { entry }, weekly = { entry } }; entry = { id= (first member),
+-- m=, boss=, title= (route node), holiday= (key), key= (first member's tick
+-- key), spec=, reset=, state=, done=, auto= (done by the game), locked=,
+-- lockedText=, name=, mounts= { member ids, data order }, names= { their
+-- display names }, grouped= (#mounts > 1) }. A grouped entry's name is its
+-- boss (route boss, else the spec's boss, else the holiday's title, else the
+-- first mount's name). A spec without a reset files under daily (as hand
+-- ticks default to daily). Sorted: not done first, then expansion order (of
+-- the first member), then name (case-insensitive), id, route order.
 function Checklist.Build(ctx)
   ctx = ctx or {}
   local mounts = ctx.mounts or {}
@@ -96,6 +133,7 @@ function Checklist.Build(ctx)
 
   local out = { daily = {}, weekly = {} }
   local seen, order = {}, 0
+  local groups = {} -- Checklist.LockoutKey -> entry
 
   local function add(id, boss, title)
     local m = mounts[id]
@@ -112,14 +150,22 @@ function Checklist.Build(ctx)
     if ctx.gate then owned = ctx.gate(id, m) end
     if owned == nil or owned then return end
     seen[key] = true
+    local name = (ctx.nameOf and ctx.nameOf(id, m)) or m.name or tostring(id)
+    -- Another member of a lockout already listed: one kill, one entry.
+    local lockout = Checklist.LockoutKey(spec, boss, ctx.bossLockouts)
+    local group = lockout and groups[lockout]
+    if group then
+      group.mounts[#group.mounts + 1] = id
+      group.names[#group.names + 1] = name
+      return
+    end
     order = order + 1
     local state = stateOf(id, boss) or "open"
     local req = spec.requires
     local locked = (req and not (ctx.isQuestDone and ctx.isQuestDone(req.quest))) and true or false
     local reset = spec.reset == "weekly" and "weekly" or "daily"
-    local name = (ctx.nameOf and ctx.nameOf(id, m)) or m.name or tostring(id)
     local list = out[reset]
-    list[#list + 1] = {
+    local entry = {
       id = id, m = m, boss = boss, title = title, holiday = holiday, key = key,
       spec = spec, reset = reset, state = state,
       done = state == "done" or state == "manual-done",
@@ -127,7 +173,10 @@ function Checklist.Build(ctx)
       locked = locked, lockedText = locked and req.text or nil,
       name = name, order = order,
       expRank = rank[m.exp] or unknownRank,
+      mounts = { id }, names = { name }, grouped = false,
     }
+    list[#list + 1] = entry
+    if lockout then groups[lockout] = entry end
   end
 
   local function walk(node)
@@ -148,6 +197,18 @@ function Checklist.Build(ctx)
   end
   table.sort(extra)
   for _, id in ipairs(extra) do add(id, nil, nil) end
+
+  -- A lockout that drops several mounts is named after its boss.
+  for _, reset in ipairs(RESETS) do
+    for _, e in ipairs(out[reset]) do
+      if #e.mounts > 1 then
+        e.grouped = true
+        local boss = (e.boss ~= "" and e.boss) or e.spec.boss
+        local h = e.holiday and ctx.holidays and ctx.holidays[e.holiday]
+        e.name = boss or (h and h.title and L[h.title]) or e.name
+      end
+    end
+  end
 
   local function before(a, b)
     if a.done ~= b.done then return not a.done end

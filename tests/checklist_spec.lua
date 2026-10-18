@@ -352,3 +352,187 @@ describe("Checklist.Rows", function()
     eq(load().Remaining({ daily = {}, weekly = {} }), 0)
   end)
 end)
+
+-- F10: one entry per lockout. Mounts sharing one lockout (a per-boss spec
+-- such as Chrono-Lord Deios, an identical instance spec, one quest / LFG
+-- flag) become a single entry listing its mounts; manual specs never group.
+describe("Checklist.Build lockout groups", function()
+  local GROUP_MOUNTS = {
+    [51] = { name = "Deathcharger", exp = "Classic" },
+    [52] = { name = "Bronze Drake", exp = "Wrath of the Lich King" },
+    [53] = { name = "Horde Raptor", exp = "Cataclysm" },
+    [54] = { name = "Blazing Drake", exp = "Cataclysm" },
+    [55] = { name = "Handmaiden", exp = "Cataclysm" },
+    [56] = { name = "Experiment", exp = "Cataclysm" },
+    [57] = { name = "Ram One", exp = "Classic" },
+    [58] = { name = "Ram Two", exp = "Classic" },
+    [59] = { name = "Hand A", exp = "Classic" },
+    [60] = { name = "Hand B", exp = "Classic" },
+    [61] = { name = "Rare One", exp = "Legion" },
+    [62] = { name = "Rare Two", exp = "Legion" },
+  }
+  local GROUP_SPECS = {
+    -- Deathwing: two separate (but equal) tables -> one lockout.
+    [54] = { instance = 967, boss = "Madness of Deathwing", difficulties = { { 3, 4, 5, 6 } }, reset = "weekly" },
+    [55] = { instance = 967, boss = "Madness of Deathwing", difficulties = { { 3, 4, 5, 6 } }, reset = "weekly" },
+    -- Same instance, other boss: its own lockout.
+    [56] = { instance = 967, boss = "Ultraxion", difficulties = { { 3, 4, 5, 6 } }, reset = "weekly" },
+    [57] = { lfg = 287, reset = "daily" },
+    [58] = { lfg = 287, reset = "daily" },
+    [59] = { manual = true, reset = "weekly" },
+    [60] = { manual = true, reset = "weekly" },
+    [61] = { quest = 900, reset = "weekly" },
+    [62] = { quest = 900, reset = "weekly" },
+  }
+  local GROUP_BOSS = {
+    Deios = { instance = 2579, boss = "Chrono-Lord Deios", difficulties = { 23 }, reset = "weekly" },
+  }
+  local GROUP_TREE = {
+    {
+      title = "Run Dawn of the Infinite (Dungeon)",
+      bosses = {
+        { mount = 51, boss = "Deios" },
+        { mount = 52, boss = "Deios" },
+        { mount = 53, boss = "Deios", horde = true },
+      },
+    },
+    { title = "Run Dragon Soul (Raid)", bosses = {
+      { mount = 56, boss = "Ultraxion" },
+      { mount = 54, boss = "Madness of Deathwing" },
+      { mount = 55, boss = "Madness of Deathwing" },
+    } },
+  }
+
+  local function groupCtx(over)
+    local ctx = {
+      tree = GROUP_TREE,
+      mounts = GROUP_MOUNTS,
+      bossLockouts = GROUP_BOSS,
+      specFor = function(id, boss)
+        if boss and GROUP_BOSS[boss] then return GROUP_BOSS[boss] end
+        return GROUP_SPECS[id]
+      end,
+      gate = function() return false end,
+      faction = "Alliance",
+      holidays = { brewfest = { title = "Brewfest", mounts = { 57, 58 } } },
+      active = { brewfest = true },
+      expansions = EXPANSIONS,
+      keyOf = function(id, boss)
+        if boss and GROUP_BOSS[boss] then return id .. "@" .. boss end
+        return id
+      end,
+    }
+    for k, v in pairs(over or {}) do ctx[k] = v end
+    return ctx
+  end
+
+  local function find(list, pred)
+    for _, e in ipairs(list) do if pred(e) then return e end end
+    return nil
+  end
+
+  it("a per-boss spec shared by several route rows is one entry listing its mounts", function()
+    local out = load().Build(groupCtx())
+    local deios = find(out.weekly, function(e) return e.boss == "Deios" end)
+    ok(deios, "Deios listed")
+    eq(deios.id, 51, "the first mount (icon / click / waypoint)")
+    eq(deios.mounts, { 51, 52 }, "the Horde-only row stays out for an Alliance character")
+    eq(deios.names, { "Deathcharger", "Bronze Drake" })
+    eq(deios.key, "51@Deios", "the first member's tick key")
+    eq(deios.grouped, true)
+    eq(deios.name, "Deios", "named after the boss")
+    eq(deios.title, "Run Dawn of the Infinite (Dungeon)")
+    local n = 0
+    for _, e in ipairs(out.weekly) do if e.boss == "Deios" then n = n + 1 end end
+    eq(n, 1, "one row per lockout")
+  end)
+
+  it("header totals count lockouts, not mounts", function()
+    local C = load()
+    local rows = C.Rows(C.Build(groupCtx()))
+    local weekly
+    for _, r in ipairs(rows) do if r.key == "checklist|weekly" then weekly = r end end
+    -- Deios, Deathwing (54 + 55), Ultraxion, Rare One + Two, Hand A, Hand B.
+    eq(weekly.total, 6)
+  end)
+
+  it("identical instance specs group; a different boss stays separate", function()
+    local out = load().Build(groupCtx())
+    local dw = find(out.weekly, function(e) return e.id == 54 end)
+    eq(dw.mounts, { 54, 55 })
+    eq(dw.name, "Madness of Deathwing")
+    local ul = find(out.weekly, function(e) return e.id == 56 end)
+    eq(ul.mounts, { 56 })
+    eq(ul.grouped, false)
+    eq(ul.name, "Experiment", "single-mount entries keep the mount name")
+    eq(find(out.weekly, function(e) return e.id == 55 end), nil, "55 only inside the Deathwing entry")
+  end)
+
+  it("quest and LFG flags group by their ID; manual specs never group", function()
+    local out = load().Build(groupCtx())
+    local rams = find(out.daily, function(e) return e.id == 57 end)
+    eq(rams.mounts, { 57, 58 })
+    eq(rams.name, "Brewfest", "no boss: the holiday's title")
+    eq(#out.daily, 1)
+    local rare = find(out.weekly, function(e) return e.id == 61 end)
+    eq(rare.mounts, { 61, 62 })
+    eq(rare.name, "Rare One", "no boss, no holiday: the first mount's name")
+    eq(find(out.weekly, function(e) return e.id == 59 end).mounts, { 59 })
+    eq(find(out.weekly, function(e) return e.id == 60 end).mounts, { 60 })
+  end)
+
+  it("owned members drop out of the list; the next one leads", function()
+    local out = load().Build(groupCtx({ gate = function(id) return id == 51 end }))
+    local deios = find(out.weekly, function(e) return e.boss == "Deios" end)
+    eq(deios.id, 52)
+    eq(deios.mounts, { 52 })
+    eq(deios.grouped, false, "one mount left: a plain entry")
+    eq(deios.name, "Bronze Drake")
+    eq(deios.key, "52@Deios")
+  end)
+
+  it("all members owned or gated: the entry is gone", function()
+    local out = load().Build(groupCtx({ gate = function(id)
+      if id == 51 then return true end
+      if id == 52 then return nil end
+      return false
+    end }))
+    eq(find(out.weekly, function(e) return e.boss == "Deios" end), nil)
+  end)
+
+  it("the faction rule applies per member", function()
+    local out = load().Build(groupCtx({ faction = "Horde" }))
+    local deios = find(out.weekly, function(e) return e.boss == "Deios" end)
+    eq(deios.mounts, { 51, 52, 53 })
+  end)
+
+  it("one lockout, one state: the first member's", function()
+    local out = load().Build(groupCtx({ stateOf = function(id) return id == 51 and "done" or "open" end }))
+    local deios = find(out.weekly, function(e) return e.boss == "Deios" end)
+    eq(deios.done, true)
+    eq(deios.auto, true)
+  end)
+
+  it("without bossLockouts the per-boss spec groups by its signature", function()
+    local out = load().Build(groupCtx({ bossLockouts = false }))
+    local deios = find(out.weekly, function(e) return e.boss == "Deios" end)
+    eq(deios.mounts, { 51, 52 })
+  end)
+end)
+
+describe("Checklist.LockoutKey", function()
+  it("names one lockout: per-boss spec, instance signature, quest, LFG; manual -> nil", function()
+    local K = load().LockoutKey
+    local boss = { Deios = { instance = 1, boss = "D", difficulties = { 23 }, reset = "weekly" } }
+    eq(K(boss.Deios, "Deios", boss), "boss:Deios")
+    local a = { instance = 967, boss = "X", difficulties = { { 3, 4 }, 5 }, reset = "weekly" }
+    local b = { instance = 967, boss = "X", difficulties = { { 3, 4 }, 5 }, reset = "weekly" }
+    local c = { instance = 967, boss = "X", difficulties = { { 3, 4 } }, reset = "weekly" }
+    eq(K(a, nil, boss), K(b, "Other", boss))
+    ok(K(a) ~= K(c), "other difficulties: other lockout")
+    eq(K({ quest = 5, reset = "weekly" }), "quest:5")
+    eq(K({ lfg = 287, reset = "daily" }), "lfg:287")
+    eq(K({ manual = true, reset = "weekly" }), nil)
+    eq(K(nil), nil)
+  end)
+end)

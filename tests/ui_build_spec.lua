@@ -974,6 +974,54 @@ describe("ui build", function()
     eq(rows[2].key, "checklist|weekly")
   end)
 
+  it("Checklist: a lockout that drops several mounts is one row with the group tooltip", function()
+    local ns = loadUI()
+    ns.db.char.routeView = "checklist"
+    ns.ToggleWindow()
+    ns.UI.SelectTab("route")
+    local header = content(ns, "route").children[2].children[1]
+    local box = header.Checklist.ScrollBox
+    local rows = box.provider.rows
+    local frames = render(box)
+    local n, at = 0, nil
+    for i, r in ipairs(rows) do
+      if r.entry and r.entry.boss == "Chrono-Lord Deios" then n = n + 1; at = i end
+    end
+    eq(n, 1, "Chrono-Lord Deios: one row")
+    local f, row = frames[at], rows[at]
+    local e = row.entry
+    ok(#e.mounts > 1, "several mounts on the real data")
+    eq(f.Name:GetText(), "Chrono-Lord Deios", "named after the boss")
+    eq(f.Source:GetText(), "Dawn of the Infinites \194\183 " .. #e.mounts .. " mounts")
+    eq(f.mountID, e.id, "click / waypoint on the first mount")
+
+    local lines, tip = {}, {}
+    function tip:SetOwner() end
+    function tip:SetText(text) lines[#lines + 1] = text end
+    function tip:AddLine(text) lines[#lines + 1] = text end
+    function tip:AddDoubleLine(l, r) lines[#lines + 1] = l .. "=" .. r end
+    function tip:SetItemByID() end
+    function tip:Show() end
+    function tip:Hide() end
+    local old = GameTooltip
+    GameTooltip = tip
+    f:RunScript("OnEnter")
+    f:RunScript("OnLeave")
+    eq(lines[1], "Chrono-Lord Deios")
+    eq(lines[3], "Can drop:")
+
+    -- A plain row of the same list keeps the mount tooltip.
+    local plain
+    for i, r in ipairs(rows) do
+      if r.entry and not r.entry.grouped and not plain then plain = i end
+    end
+    lines = {}
+    frames[plain]:RunScript("OnEnter")
+    GameTooltip = old
+    ok(lines[1] ~= "Can drop:" and lines[3] ~= "Can drop:", "mount tooltip for a single-mount row")
+    eq(frames[plain].Name:GetText(), rows[plain].m.name, "single-mount rows keep the mount name")
+  end)
+
   it("Route falls back to the classic checkbox", function()
     local ns = loadUI()
     STUB_TEMPLATES.MinimalCheckboxTemplate = nil

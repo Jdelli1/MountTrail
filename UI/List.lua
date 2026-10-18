@@ -1084,7 +1084,11 @@ local function setupRow(row)
   row.Source = source
 
   row:SetScript("OnEnter", function(self)
-    if self.mountID then UI.ShowMountTooltip(self, self.mountID) end
+    if self.tooltip then
+      self.tooltip(self)
+    elseif self.mountID then
+      UI.ShowMountTooltip(self, self.mountID)
+    end
   end)
   row:SetScript("OnLeave", function() UI.HideMountTooltip() end)
   row:SetScript("OnClick", function(self, button)
@@ -1097,9 +1101,10 @@ end
 local function initRow(row, data)
   if not row.Icon then setupRow(row) end
   row.mountID = data.id
+  row.tooltip = data.tooltip
   -- Under a sub-header the icon lines up with the sub-header's indicator.
   row.Icon:SetPoint("LEFT", row, "LEFT", data.depth == 2 and SUB_INDENT or ROW_ICON_LEFT, 0)
-  local name = ns.Game.MountInfo(data.id)
+  local name = data.name or ns.Game.MountInfo(data.id)
   row.Icon:SetTexture(UI.MountIcon(data.id))
   row.Name:SetText(name or data.m.name or tostring(data.id))
   row.Source:SetText(UI.RowSourceText(data))
@@ -1123,7 +1128,9 @@ end
 -- The mount row look, shared by other mount lists (the zone panel): a
 -- ScrollBox element initializer for "Button" frames. data: { id=, m=,
 -- owned=, depth= (2: indented), desc= (UI.RowDescription), tag=, alt=
--- (striped), pin= (UI.HasLocation) }. Rows are UI.MOUNT_ROW_HEIGHT tall.
+-- (striped), pin= (UI.HasLocation), name= (overrides the mount's name),
+-- tooltip= (function(row) shown on hover instead of the mount tooltip) }.
+-- Rows are UI.MOUNT_ROW_HEIGHT tall.
 UI.InitMountRow = initRow
 UI.MOUNT_ROW_HEIGHT = ROW_HEIGHT
 

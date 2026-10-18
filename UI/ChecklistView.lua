@@ -9,7 +9,10 @@ local ADDON, ns = ...
 -- waypoint, hover = tooltip). Only lockouts the game can't report get a
 -- tick box in front of the icon, working like the route's (UI.RouteCheck /
 -- UI.RouteToggle on a one-boss route row, so the ticks are the route's own).
--- Done entries disappear on their own (Checklist.Rows); the headers count them. UI/RouteView.lua owns the header and the Route ·
+-- Done entries disappear on their own (Checklist.Rows); the headers count them.
+-- A lockout that drops several mounts (Chrono-Lord Deios) is one row named
+-- after its boss ("<instance> · <n> mounts", hover lists the mounts:
+-- UI.ChecklistGroupLines). UI/RouteView.lua owns the header and the Route ·
 -- Checklist switch and calls UI.ChecklistView.Build / Refresh.
 --
 -- The pure helpers (RouteSubView, SetRouteSubView, ChecklistContext,
@@ -62,6 +65,7 @@ function UI.ChecklistContext(now)
     active = Game.ActiveHolidays() or {},
     expansions = data.Expansions or {},
     keyOf = UI.RouteTickKey,
+    bossLockouts = data.BossLockouts or {},
     isQuestDone = Game.IsQuestDone,
     nameOf = function(id, m) return Game.MountInfo(id) or m.name end,
   }
@@ -75,11 +79,16 @@ end
 -- Grey row line of an entry: "<boss> · <instance>" for route rows (either
 -- alone when the other is unknown), the holiday's queue step for holiday
 -- mounts, else UI.RowDescription over `sourceText` (the client's source
--- text). A locked spec adds its unlock text in grey.
+-- text). A lockout that drops several mounts (entry.grouped: its name line
+-- is the boss) reads "<instance> · <n> mounts" instead (the holiday step or
+-- row description when the instance is unknown). A locked spec adds its
+-- unlock text in grey.
 function UI.ChecklistDescription(entry, sourceText)
   local boss = entry.boss
   if boss == "" then boss = nil end
   local instance = UI.InstanceName(entry.title)
+  local grouped = entry.grouped and entry.mounts and #entry.mounts > 1
+  if grouped then boss = nil end
   local text
   if boss and instance then
     text = boss .. DOT .. instance
@@ -93,6 +102,10 @@ function UI.ChecklistDescription(entry, sourceText)
       text = UI.RowDescription(entry.id, sourceText) or ""
     end
   end
+  if grouped then
+    local count = string.format(L["%d mounts"], #entry.mounts)
+    text = (text ~= "" and (text .. DOT) or "") .. count
+  end
   if entry.locked then
     text = text .. "  " .. GREY .. "(" .. L[entry.lockedText or "Locked"] .. ")|r"
   end
@@ -105,6 +118,54 @@ local LABELS = { daily = "Daily", weekly = "Weekly" }
 function UI.ChecklistHeaderLabel(reset, untilDaily, untilWeekly)
   local seconds = reset == "weekly" and untilWeekly or untilDaily
   return string.format(L["%s · resets in %s"], L[LABELS[reset] or reset], UI.FormatDuration(seconds))
+end
+
+local GROUP_MAX = 15
+local WHITE = { 1, 1, 1 }
+local SOFT = { 0.9, 0.9, 0.9 }
+local GOLD = { 1, 0.82, 0 }
+local DIM = { 0.6, 0.6, 0.6 }
+local HINT = { 0.5, 0.9, 0.5 }
+
+local function tipLine(text, color, wrap)
+  return { left = text, r = color[1], g = color[2], b = color[3], wrap = wrap }
+end
+
+-- Tooltip lines of a lockout that drops several mounts: the entry's name (the
+-- boss, title line), its instance, "Can drop:" and each member mount (white;
+-- at most 15, then "+N more"), the click hints (click = the first mount).
+-- -> { { left=, r=, g=, b=, wrap= } }.
+function UI.ChecklistGroupLines(entry)
+  local lines = { tipLine(entry.name or tostring(entry.id), WHITE) }
+  local instance = UI.InstanceName(entry.title)
+  if instance then lines[#lines + 1] = tipLine(instance, SOFT) end
+  lines[#lines + 1] = tipLine(L["Can drop:"], GOLD)
+  local mounts, names = entry.mounts or { entry.id }, entry.names or {}
+  for i, id in ipairs(mounts) do
+    if i > GROUP_MAX then
+      lines[#lines + 1] = tipLine(string.format(L["+%d more"], #mounts - GROUP_MAX), DIM)
+      break
+    end
+    local name = names[i] or (ns.Game.MountInfo and ns.Game.MountInfo(id)) or tostring(id)
+    lines[#lines + 1] = tipLine(name, WHITE)
+  end
+  lines[#lines + 1] = tipLine(L["Click: waypoint · Shift-click: map · Ctrl-click: preview"], HINT)
+  return lines
+end
+
+-- Paints UI.ChecklistGroupLines on GameTooltip beside `owner` (a row's
+-- tooltip hook; UI.HideMountTooltip hides it).
+function UI.ShowChecklistGroupTooltip(owner, entry)
+  local tip = GameTooltip
+  if not (tip and entry) then return end
+  local lines = UI.ChecklistGroupLines(entry)
+  tip:SetOwner(owner, "ANCHOR_RIGHT")
+  tip:SetText(lines[1].left, lines[1].r, lines[1].g, lines[1].b)
+  for i = 2, #lines do
+    local l = lines[i]
+    tip:AddLine(l.left, l.r, l.g, l.b, l.wrap)
+  end
+  tip:Show()
 end
 
 -- An entry as a one-boss route kill row, for UI.RouteCheck / UI.RouteToggle.
@@ -268,6 +329,12 @@ function view.Refresh()
       row.desc = UI.ChecklistDescription(e, sourceText(e.id))
       row.tag = e.auto and L["auto"] or nil
       row.pin = UI.LocationIcon(e.id)
+      if e.grouped then
+        -- One lockout, several mounts: the boss names the row and the
+        -- tooltip lists what it can drop (UI.InitMountRow's hooks).
+        row.name = e.name
+        row.tooltip = function(owner) UI.ShowChecklistGroupTooltip(owner, e) end
+      end
     end
   end
   if ScrollBoxConstants then
