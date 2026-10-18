@@ -404,3 +404,18 @@ Data fixes (verifier, build 12.1.5.70448):
 - [ ] Checklist > Daily > Wrath of the Lich King: Bronze Drake (Culling of Stratholme) has a tick box (manual: the game reports no `Infinite Corruptor` kill); tick it after a timed heroic run: the row disappears and Daily's done count goes up; it is back after the daily reset.
 - [ ] Hover Swift Armored Vorquin and Majestic Armored Vorquin (Misc > Other, Dracthyr): each tooltip shows its own reins item (Swift: item 198810, Majestic: 198811); the item's name matches the mount.
 - [ ] Route tab: no `Run The Stonevault (Dungeon)` step and no `Flightpath to The Ringing Deeps` travel step; the Checklist has no Stonevault Mechsuit row (it is a quest reward: `Repurposed, Restored`).
+
+## F15: Misc categories and per-tab filters
+
+Misc is split by SimpleArmory category (regenerated from the pinned commit; only misc `section` values changed in Data/Mounts.lua). Headers, in order, with the data's mount counts (obtainable ones in brackets; the rest show only with `Show unobtainable mounts`, under Unobtainable): Professions 34 (34), In-game Shop 66 (57), Trading Post 131 (86), PvP 125 (81), Racial 91 (91), Mythic+ 23 (22), Promotions 72 (42), Class 19 (19), Black Market 7 (7), Collection rewards 17 (17), Limited time 88 (4), Other 60 (5), then Unobtainable. Faction and client knowledge lower the numbers you see.
+
+- [ ] Misc tab (Collected on): the headers above in that order; e.g. Racial lists the Brown Horse / Black Stallion (Alliance) or wolves / kodos (Horde), Class the Paladin chargers / Warlock dreadsteeds / Death Knight and Demon Hunter mounts, Black Market the BMAH mounts, Collection rewards the mount-count achievement mounts (e.g. Albino Drake), Mythic+ the Timelost Saddle mounts, Other only Feats of Strength / Old School Ride / Make-A-Wish / Guild Vendor / Unknown mounts.
+- [ ] Misc > Filter: `Collected`, a `Categories` title, `Show profession mounts` ... `Show other mounts` (twelve), Check all / Uncheck all. Untick `Show in-game shop mounts`: the In-game Shop header disappears at once and the reset arrow appears next to the button; tick it again: back, arrow gone.
+- [ ] With `Show unobtainable mounts` on (Options), the Misc menu also lists `Show unobtainable mounts`; unticking it hides the Unobtainable header (the option stays on).
+- [ ] Journal expansion list > Filter: `Sources` with `Show dungeon drops`, `Show raid drops`, ... (ten). Untick `Show raid drops`: Raid drops disappear on the Journal list only (Misc / Holidays unchanged).
+- [ ] Holidays > Filter: one `Show <holiday>` per holiday (Hallow's End ... Anniversary, `Show other mounts`); unticking Brewfest hides that header only on Holidays.
+- [ ] Achievements > Filter: `Expansions` with `Show Classic achievements` ... `Show Midnight achievements`, `Show General achievements`; unticking one hides that expansion's header.
+- [ ] Timewalking > Filter: `Collected` only.
+- [ ] Reset arrow per tab: hide a Misc category, switch to Holidays: no reset arrow there; click the arrow on Misc: Misc categories back and Collected off, the Holidays choices untouched.
+- [ ] Upgrade from an earlier version with a Journal source unticked (e.g. raid): after login it is still unticked on the Journal (`/dump AzerothTrailDB.global.filters` shows `journal = { raid = false }` and no flat `raid` key); Collected kept.
+- [ ] `/reload`: every tab keeps its filter choices.

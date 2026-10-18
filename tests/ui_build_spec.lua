@@ -243,10 +243,10 @@ describe("ui build", function()
     local realRefresh = ns.Refresh
     ns.Refresh = function() refreshed = refreshed + 1; realRefresh() end
 
-    local raid = find(calls, "Raid drops")
+    local raid = find(calls, "Show raid drops")
     eq(raid.isSelected(), true)
     raid.setSelected()
-    eq(ns.db.global.filters.raid, false)
+    eq(ns.db.global.filters.journal.raid, false)
     eq(raid.isSelected(), false, "checkbox reads the live filters")
     eq(refreshed, 1)
     eq(dd.resetShown, true, "reset arrow once a filter differs")
@@ -255,9 +255,9 @@ describe("ui build", function()
     eq(ns.db.global.filters.collected, true)
 
     eq(find(calls, "Uncheck all").fn(), MenuResponse.Refresh, "menu stays open")
-    eq(ns.db.global.filters.dungeon, false)
+    eq(ns.db.global.filters.journal.dungeon, false)
     eq(find(calls, "Check all").fn(), MenuResponse.Refresh)
-    eq(ns.db.global.filters.dungeon, true)
+    eq(ns.db.global.filters.journal, nil, "all shown: nothing stored")
     eq(refreshed, 4)
 
     dd.defaultCallback()
@@ -274,7 +274,7 @@ describe("ui build", function()
     local boxes = 0
     for _, c in ipairs(calls) do if c.kind == "checkbox" then boxes = boxes + 1 end end
     eq(boxes, 11, "Collected + ten sources")
-    ok(find(calls, "Raid drops"), "sources listed")
+    ok(find(calls, "Show raid drops"), "sources listed")
   end)
 
   it("regenerates the menu when the list's tab changes", function()
@@ -289,7 +289,9 @@ describe("ui build", function()
     tab = "misc"
     list:Refresh()
     eq(generated, 1)
-    eq(#openMenu(list.FilterDropdown), 1, "Collected only on Misc")
+    local boxes = 0
+    for _, c in ipairs(openMenu(list.FilterDropdown)) do if c.kind == "checkbox" then boxes = boxes + 1 end end
+    eq(boxes, 13, "Misc: Collected + its twelve categories")
   end)
 
   it("source lines use the dimmed highlight font", function()
@@ -304,7 +306,7 @@ describe("ui build", function()
   end)
 
   it("falls back to the checkbox panel without the dropdown template", function()
-    local ns = loadUI({ filters = { collected = true, raid = false } })
+    local ns = loadUI({ filters = { collected = true, journal = { raid = false } } })
     STUB_TEMPLATES.WowStyle1FilterDropdownTemplate = nil
     local list = openJournalList(ns)
     eq(list.FilterDropdown, nil)
@@ -312,12 +314,46 @@ describe("ui build", function()
     eq(list.SearchBox:GetParent(), list.FilterPanel)
     eq(#list.SectionChecks, 10)
     eq(list.CollectedCheck.checked, true)
+    eq(list.SectionChecks[2].filterKey, "raid")
     eq(list.SectionChecks[2].checked, false, "raid unticked")
+    eq(list.SectionChecks[2].Label.text, "Show raid drops")
     eq({ list.ScrollBox:GetPoint(1) }, { "TOPLEFT", list.FilterPanel, "TOPRIGHT", 4, 0 })
     list.SectionChecks[2].checked = true
     list.SectionChecks[2]:RunScript("OnClick")
-    eq(ns.db.global.filters.raid, true)
+    eq(ns.db.global.filters.journal, nil, "shown again: nothing stored")
     eq(ns.UI.TemplateFallbacks.WowStyle1FilterDropdownTemplate, false)
+  end)
+
+  it("the fallback panel shows each view's own sections", function()
+    local ns = loadUI({ filters = { collected = true } })
+    STUB_TEMPLATES.WowStyle1FilterDropdownTemplate = nil
+    local parent = CreateFrame("Frame", nil, UIParent)
+    local view = "misc"
+    local list = ns.UI.List(parent, function() return { view = view } end)
+    list:Refresh()
+    eq(#list.SectionChecks, 12, "Misc: twelve categories")
+    eq(list.SectionsTitle.text, "Categories")
+    ok(list.SectionsTitle:IsShown())
+    eq(list.SectionChecks[2].filterKey, "shop")
+    eq(list.SectionChecks[2].Label.text, "Show in-game shop mounts")
+    list.SectionChecks[2].checked = false
+    list.SectionChecks[2]:RunScript("OnClick")
+    eq(ns.db.global.filters.misc, { shop = false })
+    list:Refresh()
+    eq(list.SectionChecks[2].checked, false)
+
+    view = "timewalking"
+    list:Refresh()
+    eq(#list.SectionChecks, 0, "Timewalking: Collected only")
+    ok(not list.SectionsTitle:IsShown(), "no title")
+    for _, cb in ipairs(list.SectionPool) do ok(not cb:IsShown(), "unused checkboxes hidden") end
+
+    view = "journal"
+    list:Refresh()
+    eq(#list.SectionChecks, 10)
+    eq(list.SectionsTitle.text, "Sources")
+    eq(list.SectionChecks[1].checked, true)
+    ok(list.SectionChecks[1]:IsShown())
   end)
 
   it("falls back to the panel when the template lacks SetupMenu", function()
@@ -335,18 +371,130 @@ describe("ui build", function()
     eq(ns.addon.printed[#ns.addon.printed], "Template DropdownButton:SetupMenu missing, using checkbox panel")
   end)
 
-  it("Holidays, Achievements, Timewalking and Misc build their lists with a Collected-only menu", function()
+  it("Holidays, Achievements, Timewalking and Misc build their lists with their own Filter menus", function()
     local ns = loadUI()
     ns.ToggleWindow()
-    for i, key in ipairs({ "holidays", "achievements", "timewalking", "misc" }) do
+    local want = {
+      holidays = { boxes = 1 + 10, title = "Holidays", first = "Show Hallow's End" },
+      achievements = { boxes = 1 + #ns.Data.Expansions + 1, title = "Expansions", first = "Show Classic achievements" },
+      timewalking = { boxes = 1 },
+      misc = { boxes = 1 + 12, title = "Categories", first = "Show profession mounts" },
+    }
+    for _, key in ipairs({ "holidays", "achievements", "timewalking", "misc" }) do
       ns.UI.SelectTab(key)
       local list = content(ns, key).children[2]
       ok(list and list.FilterDropdown, key .. ": dropdown")
       eq(list.tab, key, key .. ": the list knows its view")
       local calls = openMenu(list.FilterDropdown)
-      eq(#calls, 1, key .. ": Collected only")
+      local boxes, title = 0, nil
+      for _, c in ipairs(calls) do
+        if c.kind == "checkbox" then boxes = boxes + 1 end
+        if c.kind == "title" then title = c.text end
+      end
+      eq(boxes, want[key].boxes, key .. ": checkboxes")
+      eq(title, want[key].title, key .. ": title")
+      if want[key].first then eq(calls[4].text, want[key].first, key .. ": first section") end
+      if key == "timewalking" then eq(#calls, 1, "Timewalking: Collected only") end
       render(list.ScrollBox)
     end
+  end)
+
+  it("a Misc filter hides that category on Misc only, with its own reset arrow", function()
+    local ns = loadUI()
+    ns.ToggleWindow()
+    local function sections(key)
+      ns.UI.SelectTab(key)
+      local seen = {}
+      for _, row in ipairs(content(ns, key).children[2].ScrollBox.provider.rows) do
+        if row.header and row.depth == 1 then seen[row.section] = true end
+      end
+      return seen
+    end
+    ok(sections("misc").shop, "shop listed")
+    local misc = content(ns, "misc").children[2]
+    eq(misc.FilterDropdown.resetShown, false)
+    local shop = find(openMenu(misc.FilterDropdown), "Show in-game shop mounts")
+    shop.setSelected()
+    eq(ns.db.global.filters.misc, { shop = false })
+    eq(shop.isSelected(), false)
+    ok(not sections("misc").shop, "shop hidden")
+    ok(sections("misc").profession, "the rest stays")
+    eq(misc.FilterDropdown.resetShown, true, "Misc: reset arrow")
+    ok(sections("holidays").brewfest, "Brewfest listed")
+    local holidays = content(ns, "holidays").children[2]
+    eq(holidays.FilterDropdown.isDefaultCallback(), true, "Holidays: no reset arrow")
+    eq(holidays.FilterDropdown.resetShown, false)
+
+    find(openMenu(holidays.FilterDropdown), "Show Brewfest").setSelected()
+    eq(ns.db.global.filters.holidays, { brewfest = false })
+    ok(not sections("holidays").brewfest, "Brewfest hidden on Holidays")
+
+    ns.db.global.filters.collected = true
+    misc.FilterDropdown.defaultCallback()
+    eq(ns.db.global.filters.misc, nil, "Misc reset")
+    eq(ns.db.global.filters.holidays, { brewfest = false }, "Holidays untouched")
+    eq(ns.db.global.filters.collected, false, "reset turns Collected off")
+    ok(sections("misc").shop, "shop back")
+  end)
+
+  it("Misc lists Show unobtainable mounts in its menu only with the option on", function()
+    local ns = loadUI()
+    ns.ToggleWindow()
+    ns.UI.SelectTab("misc")
+    local misc = content(ns, "misc").children[2]
+    ok(not find(openMenu(misc.FilterDropdown), "Show unobtainable mounts"), "off: not listed")
+    ns.db.global.settings.showUnobtainable = true
+    ok(find(openMenu(misc.FilterDropdown), "Show unobtainable mounts"), "on: listed")
+  end)
+
+  it("UI.CreateFilterDropdown: a reusable Filter button over an items generator", function()
+    local ns = loadUI()
+    local parent = CreateFrame("Frame", nil, UIParent)
+    local state = { collected = false, a = true }
+    local changes, resets, defaultNow = {}, 0, true
+    local dd = ns.UI.CreateFilterDropdown(parent, {
+      items = function()
+        return {
+          { kind = "checkbox", key = "collected", label = "Collected", checked = state.collected },
+          { kind = "divider" },
+          { kind = "title", label = "Things" },
+          { kind = "checkbox", key = "a", label = "Show a", checked = state.a },
+          { kind = "button", action = "checkAll", label = "Check all" },
+        }
+      end,
+      onChange = function(kind, value)
+        changes[#changes + 1] = kind .. ":" .. value
+        if kind == "toggle" then state[value] = not state[value] end
+      end,
+      isDefault = function() return defaultNow end,
+      reset = function() resets = resets + 1 end,
+    })
+    ok(dd, "built")
+    eq(dd:GetParent(), parent)
+    local calls = openMenu(dd)
+    eq(#calls, 5)
+    eq(calls[3], { kind = "title", text = "Things" })
+    local a = find(calls, "Show a")
+    eq(a.isSelected(), true)
+    a.setSelected()
+    eq(a.isSelected(), false, "reads the generator live")
+    eq(find(calls, "Check all").fn(), MenuResponse.Refresh)
+    eq(changes, { "toggle:a", "action:checkAll" })
+    dd:ValidateResetState()
+    eq(dd.resetShown, false)
+    defaultNow = false
+    dd:ValidateResetState()
+    eq(dd.resetShown, true)
+    dd.defaultCallback()
+    eq(resets, 1)
+
+    local plain = ns.UI.CreateFilterDropdown(parent, { items = function() return {} end, onChange = function() end })
+    ok(plain, "isDefault / reset are optional")
+    eq(plain.defaultCallback, nil)
+
+    STUB_TEMPLATES.WowStyle1FilterDropdownTemplate = nil
+    eq(ns.UI.CreateFilterDropdown(parent, { items = function() return {} end, onChange = function() end }), nil,
+      "nil without the 11.x template")
   end)
 
   -- Header and mount rows of a list tab, built from the real Data/Mounts.lua.

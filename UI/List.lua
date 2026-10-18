@@ -2,8 +2,10 @@ local ADDON, ns = ...
 
 -- Scrollable mount list shared by the Journal, Holidays, Achievements,
 -- Timewalking and Misc tabs: a top
--- row with the search box and a Filter dropdown (Collected, and on the Journal
--- tab one checkbox per source section plus Check all / Uncheck all), and a
+-- row with the search box and a Filter dropdown (UI.CreateFilterDropdown:
+-- Collected, plus the view's own sections -- Journal sources, Misc
+-- categories, holidays, achievement expansions; none on Timewalking -- as
+-- "Show ..." checkboxes with Check all / Uncheck all), and a
 -- full-width ScrollBox of section headers and mount rows. Clients without the
 -- 11.x dropdown (WowStyle1FilterDropdownTemplate / SetupMenu) get the older
 -- left filter panel of checkboxes instead.
@@ -13,7 +15,8 @@ local ADDON, ns = ...
 --
 -- getQuery() returns the base query for Journal.Select ({ view= (or the
 -- older tab=), exp=, section= }); list.tab is the query's view (else tab),
--- which picks the Filter menu's items. The list fills in filters (ns.db.global.filters), the search
+-- which picks the Filter menu's items and the per-view section filters
+-- (ns.db.global.filters[view]; Journal.Select). The list fills in filters (ns.db.global.filters), the search
 -- text, isOwned, exists, faction and sourceText (Game.MountSourceText, which
 -- refines journal sections into delves / caches) unless the query already has
 -- them.
@@ -657,35 +660,84 @@ end
 
 -- Filter menu --------------------------------------------------------------------
 
--- Source filters of the Journal tab, in menu order (Journal.Select's order).
-local SECTION_FILTERS = { "dungeon", "raid", "world", "delve", "treasure", "quest", "activity",
-  "reputation", "vendor", "other" }
+-- Saved filters (ns.db.global.filters, Logic/Journal.lua): a global
+-- `collected` plus, per list view, { [section] = false } for the hidden
+-- sections. Each view's menu offers its own sections (Journal.FilterSections):
+-- Journal the ten sources, Misc its categories, Holidays each holiday,
+-- Achievements each expansion and General, Timewalking none.
 
--- Whether filter `key` is on: "collected" only when true (default off); a
--- source section unless false (a missing key means shown, as in
--- Journal.Select).
-function UI.FilterChecked(filters, key)
-  filters = filters or {}
-  if key == "collected" then return filters.collected == true end
-  return filters[key] ~= false
+-- Menu title above a view's section checkboxes.
+local FILTER_TITLES = {
+  journal = "Sources", misc = "Categories", holidays = "Holidays", achievements = "Expansions",
+}
+
+-- "Show <category>" labels of the Journal and Misc sections. Holidays use
+-- "Show <holiday>", Achievements "Show <expansion> achievements".
+local FILTER_LABELS = {
+  journal = {
+    dungeon = "Show dungeon drops", raid = "Show raid drops", world = "Show world drops / rares",
+    delve = "Show delve mounts", treasure = "Show treasures & caches", quest = "Show quest mounts",
+    activity = "Show zone activity mounts", reputation = "Show reputation mounts",
+    vendor = "Show vendor mounts", other = "Show other mounts",
+  },
+  misc = {
+    profession = "Show profession mounts", shop = "Show in-game shop mounts",
+    tradingpost = "Show Trading Post mounts", pvp = "Show PvP mounts", racial = "Show racial mounts",
+    keystone = "Show Mythic+ mounts", promotion = "Show promotion mounts", class = "Show class mounts",
+    bmah = "Show Black Market mounts", collection = "Show collection rewards",
+    limited = "Show limited-time mounts", other = "Show other mounts",
+    unobtainable = "Show unobtainable mounts",
+  },
+  holidays = { other = "Show other mounts" },
+}
+
+-- The menu label of section `key` on `view`.
+function UI.FilterLabel(view, key)
+  local labels = FILTER_LABELS[view]
+  if labels and labels[key] then return L[labels[key]] end
+  if view == "achievements" then return string.format(L["Show %s achievements"], UI.SectionLabel(key)) end
+  return string.format(L["Show %s"], UI.SectionLabel(key))
 end
 
--- The Filter dropdown's items for a list on `tab` (a Journal view key such
--- as "journal", "holidays", "achievements"; older data tab keys work too) -> { { kind = "checkbox", key =, label =, checked = },
--- { kind = "divider" }, { kind = "title", label = },
--- { kind = "button", action = "checkAll" | "uncheckAll", label = } }.
--- Every tab gets Collected; the Journal tab adds the source sections and the
--- Check all / Uncheck all buttons for them.
-function UI.FilterMenuItems(tab, filters)
+-- opts for Journal.FilterSections: { expansions =, showUnobtainable = };
+-- missing fields come from Data.Expansions and the Options setting.
+local function sectionOpts(opts)
+  opts = opts or {}
+  local showUnobtainable = opts.showUnobtainable
+  if showUnobtainable == nil then showUnobtainable = UI.ShowUnobtainable() end
+  return { expansions = opts.expansions, showUnobtainable = showUnobtainable }
+end
+
+-- Section keys the Filter menu shows on `view`.
+local function menuSections(view, opts)
+  return ns.Journal.FilterSections(view, sectionOpts(opts))
+end
+
+-- Whether filter `key` is on: "collected" only when true (default off); a
+-- section of `view` unless hidden (Journal.SectionShown: missing = shown).
+function UI.FilterChecked(filters, key, view)
+  if key == "collected" then return type(filters) == "table" and filters.collected == true end
+  return ns.Journal.SectionShown(filters, view, key)
+end
+
+-- The Filter dropdown's items for the list view `view` -> { { kind =
+-- "checkbox", key =, label =, checked = }, { kind = "divider" }, { kind =
+-- "title", label = }, { kind = "button", action = "checkAll" | "uncheckAll",
+-- label = } }: Collected, then (views with sections) the view's sections
+-- with Check all / Uncheck all. opts (optional): { expansions =,
+-- showUnobtainable = } as for Journal.FilterSections (defaults: the live
+-- data and Options setting).
+function UI.FilterMenuItems(view, filters, opts)
   local items = {
-    { kind = "checkbox", key = "collected", label = L["Collected"], checked = UI.FilterChecked(filters, "collected") },
+    { kind = "checkbox", key = "collected", label = L["Collected"], checked = UI.FilterChecked(filters, "collected", view) },
   }
-  if tab ~= "journal" then return items end
+  local keys = menuSections(view, opts)
+  if #keys == 0 then return items end
   items[#items + 1] = { kind = "divider" }
-  items[#items + 1] = { kind = "title", label = L["Sources"] }
-  for _, key in ipairs(SECTION_FILTERS) do
-    items[#items + 1] = { kind = "checkbox", key = key, label = UI.SectionLabel(key),
-      checked = UI.FilterChecked(filters, key) }
+  items[#items + 1] = { kind = "title", label = L[FILTER_TITLES[view] or "Sources"] }
+  for _, key in ipairs(keys) do
+    items[#items + 1] = { kind = "checkbox", key = key, label = UI.FilterLabel(view, key),
+      checked = UI.FilterChecked(filters, key, view) }
   end
   items[#items + 1] = { kind = "divider" }
   items[#items + 1] = { kind = "button", action = "checkAll", label = L["Check all"] }
@@ -693,40 +745,39 @@ function UI.FilterMenuItems(tab, filters)
   return items
 end
 
--- Flips filter `key` in `filters` (ns.db.global.filters) -> its new state.
-function UI.ToggleFilter(filters, key)
-  local on = not UI.FilterChecked(filters, key)
-  filters[key] = on
+-- Flips Collected or section `key` of `view` in `filters` -> its new state.
+function UI.ToggleFilter(filters, key, view)
+  local on = not UI.FilterChecked(filters, key, view)
+  if key == "collected" then
+    filters.collected = on
+  else
+    ns.Journal.SetSectionShown(filters, view, key, on)
+  end
   return on
 end
 
--- Keys the Filter dropdown shows on `tab`.
-local function menuKeys(tab)
-  local keys = { "collected" }
-  if tab == "journal" then
-    for _, key in ipairs(SECTION_FILTERS) do keys[#keys + 1] = key end
-  end
-  return keys
-end
-
--- "checkAll" / "uncheckAll": every source section on / off. "reset": the
--- keys the dropdown shows on `tab` back to Journal.DefaultFilters (the
--- dropdown's reset arrow).
-function UI.ApplyFilterAction(filters, action, tab)
+-- "checkAll" / "uncheckAll": every section the menu shows on `view` on /
+-- off (Collected and other views untouched). "reset" (the dropdown's reset
+-- arrow): Collected off and every section of `view` shown.
+function UI.ApplyFilterAction(filters, action, view, opts)
   if action == "checkAll" or action == "uncheckAll" then
-    for _, key in ipairs(SECTION_FILTERS) do filters[key] = action == "checkAll" end
+    for _, key in ipairs(menuSections(view, opts)) do
+      ns.Journal.SetSectionShown(filters, view, key, action == "checkAll")
+    end
   elseif action == "reset" then
-    local defaults = ns.Journal.DefaultFilters
-    for _, key in ipairs(menuKeys(tab)) do filters[key] = defaults[key] end
+    filters.collected = ns.Journal.DefaultFilters.collected
+    if view ~= nil and type(filters[view]) == "table" then filters[view] = nil end
   end
 end
 
--- True when the keys the dropdown shows on `tab` match
--- Journal.DefaultFilters (no reset arrow).
-function UI.FiltersAreDefault(filters, tab)
-  local defaults = ns.Journal.DefaultFilters
-  for _, key in ipairs(menuKeys(tab)) do
-    if UI.FilterChecked(filters, key) ~= UI.FilterChecked(defaults, key) then return false end
+-- True when what the menu shows on `view` is at the defaults (Collected
+-- off, every section shown): no reset arrow.
+function UI.FiltersAreDefault(filters, view, opts)
+  if UI.FilterChecked(filters, "collected", view) ~= (ns.Journal.DefaultFilters.collected == true) then
+    return false
+  end
+  for _, key in ipairs(menuSections(view, opts)) do
+    if not UI.FilterChecked(filters, key, view) then return false end
   end
   return true
 end
@@ -1196,7 +1247,8 @@ local function makeCheck(panel, label, onClick)
 end
 
 -- Fallback filter panel (clients without the 11.x dropdown menus): a column
--- of checkboxes left of the list, under the search box.
+-- of checkboxes left of the list, under the search box: Collected, then the
+-- current view's sections (UI.FilterMenuItems), rebuilt when the view changes.
 local function buildFilterPanel(list)
   local panel = CreateFrame("Frame", nil, list)
   panel:SetPoint("TOPLEFT", list, "TOPLEFT", 0, 0)
@@ -1206,7 +1258,8 @@ local function buildFilterPanel(list)
   return panel
 end
 
--- Search box and checkboxes of the fallback filter panel.
+-- Search box, Collected and the section title of the fallback filter panel;
+-- the section checkboxes come from refreshFilterPanel.
 local function layoutFilterPanel(list, search)
   local panel = list.FilterPanel
   search:SetSize(FILTER_WIDTH - 16, 20)
@@ -1225,42 +1278,67 @@ local function layoutFilterPanel(list, search)
   sectionsTitle:SetText(L["Sources"])
   list.SectionsTitle = sectionsTitle
 
+  -- SectionPool: every section checkbox made so far (reused across views);
+  -- SectionChecks: the ones the current view shows, in menu order.
+  list.SectionPool = {}
   list.SectionChecks = {}
-  local anchor = sectionsTitle
-  for i, key in ipairs(SECTION_FILTERS) do
-    local cb = makeCheck(panel, UI.SectionLabel(key), function(self)
-      local filters = filtersDB()
-      if filters then filters[key] = self:GetChecked() and true or false end
-      ns.Refresh()
-    end)
-    if i == 1 then
-      cb:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", -4, -4)
-    else
-      cb:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, 0)
-    end
-    cb.filterKey = key
-    list.SectionChecks[i] = cb
-    anchor = cb
-  end
 end
 
-local function refreshFilterPanel(list, filters, tab)
+-- One reusable section checkbox of the fallback panel: it writes its
+-- current filterKey on the panel's current view.
+local function sectionCheck(list, i)
+  local cb = list.SectionPool[i]
+  if cb then return cb end
+  cb = makeCheck(list.FilterPanel, "", function(self)
+    local filters = filtersDB()
+    if filters then ns.Journal.SetSectionShown(filters, list.tab, self.filterKey, self:GetChecked() and true or false) end
+    ns.Refresh()
+  end)
+  if i == 1 then
+    cb:SetPoint("TOPLEFT", list.SectionsTitle, "BOTTOMLEFT", -4, -4)
+  else
+    cb:SetPoint("TOPLEFT", sectionCheck(list, i - 1), "BOTTOMLEFT", 0, 0)
+  end
+  list.SectionPool[i] = cb
+  return cb
+end
+
+local function refreshFilterPanel(list, filters, view)
   list.CollectedCheck:SetChecked(filters.collected == true)
-  local showSections = tab == "journal"
-  list.SectionsTitle:SetShown(showSections)
-  for _, cb in ipairs(list.SectionChecks) do
-    cb:SetChecked(filters[cb.filterKey] ~= false)
-    cb:SetShown(showSections)
+  local checks, title = {}, nil
+  for _, item in ipairs(UI.FilterMenuItems(view, filters)) do
+    if item.kind == "title" then
+      title = item.label
+    elseif item.kind == "checkbox" and item.key ~= "collected" then
+      local cb = sectionCheck(list, #checks + 1)
+      cb.filterKey = item.key
+      cb.Label:SetText(item.label)
+      cb:SetChecked(item.checked)
+      cb:Show()
+      checks[#checks + 1] = cb
+    end
   end
+  for i = #checks + 1, #list.SectionPool do list.SectionPool[i]:Hide() end
+  list.SectionChecks = checks
+  list.SectionsTitle:SetText(title or "")
+  list.SectionsTitle:SetShown(#checks > 0)
 end
 
--- The Mount Journal's Filter button (11.x menu API) with UI.FilterMenuItems as
--- its menu, or nil when this client lacks the template or SetupMenu. Every
--- change writes ns.db.global.filters and calls ns.Refresh().
-local function createFilterDropdown(list)
+-- A Filter button (the Mount Journal's WowStyle1FilterDropdownTemplate with
+-- the 11.x SetupMenu API), or nil when this client lacks either (callers
+-- fall back to checkboxes). Reusable by any view (the list, the checklist).
+-- opts: {
+--   items = function() -> UI.FilterMenuItems-style list (read whenever the
+--     menu opens; a checkbox's state is read live from it),
+--   onChange = function(kind, value): ("toggle", key) when a checkbox is
+--     clicked, ("action", action) for a button (the menu stays open),
+--   isDefault = function() -> bool and reset = function() (optional, both
+--     needed): the reset arrow next to the button while not at the defaults,
+-- }
+function UI.CreateFilterDropdown(parent, opts)
   local template = UI.Template("WowStyle1FilterDropdownTemplate", nil)
   if not template then return nil end
-  local good, dropdown = pcall(CreateFrame, "DropdownButton", nil, list, template)
+  local good, dropdown = pcall(CreateFrame, "DropdownButton", nil, parent, template)
   if not (good and type(dropdown) == "table") then
     UI.RecordFallback("DropdownButton", "checkbox panel")
     return nil
@@ -1274,56 +1352,70 @@ local function createFilterDropdown(list)
   if dropdown.Text and dropdown.Text.SetText then dropdown.Text:SetText(L["Filter"]) end
 
   local function isChecked(key)
-    local filters = filtersDB()
-    return filters ~= nil and UI.FilterChecked(filters, key)
-  end
-  local function toggle(key)
-    local filters = filtersDB()
-    if not filters then return end
-    UI.ToggleFilter(filters, key)
-    ns.Refresh()
-  end
-  local function act(action)
-    local filters = filtersDB()
-    if filters then
-      UI.ApplyFilterAction(filters, action, list.tab)
-      ns.Refresh()
+    for _, item in ipairs(opts.items() or {}) do
+      if item.kind == "checkbox" and item.key == key then return item.checked == true end
     end
-    -- Keep the menu open and redraw its checkboxes.
-    return MenuResponse and MenuResponse.Refresh or nil
+    return false
   end
 
   dropdown:SetupMenu(function(_, root)
-    for _, item in ipairs(UI.FilterMenuItems(list.tab, filtersDB() or ns.Journal.DefaultFilters)) do
+    for _, item in ipairs(opts.items() or {}) do
       if item.kind == "checkbox" then
-        root:CreateCheckbox(item.label, function() return isChecked(item.key) end,
-          function() toggle(item.key) end)
+        local key = item.key
+        root:CreateCheckbox(item.label, function() return isChecked(key) end,
+          function() opts.onChange("toggle", key) end)
       elseif item.kind == "divider" then
         root:CreateDivider()
       elseif item.kind == "title" then
         root:CreateTitle(item.label)
       elseif item.kind == "button" then
-        root:CreateButton(item.label, function() return act(item.action) end)
+        local action = item.action
+        root:CreateButton(item.label, function()
+          opts.onChange("action", action)
+          -- Keep the menu open and redraw its checkboxes.
+          return MenuResponse and MenuResponse.Refresh or nil
+        end)
       end
     end
   end)
 
-  -- The reset arrow next to the button while the filters differ from the
-  -- defaults (WowStyle1FilterDropdownMixin).
-  if type(dropdown.SetDefaultCallback) == "function" and type(dropdown.SetIsDefaultCallback) == "function" then
-    dropdown:SetIsDefaultCallback(function()
+  if opts.isDefault and opts.reset and type(dropdown.SetDefaultCallback) == "function"
+    and type(dropdown.SetIsDefaultCallback) == "function" then
+    dropdown:SetIsDefaultCallback(opts.isDefault)
+    dropdown:SetDefaultCallback(opts.reset)
+  end
+  return dropdown
+end
+
+-- The list's Filter button: UI.FilterMenuItems of the list's view over
+-- ns.db.global.filters; every change writes them and calls ns.Refresh().
+local function createFilterDropdown(list)
+  return UI.CreateFilterDropdown(list, {
+    items = function()
+      return UI.FilterMenuItems(list.tab, filtersDB() or ns.Journal.DefaultFilters)
+    end,
+    onChange = function(kind, value)
+      local filters = filtersDB()
+      if not filters then return end
+      if kind == "toggle" then
+        UI.ToggleFilter(filters, value, list.tab)
+      else
+        UI.ApplyFilterAction(filters, value, list.tab)
+      end
+      ns.Refresh()
+    end,
+    isDefault = function()
       local filters = filtersDB()
       return filters == nil or UI.FiltersAreDefault(filters, list.tab)
-    end)
-    dropdown:SetDefaultCallback(function()
+    end,
+    reset = function()
       local filters = filtersDB()
       if filters then
         UI.ApplyFilterAction(filters, "reset", list.tab)
         ns.Refresh()
       end
-    end)
-  end
-  return dropdown
+    end,
+  })
 end
 
 function UI.List(parent, getQuery, opts)

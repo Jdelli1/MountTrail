@@ -67,7 +67,8 @@ describe("ui journal", function()
     local ns = loadUI()
     for _, name in ipairs({ "ShowMountTooltip", "LockoutStatus", "TooltipLines", "List",
       "SourceLine", "MountIcon", "SectionLabel", "ListRows", "PreviewMount", "FilterMenuItems",
-      "FilterChecked", "ToggleFilter", "ApplyFilterAction", "FiltersAreDefault", "StyleIcon" }) do
+      "FilterChecked", "ToggleFilter", "ApplyFilterAction", "FiltersAreDefault", "FilterLabel",
+      "CreateFilterDropdown", "StyleIcon" }) do
       eq(type(ns.UI[name]), "function", name)
     end
     eq(ns.UI.frame, nil, "no window until toggled")
@@ -212,70 +213,144 @@ describe("ui journal", function()
   describe("filter menu", function()
     local SOURCES = { "dungeon", "raid", "world", "delve", "treasure", "quest", "activity",
       "reputation", "vendor", "other" }
-    local LABELS = { "Dungeon drops", "Raid drops", "World drops / rares", "Delves", "Treasures & caches",
-      "Quests", "Zone activities", "Reputation", "Vendors", "Other" }
+    local LABELS = { "Show dungeon drops", "Show raid drops", "Show world drops / rares", "Show delve mounts",
+      "Show treasures & caches", "Show quest mounts", "Show zone activity mounts", "Show reputation mounts",
+      "Show vendor mounts", "Show other mounts" }
+    local MISC = { "profession", "shop", "tradingpost", "pvp", "racial", "keystone", "promotion", "class",
+      "bmah", "collection", "limited", "other" }
+    local MISC_LABELS = { "Show profession mounts", "Show in-game shop mounts", "Show Trading Post mounts",
+      "Show PvP mounts", "Show racial mounts", "Show Mythic+ mounts", "Show promotion mounts",
+      "Show class mounts", "Show Black Market mounts", "Show collection rewards", "Show limited-time mounts",
+      "Show other mounts" }
+    local EXPS = { "Classic", "Legion" }
 
-    it("Journal tab: Collected, a divider, the ten sources, then Check all / Uncheck all", function()
-      local ns = loadUI()
-      local items = ns.UI.FilterMenuItems("journal", { collected = true, raid = false, quest = false })
-      local want = {
-        { kind = "checkbox", key = "collected", label = "Collected", checked = true },
-        { kind = "divider" },
-        { kind = "title", label = "Sources" },
-      }
-      for i, key in ipairs(SOURCES) do
-        want[#want + 1] = { kind = "checkbox", key = key, label = LABELS[i],
-          checked = key ~= "raid" and key ~= "quest" }
+    -- The expected menu: Collected, then (with sections) a divider, the
+    -- title, one checkbox per section, a divider and Check all / Uncheck all.
+    local function menu(collected, title, keys, labels, hidden)
+      local want = { { kind = "checkbox", key = "collected", label = "Collected", checked = collected } }
+      if #keys == 0 then return want end
+      want[#want + 1] = { kind = "divider" }
+      want[#want + 1] = { kind = "title", label = title }
+      for i, key in ipairs(keys) do
+        want[#want + 1] = { kind = "checkbox", key = key, label = labels[i], checked = not (hidden or {})[key] }
       end
       want[#want + 1] = { kind = "divider" }
       want[#want + 1] = { kind = "button", action = "checkAll", label = "Check all" }
       want[#want + 1] = { kind = "button", action = "uncheckAll", label = "Uncheck all" }
-      eq(items, want)
-    end)
+      return want
+    end
 
-    it("other tabs get Collected only; missing keys follow Journal.Select", function()
+    it("Journal: Collected, the ten sources (Show ...), then Check all / Uncheck all", function()
       local ns = loadUI()
-      eq(ns.UI.FilterMenuItems("holiday", {}),
-        { { kind = "checkbox", key = "collected", label = "Collected", checked = false } })
-      eq(ns.UI.FilterMenuItems("misc", { collected = true })[1].checked, true)
-      eq(#ns.UI.FilterMenuItems(nil, nil), 1, "no tab, no filters")
-      local journal = ns.UI.FilterMenuItems("journal", {})
-      eq(journal[4].checked, true, "a missing source key means shown")
+      local items = ns.UI.FilterMenuItems("journal", { collected = true, journal = { raid = false, quest = false } })
+      eq(items, menu(true, "Sources", SOURCES, LABELS, { raid = true, quest = true }))
     end)
 
-    it("ToggleFilter flips one key and returns the new state", function()
+    it("Misc: the misc categories; Unobtainable only with the option on", function()
+      local ns = loadUI()
+      local f = { misc = { shop = false }, journal = { raid = false } }
+      eq(ns.UI.FilterMenuItems("misc", f, { showUnobtainable = false }),
+        menu(false, "Categories", MISC, MISC_LABELS, { shop = true }))
+      local keys, labels = {}, {}
+      for i, k in ipairs(MISC) do keys[i] = k; labels[i] = MISC_LABELS[i] end
+      keys[#keys + 1] = "unobtainable"
+      labels[#labels + 1] = "Show unobtainable mounts"
+      eq(ns.UI.FilterMenuItems("misc", f, { showUnobtainable = true }),
+        menu(false, "Categories", keys, labels, { shop = true }))
+      -- Default: the saved option (ns.db.global.settings.showUnobtainable).
+      eq(#ns.UI.FilterMenuItems("misc", {}), #menu(false, "", MISC, MISC_LABELS))
+      ns.db.global.settings.showUnobtainable = true
+      eq(#ns.UI.FilterMenuItems("misc", {}), #menu(false, "", keys, labels))
+    end)
+
+    it("Holidays: each holiday; Achievements: each expansion and General; Timewalking: Collected only", function()
+      local ns = loadUI()
+      local holidays = ns.UI.FilterMenuItems("holidays", { holidays = { brewfest = false } })
+      eq(holidays[3], { kind = "title", label = "Holidays" })
+      local labels = {}
+      for _, item in ipairs(holidays) do
+        if item.kind == "checkbox" and item.key ~= "collected" then labels[#labels + 1] = item.label end
+      end
+      eq(labels, { "Show Hallow's End", "Show Brewfest", "Show Love is in the Air", "Show Noblegarden",
+        "Show Feast of Winter Veil", "Show Lunar Festival", "Show Midsummer Fire Festival",
+        "Show Darkmoon Faire", "Show Anniversary", "Show other mounts" })
+      eq(holidays[5].key, "brewfest")
+      eq(holidays[5].checked, false)
+
+      eq(ns.UI.FilterMenuItems("achievements", { achievements = { General = false } }, { expansions = EXPS }),
+        menu(false, "Expansions", { "Classic", "Legion", "General" },
+          { "Show Classic achievements", "Show Legion achievements", "Show General achievements" },
+          { General = true }))
+      local real = ns.UI.FilterMenuItems("achievements", {})
+      eq(#real, #ns.Data.Expansions + 1 + 6, "Data.Expansions by default")
+
+      eq(ns.UI.FilterMenuItems("timewalking", { collected = true, timewalking = { timewalking = false } }),
+        { { kind = "checkbox", key = "collected", label = "Collected", checked = true } })
+      eq(#ns.UI.FilterMenuItems(nil, nil), 1, "no view, no filters")
+      eq(#ns.UI.FilterMenuItems("holiday", {}), 1, "data tab keys: Collected only")
+    end)
+
+    it("FilterChecked reads Collected globally and sections per view", function()
+      local ns = loadUI()
+      local f = { collected = true, misc = { shop = false } }
+      eq(ns.UI.FilterChecked(f, "collected", "journal"), true)
+      eq(ns.UI.FilterChecked(f, "shop", "misc"), false)
+      eq(ns.UI.FilterChecked(f, "shop", "journal"), true)
+      eq(ns.UI.FilterChecked(nil, "raid", "journal"), true)
+      eq(ns.UI.FilterChecked(nil, "collected", "journal"), false)
+    end)
+
+    it("ToggleFilter flips Collected or one section of the view and returns the new state", function()
       local ns = loadUI()
       local f = { collected = false }
-      eq(ns.UI.ToggleFilter(f, "collected"), true)
-      eq(ns.UI.ToggleFilter(f, "raid"), false, "missing source key was on")
-      eq(ns.UI.ToggleFilter(f, "raid"), true)
-      eq(f, { collected = true, raid = true })
+      eq(ns.UI.ToggleFilter(f, "collected", "misc"), true)
+      eq(ns.UI.ToggleFilter(f, "shop", "misc"), false, "missing section key was on")
+      eq(f, { collected = true, misc = { shop = false } })
+      eq(ns.UI.ToggleFilter(f, "raid", "journal"), false)
+      eq(ns.UI.ToggleFilter(f, "shop", "misc"), true)
+      eq(f, { collected = true, journal = { raid = false } }, "only false is stored")
     end)
 
-    it("Check all / Uncheck all set every source and leave Collected alone", function()
+    it("Check all / Uncheck all set every section of the view and leave the rest alone", function()
       local ns = loadUI()
-      local f = { collected = true, raid = false }
+      local f = { collected = true, journal = { raid = false }, misc = { pvp = false } }
+      ns.UI.ApplyFilterAction(f, "uncheckAll", "misc", { showUnobtainable = false })
+      for _, key in ipairs(MISC) do eq(f.misc[key], false, key) end
+      eq(f.misc.unobtainable, nil, "not in the menu")
+      eq(f.collected, true)
+      eq(f.journal, { raid = false }, "other views untouched")
+      ns.UI.ApplyFilterAction(f, "checkAll", "misc", { showUnobtainable = false })
+      eq(f.misc, nil)
       ns.UI.ApplyFilterAction(f, "uncheckAll", "journal")
-      for _, key in ipairs(SOURCES) do eq(f[key], false, key) end
-      eq(f.collected, true)
+      for _, key in ipairs(SOURCES) do eq(f.journal[key], false, key) end
       ns.UI.ApplyFilterAction(f, "checkAll", "journal")
-      for _, key in ipairs(SOURCES) do eq(f[key], true, key) end
-      eq(f.collected, true)
+      eq(f, { collected = true })
+      ns.UI.ApplyFilterAction(f, "uncheckAll", "timewalking")
+      eq(f, { collected = true }, "no sections on Timewalking")
     end)
 
-    it("reset and the default check cover only what the tab's menu shows", function()
+    it("reset and the default check work per view", function()
       local ns = loadUI()
-      local f = { collected = true, raid = false }
+      local f = { collected = false, journal = { raid = false }, misc = { shop = false } }
       eq(ns.UI.FiltersAreDefault(f, "journal"), false)
-      eq(ns.UI.FiltersAreDefault({ collected = false, raid = false }, "holiday"), true,
-        "sources are not in the Holidays menu")
-      ns.UI.ApplyFilterAction(f, "reset", "holiday")
-      eq(f, { collected = false, raid = false }, "Holidays reset: Collected only")
+      eq(ns.UI.FiltersAreDefault(f, "misc"), false)
+      eq(ns.UI.FiltersAreDefault(f, "holidays"), true, "another view's filters do not count")
+      eq(ns.UI.FiltersAreDefault(f, "timewalking"), true)
+      ns.UI.ApplyFilterAction(f, "reset", "misc")
+      eq(f, { collected = false, journal = { raid = false } }, "Misc reset: its sections only")
+      eq(ns.UI.FiltersAreDefault(f, "misc"), true)
+      f.collected = true
+      eq(ns.UI.FiltersAreDefault(f, "timewalking"), false, "Collected counts in every view")
+      ns.UI.ApplyFilterAction(f, "reset", "timewalking")
+      eq(f, { collected = false, journal = { raid = false } })
       ns.UI.ApplyFilterAction(f, "reset", "journal")
       eq(f, ns.Journal.DefaultFilters)
-      eq(ns.UI.FiltersAreDefault(f, "journal"), true)
-      eq(ns.UI.FiltersAreDefault({}, "journal"), true, "an empty table reads as the defaults")
       ok(f ~= ns.Journal.DefaultFilters, "the saved table is updated, not replaced")
+      eq(ns.UI.FiltersAreDefault({}, "journal"), true, "an empty table reads as the defaults")
+      -- A hidden section the menu does not show (Unobtainable with the option
+      -- off) does not light the reset arrow.
+      eq(ns.UI.FiltersAreDefault({ misc = { unobtainable = false } }, "misc", { showUnobtainable = false }), true)
+      eq(ns.UI.FiltersAreDefault({ misc = { unobtainable = false } }, "misc", { showUnobtainable = true }), false)
     end)
   end)
 
