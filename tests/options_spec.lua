@@ -88,13 +88,13 @@ describe("options", function()
     eq(lines[#lines - 1], "UI\\ZonePanel.lua")
   end)
 
-  it("db default: settings.waypoints is the in-game pin", function()
+  it("db default: in-game pin waypoints, unobtainable mounts hidden", function()
     local ns = loadOptions()
-    eq(ns.db.global.settings, { waypoints = "game" })
+    eq(ns.db.global.settings, { waypoints = "game", showUnobtainable = false })
   end)
 
   describe("Register", function()
-    it("registers a vertical-layout AddOns category with the three controls", function()
+    it("registers a vertical-layout AddOns category with the four controls", function()
       local ns = loadOptions()
       local S = fakeSettings()
       local category = ns.Options.Register(S)
@@ -105,6 +105,8 @@ describe("options", function()
         { "Category", "AzerothTrail" },
         { "Setting", "AZEROTHTRAIL_WAYPOINTS" },
         { "Dropdown", "AZEROTHTRAIL_WAYPOINTS" },
+        { "Setting", "AZEROTHTRAIL_UNOBTAINABLE" },
+        { "Checkbox", "AZEROTHTRAIL_UNOBTAINABLE" },
         { "Setting", "AZEROTHTRAIL_MINIMAP" },
         { "Checkbox", "AZEROTHTRAIL_MINIMAP" },
         { "Setting", "AZEROTHTRAIL_DEBUG" },
@@ -113,6 +115,8 @@ describe("options", function()
       })
       local wp, mm, dbg = S.settings.AZEROTHTRAIL_WAYPOINTS, S.settings.AZEROTHTRAIL_MINIMAP, S.settings.AZEROTHTRAIL_DEBUG
       eq({ wp.varType, wp.name, wp.default }, { "string", "Waypoints", "game" })
+      local un = S.settings.AZEROTHTRAIL_UNOBTAINABLE
+      eq({ un.varType, un.name, un.default }, { "boolean", "Show unobtainable mounts", false })
       eq({ mm.varType, mm.name, mm.default }, { "boolean", "Show minimap button", true })
       eq({ dbg.varType, dbg.name, dbg.default }, { "boolean", "Debug messages", false })
       for _, c in ipairs(S.controls) do
@@ -207,6 +211,39 @@ describe("options", function()
       eq(loaded[2].label, "TomTom arrow")
       eq(missing[2].label, "TomTom arrow (not loaded)")
       eq(missing[1].label, "In-game map pin")
+    end)
+  end)
+
+  describe("unobtainable checkbox", function()
+    it("reads and writes ns.db.global.settings.showUnobtainable and refreshes the window", function()
+      local ns = loadOptions()
+      local refreshed = 0
+      ns.Refresh = function() refreshed = refreshed + 1 end
+      local S = fakeSettings()
+      ns.Options.Register(S)
+      local un = S.settings.AZEROTHTRAIL_UNOBTAINABLE
+      eq(un.get(), false)
+      un.set(true)
+      eq(ns.db.global.settings.showUnobtainable, true)
+      eq(un.get(), true)
+      eq(refreshed, 1, "the open window updates")
+      un.set(false)
+      eq(ns.db.global.settings.showUnobtainable, false)
+      eq(refreshed, 2)
+      ns.db.global.settings.showUnobtainable = "junk"
+      eq(un.get(), false, "only true counts as on")
+      ok(S.controls[2].tooltip:find("Misc", 1, true), "the tooltip says where they show")
+    end)
+
+    it("ShowUnobtainable reads the saved setting (false without a db)", function()
+      local ns = loadOptions()
+      eq(ns.Options.ShowUnobtainable(), false)
+      ns.db.global.settings.showUnobtainable = true
+      eq(ns.Options.ShowUnobtainable(), true)
+      ns.db.global.settings = nil
+      eq(ns.Options.ShowUnobtainable(), false)
+      local early = loadOptions({ noInit = true })
+      eq(early.Options.ShowUnobtainable(), false)
     end)
   end)
 

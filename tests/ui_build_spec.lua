@@ -407,6 +407,51 @@ describe("ui build", function()
     end
   end)
 
+  it("Show unobtainable mounts: Misc gains an Unobtainable section, last (real data)", function()
+    local ns = loadUI({ filters = { collected = true } })
+    ns.ToggleWindow()
+    local Journal = ns.Journal
+    local headers = tabRows(ns, "misc")
+    for _, h in ipairs(headers) do ok(h.section ~= "unobtainable", "off: no Unobtainable header") end
+
+    -- Not-owned unobtainable mounts the stub client lists (owned: id % 3 == 0;
+    -- Alliance).
+    local want = {}
+    for id, m in pairs(ns.Data.Mounts) do
+      if m.unobtainable and id % 3 ~= 0 and (m.faction == nil or m.faction == "Alliance") then
+        want[id] = true
+      end
+    end
+    ok(next(want), "the data has unobtainable mounts")
+
+    ns.db.global.settings.showUnobtainable = true
+    ns.Refresh()
+    local mounts
+    headers, mounts = tabRows(ns, "misc")
+    local lastHeader = headers[#headers]
+    eq(lastHeader.section, "unobtainable")
+    eq(lastHeader.text, "Unobtainable")
+    local got = {}
+    for _, row in ipairs(mounts) do
+      if row.m.unobtainable and row.id % 3 ~= 0 then -- owned ones stay in their own section
+        ok(want[row.id], "only not-owned unobtainable mounts on Misc: " .. row.id)
+        got[row.id] = true
+      end
+    end
+    for id in pairs(want) do ok(got[id], "unobtainable mount " .. id .. " on Misc") end
+
+    for _, key in ipairs({ "holidays", "achievements", "timewalking" }) do
+      local _, rows = tabRows(ns, key)
+      for _, row in ipairs(rows) do
+        ok(not (row.m.unobtainable and want[row.id]), key .. " lists unobtainable " .. row.id)
+      end
+    end
+    local o, t = Journal.Counts(ns.Data.Mounts, nil, ns.Game.IsOwned, ns.Game.Exists, "Alliance")
+    ns.db.global.settings.showUnobtainable = false
+    local o2, t2 = Journal.Counts(ns.Data.Mounts, nil, ns.Game.IsOwned, ns.Game.Exists, "Alliance")
+    eq({ o, t }, { o2, t2 }, "journal counts do not depend on the setting")
+  end)
+
   it("Route builds a flat header, a two-segment mode control and striped rows", function()
     local ns = loadUI()
     ns.ToggleWindow()

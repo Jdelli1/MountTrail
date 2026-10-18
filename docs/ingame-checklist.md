@@ -352,3 +352,15 @@ The Journal tab's front page is a slim summary strip (`Mount Journal` left; `<ow
 - [ ] Hover a tile: the fill brightens slightly and the edge turns gold; leave: back to the faint edge. Click: that expansion's list opens; Back returns to the front page with fresh numbers.
 - [ ] An expansion you have completed shows a green bar and the check top-right; note whether the check atlas rendered (green tick) or the fallback texture. A tile with nothing to collect reads `0 / 0`, `0%`, no check.
 - [ ] Learn a mount, then return to the Journal home: its tile, the summary text and bar update.
+
+## F11: Show unobtainable mounts
+
+Options > AddOns > AzerothTrail has a `Show unobtainable mounts` checkbox (off by default, saved account-wide). On: every unobtainable mount you do not own (removed rewards, old store and promotion mounts, retired holiday or achievement mounts) is listed on the Misc tab under its own `Unobtainable` header, after Other, and on no other tab. Owned unobtainable mounts stay where they were (shown with the Collected filter). The Journal home and expansion counts never include unobtainable mounts. The data has 299 unobtainable mounts (274 for both factions, 13 Alliance-only, 12 Horde-only), so at most 287 / 286 rows, minus the ones you own or the client does not know.
+
+- [ ] Options > AddOns > AzerothTrail: the checkbox sits under the Waypoints dropdown, unticked on a fresh install; its tooltip mentions the Misc tab.
+- [ ] With the AzerothTrail window open on Misc, tick it: an `Unobtainable` header appears at the bottom at once (no reopen needed), counts `(0/N)`; untick: it disappears.
+- [ ] On: the Journal expansion lists, Holidays, Achievements and Timewalking show no unobtainable mount you do not own (e.g. a retired Gladiator or old store mount appears only under Misc > Unobtainable).
+- [ ] Collected on: an owned unobtainable mount shows in its usual tab and section (green row), not under Unobtainable.
+- [ ] Journal home tile and summary numbers are the same with the option on and off.
+- [ ] Hover and click an Unobtainable row: tooltip and waypoint (when it has a location) work as on other rows; collapse the header and `/reload`: it stays collapsed.
+- [ ] `/reload`: the checkbox keeps its state.

@@ -319,6 +319,115 @@ describe("journal", function()
     end)
   end)
 
+  -- F11: Options "Show unobtainable mounts" (query.showUnobtainable).
+  describe("showUnobtainable", function()
+    local EXPS = { "Classic", "Legion", "Midnight" }
+
+    -- One unobtainable mount per original view, plus obtainable misc ones.
+    local function sample()
+      return {
+        [1] = mk("Jrn", {unobtainable=true, section="raid"}),
+        [2] = mk("Hol", {unobtainable=true, tab="holiday", section="brewfest"}),
+        [3] = mk("Ach", {unobtainable=true, tab="misc", section="achievement"}),
+        [4] = mk("Tw", {unobtainable=true, tab="holiday", section="timewalking"}),
+        [5] = mk("Shp", {unobtainable=true, tab="misc", section="shop"}),
+        [6] = mk("Other misc", {tab="misc", section="other"}),
+        [7] = mk("Prof", {tab="misc", section="profession"}),
+      }
+    end
+
+    it("ViewOf sends a not-owned unobtainable mount to misc only when shown", function()
+      local J = load()
+      local u = mk("a", {unobtainable=true, tab="holiday", section="brewfest"})
+      eq(J.ViewOf(u), "holidays", "off: its own view")
+      eq(J.ViewOf(u, {showUnobtainable=false}), "holidays")
+      eq(J.ViewOf(u, {showUnobtainable=true}), "misc")
+      eq(J.ViewOf(u, {showUnobtainable=true, owned=true}), "holidays", "owned: today's behaviour")
+      eq(J.ViewOf(mk("b"), {showUnobtainable=true}), "journal", "obtainable mounts unaffected")
+      eq(J.UNOBTAINABLE, "unobtainable")
+    end)
+
+    it("on: every not-owned unobtainable mount is on Misc under Unobtainable, last", function()
+      local J = load()
+      local r = J.Select(sample(), q({ view = "misc", showUnobtainable = true }))
+      eq(ids(r), {7, 6, 3, 2, 1, 5, 4})
+      for i = 3, 7 do eq(r[i].section, "unobtainable", "row " .. i) end
+      eq(r[1].section, "profession")
+      eq(r[2].section, "other")
+    end)
+
+    it("off: Misc is unchanged (unobtainable hidden unless owned)", function()
+      local J = load()
+      eq(ids(J.Select(sample(), q({ view = "misc" }))), {7, 6})
+      eq(ids(J.Select(sample(), q({ view = "misc", showUnobtainable = false }))), {7, 6})
+    end)
+
+    it("on: they leave their original views", function()
+      local J = load()
+      for _, view in ipairs({ "journal", "holidays", "achievements", "timewalking" }) do
+        eq(ids(J.Select(sample(), q({ view = view, showUnobtainable = true, expansions = EXPS }))), {}, view)
+      end
+    end)
+
+    it("owned unobtainable mounts stay in their own view and follow the Collected filter", function()
+      local J = load()
+      local owned = ownedSet({[1] = true, [3] = true})
+      local function sel(view, collected)
+        return ids(J.Select(sample(), q({ view = view, showUnobtainable = true, isOwned = owned,
+          filters = { collected = collected }, expansions = EXPS })))
+      end
+      eq(sel("misc", true), {7, 6, 2, 5, 4}, "owned ones not on Misc")
+      eq(sel("journal", true), {1})
+      eq(sel("achievements", true), {3})
+      eq(sel("journal", false), {}, "Collected off hides them")
+      eq(sel("achievements", false), {})
+    end)
+
+    it("faction, client knowledge, search and expansion still apply", function()
+      local J = load()
+      local mounts = sample()
+      mounts[8] = mk("Horde only", {unobtainable=true, faction="Horde"})
+      mounts[9] = mk("Unknown", {unobtainable=true})
+      mounts[10] = mk("Classic one", {unobtainable=true, exp="Classic"})
+      local base = { view = "misc", showUnobtainable = true, faction = "Alliance",
+        exists = function(id) return id ~= 9 end }
+      local function sel(over)
+        local c = {}
+        for k, v in pairs(base) do c[k] = v end
+        for k, v in pairs(over or {}) do c[k] = v end
+        return ids(J.Select(mounts, q(c)))
+      end
+      eq(sel(), {7, 6, 3, 10, 2, 1, 5, 4})
+      eq(sel({ search = "classic" }), {10})
+      eq(sel({ exp = "Classic" }), {10})
+      eq(sel({ section = "unobtainable", exp = "Legion" }), {3, 2, 1, 5, 4})
+    end)
+
+    it("every mount still lands in exactly one view", function()
+      local J = load()
+      local owned = ownedSet({[1] = true, [4] = true})
+      local seen = {}
+      for _, view in ipairs(J.Views) do
+        for _, e in ipairs(J.Select(sample(), q({ view = view, showUnobtainable = true, isOwned = owned,
+          filters = { collected = true }, expansions = EXPS }))) do
+          ok(not seen[e.id], "mount " .. e.id .. " in two views")
+          seen[e.id] = view
+        end
+      end
+      for id = 1, 7 do ok(seen[id], "mount " .. id .. " in no view") end
+      eq(seen[1], "journal")
+      eq(seen[4], "timewalking")
+      eq(seen[2], "misc")
+    end)
+
+    it("Counts never include not-owned unobtainable mounts", function()
+      local J = load()
+      local mounts = { [1] = mk("A", {unobtainable=true}), [2] = mk("B") }
+      local o, t = J.Counts(mounts, nil, function() return false end, function() return true end)
+      eq({o, t}, {0, 1})
+    end)
+  end)
+
   describe("Counts", function()
     local function allExist() return true end
 

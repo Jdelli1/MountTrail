@@ -176,3 +176,8 @@ L["/azt options - open the AzerothTrail options (Options > AddOns)"] = "/azt opt
 L["Mount Journal"] = "Mount Journal"
 L["%d / %d collected  ·  %d%%"] = "%d / %d collected  ·  %d%%"
 L["%d%%"] = "%d%%"
+
+-- Options: show unobtainable mounts (F11)
+L["Show unobtainable mounts"] = "Show unobtainable mounts"
+L["List mounts you can no longer get on the Misc tab, under Unobtainable. Collected ones stay where they are."] = "List mounts you can no longer get on the Misc tab, under Unobtainable. Collected ones stay where they are."
+L["Unobtainable"] = "Unobtainable"

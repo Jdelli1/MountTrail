@@ -158,7 +158,9 @@ function addon:OnInitialize()
       debug = false, -- /azt debug: show caught map / arrow errors
       achievementMap = {}, -- { build=, ids={[mountID]=achievementID|false} } (Integrations\AchievementScan.lua)
       zonePanel = { open = false }, -- zone side panel shown with the window (UI\ZonePanel.lua)
-      settings = { waypoints = "game" }, -- Options > AddOns > AzerothTrail: waypoints = "game" | "tomtom" | "both" (UI\Options.lua, Integrations\Map.lua)
+      -- Options > AddOns > AzerothTrail (UI\Options.lua): waypoints = "game" | "tomtom" | "both"
+      -- (Integrations\Map.lua); showUnobtainable: not-owned unobtainable mounts on Misc (UI\List.lua)
+      settings = { waypoints = "game", showUnobtainable = false },
       collapsed = {}, -- list headers the player collapsed: { ["<view>|<exp>|<section>[|<sub-group>]"] = true } (UI\List.lua)
     },
     char = {

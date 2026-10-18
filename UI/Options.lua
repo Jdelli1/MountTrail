@@ -9,6 +9,9 @@ local ADDON, ns = ...
 --                (ns.db.global.settings.waypoints, read by Map.SetWaypoint;
 --                the TomTom choices fall back to the in-game pin when TomTom
 --                is not loaded, as the labels and tooltips say),
+--   "Show unobtainable mounts" (ns.db.global.settings.showUnobtainable: off by
+--                default; on lists not-owned unobtainable mounts on the Misc
+--                tab under "Unobtainable"; a change refreshes the window),
 --   "Show minimap button" (ns.db.global.minimap.hide, LibDBIcon Show / Hide),
 --   "Debug messages" (ns.db.global.debug, the same flag as /azt debug).
 -- `/azt options` opens it (Settings.OpenToCategory(category:GetID())). Every
@@ -21,6 +24,7 @@ ns.Options = Options
 
 -- Proxy setting variable names: global to the settings system, so prefixed.
 Options.WAYPOINTS = "AZEROTHTRAIL_WAYPOINTS"
+Options.UNOBTAINABLE = "AZEROTHTRAIL_UNOBTAINABLE"
 Options.MINIMAP = "AZEROTHTRAIL_MINIMAP"
 Options.DEBUG = "AZEROTHTRAIL_DEBUG"
 
@@ -60,6 +64,20 @@ end
 
 local function setWaypoints(value)
   if VALID[value] then settings().waypoints = value end
+end
+
+-- Whether not-owned unobtainable mounts are listed (on Misc); false without
+-- a db.
+function Options.ShowUnobtainable()
+  local global = ns.db and ns.db.global
+  local saved = global and global.settings
+  return type(saved) == "table" and saved.showUnobtainable == true
+end
+
+-- Saves the choice and redraws the open window (UI\List.lua reads it).
+local function setUnobtainable(on)
+  settings().showUnobtainable = on and true or false
+  ns.Refresh()
 end
 
 local function minimapDb()
@@ -113,6 +131,11 @@ local function build(api)
   end
   api.CreateDropdown(category, waypoints, waypointOptions,
     L["Where a mount row's left-click puts the waypoint. TomTom arrow and Both need TomTom; without it the in-game map pin is used."])
+
+  local unobtainable = api.RegisterProxySetting(category, Options.UNOBTAINABLE, VarType.Boolean or "boolean",
+    L["Show unobtainable mounts"], false, Options.ShowUnobtainable, setUnobtainable)
+  api.CreateCheckbox(category, unobtainable,
+    L["List mounts you can no longer get on the Misc tab, under Unobtainable. Collected ones stay where they are."])
 
   local minimap = api.RegisterProxySetting(category, Options.MINIMAP, VarType.Boolean or "boolean",
     L["Show minimap button"], true, getMinimap, setMinimap)

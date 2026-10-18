@@ -165,7 +165,16 @@ local SECTION_NAMES = {
   achievement = "Achievements", profession = "Professions", shop = "Shop",
   tradingpost = "Trading Post",
   timewalking = "Timewalking", anniversary = "Anniversary",
+  unobtainable = "Unobtainable",
 }
+
+-- Options "Show unobtainable mounts" (ns.db.global.settings.showUnobtainable):
+-- not-owned unobtainable mounts listed on Misc (Journal.Select).
+function UI.ShowUnobtainable()
+  local global = ns.db and ns.db.global
+  local settings = global and global.settings
+  return type(settings) == "table" and settings.showUnobtainable == true
+end
 
 -- Header text for a section key: holiday titles from Data.Holidays, else the
 -- section names above, else the key itself.
@@ -1420,6 +1429,7 @@ function UI.List(parent, getQuery, opts)
     query.exists = query.exists or memo(ns.Game.Exists)
     if query.faction == nil then query.faction = ns.Game.Faction() end
     query.sourceText = memoText(query.sourceText or ns.Game.MountSourceText)
+    if query.showUnobtainable == nil then query.showUnobtainable = UI.ShowUnobtainable() end
 
     local tab = query.view or query.tab
     if tab ~= self.tab then

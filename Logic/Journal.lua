@@ -28,7 +28,7 @@ local VIEW_ORDER = {
   holidays = { "hallowsend", "brewfest", "loveisintheair", "noblegarden", "winterveil",
     "lunarfestival", "midsummer", "darkmoon", "anniversary", "other" },
   timewalking = { "timewalking" },
-  misc = { "profession", "shop", "tradingpost", "other" },
+  misc = { "profession", "shop", "tradingpost", "other", "unobtainable" },
 }
 
 local function rankOf(list)
@@ -47,11 +47,25 @@ Journal.Views = { "journal", "holidays", "achievements", "timewalking", "misc" }
 -- Section key of achievement mounts without an expansion.
 Journal.GENERAL = "General"
 
+-- Misc section of not-owned unobtainable mounts when the "Show unobtainable
+-- mounts" option is on (query.showUnobtainable); listed last.
+Journal.UNOBTAINABLE = "unobtainable"
+
+-- True when a mount moves to Misc's Unobtainable section: unobtainable, not
+-- owned, and the option on. Owned ones stay in their own view.
+local function movedToMisc(m, showUnobtainable, owned)
+  return showUnobtainable == true and m.unobtainable and not owned
+end
+
 -- The list view a mount belongs to: "journal", "holidays", "achievements",
 -- "timewalking" or "misc". Timewalking takes the holiday timewalking section
 -- and any SimpleArmory "Timewalking" subcat (group); Achievements takes the
 -- misc achievement section. Every mount is in exactly one view.
-function Journal.ViewOf(m)
+-- opts (optional): { showUnobtainable = bool, owned = bool }: with
+-- showUnobtainable a not-owned unobtainable mount is in "misc" (section
+-- Journal.UNOBTAINABLE) whatever its data tab.
+function Journal.ViewOf(m, opts)
+  if opts and movedToMisc(m, opts.showUnobtainable, opts.owned) then return "misc" end
   local tab, section = m.tab, m.section
   if m.group == "Timewalking" or (tab == "holiday" and section == "timewalking") then
     return "timewalking"
@@ -70,12 +84,14 @@ local function factionOk(m, faction)
 end
 
 -- Common gate for Select and Counts: known to this client, right faction, and
--- obtainable (or already owned). Returns owned (boolean) or nil when excluded.
-local function gate(id, m, isOwned, exists, faction)
+-- obtainable (or already owned; or any unobtainable one with
+-- showUnobtainable, which only Select passes). Returns owned (boolean) or nil
+-- when excluded.
+local function gate(id, m, isOwned, exists, faction, showUnobtainable)
   if not exists(id) then return nil end
   if not factionOk(m, faction) then return nil end
   local owned = isOwned(id) and true or false
-  if m.unobtainable and not owned then return nil end
+  if m.unobtainable and not owned and showUnobtainable ~= true then return nil end
   return owned
 end
 
@@ -114,7 +130,10 @@ end
 
 -- query: { view= | tab=, exp=, section=, filters=, search=, isOwned=fn(id),
 -- exists=fn(id), faction=, sourceText=fn(id)|nil, expansions=list|nil,
--- pin={[section]=true}|nil }.
+-- pin={[section]=true}|nil, showUnobtainable=bool|nil }.
+-- showUnobtainable (views only; the Options checkbox): not-owned unobtainable
+-- mounts are listed on Misc under Journal.UNOBTAINABLE (last) and in no other
+-- view; owned ones stay in their own view as without it.
 -- view (one of Journal.Views) selects by Journal.ViewOf and wins over tab;
 -- tab (data tab "journal"/"holiday"/"misc") is the older raw selection.
 -- -> list of { id=, m=, section= } sorted by section order, then name, then
@@ -130,24 +149,32 @@ function Journal.Select(mounts, query)
   local view, tab = query.view, query.tab
   local journal = (view or tab) == "journal"
   local sourceText = query.sourceText
+  local showUnobtainable = view ~= nil and query.showUnobtainable == true
   local needle
   if query.search and query.search:find("%S") then
     needle = query.search:lower()
   end
 
+  -- With showUnobtainable, whether a mount moved to Misc's Unobtainable
+  -- section (ownership asked of unobtainable mounts only).
+  local function moved(id, m)
+    return showUnobtainable and m.unobtainable and not isOwned(id) or false
+  end
+
   -- Section of a mount in this list, or nil when it is not in the list.
   local sectionIn
   if view == "achievements" then
-    sectionIn = function(_, m)
-      if Journal.ViewOf(m) ~= view then return nil end
+    sectionIn = function(id, m)
+      if moved(id, m) or Journal.ViewOf(m) ~= view then return nil end
       return m.exp or Journal.GENERAL
     end
   elseif view == "timewalking" then
-    sectionIn = function(_, m)
-      return Journal.ViewOf(m) == view and "timewalking" or nil
+    sectionIn = function(id, m)
+      return not moved(id, m) and Journal.ViewOf(m) == view and "timewalking" or nil
     end
   elseif view then
     sectionIn = function(id, m)
+      if moved(id, m) then return view == "misc" and Journal.UNOBTAINABLE or nil end
       return Journal.ViewOf(m) == view and Journal.SectionOf(id, m, sourceText) or nil
     end
   else
@@ -163,7 +190,7 @@ function Journal.Select(mounts, query)
     if section
       and (query.section == nil or section == query.section)
       and not (journal and filters[section] == false) then
-      local owned = gate(id, m, isOwned, exists, query.faction)
+      local owned = gate(id, m, isOwned, exists, query.faction, showUnobtainable)
       if owned ~= nil and (showCollected or not owned) then
         local keep = true
         if needle then
@@ -197,10 +224,11 @@ function Journal.Select(mounts, query)
   return out
 end
 
--- Journal view only (Journal.ViewOf). Returns owned, total. The optional sourceText (as in
--- Select) is accepted so callers can pass the same inputs, but it never
--- changes the totals: Counts span every section, so refining a mount's
--- section cannot move it in or out.
+-- Journal view only (Journal.ViewOf). Returns owned, total. Never counts
+-- not-owned unobtainable mounts (the Show unobtainable option does not
+-- apply). The optional sourceText (as in Select) is accepted so callers can
+-- pass the same inputs, but it never changes the totals: Counts span every
+-- section, so refining a mount's section cannot move it in or out.
 function Journal.Counts(mounts, exp, isOwned, exists, faction, sourceText)
   local owned, total = 0, 0
   for id, m in pairs(mounts) do
