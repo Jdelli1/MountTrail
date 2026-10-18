@@ -189,10 +189,23 @@ OTHER_SUBCATS = {
     ("Other", "Unknown"),
 }
 
-# Misc sections that do not beat another sighting of the same mount (see
-# build_mounts): the catch-alls F15 split out of the old misc "other", so
-# duplicate resolution (and so every mount's tab and group) is as before.
+# Duplicate sightings of a mount (see build_mounts): a later sighting replaces
+# the kept one only when it is stronger. Strength 2: journal, holiday and the
+# specific misc sections (achievement, profession, shop, tradingpost). 1: the
+# misc catch-alls below. 0: limited and other (and any `dupe` sighting), so a
+# season mount also sold for PvP / Mythic+ currency lands in pvp / keystone
+# (owner ruling, F15 fix).
 WEAK_MISC = {"pvp", "racial", "keystone", "promotion", "class", "bmah", "collection", "limited", "other"}
+WEAKEST_MISC = {"limited", "other"}
+
+
+def sighting_strength(tab, section, dupe=False):
+    """0 (weakest) .. 2: see WEAK_MISC / WEAKEST_MISC."""
+    if dupe or (tab == "misc" and section in WEAKEST_MISC):
+        return 0
+    if tab == "misc" and section in WEAK_MISC:
+        return 1
+    return 2
 
 
 def classify(category, subcat):
@@ -444,15 +457,15 @@ _ITEM_FIXES = {
 
 
 def build_mounts(sa, rarity, stats=None):
-    """Returns {mountID: mount dict}. Duplicates: a later sighting replaces an earlier one only when
-    the earlier one is weak (a WEAK_MISC section, or flagged `dupe`) and the later one is not; tradingNow is kept
+    """Returns {mountID: mount dict}. Duplicates: a later sighting replaces the kept one only when it
+    is stronger (sighting_strength; equal strength keeps the first); tradingNow is kept
     if any sighting is a current Trading Post entry.
 
     Flags merged across all sightings: `unobtainable=true` only if every sighting is notObtainable;
     `faction` only if every sighting carries the same `side` (a sighting without `side` counts as
     both factions)."""
     mounts = {}
-    chosen_weak = {}
+    chosen_strength = {}
     sides = {}
     obtainable = {}
     for cat in _categories(sa):
@@ -475,7 +488,7 @@ def build_mounts(sa, rarity, stats=None):
                     "group": sname,
                 }
                 trading_now = cname == "Limited Time" and section == "tradingpost"
-                weak = (tab == "misc" and section in WEAK_MISC) or bool(item.get("dupe"))
+                strength = sighting_strength(tab, section, bool(item.get("dupe")))
                 side = FACTIONS.get(item.get("side"))
                 sides.setdefault(mid, set()).update([side] if side else FACTIONS.values())
                 obtainable[mid] = obtainable.get(mid, False) or not item.get("notObtainable")
@@ -483,20 +496,20 @@ def build_mounts(sa, rarity, stats=None):
                     if stats is not None:
                         stats["duplicates"] = stats.get("duplicates", 0) + 1
                     prev = mounts[mid]
-                    if chosen_weak[mid] and not weak:
+                    if strength > chosen_strength[mid]:
                         if prev.get("tradingNow"):
                             rec["tradingNow"] = True
                         if trading_now:
                             rec["tradingNow"] = True
                         mounts[mid] = rec
-                        chosen_weak[mid] = weak
+                        chosen_strength[mid] = strength
                     elif trading_now:
                         prev["tradingNow"] = True
                     continue
                 if trading_now:
                     rec["tradingNow"] = True
                 mounts[mid] = rec
-                chosen_weak[mid] = weak
+                chosen_strength[mid] = strength
 
     fixes = 0
     for mid, (wrong, right) in _ITEM_FIXES.items():

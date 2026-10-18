@@ -68,13 +68,17 @@ function UI.ExpansionTag(exp)
 end
 
 -- Kind-of-source line per (refined) section; holiday mounts are all
--- "Holiday event". Sections not listed (other) give no line.
+-- "Holiday event", unobtainable ones (m.unobtainable; the Misc >
+-- Unobtainable section) "No longer obtainable". Sections not listed (other)
+-- give no line.
 local SOURCE_KINDS = {
   dungeon = "Drops from NPC(s)", raid = "Drops from NPC(s)", world = "Drops from NPC(s)",
   treasure = "Found in a treasure / cache", delve = "Delve reward", quest = "Quest reward",
   activity = "Zone activity reward", reputation = "Reputation reward", vendor = "Sold by a vendor",
   achievement = "Achievement reward", profession = "Crafted by a profession", shop = "In-game shop",
-  tradingpost = "Trading Post",
+  tradingpost = "Trading Post", pvp = "PvP reward", racial = "Racial mount", keystone = "Mythic+ reward",
+  promotion = "Promotion", class = "Class mount", bmah = "Black Market Auction House",
+  collection = "Collection reward", limited = "Limited-time offer", unobtainable = "No longer obtainable",
 }
 
 -- The kind-of-source line of a mount -> localised text or nil. The section is
@@ -82,6 +86,7 @@ local SOURCE_KINDS = {
 -- sourceText is a string or a function(id), optional.
 function UI.SourceKind(mountID, m, sourceText)
   if type(m) ~= "table" then return nil end
+  if m.unobtainable then return L[SOURCE_KINDS.unobtainable] end
   if m.tab == "holiday" then return L["Holiday event"] end
   if not m.section then return nil end
   local section = ns.Journal.SectionOf(mountID, m, sourceText)

@@ -251,11 +251,41 @@ class BuildDataTests(unittest.TestCase):
             for sub in cat.get("subcats") or []:
                 self.assertIn((cat["name"], sub["name"]), listed)
 
-    def test_misc_catch_all_duplicates_keep_the_first_sighting(self):
-        # Limited Time/Midnight: Season 2 (limited) is seen before PVP/Vicious Saddle (pvp): both
-        # are catch-all misc sections, so the first sighting stays (duplicate resolution as before F15).
-        m = self.mounts[3002]
-        self.assertEqual((m["tab"], m["section"], m["group"]), ("misc", "limited", "Midnight: Season 2"))
+    def test_season_mounts_go_to_pvp_or_mythic_plus(self):
+        # Owner ruling (F15 fix): a mount under Limited Time (a season) and under PvP or Mythic+
+        # belongs to pvp / keystone, its group following.
+        for mid in (3002, 3003):
+            m = self.mounts[mid]
+            self.assertEqual((m["tab"], m["section"], m["group"]), ("misc", "pvp", "Vicious Saddle"), mid)
+
+    def _build(self, sightings):
+        """build_mounts over [(category, subcat, item dict), ...] in order, one category per sighting."""
+        sa = {"mounts": [{"name": c, "subcats": [{"name": s, "items": [it]}]} for c, s, it in sightings],
+              "planner": {"steps": []}}
+        return build_data.build_mounts(sa, {})
+
+    def test_duplicate_strength_order(self):
+        item = {"ID": 77, "name": "X", "spellid": 1}
+        # limited < pvp / keystone, either order.
+        for first, second, want in (
+                (("Limited Time", "Midnight: Season 2"), ("Mythic+", "Timelost Saddle"), ("keystone", "Timelost Saddle")),
+                (("Mythic+", "Timelost Saddle"), ("Limited Time", "Midnight: Season 2"), ("keystone", "Timelost Saddle")),
+                (("Past Limited Time", "Plunderstorm"), ("PVP", "Honor"), ("pvp", "Honor")),
+                (("PVP", "Honor"), ("Limited Time", "Vendor"), ("pvp", "Honor")),
+                # other < racial; journal beats every misc catch-all.
+                (("Other", "Unknown"), ("Racial", "Human"), ("racial", "Human")),
+                (("PVP", "Honor"), ("Midnight", "Vendor"), ("vendor", "Vendor")),
+                (("Midnight", "Vendor"), ("Limited Time", "Vendor"), ("vendor", "Vendor")),
+                # two catch-alls of the same strength: the first stays.
+                (("PVP", "Honor"), ("Mythic+", "Timelost Saddle"), ("pvp", "Honor")),
+                (("Limited Time", "Vendor"), ("Other", "Unknown"), ("limited", "Vendor"))):
+            m = self._build([first + (dict(item),), second + (dict(item),)])[77]
+            self.assertEqual((m["section"], m["group"]), want, (first, second))
+        # A `dupe` sighting stays weakest.
+        m = self._build([("PVP", "Honor", dict(item)), ("Limited Time", "Vendor", dict(item, dupe=True))])[77]
+        self.assertEqual(m["section"], "pvp")
+        m = self._build([("Limited Time", "Vendor", dict(item, dupe=True)), ("Other", "Unknown", dict(item))])[77]
+        self.assertEqual(m["section"], "limited", "dupe and limited are equally weak: first stays")
 
     def test_fixture_delves_subcat_is_delve(self):
         m = self.mounts[9001]
