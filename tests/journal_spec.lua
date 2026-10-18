@@ -611,6 +611,42 @@ describe("journal", function()
       eq(ids(J.Select(mounts, q({ view = "misc" }))), {4, 3, 2, 1})
     end)
 
+    it("misc sections (F15), in order, unobtainable last", function()
+      local J = load()
+      local order = { "profession", "shop", "tradingpost", "pvp", "racial", "keystone", "promotion",
+        "class", "bmah", "collection", "limited", "other", "unobtainable" }
+      eq(J.ViewSections("misc"), order)
+      local mounts, want = {}, {}
+      for i = #order - 1, 1, -1 do
+        mounts[i] = mk("m", {tab="misc", section=order[i]})
+      end
+      mounts[100] = mk("u", {tab="journal", section="raid", unobtainable=true})
+      for i = 1, #order - 1 do want[#want + 1] = i end
+      want[#want + 1] = 100
+      local r = J.Select(mounts, q({ view = "misc", showUnobtainable = true }))
+      eq(ids(r), want)
+      eq(r[#r].section, "unobtainable")
+      eq(ids(J.Select(mounts, q({ tab = "misc" }))), (function()
+        local t = {}
+        for i = 1, #order - 1 do t[i] = i end
+        return t
+      end)(), "the raw misc tab sorts the same way")
+    end)
+
+    it("ViewSections: each view's section keys in order (a copy)", function()
+      local J = load()
+      eq(J.ViewSections("journal"), { "dungeon", "raid", "world", "delve", "treasure", "quest", "activity",
+        "reputation", "vendor", "other" })
+      eq(J.ViewSections("holidays"), { "hallowsend", "brewfest", "loveisintheair", "noblegarden", "winterveil",
+        "lunarfestival", "midsummer", "darkmoon", "anniversary", "other" })
+      eq(J.ViewSections("timewalking"), { "timewalking" })
+      eq(J.ViewSections("achievements", { "Classic", "Legion" }), { "Classic", "Legion", "General" })
+      eq(J.ViewSections("nope"), {})
+      local a = J.ViewSections("misc")
+      a[1] = "changed"
+      eq(J.ViewSections("misc")[1], "profession", "callers get a copy")
+    end)
+
     it("journal view: journal mounts with section filters and refinement", function()
       local J = load()
       local mounts = {
@@ -648,7 +684,8 @@ describe("journal", function()
     it("every generated mount lands in exactly one view", function()
       local J = load()
       local tabs = { journal = { "dungeon", "other" }, holiday = { "brewfest", "timewalking", "other" },
-        misc = { "achievement", "profession", "shop", "tradingpost", "other" } }
+        misc = { "achievement", "profession", "shop", "tradingpost", "pvp", "racial", "keystone", "promotion",
+          "class", "bmah", "collection", "limited", "other" } }
       local mounts, n = {}, 0
       for tab, sections in pairs(tabs) do
         for _, s in ipairs(sections) do

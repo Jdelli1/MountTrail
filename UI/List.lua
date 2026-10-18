@@ -162,8 +162,10 @@ local SECTION_NAMES = {
   delve = "Delves", treasure = "Treasures & caches", quest = "Quests",
   activity = "Zone activities", reputation = "Reputation", vendor = "Vendors",
   other = "Other",
-  achievement = "Achievements", profession = "Professions", shop = "Shop",
-  tradingpost = "Trading Post",
+  achievement = "Achievements", profession = "Professions", shop = "In-game Shop",
+  tradingpost = "Trading Post", pvp = "PvP", racial = "Racial", keystone = "Mythic+",
+  promotion = "Promotions", class = "Class", bmah = "Black Market",
+  collection = "Collection rewards", limited = "Limited time",
   timewalking = "Timewalking", anniversary = "Anniversary",
   unobtainable = "Unobtainable",
 }

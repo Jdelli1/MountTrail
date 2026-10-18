@@ -398,11 +398,16 @@ describe("ui build", function()
 
     headers, mounts = tabRows(ns, "misc")
     ok(#mounts > 100, "misc mounts listed")
-    local allowed = { profession = 1, shop = 2, tradingpost = 3, other = 4 }
+    local allowed = { profession = 1, shop = 2, tradingpost = 3, pvp = 4, racial = 5, keystone = 6,
+      promotion = 7, class = 8, bmah = 9, collection = 10, limited = 11, other = 12 }
+    local labels = { profession = "Professions", shop = "In-game Shop", tradingpost = "Trading Post",
+      pvp = "PvP", racial = "Racial", keystone = "Mythic+", promotion = "Promotions", class = "Class",
+      bmah = "Black Market", collection = "Collection rewards", limited = "Limited time", other = "Other" }
     for _, row in ipairs(mounts) do eq(Journal.ViewOf(row.m), "misc", "misc row " .. row.id) end
     last = 0
     for _, h in ipairs(headers) do
       ok(allowed[h.section] and allowed[h.section] > last, "misc header " .. tostring(h.section))
+      eq(h.text, labels[h.section], "misc header label " .. tostring(h.section))
       last = allowed[h.section]
     end
   end)

@@ -2,6 +2,7 @@
 import contextlib
 import io
 import os
+import re
 import sys
 import unittest
 
@@ -113,18 +114,20 @@ class BuildDataTests(unittest.TestCase):
         self.assertEqual(c("Legion", "Class Hall"), ("journal", "activity"))
         self.assertEqual(c("Professions", "Alchemy"), ("misc", "profession"))
         self.assertEqual(c("Promotion", "Blizzard Store"), ("misc", "shop"))
-        self.assertEqual(c("Promotion", "Blizzcon"), ("misc", "other"))
+        self.assertEqual(c("Promotion", "Blizzcon"), ("misc", "promotion"))
         self.assertEqual(c("Limited Time", "Trading Post: November"), ("misc", "tradingpost"))
-        self.assertEqual(c("Limited Time", "Midnight: Season 2"), ("misc", "other"))
+        self.assertEqual(c("Limited Time", "Midnight: Season 2"), ("misc", "limited"))
         self.assertEqual(c("Past Limited Time", "Trading Post Re-Releases"), ("misc", "tradingpost"))
-        self.assertEqual(c("Past Limited Time", "Plunderstorm"), ("misc", "other"))
+        self.assertEqual(c("Past Limited Time", "Plunderstorm"), ("misc", "limited"))
         self.assertEqual(c("World Events", "Brewfest"), ("holiday", "brewfest"))
         self.assertEqual(c("World Events", "Love is in the Air"), ("holiday", "loveisintheair"))
         self.assertEqual(c("World Events", "Midsummer Fire Festival"), ("holiday", "midsummer"))
         self.assertEqual(c("World Events", "Darkmoon Faire"), ("holiday", "darkmoon"))
         self.assertEqual(c("World Events", "Brawler's Guild"), ("holiday", "other"))
-        for top in ("Mounts", "Racial", "Mythic+", "PVP", "Other"):
-            self.assertEqual(c(top, "Anything"), ("misc", "other"), top)
+        for top, section in (("Mounts", "collection"), ("Racial", "racial"), ("Mythic+", "keystone"),
+                             ("PVP", "pvp"), ("Professions", "profession"), ("Promotion", "promotion"),
+                             ("Other", "other"), ("Something New", "other")):
+            self.assertEqual(c(top, "Anything"), ("misc", section), top)
 
     def test_classify_journal_sections(self):
         """Task 16 table: exact names first, then suffix/prefix/contains rules, else other."""
@@ -160,8 +163,99 @@ class BuildDataTests(unittest.TestCase):
         self.assertEqual(c("The War Within", "Raid Renown"), ("journal", "raid"))
         self.assertEqual(c("Shadowlands", "Achievement"), ("misc", "achievement"))
         # Expansion-only: the same names elsewhere keep their old tabs.
-        self.assertEqual(c("Limited Time", "Vendor"), ("misc", "other"))
+        self.assertEqual(c("Limited Time", "Vendor"), ("misc", "limited"))
         self.assertEqual(c("World Events", "Treasure"), ("holiday", "other"))
+
+    # Every non-expansion, non-holiday SimpleArmory (category, subcat) of the
+    # pinned commit (tools/sources.json) -> its misc section (F15).
+    SA_MISC = {
+        "Mounts": {"collection": ["Collect", "Reputations", "Toys", "Heirlooms"]},
+        "Limited Time": {"tradingpost": ["Trading Post: October"],
+                         "limited": ["Midnight: Season 2", "Vendor"]},
+        "Racial": {"racial": ["Human", "Dwarf", "Night Elf", "Gnome", "Draenei", "Worgen", "Pandaren",
+                              "Dracthyr", "Orc", "Undead", "Tauren", "Troll", "Goblin", "Blood Elf"]},
+        "Professions": {"profession": ["Alchemy", "Archaeology", "Engineering", "Fishing", "Jewelcrafting",
+                                       "Tailoring", "Leatherworking", "Blacksmith"]},
+        "Mythic+": {"keystone": ["Timelost Saddle", "Champion"]},
+        "PVP": {"pvp": ["Achievement", "Mark of Honor", "Honor", "Halaa", "Timeless Isle", "Ashran",
+                        "Vicious Saddle", "Gladiator", "Talon's Vengeance"]},
+        "Past Limited Time": {"tradingpost": ["Trading Post Re-Releases", "Trading Post Originals"],
+                              "limited": ["Plunderstorm", "Dastardly Duos", "Decor Duels", "Greedy Emissary",
+                                          "Remix: Pandaria", "Remix: Legion"]},
+        "Promotion": {"shop": ["Blizzard Store"],
+                      "promotion": ["Blizzcon", "Player Vote", "Collector's Edition", "WoW Classic",
+                                    "WoW Forever", "Blizzard Anniversary", "20th Anniversary", "HotS",
+                                    "Hearthstone", "Warcraft III Reforged", "Diablo IV", "Pringles", "Razer",
+                                    "Steelseries", "Fanta", "Recruit-A-Friend", "Azeroth Choppers",
+                                    "Trading Card Game / Auction House", "Annual Subscription",
+                                    "Twitch Drops"]},
+        "Other": {"class": ["Paladin", "Demon Hunter", "Warlock", "Death Knight"],
+                  "bmah": ["BMAH"],
+                  "other": ["Guild Vendor", "Feats of Strength", "Old School Ride", "Make-A-Wish", "Unknown"]},
+    }
+
+    def test_classify_every_misc_subcat(self):
+        c = build_data.classify
+        for cat, sections in self.SA_MISC.items():
+            for section, subs in sections.items():
+                for sub in subs:
+                    self.assertEqual(c(cat, sub), ("misc", section), (cat, sub))
+
+    def test_misc_other_only_from_the_explicit_list(self):
+        c = build_data.classify
+        for cat, sections in self.SA_MISC.items():
+            for subs in sections.values():
+                for sub in subs:
+                    if c(cat, sub) == ("misc", "other"):
+                        self.assertIn((cat, sub), build_data.OTHER_SUBCATS, (cat, sub))
+        self.assertEqual(sorted(build_data.OTHER_SUBCATS),
+                         sorted(("Other", s) for s in self.SA_MISC["Other"]["other"]))
+
+    def test_misc_sections_are_the_logic_order(self):
+        self.assertEqual(build_data.MISC_SECTIONS,
+                         ["profession", "shop", "tradingpost", "pvp", "racial", "keystone", "promotion",
+                          "class", "bmah", "collection", "limited", "other"])
+        for sections in self.SA_MISC.values():
+            for section in sections:
+                self.assertIn(section, build_data.MISC_SECTIONS)
+
+    def test_class_subcats_cover_every_class(self):
+        c = build_data.classify
+        for cls in ("Warrior", "Paladin", "Hunter", "Rogue", "Priest", "Death Knight", "Shaman", "Mage",
+                    "Warlock", "Monk", "Druid", "Demon Hunter", "Evoker"):
+            self.assertEqual(c("Other", cls), ("misc", "class"), cls)
+
+    def test_generated_misc_other_only_from_the_explicit_list(self):
+        """Data/Mounts.lua: a misc mount in "other" has a group from OTHER_SUBCATS."""
+        with open(os.path.join(build_data.ROOT, "Data", "Mounts.lua"), encoding="utf-8") as fh:
+            text = fh.read()
+        groups = {sub for _, sub in build_data.OTHER_SUBCATS}
+        seen = 0
+        for line in text.splitlines():
+            if 'tab = "misc", section = "other"' in line:
+                seen += 1
+                m = re.search(r'group = "((?:[^"\\]|\\.)*)"', line)
+                self.assertTrue(m and m.group(1) in groups, line)
+        self.assertGreater(seen, 0)
+
+    def test_cached_simplearmory_misc_subcats_are_all_listed(self):
+        """The pinned SimpleArmory mounts.json has no misc subcat SA_MISC does not list."""
+        sha = build_data.load_sources()["simplearmory"]["commit"]
+        path = os.path.join(build_data.CACHE, "kevinclement_SimpleArmory", sha, "static", "data", "mounts.json")
+        if not os.path.isfile(path):
+            self.skipTest("SimpleArmory not cached")
+        listed = {(cat, sub) for cat, secs in self.SA_MISC.items() for subs in secs.values() for sub in subs}
+        for cat in build_data._read_json(path):
+            if cat["name"] in build_data.EXPANSIONS or cat["name"] == "World Events":
+                continue
+            for sub in cat.get("subcats") or []:
+                self.assertIn((cat["name"], sub["name"]), listed)
+
+    def test_misc_catch_all_duplicates_keep_the_first_sighting(self):
+        # Limited Time/Midnight: Season 2 (limited) is seen before PVP/Vicious Saddle (pvp): both
+        # are catch-all misc sections, so the first sighting stays (duplicate resolution as before F15).
+        m = self.mounts[3002]
+        self.assertEqual((m["tab"], m["section"], m["group"]), ("misc", "limited", "Midnight: Season 2"))
 
     def test_fixture_delves_subcat_is_delve(self):
         m = self.mounts[9001]
@@ -174,7 +268,8 @@ class BuildDataTests(unittest.TestCase):
         self.assertIsNone(self.mounts[285].get("exp"))
         self.assertEqual(self.mounts[285]["section"], "profession")
         self.assertEqual(self.mounts[376]["section"], "shop")
-        self.assertEqual(self.mounts[230]["section"], "other")
+        self.assertEqual(self.mounts[230]["section"], "promotion")
+        self.assertEqual(self.mounts[174]["section"], "collection")
 
     def test_duplicates_prefer_specific_classification(self):
         # Limited Time/Vendor (misc/other) loses to Midnight/Vendor (journal/vendor).

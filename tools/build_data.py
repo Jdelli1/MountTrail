@@ -156,20 +156,59 @@ HOLIDAYS = {
 }
 
 
+# Misc sections of the non-expansion SimpleArmory categories, in the Misc tab's
+# order (Logic/Journal.lua VIEW_ORDER.misc, before "unobtainable"). The
+# expansion "Achievement" subcats are misc "achievement" (the Achievements tab).
+MISC_SECTIONS = ["profession", "shop", "tradingpost", "pvp", "racial", "keystone", "promotion",
+                 "class", "bmah", "collection", "limited", "other"]
+
+# Whole categories -> misc section.
+MISC_CATEGORIES = {
+    "Professions": "profession",
+    "PVP": "pvp",
+    "Racial": "racial",
+    "Mythic+": "keystone",
+    "Mounts": "collection",  # Collect / Reputations / Toys / Heirlooms: collection-count rewards
+    "Promotion": "promotion",  # except Blizzard Store (MISC_SUBCATS)
+}
+
+CLASSES = ("Warrior", "Paladin", "Hunter", "Rogue", "Priest", "Death Knight", "Shaman", "Mage",
+           "Warlock", "Monk", "Druid", "Demon Hunter", "Evoker")
+
+# Exact (category, subcat) -> misc section; wins over MISC_CATEGORIES.
+MISC_SUBCATS = {("Promotion", "Blizzard Store"): "shop", ("Other", "BMAH"): "bmah"}
+MISC_SUBCATS.update({("Other", cls): "class" for cls in CLASSES})
+
+# The only (category, subcat) pairs meant for misc "other"; any other pair that
+# lands there is a new SimpleArmory subcat to map (tools/test_build_data.py).
+OTHER_SUBCATS = {
+    ("Other", "Guild Vendor"),
+    ("Other", "Feats of Strength"),
+    ("Other", "Old School Ride"),
+    ("Other", "Make-A-Wish"),
+    ("Other", "Unknown"),
+}
+
+# Misc sections that do not beat another sighting of the same mount (see
+# build_mounts): the catch-alls F15 split out of the old misc "other", so
+# duplicate resolution (and so every mount's tab and group) is as before.
+WEAK_MISC = {"pvp", "racial", "keystone", "promotion", "class", "bmah", "collection", "limited", "other"}
+
+
 def classify(category, subcat):
     """Map a SimpleArmory (category, subcat) pair to (tab, section)."""
     if category in EXPANSIONS:
         if subcat == "Achievement":
             return "misc", "achievement"
         return "journal", journal_section(subcat)
-    if category == "Professions":
-        return "misc", "profession"
-    if category == "Promotion" and subcat == "Blizzard Store":
-        return "misc", "shop"
-    if category in ("Limited Time", "Past Limited Time") and subcat.startswith("Trading Post"):
-        return "misc", "tradingpost"
     if category == "World Events":
         return "holiday", HOLIDAYS.get(subcat, "other")
+    if category in ("Limited Time", "Past Limited Time"):
+        return "misc", "tradingpost" if subcat.startswith("Trading Post") else "limited"
+    if (category, subcat) in MISC_SUBCATS:
+        return "misc", MISC_SUBCATS[(category, subcat)]
+    if category in MISC_CATEGORIES:
+        return "misc", MISC_CATEGORIES[category]
     return "misc", "other"
 
 
@@ -406,7 +445,7 @@ _ITEM_FIXES = {
 
 def build_mounts(sa, rarity, stats=None):
     """Returns {mountID: mount dict}. Duplicates: a later sighting replaces an earlier one only when
-    the earlier one is misc/other (or flagged `dupe`) and the later one is not; tradingNow is kept
+    the earlier one is weak (a WEAK_MISC section, or flagged `dupe`) and the later one is not; tradingNow is kept
     if any sighting is a current Trading Post entry.
 
     Flags merged across all sightings: `unobtainable=true` only if every sighting is notObtainable;
@@ -436,7 +475,7 @@ def build_mounts(sa, rarity, stats=None):
                     "group": sname,
                 }
                 trading_now = cname == "Limited Time" and section == "tradingpost"
-                weak = (tab, section) == ("misc", "other") or bool(item.get("dupe"))
+                weak = (tab == "misc" and section in WEAK_MISC) or bool(item.get("dupe"))
                 side = FACTIONS.get(item.get("side"))
                 sides.setdefault(mid, set()).update([side] if side else FACTIONS.values())
                 obtainable[mid] = obtainable.get(mid, False) or not item.get("notObtainable")
@@ -788,15 +827,20 @@ def _write(path, text):
         fh.write(text)
 
 
+def load_sources():
+    """tools/sources.json (the pinned commits), or unpinned defaults."""
+    return _read_json(SOURCES_PATH) if os.path.exists(SOURCES_PATH) else {
+        "simplearmory": {"repo": "kevinclement/SimpleArmory", "commit": None},
+        "rarity": {"repo": "WowRarity/Rarity", "commit": None},
+    }
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--update", action="store_true", help="pin current master commits in tools/sources.json")
     args = ap.parse_args(argv)
 
-    sources = _read_json(SOURCES_PATH) if os.path.exists(SOURCES_PATH) else {
-        "simplearmory": {"repo": "kevinclement/SimpleArmory", "commit": None},
-        "rarity": {"repo": "WowRarity/Rarity", "commit": None},
-    }
+    sources = load_sources()
     if args.update:
         for key in ("simplearmory", "rarity"):
             sources[key]["commit"] = resolve_master(sources[key]["repo"])

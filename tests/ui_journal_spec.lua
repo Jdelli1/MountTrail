@@ -197,7 +197,13 @@ describe("ui journal", function()
 
     it("labels misc sections and falls back to the key", function()
       local ns = loadUI()
-      eq(ns.UI.SectionLabel("tradingpost"), "Trading Post")
+      local want = {
+        profession = "Professions", shop = "In-game Shop", tradingpost = "Trading Post", pvp = "PvP",
+        racial = "Racial", keystone = "Mythic+", promotion = "Promotions", class = "Class",
+        bmah = "Black Market", collection = "Collection rewards", limited = "Limited time", other = "Other",
+        unobtainable = "Unobtainable",
+      }
+      for key, label in pairs(want) do eq(ns.UI.SectionLabel(key), label, key) end
       eq(ns.UI.SectionLabel("timewalking"), "Timewalking")
       eq(ns.UI.SectionLabel("mystery"), "mystery")
     end)

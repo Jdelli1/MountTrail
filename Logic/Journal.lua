@@ -15,7 +15,8 @@ Journal.DefaultFilters = {
 local ORDER = {
   journal = { "dungeon", "raid", "world", "delve", "treasure", "quest", "activity",
     "reputation", "vendor", "other" },
-  misc = { "achievement", "profession", "shop", "tradingpost", "other" },
+  misc = { "achievement", "profession", "shop", "tradingpost", "pvp", "racial", "keystone", "promotion",
+    "class", "bmah", "collection", "limited", "other" },
   holiday = { "hallowsend", "brewfest", "loveisintheair", "noblegarden", "winterveil",
     "lunarfestival", "midsummer", "darkmoon", "timewalking", "anniversary", "other" },
 }
@@ -28,7 +29,9 @@ local VIEW_ORDER = {
   holidays = { "hallowsend", "brewfest", "loveisintheair", "noblegarden", "winterveil",
     "lunarfestival", "midsummer", "darkmoon", "anniversary", "other" },
   timewalking = { "timewalking" },
-  misc = { "profession", "shop", "tradingpost", "other", "unobtainable" },
+  -- tools/build_data.py MISC_SECTIONS, then the Show unobtainable section.
+  misc = { "profession", "shop", "tradingpost", "pvp", "racial", "keystone", "promotion", "class",
+    "bmah", "collection", "limited", "other", "unobtainable" },
 }
 
 local function rankOf(list)
@@ -46,6 +49,20 @@ Journal.Views = { "journal", "holidays", "achievements", "timewalking", "misc" }
 
 -- Section key of achievement mounts without an expansion.
 Journal.GENERAL = "General"
+
+-- The section keys of list view `view`, in order (a new table): the
+-- Achievements view's are `expansions` (else Data.Expansions) then General;
+-- an unknown view has none.
+function Journal.ViewSections(view, expansions)
+  local out = {}
+  if view == "achievements" then
+    for _, name in ipairs(expansions or (ns.Data and ns.Data.Expansions) or {}) do out[#out + 1] = name end
+    out[#out + 1] = Journal.GENERAL
+    return out
+  end
+  for i, key in ipairs(VIEW_ORDER[view] or {}) do out[i] = key end
+  return out
+end
 
 -- Misc section of not-owned unobtainable mounts when the "Show unobtainable
 -- mounts" option is on (query.showUnobtainable); listed last.
