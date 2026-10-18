@@ -1,5 +1,7 @@
 # In-game verification checklist
 
+> **Route planner retired (F16):** the Route tab is now **Checklist**. Skip any older step that mentions the route list, "Show completed", the List / Arrow toggle, `/azt arrow` or "Route: N steps left"; those features are gone for now.
+
 - [ ] Run `/dump (select(4, GetBuildInfo()))`; put that number in AzerothTrail.toc's `## Interface:` line (add it to the list). Until it is listed, enable "Load out of date AddOns" on the character screen for this first login.
 
 ## FIRST: risk check — attempt counting
