@@ -335,8 +335,9 @@ function view.Refresh()
       row.alt = n % 2 == 0
       row.desc = UI.ChecklistDescription(e, sourceText(e.id))
       row.tag = e.auto and L["auto"] or nil
-      row.pin = UI.LocationIcon(e.id)
-      -- The click goes to this lockout's boss (its instance's entrance).
+      row.pin = UI.LocationIcon(e.id, e.boss)
+      -- The click goes to this lockout's boss (its instance's entrance) and
+      -- the hover's lockout line is that boss's (UI.InitMountRow).
       row.routeBoss = e.boss
       if e.grouped then
         -- One lockout, several mounts: the boss names the row and the

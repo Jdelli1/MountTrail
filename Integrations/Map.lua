@@ -301,16 +301,21 @@ end
 
 -- Whether the mount has a location (its coords, or its holiday's): exactly
 -- when Map.Resolve's kind is not "none", without any API call. For the row
--- pins, checked on every list refresh.
-function Map.HasLocation(mountID)
-  return coordsFor(mountID) ~= nil
+-- pins, checked on every list refresh. `routeBoss` (optional): a route /
+-- checklist row's boss; a per-boss instance spec (Data.BossLockouts) is a
+-- location of its own (Map.Resolve goes to that instance's entrance).
+function Map.HasLocation(mountID, routeBoss)
+  return coordsFor(mountID) ~= nil or bossSpec(routeBoss)
 end
 
 -- Whether a click can drop a waypoint on a spot rather than only show a
 -- zone: x/y coords, or a dungeon / raid mount (journal sections, or on the
 -- route) whose instance entrance Map.Resolve looks up. A mount known only by
 -- its zone (a fishing mount, a zone-wide drop) is false. No API call.
-function Map.HasSpot(mountID)
+-- `routeBoss` (optional): a row boss with a per-boss instance spec is a spot
+-- (its instance's entrance, as Map.Resolve picks it).
+function Map.HasSpot(mountID, routeBoss)
+  if bossSpec(routeBoss) then return true end
   local coords = coordsFor(mountID)
   if not coords then return false end
   if type(coords.x) == "number" and type(coords.y) == "number" then return true end

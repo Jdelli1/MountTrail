@@ -48,6 +48,24 @@ describe("UI.LocationIcon", function()
     eq(ns.UI.LocationIcon(5), nil)
   end)
 
+  -- F12 (F10 carry-over): a row whose boss has a per-boss spec clicks through
+  -- to that boss's instance entrance (Map.Resolve), so it shows a pin.
+  it("a route boss with a per-boss instance spec is a spot, whatever the mount's own location", function()
+    local ns = loadUI(MOUNTS, ROUTE)
+    ns.Data.BossLockouts = {
+      Koralon = { instance = 624, boss = "Koralon the Flame Watcher", difficulties = { 3, 4 }, reset = "weekly" },
+      Ticked = { manual = true, reset = "weekly" },
+    }
+    eq(ns.Map.HasLocation(5, "Koralon"), true, "the boss's entrance")
+    eq(ns.Map.HasSpot(5, "Koralon"), true)
+    eq(ns.Map.HasSpot(2, "Koralon"), true, "zone-only mount, per-boss entrance")
+    eq(ns.UI.LocationIcon(5, "Koralon"), "spot")
+    eq(ns.UI.LocationIcon(2, "Koralon"), "spot")
+    eq(ns.UI.LocationIcon(2, "Altairus"), "zone", "a boss without a per-boss spec changes nothing")
+    eq(ns.UI.LocationIcon(5, "Ticked"), nil, "a per-boss spec without an instance has no entrance")
+    eq(ns.UI.LocationIcon(5, nil), nil)
+  end)
+
   it("ApplyPin shows the map pin for a spot and the map icon for a zone", function()
     local ns = loadUI(MOUNTS, ROUTE)
     local pin = { calls = {} }

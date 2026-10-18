@@ -331,8 +331,9 @@ local function setupRow(frame)
 
   frame:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   frame:SetScript("OnEnter", function(self)
-    local id = UI.RouteTargetMount(self.data)
-    if id then UI.ShowMountTooltip(self, id) end
+    -- The target boss's lockout (e.g. a Vault of Archavon watcher's own).
+    local id, boss = UI.RouteTargetMount(self.data)
+    if id then UI.ShowMountTooltip(self, id, boss) end
   end)
   frame:SetScript("OnLeave", function() UI.HideMountTooltip() end)
   frame:SetScript("OnClick", function(self, button)
@@ -477,9 +478,11 @@ local function refresh()
   local rows = ns.Route.Build((ns.Data and ns.Data.Route) or {}, ctx)
   for i, row in ipairs(rows) do
     row.alt = i % 2 == 0
-    -- The pin: the target mount has a location (UI.HasLocation).
-    local id = row.kind == "kill" and UI.RouteTargetMount(row) or nil
-    row.pin = id ~= nil and UI.LocationIcon(id) or nil
+    -- The pin: the target mount has a location, or its boss a per-boss
+    -- entrance (UI.LocationIcon).
+    local id, boss
+    if row.kind == "kill" then id, boss = UI.RouteTargetMount(row) end
+    row.pin = id ~= nil and UI.LocationIcon(id, boss) or nil
   end
   local name = Game.PlayerName()
 

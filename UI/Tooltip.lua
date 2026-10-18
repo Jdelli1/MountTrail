@@ -40,11 +40,12 @@ local function mountData(mountID)
   return mounts and mounts[mountID] or nil
 end
 
--- This character's lockout state for the spec that governs the mount's first
--- route boss (Data.BossLockouts, e.g. Koralon), else the mount's own spec:
+-- This character's lockout state for the spec that governs `routeBoss` (a
+-- route / checklist row's boss; default the mount's first route boss) when
+-- Data.BossLockouts has one (e.g. Koralon), else the mount's own spec:
 -- "saved" | "available" | "manual" | nil (not tracked).
-function UI.LockoutStatus(mountID)
-  local routeBoss = UI.RouteBoss and UI.RouteBoss(mountID) or nil
+function UI.LockoutStatus(mountID, routeBoss)
+  if routeBoss == nil then routeBoss = UI.RouteBoss and UI.RouteBoss(mountID) or nil end
   local spec = ns.Lockouts.SpecFor(mountID, routeBoss)
   if not spec then return nil end
   local Game = ns.Game
@@ -146,11 +147,12 @@ end
 
 -- Whether attempts are worth showing for a mount: it has a drop chance,
 -- kill statistics, or a lockout spec (Lockouts.SpecFor, incl. the route
--- boss's BossLockouts). Shop / vendor / profession mounts have none.
-function UI.IsTracked(mountID, m)
+-- boss's BossLockouts; `routeBoss` as UI.LockoutStatus). Shop / vendor /
+-- profession mounts have none.
+function UI.IsTracked(mountID, m, routeBoss)
   m = m or mountData(mountID) or {}
   if (type(m.chance) == "number" and m.chance > 0) or m.stats then return true end
-  local routeBoss = UI.RouteBoss and UI.RouteBoss(mountID) or nil
+  if routeBoss == nil then routeBoss = UI.RouteBoss and UI.RouteBoss(mountID) or nil end
   return ns.Lockouts.SpecFor(mountID, routeBoss) ~= nil
 end
 
@@ -158,7 +160,9 @@ end
 -- each { left =, r =, g =, b = [, wrap = true] } or, for the two Attempts
 -- lines and "Chance so far", { double = true, left =, right =, r, g, b (left colour),
 -- rr, rg, rb (right colour) }. See the file header for the order.
-function UI.TooltipLines(mountID)
+-- `routeBoss` (optional): the hovered route / checklist row's boss, whose
+-- lockout the "Lockout:" line reports (UI.LockoutStatus).
+function UI.TooltipLines(mountID, routeBoss)
   local m = mountData(mountID) or {}
   local lines = {}
 
@@ -174,7 +178,7 @@ function UI.TooltipLines(mountID)
     lines[#lines + 1] = line(string.format(L["1 in %d chance"], n), WHITE)
     lines[#lines + 1] = line(string.format(L["Lucky if you obtain in %d or less"], ns.Odds.LuckyBy(n)), GREY)
   end
-  if UI.IsTracked(mountID, m) then
+  if UI.IsTracked(mountID, m, routeBoss) then
     local counts = attempts(mountID, m)
     lines[#lines + 1] = double(L["Attempts (this character)"], tostring(counts.this))
     lines[#lines + 1] = double(L["Total attempts"], tostring(counts.total))
@@ -183,7 +187,7 @@ function UI.TooltipLines(mountID)
     end
   end
 
-  local status = UI.LockoutStatus(mountID)
+  local status = UI.LockoutStatus(mountID, routeBoss)
   lines[#lines + 1] = line(string.format(L["Lockout: %s"], L[STATUS_TEXT[status] or "—"]), GOLD)
 
   local achievementLines, achievementID = UI.AchievementLines(mountID)
@@ -228,7 +232,7 @@ end
 -- the data (Game.OnItemLoad) and repaint a frame later (C_Timer.After(0)),
 -- once per owner and mount, and
 -- never for an item that has loaded before.
-local shownOwner, shownMount
+local shownOwner, shownMount, shownBoss
 local waiting = {} -- owner -> { [mountID] = true } while a callback is pending
 local loadedItems = {} -- itemID -> true once a callback ran
 
@@ -239,8 +243,12 @@ local function repaint(owner)
   local tip = GameTooltip
   if not (shownOwner and tip and tip.IsOwned and tip:IsOwned(shownOwner)) then return end
   if owner ~= nil and owner ~= shownOwner then return end
-  local mountID = type(shownOwner) == "table" and shownOwner.mountID or shownMount
-  UI.ShowMountTooltip(shownOwner, mountID)
+  -- A list row carries its mount and route boss; other owners (route rows)
+  -- keep what they were shown with.
+  local row = type(shownOwner) == "table" and shownOwner.mountID ~= nil
+  local mountID = row and shownOwner.mountID or shownMount
+  local boss = row and shownOwner.routeBoss or shownBoss
+  UI.ShowMountTooltip(shownOwner, mountID, boss)
 end
 
 local function waitForItem(owner, mountID, item)
@@ -269,12 +277,14 @@ local function waitForItem(owner, mountID, item)
   end
 end
 
-function UI.ShowMountTooltip(owner, mountID)
+-- `routeBoss` (optional): the route / checklist row's boss (the lockout
+-- line follows that boss's spec: UI.TooltipLines).
+function UI.ShowMountTooltip(owner, mountID, routeBoss)
   local tip = GameTooltip
   if not (tip and mountID) then return end
-  shownOwner, shownMount = owner, mountID
+  shownOwner, shownMount, shownBoss = owner, mountID, routeBoss
   local m = mountData(mountID) or {}
-  local lines = UI.TooltipLines(mountID)
+  local lines = UI.TooltipLines(mountID, routeBoss)
   tip:SetOwner(owner, "ANCHOR_RIGHT")
   if m.item and tip.SetItemByID then
     tip:SetItemByID(m.item)
@@ -313,7 +323,7 @@ if ns.AchievementScan then
 end
 
 function UI.HideMountTooltip()
-  shownOwner, shownMount = nil, nil
+  shownOwner, shownMount, shownBoss = nil, nil, nil
   if GameTooltip_Hide then
     GameTooltip_Hide()
   elseif GameTooltip then

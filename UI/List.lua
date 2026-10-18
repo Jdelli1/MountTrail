@@ -766,10 +766,12 @@ end
 -- Whether a row shows the pin icon: the mount has a location to point at
 -- (Map.HasLocation: coords, no API call, so it is cheap on every refresh).
 -- false without ns.Map or when the check errors (Game.ReportError).
-function UI.HasLocation(mountID)
+-- `routeBoss` (optional): the route / checklist row's boss (a per-boss
+-- instance spec is a location: Map.HasLocation).
+function UI.HasLocation(mountID, routeBoss)
   local map = ns.Map
   if not (mountID and map and type(map.HasLocation) == "function") then return false end
-  local good, has = pcall(map.HasLocation, mountID)
+  local good, has = pcall(map.HasLocation, mountID, routeBoss)
   if not good then
     if ns.Game and ns.Game.ReportError then ns.Game.ReportError(has) end
     return false
@@ -781,11 +783,13 @@ end
 -- exact spot or a dungeon / raid entrance, Map.HasSpot), "zone" (only the
 -- zone is known: a click opens its map) or nil (no location). Cheap: no API
 -- call. A failing check reports to Game.ReportError and counts as a zone.
-function UI.LocationIcon(mountID)
-  if not UI.HasLocation(mountID) then return nil end
+-- `routeBoss` (optional): the route / checklist row's boss, so a per-boss
+-- entrance (e.g. a Vault of Archavon watcher) shows the pin.
+function UI.LocationIcon(mountID, routeBoss)
+  if not UI.HasLocation(mountID, routeBoss) then return nil end
   local map = ns.Map
   if not (map and type(map.HasSpot) == "function") then return "zone" end
-  local good, spot = pcall(map.HasSpot, mountID)
+  local good, spot = pcall(map.HasSpot, mountID, routeBoss)
   if not good then
     if ns.Game and ns.Game.ReportError then ns.Game.ReportError(spot) end
     return "zone"
@@ -1132,7 +1136,8 @@ local function setupRow(row)
     if self.tooltip then
       self.tooltip(self)
     elseif self.mountID then
-      UI.ShowMountTooltip(self, self.mountID)
+      -- A route / checklist row's boss decides the lockout line.
+      UI.ShowMountTooltip(self, self.mountID, self.routeBoss)
     end
   end)
   row:SetScript("OnLeave", function() UI.HideMountTooltip() end)
@@ -1168,7 +1173,8 @@ end
 -- owned=, depth= (2: indented), desc= (UI.RowDescription), tag=, alt=
 -- (striped), pin= (UI.HasLocation), name= (overrides the mount's name),
 -- tooltip= (function(row) shown on hover instead of the mount tooltip),
--- routeBoss= (the row's route boss, passed to the click: UI.HandleRowClick) }.
+-- routeBoss= (the row's route boss, passed to the click: UI.HandleRowClick,
+-- and to the hover: UI.ShowMountTooltip's lockout line) }.
 -- Rows are UI.MOUNT_ROW_HEIGHT tall.
 UI.InitMountRow = initRow
 UI.MOUNT_ROW_HEIGHT = ROW_HEIGHT

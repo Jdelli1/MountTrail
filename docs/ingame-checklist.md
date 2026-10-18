@@ -373,3 +373,9 @@ Route tab > Checklist: Daily and Weekly are each split into collapsible expansio
 - [ ] Sub-header counts: e.g. Weekly > Wrath of the Lich King `(1/7)` after one Wrath kill; the Weekly header's own count is unchanged from before F12 (the sum over its sub-headers).
 - [ ] Collapse one sub-header (e.g. Weekly > Cataclysm), `/reload`: it stays collapsed, the others stay open; collapsing Weekly still hides everything under it.
 - [ ] Finish every lockout of one expansion: its sub-header disappears; the reset header still counts those lockouts as done.
+
+Boss-aware hover and pins (F10 carry-over): a checklist or route row's tooltip `Lockout:` line reports the row's own boss (its per-boss spec when Data.BossLockouts has one), and a row whose boss has a per-boss instance spec shows the map pin (its click goes to that instance's entrance) even when the mount itself has no spot.
+
+- [ ] Checklist > Weekly > Wrath of the Lich King: kill Koralon only (10 or 25), then hover the Koralon row and the Archavon row: Koralon reads `Lockout: Saved` only once both sizes are done, Archavon reads `Lockout: Available`; Emalon / Toravon rows each show their own state.
+- [ ] Route tab: hover the Vault of Archavon kill row: the `Lockout:` line follows the boss the row targets (the first one not done).
+- [ ] The Koralon / Emalon / Toravon rows show the map pin (not the zone icon); click: waypoint at the Vault of Archavon entrance.

@@ -538,5 +538,35 @@ describe("ui route", function()
       eq(ns.UI.LockoutStatus(286), "saved", "Koralon spec, not Archavon's")
       eq(ns.UI.LockoutStatus(781), "saved", "Hoarder spec instead of manual")
     end)
+
+    -- F12 (F10 carry-over): a checklist / route row's hover names its own boss.
+    it("a row's own route boss wins over the mount's first route boss", function()
+      local ns = loadUI({
+        SavedRows = function()
+          return { { instance = 624, difficulty = 3, bosses = { { name = "Koralon the Flame Watcher", killed = true } } },
+                   { instance = 624, difficulty = 4, bosses = { { name = "Koralon the Flame Watcher", killed = true } } } }
+        end,
+      }, {
+        Route = route,
+        Mounts = { [286] = { name = "Grand Black War Mammoth" } },
+        Lockouts = {
+          [286] = { instance = 624, boss = "Archavon the Stone Watcher", difficulties = { 3, 4 }, reset = "weekly" },
+        },
+        BossLockouts = {
+          ["Koralon"] = { instance = 624, boss = "Koralon the Flame Watcher", difficulties = { 3, 4 }, reset = "weekly" },
+        },
+      })
+      eq(ns.UI.LockoutStatus(286, "Archavon"), "available", "the Archavon row: Archavon's own lockout")
+      eq(ns.UI.LockoutStatus(286, "Koralon"), "saved")
+      eq(ns.UI.LockoutStatus(286), "saved", "no row boss: the first route boss (Koralon)")
+      local function lockoutLine(boss)
+        for _, l in ipairs(ns.UI.TooltipLines(286, boss)) do
+          if l.left and l.left:find("^Lockout: ") then return l.left end
+        end
+      end
+      eq(lockoutLine("Archavon"), "Lockout: Available")
+      eq(lockoutLine("Koralon"), "Lockout: Saved")
+      eq(lockoutLine(nil), "Lockout: Saved")
+    end)
   end)
 end)

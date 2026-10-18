@@ -582,6 +582,32 @@ describe("ui build", function()
     box.view.factory(function(_, init) init(f, data) end, data)
     f:RunScript("OnClick", "LeftButton")
     eq(got[#got], { 22, "LeftButton", "Two" }, "the target boss rides along (its instance's entrance)")
+    -- F12: the hover's lockout line is about that boss too.
+    local shown = {}
+    ns.UI.ShowMountTooltip = function(_, id, boss) shown[#shown + 1] = { id, boss } end
+    f:RunScript("OnEnter")
+    eq(shown[#shown], { 22, "Two" }, "the tooltip names the target boss")
+  end)
+
+  it("route rows: the pin asks about the target boss (per-boss entrances)", function()
+    local ns = loadUI()
+    local asked = {}
+    ns.UI.LocationIcon = function(id, boss) asked[#asked + 1] = { id, boss }; return "spot" end
+    ns.ToggleWindow()
+    ns.UI.SelectTab("route")
+    local root = content(ns, "route").children[2]
+    local box
+    for _, child in ipairs(root.children) do if child.view then box = child end end
+    local want, withBoss = {}, 0
+    for _, row in ipairs(box.provider.rows) do
+      local id, boss = ns.UI.RouteTargetMount(row)
+      if row.kind == "kill" and id then
+        want[#want + 1] = { id, boss }
+        if boss then withBoss = withBoss + 1 end
+      end
+    end
+    ok(withBoss > 0, "kill rows with bosses")
+    eq(asked, want, "each kill row's pin names its target boss")
   end)
 
   -- Mount rows under each section header of a provider -> { [key] = n }.
@@ -1034,6 +1060,14 @@ describe("ui build", function()
     -- A row: list look, pin, click, hover. A game-tracked lockout has no
     -- tick box (the game decides); the icon keeps its place either way.
     local f, row = frames[3], rows[3]
+    -- F12: hover and pin use the row's boss (the lockout line of that boss).
+    local shown = {}
+    local oldShow = ns.UI.ShowMountTooltip
+    ns.UI.ShowMountTooltip = function(_, id, boss) shown[#shown + 1] = { id, boss } end
+    f:RunScript("OnEnter")
+    ns.UI.ShowMountTooltip = oldShow
+    eq(shown[1], { row.id, row.entry.boss }, "hover names the row's boss")
+    eq(row.routeBoss, row.entry.boss)
     ok(not row.entry.spec.manual, "the first daily entry is game-tracked")
     eq(row.depth, 2, "under its expansion sub-header")
     eq(f.Check:IsShown(), false, "no tick box on a game-tracked lockout")
