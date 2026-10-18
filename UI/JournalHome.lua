@@ -75,6 +75,7 @@ end
 
 local function paintTile(card, have, total)
   card.have, card.total = have, total
+  card:ResetLook() -- a tile clicked while hovered gets no OnLeave
   card.Count:SetText(string.format(L["%d / %d"], have, total))
   card.Percent:SetText(string.format(L["%d%%"], UI.HomePercent(have, total)))
   card.Bar:SetMinMaxValues(0, math.max(total, 1))
@@ -201,10 +202,14 @@ local function createCard(i, name)
     bg:SetColorTexture(unpack(FILL_HOVER))
     edge:SetColor(unpack(EDGE_HOVER))
   end)
-  card:SetScript("OnLeave", function()
+  -- Plain look; also on hide, so a tile clicked while hovered (hidden with
+  -- the home, no OnLeave) does not come back from Back still lit.
+  function card:ResetLook()
     bg:SetColorTexture(unpack(FILL))
     edge:SetColor(unpack(EDGE))
-  end)
+  end
+  card:SetScript("OnLeave", card.ResetLook)
+  card:SetScript("OnHide", card.ResetLook)
   card:SetScript("OnClick", function() showList(name) end)
   return card
 end

@@ -220,6 +220,28 @@ describe("journal home", function()
     ok(home.Summary:IsVisible(), "summary back with the home")
   end)
 
+  it("a clicked tile comes back from Back without its hover look", function()
+    local ns = loadUI()
+    local home, journal = openHome(ns)
+    local tile = tiles(ns, home)[3]
+    local base = tile.Bg.color
+    -- Hover then click: the tile is hidden with the home, no OnLeave arrives.
+    tile:RunScript("OnEnter")
+    tile:RunScript("OnClick", "LeftButton")
+    local back
+    for _, c in ipairs(journal.children[3].children) do
+      if c.template == "UIPanelButtonTemplate" then back = c end
+    end
+    back:RunScript("OnClick", "LeftButton")
+    eq(tile.Bg.color, base, "plain fill again")
+    eq(tile.Edge.edges[1].color, { 1, 1, 1, 0.1 }, "faint edge again")
+    -- The client fires OnHide on the tile when the home hides; it resets too.
+    tile:RunScript("OnEnter")
+    tile:RunScript("OnHide")
+    eq(tile.Bg.color, base, "OnHide resets the fill")
+    eq(tile.Edge.edges[1].color, { 1, 1, 1, 0.1 }, "OnHide resets the edge")
+  end)
+
   it("the 4 x 3 grid and the strip fit the content area of the 800 x 560 window", function()
     local ns = loadUI()
     local G = ns.UI.HomeLayout
