@@ -20,6 +20,7 @@ for _, name in ipairs({ "SetTexCoord", "SetJustifyH", "SetWordWrap", "SetDesatur
   RegionMT[name] = RegionMT[name] or noop
 end
 function RegionMT:SetFontObject(font) self.font = font end
+function RegionMT:SetDesaturated(on) self.desaturated = on end
 function RegionMT:GetStringWidth() return 60 end
 function RegionMT:GetWidth() return self.width or 0 end
 function FrameMT:RegisterForClicks(...) self.clickButtons = { ... } end
@@ -45,6 +46,7 @@ ScrollUtil = { InitScrollBoxListWithScrollBar = function(box, bar, view) box.vie
 function CreateDataProvider(rows) return { rows = rows } end
 IsControlKeyDown = function() return false end
 GameFontHighlightSmall = { name = "GameFontHighlightSmall" }
+GameFontNormal = { name = "GameFontNormal" }
 function CreateFont(name)
   local font = { name = name }
   function font:SetFontObject(base) self.base = base end
@@ -179,10 +181,50 @@ describe("ui build", function()
     for _, f in ipairs(frames) do
       if f.Stripe then
         if f.Stripe:IsShown() then sawStripe = true else sawPlain = true end
-        ok(f.Name.font == "GameFontNormal" or f.Name.font == "GameFontDisable", "GameFont family")
+        ok(f.Name.font == "GameFontNormal" or f.Name.font == ns.UI.OwnedFont(), "GameFont family")
       end
     end
     ok(sawStripe and sawPlain, "every other row striped")
+  end)
+
+  it("Collected on: owned rows get a light green background, full-colour icon, green name, no strike", function()
+    local ns = loadUI({ filters = { collected = true } })
+    local list = openJournalList(ns)
+    local rows = list.ScrollBox.provider.rows
+    local frames = render(list.ScrollBox)
+    local owned, plain
+    for i, r in ipairs(rows) do
+      if not r.header and r.owned and not owned then owned = i end
+      if not r.header and not r.owned and not plain then plain = i end
+    end
+    ok(owned and plain, "owned and missing rows listed")
+    local f = frames[owned]
+    ok(f.Owned:IsShown(), "green background on")
+    eq(f.Owned.color, { 0.25, 0.85, 0.35, 0.14 })
+    eq(f.Owned.layer, "BACKGROUND")
+    eq(f.Owned.sublevel, 1, "above the stripe")
+    eq(f.Icon.desaturated, false, "full-colour icon")
+    eq(f.Strike, nil, "no strikethrough")
+    eq(f.Name.font, ns.UI.OwnedFont(), "light green name")
+    local p = frames[plain]
+    ok(not p.Owned:IsShown(), "missing mounts: no green")
+    eq(p.Name.font, "GameFontNormal")
+    eq(p.Icon.desaturated, false)
+    -- A recycled frame drops the green look.
+    list.ScrollBox.view.factory(function(_, init) init(f, rows[plain]) end, rows[plain])
+    ok(not f.Owned:IsShown(), "recycled: green off")
+    eq(f.Name.font, "GameFontNormal")
+    list.ScrollBox.view.factory(function(_, init) init(f, rows[owned]) end, rows[owned])
+    ok(f.Owned:IsShown(), "and on again")
+  end)
+
+  it("UI.OwnedFont: a light green copy of GameFontNormal, GameFontGreen without CreateFont", function()
+    local ns = loadUI()
+    local name = ns.UI.OwnedFont()
+    eq(name, "AzerothTrailFontOwned")
+    local font = _G[name]
+    eq(font.base, GameFontNormal)
+    eq(font.color, { 0.55, 0.95, 0.6 })
   end)
 
   it("the Filter menu writes ns.db.global.filters, refreshes and drives the reset arrow", function()

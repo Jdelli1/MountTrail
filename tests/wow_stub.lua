@@ -194,9 +194,10 @@ function Frame:CreateFontString(name, layer, template)
   fs.layer, fs.template = layer, template
   return fs
 end
-function Frame:CreateTexture(name, layer)
+function Frame:CreateTexture(name, layer, template, sublevel)
   local tex = newRegion("Texture", name, self)
   tex.layer = layer
+  tex.sublevel = sublevel
   return tex
 end
 -- Fires a script handler as the client would (OnClick, OnDragStop, ...).

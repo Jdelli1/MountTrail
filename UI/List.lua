@@ -899,6 +899,24 @@ function UI.SourceFont()
   return sourceFont
 end
 
+-- Name font of owned (collected) mount rows: GameFontNormal in a light green
+-- (readable on the dark fill and the green row tint); GameFontGreen when the
+-- client has no CreateFont.
+local OWNED_FONT = "AzerothTrailFontOwned"
+local ownedFont
+function UI.OwnedFont()
+  if ownedFont then return ownedFont end
+  if type(CreateFont) == "function" and GameFontNormal then
+    local font = _G[OWNED_FONT] or CreateFont(OWNED_FONT)
+    font:SetFontObject(GameFontNormal)
+    font:SetTextColor(0.55, 0.95, 0.6)
+    ownedFont = OWNED_FONT
+  else
+    ownedFont = "GameFontGreen"
+  end
+  return ownedFont
+end
+
 local function filtersDB()
   return ns.db and ns.db.global and ns.db.global.filters or nil
 end
@@ -1062,6 +1080,13 @@ local function setupRow(row)
   stripe:SetAllPoints(row)
   stripe:SetColorTexture(1, 1, 1, 0.025)
   row.Stripe = stripe
+  -- Owned (collected) mounts, listed with the Collected filter on: a light
+  -- translucent green tint above the stripe.
+  local owned = row:CreateTexture(nil, "BACKGROUND", nil, 1)
+  owned:SetAllPoints(row)
+  owned:SetColorTexture(0.25, 0.85, 0.35, 0.14)
+  owned:Hide()
+  row.Owned = owned
   local highlight = row:CreateTexture(nil, "HIGHLIGHT")
   highlight:SetAllPoints(row)
   highlight:SetColorTexture(1, 1, 1, 0.07)
@@ -1086,13 +1111,6 @@ local function setupRow(row)
   name:SetJustifyH("LEFT")
   name:SetWordWrap(false)
   row.Name = name
-
-  -- Owned mounts: a thin line through the name (a strikethrough look).
-  local strike = row:CreateTexture(nil, "OVERLAY")
-  strike:SetHeight(1)
-  strike:SetPoint("LEFT", name, "LEFT", 0, 0)
-  strike:SetColorTexture(0.6, 0.6, 0.6, 0.9)
-  row.Strike = strike
 
   local source = row:CreateFontString(nil, "OVERLAY", UI.SourceFont())
   source:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -3)
@@ -1129,19 +1147,11 @@ local function initRow(row, data)
   row.Source:SetText(UI.RowSourceText(data))
   row.Stripe:SetShown(data.alt == true)
   UI.ShowPin(row.Pin, data.pin)
-  if data.owned then
-    row.Name:SetFontObject("GameFontDisable")
-    row.Icon:SetDesaturated(true)
-    local width = row.Name:GetStringWidth() or 0
-    local max = row.Name:GetWidth() or 0
-    if max > 0 and width > max then width = max end
-    row.Strike:SetWidth(math.max(width, 1))
-    row.Strike:Show()
-  else
-    row.Name:SetFontObject("GameFontNormal")
-    row.Icon:SetDesaturated(false)
-    row.Strike:Hide()
-  end
+  -- Owned (collected) mounts: green tint and a light green name, the icon
+  -- in full colour; everything reset for a recycled frame.
+  row.Owned:SetShown(data.owned == true)
+  row.Name:SetFontObject(data.owned and UI.OwnedFont() or "GameFontNormal")
+  row.Icon:SetDesaturated(false)
 end
 
 -- The mount row look, shared by other mount lists (the zone panel): a
