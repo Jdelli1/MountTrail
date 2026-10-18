@@ -154,6 +154,8 @@ function addon:OnInitialize()
       ticks = {},
       showCompleted = false,
       routeMode = "list", -- "list" | "arrow" (UI\Arrow.lua)
+      routeView = "route", -- Route tab sub-view: "route" | "checklist" (UI\ChecklistView.lua)
+      checklistHideDone = false, -- Checklist: hide done lockouts
     },
   }, true)
   self:RegisterChatCommand("azt", "OnSlash")

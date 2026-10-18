@@ -133,6 +133,14 @@ L["Locked"] = "Locked"
 -- Route arrow
 L["List"] = "List"
 L["Arrow"] = "Arrow"
+
+-- Route tab: Checklist sub-view
+L["Checklist"] = "Checklist"
+L["Daily"] = "Daily"
+L["Weekly"] = "Weekly"
+L["%s · resets in %s"] = "%s · resets in %s"
+L["Hide done"] = "Hide done"
+L["No lockouts left to farm on this character."] = "No lockouts left to farm on this character."
 L["Skip"] = "Skip"
 L["via: %s"] = "via: %s"
 L["%d yd"] = "%d yd"

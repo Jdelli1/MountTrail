@@ -945,6 +945,11 @@ local function initHeader(frame, data)
   frame.Label:SetText(UI.HeaderText(data))
 end
 
+-- The section / sub-header row look, shared with the route checklist
+-- (UI/ChecklistView.lua): a ScrollBox "Frame" initializer; set
+-- frame.onToggle(key) for clicks.
+UI.InitListHeader = initHeader
+
 -- Crops `icon` past its baked-in edge and, when the client has the modern
 -- rounded icon mask, masks it.
 function UI.StyleIcon(owner, icon)

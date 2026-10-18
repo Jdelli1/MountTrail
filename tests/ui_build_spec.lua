@@ -7,7 +7,7 @@
 -- UI/Arrow.lua is not loaded.
 
 local UI_FILES = { "UI/Frame.lua", "UI/Tooltip.lua", "UI/List.lua", "UI/JournalHome.lua",
-  "UI/Tabs.lua", "UI/RouteView.lua", "UI/ZonePanel.lua" }
+  "UI/Tabs.lua", "UI/RouteView.lua", "UI/ChecklistView.lua", "UI/ZonePanel.lua" }
 
 -- Widget methods the views call that the base stub does not need.
 local probe = CreateFrame("Frame")
@@ -879,6 +879,97 @@ describe("ui build", function()
     local found = false
     for _, line in ipairs(ns.addon.printed) do if line:find("^/azt zone") then found = true end end
     ok(found, "help lists /azt zone")
+  end)
+
+  it("Route header: a Route / Checklist switch beside List / Arrow swaps the sub-views", function()
+    local ns = loadUI()
+    ns.Arrow = { Mode = function() return "list" end, SetMode = function() end }
+    ns.ToggleWindow()
+    ns.UI.SelectTab("route")
+    local root = content(ns, "route").children[2]
+    local header = root.children[1]
+    local routeBox
+    for _, child in ipairs(root.children) do if child.view then routeBox = child end end
+    local checklist = header.Checklist
+    ok(checklist, "checklist sub-view built")
+    eq(header.ViewControl.width, 64 * 2 + 3)
+    eq({ header.ViewControl:GetPoint(1) }, { "TOPRIGHT", header.ModeControl, "TOPLEFT", -8, 0 },
+      "left of List / Arrow on the same line")
+    eq(header.RouteViewButton.Label.font, "GameFontNormalSmall", "Route selected by default")
+    eq(header.ChecklistViewButton.Label.font, "GameFontDisableSmall")
+    ok(routeBox:IsShown() and not checklist:IsShown(), "route list shown")
+    ok(header.ShowCompleted:IsShown() and not header.HideDone:IsShown(), "Show completed on the route")
+
+    header.ChecklistViewButton:RunScript("OnClick")
+    eq(ns.db.char.routeView, "checklist")
+    eq(header.ChecklistViewButton.Label.font, "GameFontNormalSmall")
+    eq(header.ChecklistViewButton.Bg.color, { 1, 0.82, 0, 0.22 })
+    eq(header.RouteViewButton.Label.font, "GameFontDisableSmall")
+    ok(checklist:IsShown() and not routeBox:IsShown(), "checklist shown, route list hidden")
+    ok(header.HideDone:IsShown() and not header.ShowCompleted:IsShown(), "Hide done replaces Show completed")
+    ok(header.ModeControl:IsShown(), "List / Arrow stays")
+    ok(header.Flavour:GetText():find("lockouts left", 1, true), "flavour counts checklist entries")
+
+    header.RouteViewButton:RunScript("OnClick")
+    eq(ns.db.char.routeView, "route")
+    ok(routeBox:IsShown() and not checklist:IsShown(), "back to the route")
+  end)
+
+  it("Checklist rows: headers with reset timers and done/total, tick boxes, clicks, collapse, Hide done", function()
+    local ns = loadUI()
+    ns.Map.HasLocation = function(id) return id % 2 == 0 end
+    local got = {}
+    ns.UI.HandleRowClick = function(id, button) got[#got + 1] = { id, button } end
+    ns.db.char.routeView = "checklist"
+    ns.ToggleWindow()
+    ns.UI.SelectTab("route")
+    local header = content(ns, "route").children[2].children[1]
+    local box = header.Checklist.ScrollBox
+    local rows = box.provider.rows
+    eq(rows[1].header, true)
+    eq(rows[1].key, "checklist|daily")
+    local frames = render(box)
+    ok(frames[1].Label:GetText():find("^Daily \194\183 resets in "), frames[1].Label:GetText())
+    ok(frames[1].Label:GetText():find("(0/" .. rows[1].total .. ")", 1, true), "done/total")
+    local weekly
+    for i, row in ipairs(rows) do if row.header and row.reset == "weekly" then weekly = i end end
+    ok(weekly and weekly > 2, "weekly header after the daily rows")
+
+    -- A row: list look, tick box in front of the icon, pin, click, hover.
+    local f, row = frames[2], rows[2]
+    ok(f.Check and f.Check:IsShown() ~= false, "tick box")
+    eq({ f.Icon:GetPoint(1) }, { "LEFT", f, "LEFT", 6 + 22 + 4, 0 }, "icon after the tick box")
+    eq(f.Pin:IsShown(), row.id % 2 == 0)
+    ok(f.Source:GetText() ~= "", "grey description line")
+    f:RunScript("OnClick", "LeftButton")
+    eq(got[1], { row.id, "LeftButton" })
+
+    -- Ticking writes the route's tick key and redraws with the entry done.
+    local key = row.entry.key
+    f.Check:RunScript("OnClick")
+    ok(ns.db.char.ticks[key], "ticked " .. tostring(key))
+    rows = box.provider.rows
+    eq(rows[1].owned, 1, "1 done")
+    local last
+    for i, r in ipairs(rows) do if r.entry and r.entry.key == key then last = i end end
+    ok(last and last < weekly and rows[last].done, "the ticked entry sinks to the end of its group")
+    eq(render(box)[last].Name.font, "GameFontDisable", "done rows are dimmed")
+
+    -- Hide done drops it; the count stays.
+    header.HideDone.checked = true
+    header.HideDone:RunScript("OnClick")
+    eq(ns.db.char.checklistHideDone, true)
+    rows = box.provider.rows
+    eq(rows[1].owned, 1)
+    for _, r in ipairs(rows) do ok(not (r.entry and r.entry.key == key), "done row hidden") end
+
+    -- Collapsing the daily header (saved like the list headers).
+    frames = render(box)
+    frames[1]:RunScript("OnMouseUp", "LeftButton")
+    eq(ns.db.global.collapsed["checklist|daily"], true)
+    rows = box.provider.rows
+    eq(rows[2].header, true, "daily rows hidden")
+    eq(rows[2].key, "checklist|weekly")
   end)
 
   it("Route falls back to the classic checkbox", function()

@@ -3,7 +3,10 @@ local ADDON, ns = ...
 -- Route tab: this character's farming route (Logic/Route.lua rows) with the
 -- reset timers, a "Show completed" box, a List / Arrow mode toggle,
 -- Oregon-Trail flavour lines, a tick box per kill row and a location pin
--- (clicks as on the mount lists, aimed at UI.RouteTargetMount). Also
+-- (clicks as on the mount lists, aimed at UI.RouteTargetMount). A second
+-- segmented control (Route / Checklist, ns.db.char.routeView) swaps the list
+-- for the daily / weekly checklist (UI\ChecklistView.lua) under the same
+-- header, where "Hide done" takes the "Show completed" spot. Also
 -- defines ns.UI.RouteRemaining for the minimap tooltip and ns.UI.RouteNextStep
 -- for the route arrow (UI\Arrow.lua).
 --
@@ -401,9 +404,10 @@ local function initRow(frame, data)
 end
 
 local MODE_WIDTH, MODE_HEIGHT = 60, 20
+local VIEW_WIDTH = 64 -- Route / Checklist segments ("Checklist" is the widest label)
 
 local view = {}
-local root, header, scrollBox
+local root, header, scrollBox, scrollBar
 
 local function routeMode()
   return (ns.Arrow and ns.Arrow.Mode()) or "list"
@@ -425,11 +429,46 @@ local function paintMode()
   local arrow = routeMode() == "arrow"
   paintSegment(header.ArrowMode, arrow)
   paintSegment(header.ListMode, not arrow)
+  local checklist = UI.RouteSubView(charDB()) == "checklist"
+  paintSegment(header.ChecklistViewButton, checklist)
+  paintSegment(header.RouteViewButton, not checklist)
+end
+
+local function resetsText(Game)
+  return string.format(L["Weekly reset in %s"], UI.FormatDuration(Game.UntilWeekly()))
+    .. "    " .. string.format(L["Daily reset in %s"], UI.FormatDuration(Game.UntilDaily()))
+end
+
+-- Checklist sub-view (UI\ChecklistView.lua): its own list replaces the
+-- route's; "Hide done" replaces "Show completed".
+local function refreshChecklist(Game)
+  local checklist = UI.ChecklistView
+  scrollBox:Hide()
+  scrollBar:Hide()
+  header.ShowCompleted:Hide()
+  header.HideDone:Show()
+  local char = charDB()
+  header.HideDone:SetChecked((char and char.checklistHideDone) == true)
+  checklist.SetShown(true)
+  local built = checklist.Refresh()
+  local name = Game.PlayerName()
+  header.Name:SetText(name or "")
+  header.Resets:SetText(resetsText(Game))
+  header.Flavour:SetText(UI.RouteFlavour(built and ns.Checklist.Remaining(built) or 0, name))
+  paintMode()
 end
 
 local function refresh()
   if not root then return end
   local Game = ns.Game
+  if header.Checklist and UI.RouteSubView(charDB()) == "checklist" then
+    return refreshChecklist(Game)
+  end
+  if header.Checklist then UI.ChecklistView.SetShown(false) end
+  scrollBox:Show()
+  scrollBar:Show()
+  header.ShowCompleted:Show()
+  header.HideDone:Hide()
   local ctx = UI.RouteContext(Game.Now())
   local rows = ns.Route.Build((ns.Data and ns.Data.Route) or {}, ctx)
   for i, row in ipairs(rows) do
@@ -441,8 +480,7 @@ local function refresh()
   local name = Game.PlayerName()
 
   header.Name:SetText(name or "")
-  header.Resets:SetText(string.format(L["Weekly reset in %s"], UI.FormatDuration(Game.UntilWeekly()))
-    .. "    " .. string.format(L["Daily reset in %s"], UI.FormatDuration(Game.UntilDaily())))
+  header.Resets:SetText(resetsText(Game))
   header.ShowCompleted:SetChecked(ctx.showCompleted)
   header.Flavour:SetText(UI.RouteFlavour(countLeft(rows), name))
   paintMode()
@@ -510,49 +548,83 @@ local function build(parent)
   end)
   header.ShowCompleted = show
 
-  -- List / Arrow toggle on the resets line's right end (ns.db.char.routeMode):
-  -- a flat two-segment control in a 1 px frame.
-  local modes = CreateFrame("Frame", nil, header)
-  -- 1 px frame + two segments + a 1 px divider between them.
-  modes:SetSize(MODE_WIDTH * 2 + 3, MODE_HEIGHT + 2)
+  -- Checklist sub-view: "Hide done" in the same spot
+  -- (ns.db.char.checklistHideDone).
+  local hide = CreateFrame("CheckButton", nil, header, checkTemplate())
+  hide:SetSize(CHECK_SIZE, CHECK_SIZE)
+  local hideText = hide.Text or hide.text
+  if not hideText then
+    hideText = hide:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    hideText:SetPoint("LEFT", hide, "RIGHT", 2, 0)
+  end
+  hideText:SetText(L["Hide done"])
+  hide:SetPoint("TOPRIGHT", header, "TOPRIGHT", -8 - (hideText:GetStringWidth() or 90), -6)
+  hide:SetScript("OnClick", function(self)
+    local char = charDB()
+    if char then char.checklistHideDone = self:GetChecked() and true or false end
+    ns.Refresh()
+  end)
+  hide:Hide()
+  header.HideDone = hide
+
+  -- A flat two-segment control in a 1 px frame: 1 px frame + two segments
+  -- of `width` + a 1 px divider between them; onPick(key) on a click.
+  -- -> control, left button, right button.
+  local function segmented(width, left, right, onPick)
+    local control = CreateFrame("Frame", nil, header)
+    control:SetSize(width * 2 + 3, MODE_HEIGHT + 2)
+    UI.FlatBorder(control, 1, 1, 1, 0.15)
+    local function segment(key, label)
+      local button = CreateFrame("Button", nil, control)
+      button:SetSize(width, MODE_HEIGHT)
+      local bg = button:CreateTexture(nil, "BACKGROUND")
+      bg:SetAllPoints(button)
+      button.Bg = bg
+      local highlight = button:CreateTexture(nil, "HIGHLIGHT")
+      highlight:SetAllPoints(button)
+      highlight:SetColorTexture(1, 1, 1, 0.08)
+      local text = button:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+      text:SetPoint("CENTER", button, "CENTER", 0, 0)
+      text:SetText(L[label])
+      button.Label = text
+      button:SetScript("OnClick", function()
+        onPick(key)
+        ns.Refresh()
+      end)
+      return button
+    end
+    local first = segment(left[1], left[2])
+    first:SetPoint("TOPLEFT", control, "TOPLEFT", 1, -1)
+    local second = segment(right[1], right[2])
+    second:SetPoint("TOPRIGHT", control, "TOPRIGHT", -1, -1)
+    local divider = control:CreateTexture(nil, "BORDER")
+    divider:SetWidth(1)
+    divider:SetPoint("TOPLEFT", first, "TOPRIGHT", 0, 0)
+    divider:SetPoint("BOTTOMLEFT", first, "BOTTOMRIGHT", 0, 0)
+    divider:SetColorTexture(1, 1, 1, 0.15)
+    return control, first, second
+  end
+
+  -- List / Arrow toggle on the resets line's right end (ns.db.char.routeMode).
+  local modes
+  modes, header.ListMode, header.ArrowMode = segmented(MODE_WIDTH, { "list", "List" }, { "arrow", "Arrow" },
+    function(mode) if ns.Arrow then ns.Arrow.SetMode(nil, mode) end end)
   modes:SetPoint("TOPRIGHT", header, "TOPRIGHT", -8, -30)
-  UI.FlatBorder(modes, 1, 1, 1, 0.15)
   header.ModeControl = modes
 
-  local function modeButton(mode, label)
-    local button = CreateFrame("Button", nil, modes)
-    button:SetSize(MODE_WIDTH, MODE_HEIGHT)
-    local bg = button:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints(button)
-    button.Bg = bg
-    local highlight = button:CreateTexture(nil, "HIGHLIGHT")
-    highlight:SetAllPoints(button)
-    highlight:SetColorTexture(1, 1, 1, 0.08)
-    local text = button:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    text:SetPoint("CENTER", button, "CENTER", 0, 0)
-    text:SetText(L[label])
-    button.Label = text
-    button:SetScript("OnClick", function()
-      if ns.Arrow then ns.Arrow.SetMode(nil, mode) end
-      ns.Refresh()
-    end)
-    return button
-  end
-  header.ListMode = modeButton("list", "List")
-  header.ListMode:SetPoint("TOPLEFT", modes, "TOPLEFT", 1, -1)
-  header.ArrowMode = modeButton("arrow", "Arrow")
-  header.ArrowMode:SetPoint("TOPRIGHT", modes, "TOPRIGHT", -1, -1)
-  local divider = modes:CreateTexture(nil, "BORDER")
-  divider:SetWidth(1)
-  divider:SetPoint("TOPLEFT", header.ListMode, "TOPRIGHT", 0, 0)
-  divider:SetPoint("BOTTOMLEFT", header.ListMode, "BOTTOMRIGHT", 0, 0)
-  divider:SetColorTexture(1, 1, 1, 0.15)
+  -- Route / Checklist sub-view switch just left of it (ns.db.char.routeView).
+  local views
+  views, header.RouteViewButton, header.ChecklistViewButton = segmented(VIEW_WIDTH,
+    { "route", "Route" }, { "checklist", "Checklist" },
+    function(key) UI.SetRouteSubView(charDB(), key) end)
+  views:SetPoint("TOPRIGHT", modes, "TOPLEFT", -8, 0)
+  header.ViewControl = views
 
   scrollBox = CreateFrame("Frame", nil, root, "WowScrollBoxList")
   scrollBox:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -2)
   scrollBox:SetPoint("BOTTOMRIGHT", root, "BOTTOMRIGHT", -20, 0)
 
-  local scrollBar = CreateFrame("EventFrame", nil, root, "MinimalScrollBar")
+  scrollBar = CreateFrame("EventFrame", nil, root, "MinimalScrollBar")
   scrollBar:SetPoint("TOPLEFT", scrollBox, "TOPRIGHT", 6, 0)
   scrollBar:SetPoint("BOTTOMLEFT", scrollBox, "BOTTOMRIGHT", 6, 0)
 
@@ -560,6 +632,9 @@ local function build(parent)
   listView:SetElementExtentCalculator(function(_, row) return rowExtent(row) end)
   listView:SetElementFactory(function(factory) factory("Button", initRow) end)
   ScrollUtil.InitScrollBoxListWithScrollBar(scrollBox, scrollBar, listView)
+
+  -- The Checklist sub-view under the same header (UI\ChecklistView.lua).
+  if UI.ChecklistView then header.Checklist = UI.ChecklistView.Build(root, header) end
 end
 
 view.Build = build
