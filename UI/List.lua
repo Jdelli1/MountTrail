@@ -753,6 +753,22 @@ function UI.HasLocation(mountID)
   return has == true
 end
 
+-- Which location icon a row shows: "spot" (a click drops a waypoint on an
+-- exact spot or a dungeon / raid entrance, Map.HasSpot), "zone" (only the
+-- zone is known: a click opens its map) or nil (no location). Cheap: no API
+-- call. A failing check reports to Game.ReportError and counts as a zone.
+function UI.LocationIcon(mountID)
+  if not UI.HasLocation(mountID) then return nil end
+  local map = ns.Map
+  if not (map and type(map.HasSpot) == "function") then return "zone" end
+  local good, spot = pcall(map.HasSpot, mountID)
+  if not good then
+    if ns.Game and ns.Game.ReportError then ns.Game.ReportError(spot) end
+    return "zone"
+  end
+  return spot == true and "spot" or "zone"
+end
+
 -- The row pin icon: the chat map-pin atlas (the icon of the client's own map
 -- pin links, 9.0+) when the client has it (UI.AtlasExists), and the classic
 -- map item icon as the fallback texture. -> atlas|nil, texture.
@@ -986,18 +1002,32 @@ function UI.StyleIcon(owner, icon)
   end
 end
 
--- A row's location pin (UI.PinIcon): a small texture on `owner`, hidden
--- until the row has a location (UI.HasLocation).
+-- Paints a row's location icon for UI.LocationIcon's kind: the map pin
+-- (UI.PinIcon) for "spot" (true counts as "spot"), the map item icon for
+-- "zone".
+function UI.ApplyPin(pin, kind)
+  local atlas, texture = UI.PinIcon()
+  if kind ~= "zone" and atlas then
+    pin:SetAtlas(atlas)
+    return
+  end
+  pin:SetTexture(texture)
+  pin:SetTexCoord(ICON_CROP, 1 - ICON_CROP, ICON_CROP, 1 - ICON_CROP)
+end
+
+-- Shows a row's location icon for `kind` (UI.LocationIcon: "spot" / "zone";
+-- true counts as "spot"), or hides it for nil / false.
+function UI.ShowPin(pin, kind)
+  if kind then UI.ApplyPin(pin, kind) end
+  pin:SetShown(kind and true or false)
+end
+
+-- A row's location icon: a small texture on `owner`, hidden until the row
+-- has a location (UI.ShowPin).
 function UI.CreatePin(owner)
   local pin = owner:CreateTexture(nil, "OVERLAY")
   pin:SetSize(PIN_SIZE, PIN_SIZE)
-  local atlas, texture = UI.PinIcon()
-  if atlas then
-    pin:SetAtlas(atlas)
-  else
-    pin:SetTexture(texture)
-    pin:SetTexCoord(ICON_CROP, 1 - ICON_CROP, ICON_CROP, 1 - ICON_CROP)
-  end
+  UI.ApplyPin(pin, "spot")
   pin:Hide()
   return pin
 end
@@ -1074,7 +1104,7 @@ local function initRow(row, data)
   row.Name:SetText(name or data.m.name or tostring(data.id))
   row.Source:SetText(UI.RowSourceText(data))
   row.Stripe:SetShown(data.alt == true)
-  row.Pin:SetShown(data.pin == true)
+  UI.ShowPin(row.Pin, data.pin)
   if data.owned then
     row.Name:SetFontObject("GameFontDisable")
     row.Icon:SetDesaturated(true)
@@ -1390,7 +1420,7 @@ function UI.List(parent, getQuery, opts)
         n = n + 1
         row.alt = n % 2 == 0
         row.desc = describe(row.id)
-        row.pin = UI.HasLocation(row.id)
+        row.pin = UI.LocationIcon(row.id)
       end
     end
     local provider = CreateDataProvider(rows)

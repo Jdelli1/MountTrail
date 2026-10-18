@@ -388,7 +388,7 @@ local function initRow(frame, data)
     frame.Title:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -TITLE_RIGHT, KILL_TITLE_Y)
     frame.Title:SetFontObject("GameFontNormal")
     frame.Auto:SetShown(auto and true or false)
-    frame.Pin:SetShown(data.pin == true)
+    UI.ShowPin(frame.Pin, data.pin)
   else
     -- Travel hint. WoW ships no italic font, so travel rows are grey only
     -- (the GameFontDisable family).
@@ -477,7 +477,7 @@ local function refresh()
     row.alt = i % 2 == 0
     -- The pin: the target mount has a location (UI.HasLocation).
     local id = row.kind == "kill" and UI.RouteTargetMount(row) or nil
-    row.pin = id ~= nil and UI.HasLocation(id) or nil
+    row.pin = id ~= nil and UI.LocationIcon(id) or nil
   end
   local name = Game.PlayerName()
 

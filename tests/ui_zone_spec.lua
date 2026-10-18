@@ -107,16 +107,16 @@ describe("zone panel glue", function()
     eq(ns.UI.ZoneTitle(nil, 0), "Mounts in this zone  |cff9d9d9d(0)|r")
   end)
 
-  it("ZoneRows: striped rows with the list's description and pin", function()
+  it("ZoneRows: striped rows with the list's description and location icon", function()
     local ns = loadUI()
     ns.Map.HasLocation = function(id) return id == 3 end
     local rows = ns.UI.ZoneRows({ { id = 3, m = ns.Data.Mounts[3], owned = false },
       { id = 6, m = ns.Data.Mounts[6], owned = true } })
     eq(rows[1].desc, "Drop: Altairus · The Vortex Pinnacle")
-    eq(rows[1].pin, true)
+    eq(rows[1].pin, "zone", "a location icon (zone only in this test data)")
     eq(rows[1].alt, false)
     eq(rows[2].alt, true)
-    eq(rows[2].pin, false)
+    eq(rows[2].pin, nil)
     eq(rows[2].owned, true)
   end)
 

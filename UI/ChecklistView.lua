@@ -267,7 +267,7 @@ function view.Refresh()
       row.alt = n % 2 == 0
       row.desc = UI.ChecklistDescription(e, sourceText(e.id))
       row.tag = e.auto and L["auto"] or nil
-      row.pin = UI.HasLocation(e.id)
+      row.pin = UI.LocationIcon(e.id)
     end
   end
   if ScrollBoxConstants then

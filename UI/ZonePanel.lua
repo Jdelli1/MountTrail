@@ -154,7 +154,7 @@ function UI.ZoneRows(list)
     rows[i] = {
       id = entry.id, m = entry.m, owned = entry.owned == true, alt = i % 2 == 0,
       desc = UI.RowDescription(entry.id, sourceText(entry.id)),
-      pin = UI.HasLocation(entry.id),
+      pin = UI.LocationIcon(entry.id),
     }
   end
   return rows

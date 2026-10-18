@@ -168,6 +168,27 @@ function Map.HasLocation(mountID)
   return coordsFor(mountID) ~= nil
 end
 
+-- Whether a click can drop a waypoint on a spot rather than only show a
+-- zone: x/y coords, or a dungeon / raid mount (journal sections, or on the
+-- route) whose instance entrance Map.Resolve looks up. A mount known only by
+-- its zone (a fishing mount, a zone-wide drop) is false. No API call.
+function Map.HasSpot(mountID)
+  local coords = coordsFor(mountID)
+  if not coords then return false end
+  if type(coords.x) == "number" and type(coords.y) == "number" then return true end
+  local mount = ns.Data and ns.Data.Mounts and ns.Data.Mounts[mountID]
+  if type(mount) == "table" and mount.tab == "journal"
+    and (mount.section == "dungeon" or mount.section == "raid") then
+    return true
+  end
+  local ui = ns.UI
+  if ui and type(ui.RouteEntry) == "function" then
+    local good, entry = guarded(ui.RouteEntry, mountID)
+    if good and entry ~= nil then return true end
+  end
+  return false
+end
+
 local function mountName(mountID)
   local mount = ns.Data and ns.Data.Mounts and ns.Data.Mounts[mountID]
   if type(mount) == "table" and mount.name then return mount.name end
@@ -253,6 +274,16 @@ end
 -- with this session-only uid: nothing is left behind to remove.
 local tomtomUid
 
+-- Removes our TomTom waypoint, if any (game mode: an earlier both / tomtom
+-- click's waypoint should not linger).
+local function removeTomTom(api)
+  local tomtom = api.TomTom
+  if tomtomUid ~= nil and type(tomtom) == "table" and type(tomtom.RemoveWaypoint) == "function" then
+    guarded(tomtom.RemoveWaypoint, tomtom, tomtomUid)
+  end
+  tomtomUid = nil
+end
+
 -- Replaces our TomTom waypoint with one at m, x, y (0-1). -> true when TomTom
 -- took the new waypoint.
 local function replaceTomTom(api, m, x, y, title)
@@ -322,6 +353,8 @@ function Map.SetWaypoint(mountID, api)
     if mode ~= "tomtom" then set = setUserWaypoint(api, target) end
     if mode ~= "game" then
       tomtom = replaceTomTom(api, target.map, target.x / 100, target.y / 100, mountName(mountID))
+    else
+      removeTomTom(api)
     end
     if mode == "tomtom" and not tomtom then set = setUserWaypoint(api, target) end
     if set or tomtom then
@@ -330,7 +363,18 @@ function Map.SetWaypoint(mountID, api)
     end
   end
   if openWorldMap(api, target.map) then
-    say(api, string.format(L["Opened map: %s"], place))
+    if target.kind == "open" then
+      -- Only the zone is known (no x/y, no entrance): say so plainly, naming
+      -- the zone when the client or the source text knows it.
+      local zone = mapName(api, target.map) or sourceZone(mountID)
+      if zone then
+        say(api, string.format(L["No exact spot for %s (anywhere in %s): opened the map"], mountName(mountID), zone))
+      else
+        say(api, string.format(L["No exact spot for %s: opened the map"], mountName(mountID)))
+      end
+    else
+      say(api, string.format(L["Opened map: %s"], place))
+    end
   end
   return place, target.kind
 end

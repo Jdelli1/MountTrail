@@ -244,7 +244,7 @@ describe("Map.SetWaypoint", function()
     eq(Map.SetWaypoint(395, drakeApi({ [249] = "Uldum" })), "Uldum (entrance)", "parent map")
   end)
 
-  it("open: opens the world map there, no pin, prints Opened map", function()
+  it("open (zone only): opens the world map there, no pin, says there is no exact spot", function()
     local Map = loadMap({ [118] = TANK })
     local api = fakeApi({ names = { [319] = "Ahn'Qiraj" } })
     local place, kind = Map.SetWaypoint(118, api)
@@ -253,7 +253,7 @@ describe("Map.SetWaypoint", function()
     eq(logOf(api, "OpenWorldMap"), { { "OpenWorldMap", 319 } })
     eq(#logOf(api, "SetUserWaypoint"), 0)
     eq(#logOf(api, "TomTom"), 0)
-    eq(logOf(api, "Print"), { { "Print", "Opened map: Ahn'Qiraj" } })
+    eq(logOf(api, "Print"), { { "Print", "No exact spot for " .. TANK.name .. " (anywhere in Ahn'Qiraj): opened the map" } })
   end)
 
   it("none: prints the no-location message and returns nil", function()
@@ -409,7 +409,8 @@ describe("Map.SetWaypoint", function()
     eq(Map.SetWaypoint(517, {}), "Heavenly Onyx Cloud Serpent")
     eq(Map.SetWaypoint(517), "Heavenly Onyx Cloud Serpent") -- the real globals
     eq(Map.SetWaypoint(99999), nil)
-    eq(printed, { "Opened map: Heavenly Onyx Cloud Serpent", "Opened map: Heavenly Onyx Cloud Serpent",
+    local zoneOnly = "No exact spot for Heavenly Onyx Cloud Serpent: opened the map"
+    eq(printed, { zoneOnly, zoneOnly,
       "No map location for 99999" }, "no clock in {}: nothing recorded to de-duplicate against")
   end)
 end)
@@ -541,6 +542,17 @@ describe("Map.SetWaypoint waypoint modes", function()
     eq(#logOf(api, "TomTom"), 0, "TomTom installed but not used")
     eq(#logOf(api, "TomTomRemove"), 0)
     eq(logOf(api, "Print"), { { "Print", "Waypoint: Kun-Lai Summit" } }, "chat line unchanged")
+  end)
+
+  it("game: an AzerothTrail TomTom waypoint from an earlier both / tomtom click is removed", function()
+    local Map = loadMap({ [517] = SERPENT })
+    local api = serpentApi({ mode = "both" })
+    Map.SetWaypoint(517, api)
+    eq(#logOf(api, "TomTom"), 1)
+    api.waypointMode = "game"
+    Map.SetWaypoint(517, api)
+    eq(#logOf(api, "TomTomRemove"), 1, "the old TomTom waypoint goes")
+    eq(#logOf(api, "TomTom"), 1, "and no new one is added")
   end)
 
   it("game: an entrance map without user waypoints opens the world map, not TomTom", function()

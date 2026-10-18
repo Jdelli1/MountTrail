@@ -118,5 +118,8 @@ function Attempts.Summary(mountID, ctx)
   end
   local rarity = ctx.rarity
   if type(rarity) == "number" and rarity > total then total = rarity end
+  -- Mixed sources (alts' statistics, this character's counter) could put
+  -- this character above the total; the total includes this character.
+  if this > total then total = this end
   return { this = this, total = total }
 end

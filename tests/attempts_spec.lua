@@ -192,6 +192,16 @@ describe("attempts", function()
       eq(A.Summary(6, c), { this = 0, total = 9 }, "only an alt has counted")
     end)
 
+    it("the total is never below this character's count (alts' statistics, this character's counter)", function()
+      local A = load().Attempts
+      local c = ctx({
+        hasStats = true,
+        stats = { ["Alt-Realm"] = { [5] = 2 } },
+        byChar = { [ME] = { [5] = 5 } },
+      })
+      eq(A.Summary(5, c), { this = 5, total = 5 })
+    end)
+
     it("legacy counter counts only in the total, never for this character", function()
       local A = load().Attempts
       eq(A.Summary(5, ctx({ legacy = { [5] = 6 } })), { this = 0, total = 6 })
