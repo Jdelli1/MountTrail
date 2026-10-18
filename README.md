@@ -56,6 +56,8 @@ python tools/build_data.py [--update]
 
 `tools/build_data.py` regenerates `Data/Mounts.lua` and `Data/Route.lua` from the sources pinned in `tools/sources.json`; `--update` moves those pins forward.
 
+`python tools/verify_data.py` checks `Data/` against the game's own DB2 tables (Mount, Encounter Journal loot, instances; via wago.tools) and writes [docs/data-verification.md](docs/data-verification.md); it exits 1 on any error not in `tools/verify_allow.json` (tests: `python -m unittest tools/test_verify_data.py`).
+
 ## Status
 
 The addon is built and unit-tested, but **in-game verification is still pending**. See [docs/ingame-checklist.md](docs/ingame-checklist.md) for the open checks, starting with attempt counting under Midnight restrictions.

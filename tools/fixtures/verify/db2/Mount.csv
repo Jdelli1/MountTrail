@@ -1,0 +1,18 @@
+Name_lang,SourceText_lang,Description_lang,ID,MountTypeID,Flags,SourceTypeEnum,SourceSpellID
+"Alpha Drake","|cFFFFD200Drop: |rFyrakk the Blazing|n|cFFFFD200Zone: |rTest Keep","",1,0,0,0,1001
+"Beta Steed","|cFFFFD200Drop: |rChrono-Lord Deios","",2,0,0,0,1002
+"Gamma Wyrm","|cFFFFD200Drop: |rWorld Drop|n|cFFFFD200Location: |rOld Place","",3,0,0,0,1003
+"Delta Mountain Ram","","",4,0,0,0,1040
+"Epsilon Cat","","",6,0,0,0,1006
+"Zeta Hawk","","",7,0,0,0,1007
+"Eta Bear","","",8,0,0,0,1008
+"Theta Bear","","",9,0,0,0,1009
+"Iota Bear","|cFFFFD200Drop: |rKasha's Bag","",10,0,0,0,1010
+"Kappa Bear","","",11,0,0,0,1011
+"Lambda Bear","","",12,0,0,0,1012
+"Mu Raptor","","",13,0,0,0,1013
+"Nu Serpent","|cFFFFD200Drop: |rRare Guy|n|cFFFFD200Zone: |rSomewhere","",14,0,0,0,1014
+"Xi Mammoth","|cFFFFD200Drop: |rSupply Cache","",15,0,0,0,1015
+"Omicron Serpent","","",16,0,0,0,1016
+"Pi Drake","|cFFFFD200Drop: |rKing Gear","",17,0,0,0,1017
+"Rho Shark","","",18,0,0,0,1018

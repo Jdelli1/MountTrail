@@ -1,0 +1,6 @@
+Name_lang,ID,MapID,DifficultyID,OrderIndex,CompleteWorldStateID,Bit,Flags,SpellIconFileID,Faction,ItemSequenceLevel
+"Fyrakk the Blazing",2001,100,0,1,0,0,0,0,-1,0
+"Boss One",2002,100,0,0,0,0,0,0,-1,0
+"Hidden Thing",2003,100,0,2,0,0,0,0,-1,0
+"King Gear",2004,200,0,3,0,0,0,0,-1,0
+"Lord Harlan",2005,200,0,4,0,0,0,0,-1,0

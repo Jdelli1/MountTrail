@@ -1,0 +1,9 @@
+ID,JournalEncounterID,ItemID,FactionMask,Flags,DifficultyMask,DisplaySeasonID,WorldStateExpressionID
+1,1000,501,-1,0,-1,0,0
+2,1000,508,-1,0,16,0,0
+3,1002,502,-1,0,-1,0,0
+4,1003,507,-1,0,8,0,0
+5,1001,513,-1,0,2,0,0
+6,1001,516,-1,0,-1,0,0
+7,1000,512,-1,0,-1,0,0
+8,1005,518,-1,0,-1,0,0

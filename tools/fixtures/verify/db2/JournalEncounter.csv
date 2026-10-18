@@ -1,0 +1,7 @@
+Name_lang,Description_lang,Map_0,Map_1,ID,JournalInstanceID,DungeonEncounterID,OrderIndex,FirstSectionID,UiMapID,MapDisplayConditionID,Flags,DifficultyMask
+"Fyrakk the Blazing","The last boss.",0,0,1000,10,0,2,0,0,0,0,-1
+"Boss One","Rides Big Mount into battle.",0,0,1001,10,0,1,0,0,0,0,-1
+"Chrono-Lord Deios","Time boss.",0,0,1002,11,0,1,0,0,0,0,-1
+"The Lich King","Cold.",0,0,1003,11,0,2,0,0,0,0,-1
+"King Gear","Gears.",0,0,1004,11,0,3,0,0,0,0,-1
+"Harlan","Pirate.",0,0,1005,11,0,4,0,0,0,0,-1

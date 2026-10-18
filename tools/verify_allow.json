@@ -1,0 +1,14 @@
+{
+  "_comment": "Findings of tools/verify_data.py accepted as legitimate. Keys: route '<mount>@<route boss>', identity '<mount>', lockout '<mount>' or 'boss:<route boss>'. Every reason must cite DB2 evidence (Mount.db2 SourceText, DungeonEncounter, ...).",
+  "route": {
+    "117@Trash": "Mount.db2 SourceText: 'Drop: World Drop; Location: Temple of Ahn'Qiraj' (trash drop, no encounter)",
+    "118@Trash": "Mount.db2 SourceText: 'Drop: World Drop; Location: Temple of Ahn'Qiraj' (trash drop, no encounter)",
+    "119@Trash": "Mount.db2 SourceText: 'Drop: World Drop; Location: Temple of Ahn'Qiraj' (trash drop, no encounter)",
+    "120@Trash": "Mount.db2 SourceText: 'Drop: World Drop; Location: Temple of Ahn'Qiraj' (trash drop, no encounter)",
+    "419@Timed Reward": "Mount.db2 SourceText: 'Drop: Kasha's Bag' (the timed-run reward bag, not a boss)",
+    "883@Nightbane": "DungeonEncounter 2031 'Nightbane' is on map 1651 (Return to Karazhan) but has no Encounter Journal page; Mount.db2 SourceText: 'Zone: Return to Karazhan'"
+  },
+  "lockout": {
+    "419": "Mount.db2 SourceText: 'Drop: Kasha's Bag' (timed-run bag); the spec tracks the daily heroic lockout via Daakara on purpose"
+  }
+}
