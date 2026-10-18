@@ -69,7 +69,7 @@ end
 -- "quest:<id>" / "lfg:<id>". Manual specs (hand ticks per mount) and
 -- anything else -> nil: never grouped.
 function Checklist.LockoutKey(spec, routeBoss, bossLockouts)
-  if type(spec) ~= "table" or spec.manual then return nil end
+  if type(spec) ~= "table" or spec.manual or spec.camp then return nil end
   if routeBoss and type(bossLockouts) == "table" and bossLockouts[routeBoss] then
     return "boss:" .. tostring(routeBoss)
   end
@@ -96,6 +96,13 @@ local CATEGORY_LABELS = {
 }
 local CATEGORY_RANK = rankOf(CATEGORIES)
 Checklist.CATEGORIES = CATEGORIES
+
+-- Rare spawns with no lockout (camp specs, Lockouts.IsCamp): their own
+-- top-level group after Daily and Weekly, and their own filter key.
+local CAMP = "camp"
+Checklist.CAMP = CAMP
+-- The Filter menu's keys: the lockout categories, then the camp group.
+Checklist.FILTERS = { "raids", "dungeons", "worldbosses", "rares", "holidays", "other", CAMP }
 
 -- Localised label of a category key ("raids" -> "Raids").
 function Checklist.CategoryLabel(key)
@@ -168,7 +175,11 @@ end
 -- active. Owned mounts and mounts the gate excludes are left out.
 -- Members spending the same lockout (Checklist.LockoutKey: e.g. every
 -- Vault of Archavon watcher's rows) are ONE entry: one kill, one state, one row.
--- -> { daily = { entry }, weekly = { entry } }; entry = { id= (first member),
+-- Camp specs (rare spawns with no kill flag, Lockouts.IsCamp) go to a third
+-- list, `camp`: entries with state = reset = category = "camp", done = false,
+-- zone = the spec's zone, never grouped, sorted by expansion, zone (none
+-- last), name.
+-- -> { daily = { entry }, weekly = { entry }, camp = { entry } }; entry = { id= (first member),
 -- m=, boss=, title= (route node), holiday= (key), key= (first member's tick
 -- key), spec=, reset=, state=, done=, auto= (done by the game), locked=,
 -- lockedText=, name=, exp= (the spec's `exp`, else the first member's;
@@ -191,7 +202,7 @@ function Checklist.Build(ctx)
   local rank = rankOf(ctx.expansions)
   local unknownRank = #(ctx.expansions or {}) + 1
 
-  local out = { daily = {}, weekly = {} }
+  local out = { daily = {}, weekly = {}, camp = {} }
   local seen, order = {}, 0
   local groups = {} -- Checklist.LockoutKey -> entry
 
@@ -211,6 +222,20 @@ function Checklist.Build(ctx)
     if owned == nil or owned then return end
     seen[key] = true
     local name = (ctx.nameOf and ctx.nameOf(id, m)) or m.name or tostring(id)
+    if spec.camp then
+      -- A rare spawn with no kill flag and no reset: never done, never
+      -- grouped, listed until the mount is owned (the gate above).
+      order = order + 1
+      local exp = spec.exp or m.exp
+      local camp = out.camp
+      camp[#camp + 1] = {
+        id = id, m = m, boss = boss, title = title, key = key, spec = spec,
+        reset = CAMP, state = CAMP, done = false, auto = false, locked = false,
+        name = name, order = order, exp = exp, expRank = rank[exp] or unknownRank,
+        category = CAMP, zone = spec.zone, mounts = { id }, names = { name }, grouped = false,
+      }
+      return
+    end
     -- Another member of a lockout already listed: one kill, one entry.
     local lockout = Checklist.LockoutKey(spec, boss, ctx.bossLockouts)
     local group = lockout and groups[lockout]
@@ -282,6 +307,13 @@ function Checklist.Build(ctx)
     return a.order < b.order
   end
   for _, reset in ipairs(RESETS) do table.sort(out[reset], before) end
+  -- Camp entries: expansion order, then zone (none last), then name.
+  table.sort(out.camp, function(a, b)
+    if a.expRank ~= b.expRank then return a.expRank < b.expRank end
+    if (a.zone == nil) ~= (b.zone == nil) then return b.zone == nil end
+    if a.zone and a.zone ~= b.zone then return string.lower(a.zone) < string.lower(b.zone) end
+    return before(a, b)
+  end)
   return out
 end
 
@@ -380,6 +412,68 @@ local function withOpen(groups)
   return shown
 end
 
+-- Camp entries (Checklist.Build's `camp` list, entries already sorted) ->
+-- zone groups in entry order: { { key = zone or "Other", zone =, entries = } }.
+local function zoneGroups(entries)
+  local groups, byKey = {}, {}
+  for _, e in ipairs(entries) do
+    local gkey = e.zone or OTHER
+    local group = byKey[gkey]
+    if not group then
+      group = { key = gkey, zone = e.zone, entries = {} }
+      byKey[gkey] = group
+      groups[#groups + 1] = group
+    end
+    group.entries[#group.entries + 1] = e
+  end
+  return groups
+end
+
+-- The "Rare spawns (no lockout)" group (camp specs) after Daily and Weekly:
+-- a header { header = true, depth = 1, key = "checklist|camp", camp = true,
+-- text = opts.label("camp") or "Rare spawns (no lockout)", left = mounts
+-- left, collapsed = }, then per expansion { depth = 2, key =
+-- "checklist|camp|<exp or Other>", exp =, left = } and per zone (the source
+-- text's Zone, none = "Other") { depth = 3, key = "checklist|camp|<exp>|<zone>",
+-- zone =, left = }, then its entries { id=, m=, entry=, done = false, camp =
+-- true, depth = 3 }. No done/total (nothing here is ever done: `left` counts
+-- the mounts still to get). Hidden by filters.camp = false.
+local function addCamp(rows, built, collapsed, filters, opts)
+  local list = (built and built.camp) or {}
+  if #list == 0 or not Checklist.Shown(filters, CAMP) then return end
+  local key = "checklist|" .. CAMP
+  local isCollapsed = collapsed[key] == true
+  rows[#rows + 1] = {
+    header = true, depth = 1, key = key, reset = CAMP, camp = true,
+    text = opts.label and opts.label(CAMP) or L["Rare spawns (no lockout)"],
+    left = #list, collapsed = isCollapsed,
+  }
+  if isCollapsed then return end
+  for _, group in ipairs(expGroups(list)) do
+    local gkey = key .. "|" .. group.key
+    local gCollapsed = collapsed[gkey] == true
+    rows[#rows + 1] = {
+      header = true, depth = 2, key = gkey, reset = CAMP, camp = true, exp = group.exp,
+      text = L[group.key], left = #group.entries, collapsed = gCollapsed,
+    }
+    if not gCollapsed then
+      for _, zone in ipairs(zoneGroups(group.entries)) do
+        local zkey = gkey .. "|" .. zone.key
+        local zCollapsed = collapsed[zkey] == true
+        rows[#rows + 1] = {
+          header = true, depth = 3, key = zkey, reset = CAMP, camp = true, exp = group.exp,
+          zone = zone.zone, text = zone.zone or L[OTHER], left = #zone.entries, collapsed = zCollapsed,
+        }
+        if not zCollapsed then
+          for _, e in ipairs(zone.entries) do
+            rows[#rows + 1] = { id = e.id, m = e.m, entry = e, done = false, camp = true, depth = 3 }
+          end
+        end
+      end
+    end
+  end
+end
+
 function Checklist.Rows(built, opts)
   opts = opts or {}
   local collapsed = opts.collapsed or {}
@@ -446,7 +540,15 @@ function Checklist.Rows(built, opts)
       end
     end
   end
+  addCamp(rows, built, collapsed, filters, opts)
   return rows
+end
+
+-- Mounts left in the camp group (rare spawns with no lockout) of a
+-- Checklist.Build output, 0 when `filters` hides it.
+function Checklist.CampLeft(built, filters)
+  if not Checklist.Shown(filters, CAMP) then return 0 end
+  return #((built and built.camp) or {})
 end
 
 -- Entries of a Checklist.Build output not done yet, in the categories

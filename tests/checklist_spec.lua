@@ -269,7 +269,7 @@ describe("Checklist.Build", function()
   end)
 
   it("works with an empty context", function()
-    eq(load().Build({}), { daily = {}, weekly = {} })
+    eq(load().Build({}), { daily = {}, weekly = {}, camp = {} })
   end)
 end)
 
@@ -891,5 +891,130 @@ describe("Checklist.Rows categories", function()
     eq(C.Shown({ raids = false }, "raids"), false)
     eq(C.Shown({ raids = false }, "dungeons"), true)
     eq(C.Shown({ other = false }, nil), false, "nil category = other")
+  end)
+end)
+
+describe("Checklist rare spawns with no lockout (camp specs)", function()
+  local CAMP_MOUNTS = {
+    [21] = { name = "Garn Nighthowl", exp = "Warlords of Draenor", group = "Rare Spawn" },
+    [22] = { name = "Great Greytusk", exp = "Warlords of Draenor", group = "Rare Spawn" },
+    [23] = { name = "Sunhide Gronnling", exp = "Warlords of Draenor", group = "Rare Spawn" },
+    [24] = { name = "Grey Riding Camel", exp = "Cataclysm", group = "Rare Spawn" },
+    [25] = { name = "Fabious", exp = "Battle for Azeroth", group = "Rare Spawn" },
+    [26] = { name = "Owned Rare", exp = "Cataclysm", group = "Rare Spawn" },
+    [27] = { name = "Daily Rare", exp = "Cataclysm", group = "Rare Spawn" },
+  }
+  local CAMP_SPECS = {
+    [21] = { camp = true, zone = "Frostfire Ridge" },
+    [22] = { camp = true, zone = "Frostfire Ridge" },
+    [23] = { camp = true, zone = "Gorgrond" },
+    [24] = { camp = true, zone = "Feralas" },
+    [25] = { camp = true },
+    [26] = { camp = true, zone = "Feralas" },
+    [27] = { quest = 5, reset = "daily" },
+  }
+  local EXPS = { "Cataclysm", "Warlords of Draenor", "Battle for Azeroth" }
+  local function build(over)
+    local ctx = {
+      mounts = CAMP_MOUNTS, expansions = EXPS,
+      specFor = function(id) return CAMP_SPECS[id] end,
+      -- A stray hand tick never makes a camp row done.
+      stateOf = function(id) return id == 27 and "open" or "manual-done" end,
+      gate = function(id) return id == 26 end,
+    }
+    for k, v in pairs(over or {}) do ctx[k] = v end
+    return load().Build(ctx)
+  end
+  local function shape(rows)
+    local out = {}
+    for _, r in ipairs(rows) do
+      if r.header then
+        local count = r.left and ("(" .. r.left .. " left)") or ("(" .. tostring(r.owned) .. "/" .. tostring(r.total) .. ")")
+        out[#out + 1] = r.key .. " " .. count .. " d" .. r.depth
+      else
+        out[#out + 1] = tostring(r.entry.key) .. "@" .. tostring(r.depth)
+      end
+    end
+    return out
+  end
+
+  it("Build files camp specs in their own list: never done, no reset, category camp, the spec's zone", function()
+    local out = build()
+    eq(ids(out.daily), { 27 })
+    eq(out.weekly, {})
+    eq(ids(out.camp), { 24, 21, 22, 23, 25 }, "expansion order, then zone, then name; owned left out")
+    local nighthowl = out.camp[2]
+    eq(nighthowl.done, false)
+    eq(nighthowl.auto, false)
+    eq(nighthowl.state, "camp")
+    eq(nighthowl.reset, "camp")
+    eq(nighthowl.category, "camp")
+    eq(nighthowl.zone, "Frostfire Ridge")
+    eq(nighthowl.grouped, false)
+    eq(out.camp[5].zone, nil)
+  end)
+
+  it("camp specs never group, even with the same zone", function()
+    local out = build()
+    for _, e in ipairs(out.camp) do eq(#e.mounts, 1) end
+    eq(load().LockoutKey({ camp = true, zone = "X" }), nil)
+  end)
+
+  it("Rows: a third group after Daily / Weekly, nested expansion -> zone, counting mounts left", function()
+    eq(shape(load().Rows(build(), { label = function(r) return r end })), {
+      "checklist|daily (0/1) d1",
+      "checklist|daily|Cataclysm (0/1) d2",
+      "checklist|daily|Cataclysm|rares (0/1) d3", "27@3",
+      "checklist|camp (5 left) d1",
+      "checklist|camp|Cataclysm (1 left) d2",
+      "checklist|camp|Cataclysm|Feralas (1 left) d3", "24@3",
+      "checklist|camp|Warlords of Draenor (3 left) d2",
+      "checklist|camp|Warlords of Draenor|Frostfire Ridge (2 left) d3", "21@3", "22@3",
+      "checklist|camp|Warlords of Draenor|Gorgrond (1 left) d3", "23@3",
+      "checklist|camp|Battle for Azeroth (1 left) d2",
+      "checklist|camp|Battle for Azeroth|Other (1 left) d3", "25@3",
+    })
+  end)
+
+  it("Rows: the camp header's text, flags and zone headers' text", function()
+    local rows = load().Rows(build())
+    local top
+    for _, r in ipairs(rows) do if r.key == "checklist|camp" then top = r end end
+    eq(top.text, "Rare spawns (no lockout)")
+    eq(top.camp, true)
+    eq(top.owned, nil, "no done/total: nothing here is ever done")
+    eq(top.total, nil)
+    for _, r in ipairs(rows) do
+      if r.key == "checklist|camp|Warlords of Draenor|Gorgrond" then eq(r.text, "Gorgrond") eq(r.zone, "Gorgrond") end
+      if r.key == "checklist|camp|Battle for Azeroth|Other" then eq(r.text, "Other") end
+      if r.entry and r.entry.id == 23 then eq(r.camp, true) eq(r.done, false) end
+    end
+  end)
+
+  it("Rows: collapsed camp, expansion and zone headers hide what is under them", function()
+    local C = load()
+    eq(shape(C.Rows(build(), { collapsed = { ["checklist|camp"] = true }, filters = { rares = false } })),
+      { "checklist|camp (5 left) d1" })
+    local rows = shape(C.Rows(build(), { filters = { rares = false }, collapsed = {
+      ["checklist|camp|Warlords of Draenor|Frostfire Ridge"] = true, ["checklist|camp|Cataclysm"] = true } }))
+    eq(rows, {
+      "checklist|camp (5 left) d1",
+      "checklist|camp|Cataclysm (1 left) d2",
+      "checklist|camp|Warlords of Draenor (3 left) d2",
+      "checklist|camp|Warlords of Draenor|Frostfire Ridge (2 left) d3",
+      "checklist|camp|Warlords of Draenor|Gorgrond (1 left) d3", "23@3",
+      "checklist|camp|Battle for Azeroth (1 left) d2",
+      "checklist|camp|Battle for Azeroth|Other (1 left) d3", "25@3",
+    })
+  end)
+
+  it("the filter key camp hides the group; Remaining counts lockouts only", function()
+    local C = load()
+    local rows = shape(C.Rows(build(), { filters = { camp = false } }))
+    eq(rows[#rows], "27@3")
+    eq(C.Remaining(build()), 1, "camp rows are not lockouts")
+    eq(C.CampLeft(build()), 5)
+    eq(C.CampLeft(build(), { camp = false }), 0)
+    eq(C.FILTERS, { "raids", "dungeons", "worldbosses", "rares", "holidays", "other", "camp" })
   end)
 end)

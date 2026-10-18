@@ -198,6 +198,15 @@ describe("lockouts", function()
       eq(load().Lockouts.State({ manual = true, reset = "weekly" }, {}), "manual")
     end)
 
+    it("camp spec (rare with no kill flag) is camp: never done, never ticked", function()
+      local L = load().Lockouts
+      eq(L.State({ camp = true, zone = "Gorgrond" }, {}), "camp")
+      eq(L.State({ camp = true }, {}, function() return true end, function() return true end), "camp")
+      eq(L.IsCamp({ camp = true }), true)
+      eq(L.IsCamp({ manual = true, reset = "daily" }), false)
+      eq(L.IsCamp(nil), false)
+    end)
+
     it("unknown spec kind is open", function()
       eq(load().Lockouts.State({ reset = "weekly" }, {}), "open")
     end)

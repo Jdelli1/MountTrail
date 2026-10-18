@@ -8,6 +8,7 @@ describe("attempts", function()
     [2] = { lfg = 200, reset = "weekly" },
     [3] = { instance = 657, boss = "Altairus", difficulties = { 2 }, reset = "daily" },
     [4] = { manual = true },
+    [5] = { camp = true, zone = "Gorgrond" },
   }
   local function specFor(id) return SPECS[id] end
   local function notOwned() return false end
@@ -31,6 +32,12 @@ describe("attempts", function()
       local A = load().Attempts
       local killed = { [657] = { [2] = { Altairus = true } } }
       eq(A.Newly(state(), state({}, {}, killed), { 3 }, specFor, notOwned), { 3 })
+    end)
+
+    it("never counts a camp spec (no lockout to observe)", function()
+      local A = load().Attempts
+      local killed = { [657] = { [2] = { Altairus = true } } }
+      eq(A.Newly(state(), state({ [100] = true }, { [200] = true }, killed), { 5 }, specFor, notOwned), {})
     end)
 
     it("does not count done -> done", function()

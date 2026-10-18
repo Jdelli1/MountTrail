@@ -21,8 +21,18 @@ describe("data", function()
     if s.quest ~= nil then kinds = kinds + 1 end
     if s.lfg ~= nil then kinds = kinds + 1 end
     if s.manual ~= nil then kinds = kinds + 1 end
-    if kinds ~= 1 then fail(id, "has " .. kinds .. " of instance/quest/lfg/manual") end
-    if s.reset ~= "daily" and s.reset ~= "weekly" then fail(id, "reset is " .. tostring(s.reset)) end
+    if s.camp ~= nil then kinds = kinds + 1 end
+    if kinds ~= 1 then fail(id, "has " .. kinds .. " of instance/quest/lfg/manual/camp") end
+    if s.camp ~= nil then
+      -- A rare spawn with no kill flag: no reset at all, an optional zone.
+      if s.camp ~= true then fail(id, "camp must be true") end
+      if s.reset ~= nil then fail(id, "camp spec with a reset") end
+      if s.zone ~= nil and (type(s.zone) ~= "string" or s.zone == "") then fail(id, "zone not a string") end
+      if s.repeatable ~= nil then fail(id, "camp spec marked repeatable") end
+    elseif s.reset ~= "daily" and s.reset ~= "weekly" then
+      fail(id, "reset is " .. tostring(s.reset))
+    end
+    if s.zone ~= nil and s.camp == nil then fail(id, "zone on a non-camp spec") end
     if s.instance ~= nil then
       if type(s.instance) ~= "number" then fail(id, "instance not a number") end
       if type(s.boss) ~= "string" or s.boss == "" then fail(id, "instance spec without boss") end
@@ -95,6 +105,19 @@ describe("data", function()
     eq(bad, {})
     checkSpec("badexp", { manual = true, reset = "weekly", exp = "Classik" }, fail, { "Classic" })
     eq(bad, { "badexp: exp Classik is not a Data.Expansions name" })
+  end)
+
+  it("spec checker accepts camp specs (no reset, optional zone) and rejects malformed ones", function()
+    local bad = {}
+    local function fail(id, why) bad[#bad + 1] = tostring(id) .. ": " .. why end
+    checkSpec("camp", { camp = true, zone = "Gorgrond" }, fail)
+    checkSpec("nozone", { camp = true }, fail)
+    eq(bad, {})
+    checkSpec("reset", { camp = true, reset = "daily" }, fail)
+    checkSpec("both", { camp = true, manual = true }, fail)
+    checkSpec("zone", { manual = true, reset = "daily", zone = "X" }, fail)
+    eq(bad, { "reset: camp spec with a reset", "both: has 2 of instance/quest/lfg/manual/camp",
+      "zone: zone on a non-camp spec" })
   end)
 
   it("no instance spec tracks LFR (R10)", function()

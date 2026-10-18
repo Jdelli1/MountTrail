@@ -29,7 +29,8 @@ function Attempts.Newly(prev, curr, mountIDs, specFor, isOwned)
     if not seen[mountID] then
       seen[mountID] = true
       local spec = specFor(mountID)
-      if spec and not spec.manual and not (isOwned and isOwned(mountID)) then
+      -- Manual and camp specs have no lockout the game reports: nothing to count.
+      if spec and not spec.manual and not spec.camp and not (isOwned and isOwned(mountID)) then
         if spec.quest or spec.lfg then
           if stateOf(spec, prev) == "open" and stateOf(spec, curr) == "done" then
             out[#out + 1] = mountID

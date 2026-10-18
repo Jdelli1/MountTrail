@@ -113,7 +113,7 @@ local function groupSatisfied(snap, spec, group)
 end
 
 local function isInstanceSpec(spec)
-  return spec and not spec.manual and not spec.quest and not spec.lfg
+  return spec and not spec.manual and not spec.camp and not spec.quest and not spec.lfg
     and spec.instance and type(spec.difficulties) == "table" and #spec.difficulties > 0
 end
 
@@ -132,9 +132,19 @@ function Lockouts.GroupsDone(spec, snap)
   return done, count
 end
 
--- spec nil -> nil (not tracked); else "done" | "open" | "manual".
+-- A camp spec ({ camp = true, zone = }): a rare spawn with no known kill
+-- flag and no reset. Nothing the game reports marks it, no hand tick spends
+-- it, it never counts attempts; it stays on the checklist until the mount is
+-- owned (Checklist.Build's "camp" list).
+function Lockouts.IsCamp(spec)
+  return type(spec) == "table" and spec.camp == true
+end
+
+-- spec nil -> nil (not tracked); else "done" | "open" | "manual" | "camp"
+-- (Lockouts.IsCamp: never done).
 function Lockouts.State(spec, snap, isQuestDone, isLfgDone)
   if not spec then return nil end
+  if spec.camp then return "camp" end
   if spec.manual then return "manual" end
   if spec.quest then
     return (isQuestDone and isQuestDone(spec.quest)) and "done" or "open"
