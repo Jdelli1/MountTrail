@@ -159,7 +159,10 @@ local function onTick(self)
   if not (entry and char) then return end
   char.ticks = char.ticks or {}
   local Game = ns.Game
-  UI.ChecklistToggle(entry, char.ticks, Game.Now(), Game.UntilDaily(), Game.UntilWeekly())
+  local toggled = UI.ChecklistToggle(entry, char.ticks, Game.Now(), Game.UntilDaily(), Game.UntilWeekly())
+  if UI.DebugTrace then
+    UI.DebugTrace("tick box on mount %s (checklist) -> %s", tostring(entry.id), toggled and "toggled" or "not tickable")
+  end
   ns.Refresh()
 end
 

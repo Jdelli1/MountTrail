@@ -300,7 +300,10 @@ local function setupRow(frame)
     if not (data and char) then return end
     char.ticks = char.ticks or {}
     local Game = ns.Game
-    UI.RouteToggle(data, char.ticks, Game.Now(), Game.UntilDaily(), Game.UntilWeekly())
+    local toggled = UI.RouteToggle(data, char.ticks, Game.Now(), Game.UntilDaily(), Game.UntilWeekly())
+    if UI.DebugTrace then
+      UI.DebugTrace("tick box on route row %s -> %s", tostring(data.key), toggled and "toggled" or "not tickable")
+    end
     ns.Refresh()
   end)
   frame.Check = check

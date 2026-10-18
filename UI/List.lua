@@ -777,22 +777,46 @@ function UI.OpenMountAchievement(mountID)
   return ns.Game.OpenAchievement(id) == true
 end
 
+-- With /azt debug on, prints a "debug: ..." line straight to chat (not
+-- through the error handler, which BugSack-style addons capture silently),
+-- so a click that seems to do nothing shows where it stopped.
+local function trace(fmt, ...)
+  local global = ns.db and ns.db.global
+  if not (global and global.debug == true) then return end
+  local addon = ns.addon
+  if not (addon and addon.Print) then return end
+  pcall(addon.Print, addon, "debug: " .. string.format(fmt, ...))
+end
+UI.DebugTrace = trace
+
 -- Calls ns.Map[method](mountID); an error goes to Game.ReportError (/azt
--- debug) instead of breaking the click.
+-- debug) instead of breaking the click. Traced with /azt debug.
 local function mapAction(method, mountID)
   local map = ns.Map
-  if not (map and type(map[method]) == "function") then return end
-  local good, err = pcall(map[method], mountID)
-  if not good and ns.Game and ns.Game.ReportError then ns.Game.ReportError(err) end
+  if not (map and type(map[method]) == "function") then
+    trace("%s missing", method)
+    return
+  end
+  local good, place, kind = pcall(map[method], mountID)
+  if not good then
+    trace("%s(%s) failed: %s", method, tostring(mountID), tostring(place))
+    if ns.Game and ns.Game.ReportError then ns.Game.ReportError(place) end
+    return
+  end
+  trace("%s(%s) -> %s, %s", method, tostring(mountID), tostring(kind), tostring(place))
 end
 
 -- OnClick of a mount row (lists and Route): reads the modifier keys and
 -- runs UI.RowClickAction's action for `mountID`.
 function UI.HandleRowClick(mountID, button)
-  if not mountID then return end
+  if not mountID then
+    trace("click %s on a row with no mount", tostring(button))
+    return
+  end
   local ctrl = type(IsControlKeyDown) == "function" and IsControlKeyDown() and true or false
   local shift = type(IsShiftKeyDown) == "function" and IsShiftKeyDown() and true or false
   local action = UI.RowClickAction(button, ctrl, shift)
+  trace("click %s on mount %s -> %s", tostring(button), tostring(mountID), tostring(action))
   if action == "waypoint" then
     mapAction("SetWaypoint", mountID)
   elseif action == "map" then
