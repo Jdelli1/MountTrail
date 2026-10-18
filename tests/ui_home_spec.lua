@@ -1,0 +1,242 @@
+-- The Journal front page (UI/JournalHome.lua home grid) built under the widget
+-- stub: summary strip (title, totals, 4 px bar), 4 x 3 flat tiles that fit
+-- the 800 x 560 window, completed-state styling, hover and click.
+
+local UI_FILES = { "UI/Frame.lua", "UI/Tooltip.lua", "UI/List.lua", "UI/JournalHome.lua" }
+
+-- Widget methods the home and the list page call that the base stub lacks;
+-- the StatusBar ones record what they were given.
+local probe = CreateFrame("Frame")
+local FrameMT = getmetatable(probe)
+local RegionMT = getmetatable(FrameMT).__index
+local function noop() end
+for _, name in ipairs({ "SetTexCoord", "SetJustifyH", "SetWordWrap", "SetDesaturated", "SetTextColor",
+  "SetStatusBarTexture", "SetDrawLayer", "SetRotation", "AddMaskTexture", "SetVertexColor" }) do
+  RegionMT[name] = RegionMT[name] or noop
+end
+function RegionMT:SetStatusBarColor(r, g, b, a) self.barColor = { r, g, b, a } end
+function RegionMT:SetMinMaxValues(lo, hi) self.min, self.max = lo, hi end
+function RegionMT:SetValue(v) self.value = v end
+function RegionMT:SetFontObject(font) self.font = font end
+function RegionMT:GetStringWidth() return 60 end
+function RegionMT:GetWidth() return self.width or 0 end
+function FrameMT:RegisterForClicks(...) self.clickButtons = { ... } end
+function FrameMT:IsMouseOver() return true end
+for _, name in ipairs({ "SetAutoFocus", "LockHighlight", "UnlockHighlight" }) do
+  FrameMT[name] = FrameMT[name] or noop
+end
+function FrameMT:SetChecked(on) self.checked = on end
+function FrameMT:GetChecked() return self.checked end
+function FrameMT:SetEnabled(on) self.enabled = on end
+function FrameMT:CreateMaskTexture() return self:CreateTexture(nil, "ARTWORK") end
+function FrameMT:SetDataProvider(provider) self.provider = provider end
+function CreateScrollBoxListLinearView()
+  local view = {}
+  function view:SetElementExtentCalculator(fn) self.extent = fn end
+  function view:SetElementFactory(fn) self.factory = fn end
+  return view
+end
+ScrollUtil = { InitScrollBoxListWithScrollBar = function(box, bar, view) box.view = view end }
+function CreateDataProvider(rows) return { rows = rows } end
+IsControlKeyDown = function() return false end
+GameFontHighlightSmall = { name = "GameFontHighlightSmall" }
+function CreateFont(name)
+  local font = { name = name }
+  function font:SetFontObject(base) self.base = base end
+  function font:SetTextColor(r, g, b) self.color = { r, g, b } end
+  _G[name] = font
+  return font
+end
+MenuResponse = { Refresh = 2 }
+STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate = {
+  SetupMenu = function(self, generator) self.generator = generator end,
+  SetDefaultCallback = function(self, fn) self.defaultCallback = fn end,
+  SetIsDefaultCallback = function(self, fn) self.isDefaultCallback = fn end,
+  ValidateResetState = noop,
+}
+
+local CHECK_ATLAS = "activities-icon-checkmark"
+
+-- `owned(id)` decides ownership (default: every third mount).
+local function loadUI(owned)
+  reset_ui_stub()
+  local files = toc_lua_files()
+  for _, f in ipairs(UI_FILES) do files[#files + 1] = f end
+  local ns = load_addon(files)
+  ns.addon:OnInitialize()
+  local stubGame = {
+    MountInfo = function() return nil end,
+    IsOwned = owned or function(id) return id % 3 == 0 end,
+    Exists = function() return true end,
+    Faction = function() return "Alliance" end,
+    SavedRows = function() return {} end,
+    IsQuestDone = function() return false end,
+    IsLfgDone = function() return false end,
+    ExpansionLogo = function(i) if i == 1 then return 123 end end,
+    MountSourceText = function() return nil end,
+    Now = function() return 1700000000 end,
+    PlayerName = function() return "Tester" end,
+  }
+  for k, v in pairs(stubGame) do ns.Game[k] = v end
+  return ns
+end
+
+local function openHome(ns)
+  ns.ToggleWindow()
+  ns.UI.SelectTab("journal")
+  local journal = ns.UI.frame.Contents.journal
+  return journal.children[2], journal
+end
+
+local function tiles(ns, home)
+  local out = {}
+  for i = 1, #ns.Data.Expansions do out[i] = home.children[i] end
+  return out
+end
+
+describe("journal home", function()
+  it("builds a summary strip and one tile per expansion under the stub", function()
+    local ns = loadUI()
+    local home = openHome(ns)
+    eq(#home.children, #ns.Data.Expansions + 1, "the tiles, then the summary strip")
+    local summary = home.Summary
+    ok(summary and home.children[#home.children] == summary, "summary strip on the home")
+    eq(summary.Title:GetText(), "Mount Journal")
+    eq(summary.Title.template, "GameFontNormalLarge")
+    eq(summary.Totals.template, "GameFontHighlight")
+    eq(summary.Bar.height, 4, "4 px summary bar")
+    eq(summary.Bar:GetNumPoints(), 2, "full width: anchored left and right")
+    eq(summary.Bar.barColor, { 1, 0.82, 0, 1 }, "gold fill")
+    for i, tile in ipairs(tiles(ns, home)) do
+      eq(tile.kind, "Button", "tile " .. i)
+      eq(tile.Bar.height, 3, "slim 3 px tile bar")
+      ok(tile.Edge and #tile.Edge.edges == 4, "1 px edge")
+      eq(tile.Count.template, "GameFontHighlightSmall")
+      eq(tile.Percent.template, "GameFontDisableSmall")
+      eq(tile.Count:GetPoint(1), "BOTTOMLEFT", "owned / total on the left")
+      eq(tile.Percent:GetPoint(1), "BOTTOMRIGHT", "percent on the right")
+    end
+  end)
+
+  it("shows the logo, or the expansion name only when there is no logo", function()
+    local ns = loadUI()
+    local all = tiles(ns, (openHome(ns)))
+    eq(all[1].Logo.texture, 123)
+    ok(all[1].Logo:IsShown() and not all[1].Name:IsShown(), "logo, no name")
+    ok(not all[2].Logo:IsShown() and all[2].Name:IsShown(), "name as the fallback")
+    eq(all[2].Name:GetText(), ns.Data.Expansions[2])
+  end)
+
+  it("summary totals are the sum of the tile counts", function()
+    local ns = loadUI()
+    local home = openHome(ns)
+    local have, total = 0, 0
+    for _, tile in ipairs(tiles(ns, home)) do
+      local h, t = tile.Count:GetText():match("^(%d+) / (%d+)$")
+      ok(h, "tile count text")
+      eq(tonumber(h), tile.have)
+      eq(tonumber(t), tile.total)
+      have, total = have + tile.have, total + tile.total
+      eq(tile.Percent:GetText(), ns.UI.HomePercent(tile.have, tile.total) .. "%")
+    end
+    ok(total > 0 and have > 0 and have < total, "a partial collection")
+    local s = home.Summary
+    eq(s.have, have)
+    eq(s.total, total)
+    eq(s.Totals:GetText(), string.format("%d / %d collected  ·  %d%%", have, total, ns.UI.HomePercent(have, total)))
+    eq(s.Bar.max, total)
+    eq(s.Bar.value, have)
+  end)
+
+  it("percent rounds down and is 0 without mounts", function()
+    local ns = loadUI()
+    local P = ns.UI.HomePercent
+    eq(P(0, 0), 0)
+    eq(P(1, 3), 33)
+    eq(P(199, 200), 99, "never 100 before the last mount")
+    eq(P(5, 5), 100)
+  end)
+
+  it("completed expansions: green bar and the check atlas in the top-right corner", function()
+    local ns = loadUI(function() return true end)
+    STUB_ATLASES[CHECK_ATLAS] = true -- after loadUI: reset_ui_stub clears atlases
+    local home = openHome(ns)
+    local seen = 0
+    for _, tile in ipairs(tiles(ns, home)) do
+      if tile.total > 0 then
+        seen = seen + 1
+        eq(tile.Bar.barColor, { 0.25, 0.78, 0.35, 1 }, "green when complete")
+        ok(tile.Check:IsShown(), "check shown")
+        eq(tile.Check.atlas, CHECK_ATLAS)
+        eq(tile.Check:GetPoint(1), "TOPRIGHT")
+      end
+    end
+    ok(seen > 0, "some expansion has mounts")
+    STUB_ATLASES[CHECK_ATLAS] = nil
+  end)
+
+  it("incomplete tiles keep a gold bar and no check; no atlas -> the classic check texture", function()
+    local ns = loadUI()
+    local home = openHome(ns)
+    for _, tile in ipairs(tiles(ns, home)) do
+      if tile.have < tile.total then
+        eq(tile.Bar.barColor, { 1, 0.82, 0, 1 }, "gold while incomplete")
+        ok(not tile.Check:IsShown(), "no check")
+      end
+    end
+    local ns2 = loadUI(function() return true end)
+    local tile = tiles(ns2, (openHome(ns2)))[1]
+    ok(tile.Check:IsShown())
+    eq(tile.Check.atlas, nil, "atlas missing on this client")
+    eq(tile.Check.texture, "Interface\\Scenarios\\ScenarioIcon-Check")
+  end)
+
+  it("hover brightens the tile and edges it in gold; leave restores", function()
+    local ns = loadUI()
+    local tile = tiles(ns, (openHome(ns)))[1]
+    local base = tile.Bg.color
+    tile:RunScript("OnEnter")
+    ok(tile.Bg.color[1] > base[1] and tile.Bg.color[4] >= base[4], "brighter fill")
+    eq(tile.Edge.edges[1].color, { 1, 0.82, 0, 0.6 }, "gold edge")
+    tile:RunScript("OnLeave")
+    eq(tile.Bg.color, base)
+    eq(tile.Edge.edges[1].color, { 1, 1, 1, 0.1 })
+  end)
+
+  it("click opens the expansion list and Back returns home", function()
+    local ns = loadUI()
+    local home, journal = openHome(ns)
+    local tile = tiles(ns, home)[3]
+    tile:RunScript("OnClick", "LeftButton")
+    local listPage = journal.children[3]
+    ok(listPage:IsShown() and not home:IsShown(), "list shown")
+    ok(not home.Summary:IsVisible(), "summary hidden with the home")
+    local back
+    for _, c in ipairs(listPage.children) do
+      if c.template == "UIPanelButtonTemplate" then back = c end
+    end
+    back:RunScript("OnClick", "LeftButton")
+    ok(home:IsShown() and not listPage:IsShown(), "Back returns home")
+    ok(home.Summary:IsVisible(), "summary back with the home")
+  end)
+
+  it("the 4 x 3 grid and the strip fit the content area of the 800 x 560 window", function()
+    local ns = loadUI()
+    local G = ns.UI.HomeLayout
+    eq(G.cols, 4)
+    ok(G.gap >= 10 and G.gap <= 12, "10-12 px gaps")
+    -- Window 800 x 560: inset 6 px in, 60 px down (tabs); content 4 px inside.
+    local contentW, contentH = 800 - 12 - 8, 560 - 60 - 6 - 8
+    local rows = math.ceil(#ns.Data.Expansions / G.cols)
+    eq(rows, 3)
+    local right = G.left + G.cols * G.tileW + (G.cols - 1) * G.gap
+    local bottom = -G.top + rows * G.tileH + (rows - 1) * G.gap
+    ok(right <= contentW - G.left, "fits the width with an even right margin: " .. right)
+    ok(bottom <= contentH - 8, "fits the height: " .. bottom)
+    ok(-G.top > G.stripH, "grid starts below the summary strip")
+    -- Tile positions follow the layout.
+    local home = openHome(ns)
+    local p, rel, relP, x, y = tiles(ns, home)[6]:GetPoint(1)
+    eq({ p, relP, x, y }, { "TOPLEFT", "TOPLEFT", G.left + G.tileW + G.gap, G.top - G.tileH - G.gap })
+  end)
+end)

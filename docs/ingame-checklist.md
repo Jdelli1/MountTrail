@@ -341,3 +341,14 @@ The planner's Chrono-Lord Deios (Dawn of the Infinites) "Quantum Courser" rows f
 - [ ] Route tab: click a kill row: the waypoint goes to the boss's instance as before.
 - [ ] Collected on (Journal): owned rows have a faint green tint (still readable with the every-other-row stripe and the hover highlight), a light green name and a coloured icon; scroll quickly up and down: no tint left on a missing mount's row. Note whether the green is too strong or too faint at your UI scale.
 - [ ] Zone panel with Collected on: owned mounts of the zone are tinted green the same way.
+
+## F13: Journal home (redesign)
+
+The Journal tab's front page is a slim summary strip (`Mount Journal` left; `<owned> / <total> collected  ·  <pct>%` right, summed over every expansion; a full-width 4 px gold bar under it) above a 4 x 3 grid of flat tiles (180 x 134, 12 px gaps): dark flat fill with a faint 1 px edge, the expansion logo centred in the upper part (the name only when the client has no logo), a 3 px bar across the bottom with `owned / total` left and `pct%` right. A completed expansion (owned == total > 0) gets a green bar and the Great Vault's small green check (`activities-icon-checkmark`, else the scenario check texture) in its top-right corner. Percentages round down (99% until the last mount). The expansion list page is unchanged.
+
+- [ ] Journal tab: the strip and all 12 tiles fit the window with even margins (nothing clipped at the right or bottom, no overlap with the top tabs).
+- [ ] The summary numbers equal the sum of the tiles' `owned / total` (add a few up); the gold bar's fill matches the percent.
+- [ ] Logos are centred, not stretched, and do not touch the bar; note any expansion whose logo looks too small or too large in its tile.
+- [ ] Hover a tile: the fill brightens slightly and the edge turns gold; leave: back to the faint edge. Click: that expansion's list opens; Back returns to the front page with fresh numbers.
+- [ ] An expansion you have completed shows a green bar and the check top-right; note whether the check atlas rendered (green tick) or the fallback texture. A tile with nothing to collect reads `0 / 0`, `0%`, no check.
+- [ ] Learn a mount, then return to the Journal home: its tile, the summary text and bar update.

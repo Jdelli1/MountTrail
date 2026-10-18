@@ -171,3 +171,8 @@ L["Debug messages"] = "Debug messages"
 L["Show errors AzerothTrail catches around maps, waypoints and the arrow (same as /azt debug)."] = "Show errors AzerothTrail catches around maps, waypoints and the arrow (same as /azt debug)."
 L["The options page is not available on this client."] = "The options page is not available on this client."
 L["/azt options - open the AzerothTrail options (Options > AddOns)"] = "/azt options - open the AzerothTrail options (Options > AddOns)"
+
+-- Journal home (front page)
+L["Mount Journal"] = "Mount Journal"
+L["%d / %d collected  ·  %d%%"] = "%d / %d collected  ·  %d%%"
+L["%d%%"] = "%d%%"
