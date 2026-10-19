@@ -207,7 +207,9 @@ L["/azt options - open the AzerothTrail options (Options > AddOns)"] = "/azt opt
 
 -- Journal home (front page)
 L["Mount Collection"] = "Mount Collection"
-L["Search mounts, bosses, zones, achievements"] = "Search mounts, bosses, zones, achievements"
+L["Window size: %d%%"] = "Window size: %d%%"
+L["Drag to make the window bigger or smaller. Right-click: back to 100%."] = "Drag to make the window bigger or smaller. Right-click: back to 100%."
+L["Mount, boss or rare, dungeon or raid, zone, achievement or expansion. Typos and short names (icc, cata, bfa) work."] = "Mount, boss or rare, dungeon or raid, zone, achievement or expansion. Typos and short names (icc, cata, bfa) work."
 L["Search all mounts"] = "Search all mounts"
 L["Mount name"] = "Mount name"
 L["Boss / rare"] = "Boss / rare"

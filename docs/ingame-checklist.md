@@ -495,7 +495,7 @@ Game data (Mount.db2 SourceText, build 12.1.5.70448; `tools/verify_data.py` chec
 
 ## Search all mounts
 
-A search box sits in the Journal front page's strip, after the title. Typing in it opens "Search all mounts": a list over every tab's mounts (your faction; unobtainable ones only when owned or with Show unobtainable on), grouped by what matched — Mount name, Boss / rare, Dungeon / raid, Zone, Achievement, Expansion, Other matches — best group first. The page's own search box takes over the typing. Each word of the query is matched on its own against the mount's name, the game's source text (Drop -> boss, Zone / Location, Achievement, Vendor / Quest / other lines), the scanned achievement, the data group, the coordinates' map, the expansion and the section / holiday name; filler words (of, the, ...) are ignored. Words match exactly, as the start of a word, inside a word (3+ letters), or with a typo (1 edit at 4-5 letters, 2 at 6+). Abbreviations: bc/tbc, wrath/wotlk, cata, mop, wod, bfa, sl, df, tww, icc, toc, aq, bwl, mc, zg, za, ssc, tk, bt, tot, hfc, brf, tos, abt, bod, cn, sod, sfo, voti, atdh. With three or more words, two thirds of them must match. One letter searches nothing.
+A search box sits in the Journal front page's strip, after the title, with the one-line hint "Search all mounts" (hover: a tooltip lists what it finds). Typing in it opens "Search all mounts": a list over every tab's mounts (your faction; unobtainable ones only when owned or with Show unobtainable on), grouped by what matched — Mount name, Boss / rare, Dungeon / raid, Zone, Achievement, Expansion, Other matches — best group first. The page's own search box takes over the typing. Each word of the query is matched on its own against the mount's name, the game's source text (Drop -> boss, Zone / Location, Achievement, Vendor / Quest / other lines), the scanned achievement, the data group, the coordinates' map, the expansion and the section / holiday name; filler words (of, the, ...) are ignored. Words match exactly, as the start of a word, inside a word (3+ letters), or with a typo (1 edit at 4-5 letters, 2 at 6+). Abbreviations: bc/tbc, wrath/wotlk, cata, mop, wod, bfa, sl, df, tww, icc, toc, aq, bwl, mc, zg, za, ssc, tk, bt, tot, hfc, brf, tos, abt, bod, cn, sod, sfo, voti, atdh. With three or more words, two thirds of them must match. One letter searches nothing.
 
 - [ ] Type `invincible`: the page opens, Invincible under "Mount name". Rows have the usual tooltip, pin click, Ctrl-click preview.
 - [ ] `invincable` and `glroy of the raider` still find the right mounts (typos).
@@ -505,3 +505,14 @@ A search box sits in the Journal front page's strip, after the title. Typing in 
 - [ ] Collected (Filter) shows owned results tinted green; off hides them.
 - [ ] Typing feels instant (no hitch per key) on a full collection.
 - [ ] Back returns to the front page with an empty home search box; searching again starts fresh.
+- [ ] The home search box's hint fits on one line (no wrapped second line).
+
+## Window scale
+
+A small grip in the main window's bottom-right corner scales the whole window, zone panel included, between 60% and 150%. Dragging it moves the corner with the cursor while the top-left corner stays put; right-click resets to 100%; hovering shows the current size. The scale is saved in `AzerothTrailDB.global.window.scale` with the position.
+
+- [ ] Drag the grip down-right: the window grows smoothly, top-left fixed; up-left: it shrinks, stopping at 60%. It never goes past 150%.
+- [ ] Text, tiles and lists stay sharp and laid out the same at 60%, 100% and 150%; the zone panel scales with the window.
+- [ ] Right-click the grip: back to 100%. Hover: "Window size: N%".
+- [ ] `/reload`: the window comes back at the same size and place.
+- [ ] The grip does not cover a list's scroll bar.

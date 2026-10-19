@@ -187,6 +187,25 @@ function Frame:StartMoving()
 end
 function Frame:StopMovingOrSizing() self.moving = false end
 function Frame:SetUserPlaced(on) self.userPlaced = on end
+-- Scale: the effective scale is the product up the parent chain; GetLeft /
+-- GetTop return what a spec put in .left / .top (nil: not laid out yet).
+function Frame:SetScale(s) self.scale = s end
+function Frame:GetScale() return self.scale or 1 end
+function Frame:GetEffectiveScale()
+  local parent = self.parent
+  local up = (parent and parent.GetEffectiveScale) and parent:GetEffectiveScale() or 1
+  return up * (self.scale or 1)
+end
+function Frame:GetLeft() return self.left end
+function Frame:GetTop() return self.top end
+function Frame:SetFrameLevel(level) self.level = level end
+function Frame:GetFrameLevel() return self.level or 1 end
+function Frame:SetNormalTexture(tex) self.normalTexture = tex end
+function Frame:SetHighlightTexture(tex) self.highlightTexture = tex end
+function Frame:SetPushedTexture(tex) self.pushedTexture = tex end
+function Frame:RegisterForClicks(...) self.clickButtons = { ... } end
+STUB_CURSOR = { 0, 0 }
+function GetCursorPosition() return STUB_CURSOR[1], STUB_CURSOR[2] end
 function Frame:SetID(id) self.id = id end
 function Frame:GetID() return self.id or 0 end
 function Frame:CreateFontString(name, layer, template)
