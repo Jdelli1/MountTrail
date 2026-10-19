@@ -8,6 +8,9 @@ local ADDON, ns = ...
 -- Tiles follow the current flat panel style: a dark flat fill with a 1 px
 -- subtle edge; hover brightens the fill and turns the edge gold. A completed
 -- expansion gets a green bar and a check in its top-right corner.
+-- A search box in the strip searches every mount (Logic/Search.lua): typing
+-- opens the search page, a list of results grouped by what matched, whose
+-- own box takes over the typing; Back returns home.
 
 local L = ns.L
 
@@ -47,6 +50,8 @@ local CHECK_ATLAS = "activities-icon-checkmark"
 local CHECK_TEXTURE = "Interface\\Scenarios\\ScenarioIcon-Check"
 
 local home, listPage, list, title
+local searchPage, searchList
+local searchCache = {} -- Search.Prepare output by mount ID, reset per visit
 local cards = {}
 local currentExp
 
@@ -169,8 +174,39 @@ end
 local function showHome()
   currentExp = nil
   listPage:Hide()
+  searchPage:Hide()
   home:Show()
   refreshHome()
+end
+
+-- Search.Select over every mount through the list gate, with each mount's
+-- UI.SearchFields (memoised per visit in searchCache).
+local function searchSelect(mounts, query)
+  local ctx = { sourceText = query.sourceText, mapName = ns.Game.MapName }
+  return ns.Search.Select(mounts, {
+    search = query.search,
+    cache = searchCache,
+    gate = function(id, m)
+      return ns.Journal.Gate(id, m, query.isOwned, query.exists, query.faction, query.showUnobtainable)
+    end,
+    fields = function(id, m) return UI.SearchFields(id, m, ctx) end,
+  })
+end
+
+-- Opens the search page with `text` in its box (focused, so typing goes on
+-- there) and clears the home box.
+local function showSearch(text)
+  searchCache = {}
+  home:Hide()
+  listPage:Hide()
+  searchPage:Show()
+  local box = searchList.SearchBox
+  box:SetText(text)
+  if type(box.SetFocus) == "function" then box:SetFocus() end
+  if type(box.SetCursorPosition) == "function" then box:SetCursorPosition(#text) end
+  home.Summary.Search:SetText("")
+  searchList.searchText = text -- whether or not SetText fired OnTextChanged
+  searchList:Refresh(true)
 end
 
 local function showList(name)
@@ -307,6 +343,20 @@ local function createSummary()
   bar:SetPoint("BOTTOMRIGHT", s, "BOTTOMRIGHT", 0, 0)
   s.Bar = bar
   createChips(s)
+
+  -- Search box after the title; the first typed letter opens the search page.
+  local search = CreateFrame("EditBox", nil, s, "SearchBoxTemplate")
+  search:SetAutoFocus(false)
+  search:SetSize(240, 20)
+  search:SetPoint("LEFT", heading, "RIGHT", 24, 0)
+  if search.Instructions and search.Instructions.SetText then
+    search.Instructions:SetText(L["Search mounts, bosses, zones, achievements"])
+  end
+  search:HookScript("OnTextChanged", function(self, userInput)
+    local text = self:GetText() or ""
+    if userInput and string.find(text, "%S") then showSearch(text) end
+  end)
+  s.Search = search
   return s
 end
 
@@ -351,11 +401,40 @@ local function build(parent)
   list = UI.List(holder, function()
     return { view = "journal", exp = currentExp, sourceText = ns.Game.MountSourceText }
   end)
+
+  searchPage = CreateFrame("Frame", nil, parent)
+  searchPage:SetAllPoints(parent)
+  searchPage:Hide()
+  local sStrip = searchPage:CreateTexture(nil, "BACKGROUND")
+  sStrip:SetPoint("TOPLEFT", searchPage, "TOPLEFT", 0, 0)
+  sStrip:SetPoint("TOPRIGHT", searchPage, "TOPRIGHT", 0, 0)
+  sStrip:SetHeight(30)
+  sStrip:SetColorTexture(1, 1, 1, 0.04)
+  local sBack = CreateFrame("Button", nil, searchPage, "UIPanelButtonTemplate")
+  sBack:SetSize(80, 22)
+  sBack:SetPoint("TOPLEFT", searchPage, "TOPLEFT", 4, -4)
+  sBack:SetText(L["Back"])
+  local sTitle = searchPage:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+  sTitle:SetPoint("LEFT", sBack, "RIGHT", 12, 0)
+  sTitle:SetText(L["Search all mounts"])
+  local sHolder = CreateFrame("Frame", nil, searchPage)
+  sHolder:SetPoint("TOPLEFT", searchPage, "TOPLEFT", 0, -36)
+  sHolder:SetPoint("BOTTOMRIGHT", searchPage, "BOTTOMRIGHT", 0, 0)
+  searchList = UI.List(sHolder, function()
+    return { view = "search", sourceText = ns.Game.MountSourceText }
+  end, { select = searchSelect })
+  searchPage.List = searchList
+  sBack:SetScript("OnClick", function()
+    searchList.SearchBox:SetText("")
+    showHome()
+  end)
 end
 
 local function refresh()
   if not home then return end
-  if listPage:IsShown() then
+  if searchPage:IsShown() then
+    searchList:Refresh()
+  elseif listPage:IsShown() then
     list:Refresh()
   else
     refreshHome()

@@ -207,6 +207,13 @@ L["/azt options - open the AzerothTrail options (Options > AddOns)"] = "/azt opt
 
 -- Journal home (front page)
 L["Mount Collection"] = "Mount Collection"
+L["Search mounts, bosses, zones, achievements"] = "Search mounts, bosses, zones, achievements"
+L["Search all mounts"] = "Search all mounts"
+L["Mount name"] = "Mount name"
+L["Boss / rare"] = "Boss / rare"
+L["Dungeon / raid"] = "Dungeon / raid"
+L["Expansion"] = "Expansion"
+L["Other matches"] = "Other matches"
 L["|cffffd100%s|r  %d / %d"] = "|cffffd100%s|r  %d / %d"
 L["%d / %d collected  ·  %d%%"] = "%d / %d collected  ·  %d%%"
 L["%d%%"] = "%d%%"

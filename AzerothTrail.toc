@@ -25,6 +25,7 @@ Logic\Attempts.lua
 Logic\Achievements.lua
 Logic\Stats.lua
 Logic\Odds.lua
+Logic\Search.lua
 Game\API.lua
 Integrations\Map.lua
 Integrations\Rarity.lua

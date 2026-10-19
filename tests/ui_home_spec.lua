@@ -268,6 +268,44 @@ describe("journal home", function()
     eq(tile.Edge.edges[1].color, { 1, 1, 1, 0.1 }, "OnHide resets the edge")
   end)
 
+  it("typing in the home search box opens the search page with grouped results; Back returns", function()
+    local ns = loadUI(function() return false end)
+    ns.Data.Mounts = {
+      [1] = { name = "Swift Zulian Tiger", tab = "journal", section = "dungeon", group = "Zul'Gurub", exp = "Cataclysm" },
+      [2] = { name = "Zulian Raptor", tab = "misc", section = "shop" },
+      [3] = { name = "Horde Tiger", tab = "misc", section = "shop", faction = "Horde" },
+    }
+    local home, journal = openHome(ns)
+    local box = home.Summary.Search
+    ok(box, "search box in the strip")
+    box:SetText("tiger")
+    box:RunScript("OnTextChanged", false)
+    ok(home:IsShown(), "set by code: stays home")
+    box:RunScript("OnTextChanged", true)
+    local page = journal.children[4]
+    ok(page:IsShown() and not home:IsShown(), "search page shown")
+    eq(box:GetText(), "", "home box cleared")
+    local list = page.List
+    eq(list.SearchBox:GetText(), "tiger")
+    local rows = list.ScrollBox.provider.rows
+    eq(rows[1].header, true)
+    eq(rows[1].text, "Mount name")
+    eq(rows[2].id, 1, "the other faction's tiger is left out")
+    eq(#rows, 2)
+    list.SearchBox:SetText("zulgurub")
+    list.SearchBox:RunScript("OnTextChanged", true)
+    rows = list.ScrollBox.provider.rows
+    eq(rows[1].text, "Dungeon / raid")
+    eq(rows[2].id, 1)
+    local back
+    for _, c in ipairs(page.children) do
+      if c.template == "UIPanelButtonTemplate" then back = c end
+    end
+    back:RunScript("OnClick", "LeftButton")
+    ok(home:IsShown() and not page:IsShown(), "Back returns home")
+    eq(list.SearchBox:GetText(), "", "search cleared")
+  end)
+
   it("the 4 x 3 grid and the strip fit the content area of the 800 x 560 window", function()
     local ns = loadUI()
     local G = ns.UI.HomeLayout

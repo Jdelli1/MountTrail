@@ -20,7 +20,9 @@ local ADDON, ns = ...
 -- text, isOwned, exists, faction and sourceText (Game.MountSourceText, which
 -- refines journal sections into delves / caches) unless the query already has
 -- them.
--- opts (optional): { headerSuffix = fn(sectionKey) -> string|nil (a green
+-- opts (optional): { select = fn(mounts, query) -> Journal.Select-shaped
+-- list (default Journal.Select; the front page's search uses Search.Select),
+-- headerSuffix = fn(sectionKey) -> string|nil (a green
 -- badge after the header text), headerActive = fn(sectionKey) -> bool (the
 -- header text in green), rowTag = fn(mountID, m) -> string|nil (a green tag
 -- after the row's source line) }. The base query may carry pin =
@@ -171,6 +173,10 @@ local SECTION_NAMES = {
   collection = "Collection rewards",
   timewalking = "Timewalking", anniversary = "Anniversary",
   unobtainable = "Unobtainable",
+  -- Search results (Search.Select), by what matched.
+  search_name = "Mount name", search_boss = "Boss / rare", search_instance = "Dungeon / raid",
+  search_zone = "Zone", search_achievement = "Achievement", search_expansion = "Expansion",
+  search_other = "Other matches",
 }
 
 -- Options "Show unobtainable mounts" (ns.db.global.settings.showUnobtainable):
@@ -469,6 +475,56 @@ function UI.RowDescription(mountID, sourceText)
   if zone then return text(zone) end
   if unlabelled then return unlabelled end
   return UI.SourceLine(mountID)
+end
+
+-- Searchable text of a mount for Search.Select -> { name =, boss =,
+-- instance =, zone =, achievement =, expansion =, other = } (lists of
+-- strings): the client's source text by label kind (Drop -> boss, Zone /
+-- Location -> zone, Achievement -> achievement, anything else -> other),
+-- the achievement scan's name, the data group (instance / zone / faction /
+-- profession) and route instance and boss, the coordinates' map name
+-- (ctx.mapName), the expansion, and the section and holiday labels.
+-- ctx: { sourceText = fn(id), mapName = fn(mapID) } (both optional).
+function UI.SearchFields(id, m, ctx)
+  ctx = ctx or {}
+  m = m or {}
+  local f = { name = { m.name }, boss = {}, instance = {}, zone = {}, achievement = {}, expansion = {}, other = {} }
+  local function add(kind, text)
+    if type(text) == "string" and text ~= "" then f[kind][#f[kind] + 1] = text end
+  end
+  local kinds = labelKinds()
+  local text = ctx.sourceText and ctx.sourceText(id) or nil
+  for _, pair in ipairs(UI.SourcePairs(text)) do
+    local kind = pair.label and UI.SourceLabelKind(pair.label, kinds) or nil
+    if kind == "drop" then
+      add("boss", pair.value)
+    elseif kind == "zone" then
+      add("zone", pair.value)
+    elseif kind == "achievement" then
+      add("achievement", pair.value)
+    elseif kind ~= "cost" then
+      add("other", pair.value)
+    end
+  end
+  add("achievement", scannedAchievementName(id))
+  local entry = routeEntry(id)
+  if entry then
+    add("boss", entry.boss)
+    add("instance", entry.instance)
+  end
+  local section = m.section
+  if section == "dungeon" or section == "raid" then
+    add("instance", m.group)
+  elseif section == "world" or section == "treasure" or section == "quest" or section == "activity" then
+    add("zone", m.group)
+  else
+    add("other", m.group)
+  end
+  local coords = m.coords
+  if ctx.mapName and type(coords) == "table" and coords.m then add("zone", ctx.mapName(coords.m)) end
+  if m.exp then add("expansion", L[m.exp]) end
+  if section then add("other", UI.SectionLabel(section)) end
+  return f
 end
 
 -- Grouping key of a sub-group name: lower case, trimmed, single spaces, a
@@ -1631,7 +1687,8 @@ function UI.List(parent, getQuery, opts)
       self.FilterDropdown:ValidateResetState()
     end
 
-    local selected = ns.Journal.Select((ns.Data and ns.Data.Mounts) or {}, query)
+    local select = (opts and opts.select) or ns.Journal.Select
+    local selected = select((ns.Data and ns.Data.Mounts) or {}, query)
     local rows = UI.ListRows(selected, query.isOwned, {
       headerSuffix = opts and opts.headerSuffix,
       headerActive = opts and opts.headerActive,

@@ -492,3 +492,16 @@ Game data (Mount.db2 SourceText, build 12.1.5.70448; `tools/verify_data.py` chec
 - [ ] Shadowlands: Horrid Dredwing (Harika the Horrid), Armored Bonehoof Tauralus (Sabriel the Bonecleaver), Wild Glimmerfur Prowler (Valfir the Unrelenting) are under Daily > Shadowlands > Rares; after a kill the row ticks `auto` and is back the next day. Report if a kill does not tick (Rarity quest IDs 59612 / 58784 / 61632).
 - [ ] Hover a rare-spawn row: no `Lockout:` line, attempts as before; kill the rare: no attempt is counted by AzerothTrail (Rarity's own count still shows).
 - [ ] Journal > The War Within: Stonevault Mechsuit is under Quests, not Dungeon drops.
+
+## Search all mounts
+
+A search box sits in the Journal front page's strip, after the title. Typing in it opens "Search all mounts": a list over every tab's mounts (your faction; unobtainable ones only when owned or with Show unobtainable on), grouped by what matched — Mount name, Boss / rare, Dungeon / raid, Zone, Achievement, Expansion, Other matches — best group first. The page's own search box takes over the typing. Each word of the query is matched on its own against the mount's name, the game's source text (Drop -> boss, Zone / Location, Achievement, Vendor / Quest / other lines), the scanned achievement, the data group, the coordinates' map, the expansion and the section / holiday name; filler words (of, the, ...) are ignored. Words match exactly, as the start of a word, inside a word (3+ letters), or with a typo (1 edit at 4-5 letters, 2 at 6+). Abbreviations: bc/tbc, wrath/wotlk, cata, mop, wod, bfa, sl, df, tww, icc, toc, aq, bwl, mc, zg, za, ssc, tk, bt, tot, hfc, brf, tos, abt, bod, cn, sod, sfo, voti, atdh. With three or more words, two thirds of them must match. One letter searches nothing.
+
+- [ ] Type `invincible`: the page opens, Invincible under "Mount name". Rows have the usual tooltip, pin click, Ctrl-click preview.
+- [ ] `invincable` and `glroy of the raider` still find the right mounts (typos).
+- [ ] `glory of the raider cata` and `cata raider glory`: the Cataclysm raider achievement mount first, under "Achievement". `flirty of the raider cata` still finds it.
+- [ ] `icc` lists the Icecrown Citadel mounts under "Dungeon / raid" (or "Boss / rare" when the source text names the boss).
+- [ ] A zone name (e.g. `stranglethorn`) lists mounts with that zone under "Zone".
+- [ ] Collected (Filter) shows owned results tinted green; off hides them.
+- [ ] Typing feels instant (no hitch per key) on a full collection.
+- [ ] Back returns to the front page with an empty home search box; searching again starts fresh.
