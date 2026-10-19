@@ -516,3 +516,16 @@ A small grip in the main window's bottom-right corner scales the whole window, z
 - [ ] Right-click the grip: back to 100%. Hover: "Window size: N%".
 - [ ] `/reload`: the window comes back at the same size and place.
 - [ ] The grip does not cover a list's scroll bar.
+
+## World map tab
+
+An AzerothTrail tab (our icon in a round mask) sits in the Map & Quest Log's column of side tabs, under Map Legend and under any other add-on's tab there. Selecting it covers the quest log with "Mounts in <zone>" for the map being viewed: the zone panel's list (coords, `Zone:` source text, dungeon / raid entrances; owned only with Collected on), rows with tooltip, click for a waypoint, Shift-click map, Ctrl-click preview. World and continent maps say "Open a zone on the map to see its mounts". Blizzard's quest log mode is never changed: clicking Quests / Events / Map Legend, Blizzard switching mode, or opening a quest's details uncovers the quest log. The selection is saved (`AzerothTrailDB.global.mapTab.selected`).
+
+- [ ] Open the map (M) with the quest log side panel shown: the AzerothTrail tab is under Map Legend, round icon, not overlapping another add-on's tab. Hover: "AzerothTrail: mounts on this map".
+- [ ] Click it: the tab looks selected, Blizzard's tabs look unselected, the column shows the viewed zone's mounts. Scrolling over it does not scroll the quest log underneath.
+- [ ] Browse to another zone (or zoom out and in): the list and title follow the viewed map, not where you stand. A continent / Azeroth: "Open a zone on the map to see its mounts".
+- [ ] Rows: tooltip, click sets a waypoint, Shift-click, Ctrl-click preview work as in the main window.
+- [ ] Click Quests (also when Quests was the mode before): the quest log is back and Quests looks selected. Same for Events and Map Legend.
+- [ ] With the tab selected, click a quest on the map: the quest details show (the tab is left).
+- [ ] Close and reopen the map: the tab is still selected; `/reload` too. Leave it on Quests: the map opens on Quests.
+- [ ] No Lua errors or "AddOn action blocked" with the map open in combat, tracking quests, or using the objective tracker afterwards (taint check).

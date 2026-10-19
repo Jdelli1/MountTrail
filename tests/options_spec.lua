@@ -76,7 +76,7 @@ local function withGlobals(settings, tomtom, fn)
 end
 
 describe("options", function()
-  it("toc lists UI\\Options.lua last, after UI\\ZonePanel.lua", function()
+  it("toc lists UI\\Options.lua last, after UI\\MapTab.lua (after UI\\ZonePanel.lua)", function()
     local fh = assert(io.open(ROOT .. "/AzerothTrail.toc", "r"))
     local lines = {}
     for line in fh:lines() do
@@ -85,7 +85,8 @@ describe("options", function()
     end
     fh:close()
     eq(lines[#lines], "UI\\Options.lua")
-    eq(lines[#lines - 1], "UI\\ZonePanel.lua")
+    eq(lines[#lines - 1], "UI\\MapTab.lua")
+    eq(lines[#lines - 2], "UI\\ZonePanel.lua")
   end)
 
   it("db default: in-game pin waypoints, unobtainable mounts hidden", function()
