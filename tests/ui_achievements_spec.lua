@@ -165,6 +165,36 @@ describe("ui achievements", function()
     end)
   end)
 
+  describe("plain left-click on an achievement mount", function()
+    it("opens its achievement, not a waypoint; other mounts get the waypoint", function()
+      local opened
+      local status = "ready"
+      local ns = loadUI(function(id)
+        if id ~= 262 then return nil, "none" end
+        if status == "ready" then return 10, "ready" end
+        return nil, status
+      end, { OpenAchievement = function(id) opened = id; return true end })
+      local got = {}
+      ns.Map = { SetWaypoint = function(id) got[#got + 1] = id end }
+      IsControlKeyDown = function() return false end
+      IsShiftKeyDown = function() return false end
+      ns.UI.HandleRowClick(262, "LeftButton")
+      eq(opened, 10)
+      eq(got, {}, "no waypoint")
+      ns.UI.HandleRowClick(20, "LeftButton")
+      eq(got, { 20 }, "other mounts: the waypoint")
+      opened, status = nil, "pending"
+      ns.UI.HandleRowClick(262, "LeftButton")
+      eq(opened, nil)
+      eq(got, { 20 }, "still looking it up: no waypoint either")
+      eq(ns.addon.printed[#ns.addon.printed], "Achievement: looking up...")
+      IsControlKeyDown, IsShiftKeyDown = nil, nil
+      status = "ready"
+      eq(ns.UI.ClickHint(262), "Click to open the achievement")
+      eq(ns.UI.ClickHint(262, nil, true), "Click to set waypoint", "the pane's Waypoint button")
+    end)
+  end)
+
   describe("Shift+right-click in combat", function()
     it("prints a note and opens nothing", function()
       local opened = false
@@ -207,7 +237,7 @@ describe("ui achievements", function()
   end)
 
   describe("ShowMountTooltip", function()
-    it("adds the achievement block and the Shift-right-click hint for achievement mounts", function()
+    it("adds the achievement block and the open-the-achievement hint for achievement mounts", function()
       local ns = loadUI(function(id) if id == 262 then return 10, "ready" end return nil, "none" end)
       local tip, calls = recordingTip()
       local old = GameTooltip
@@ -217,7 +247,7 @@ describe("ui achievements", function()
       eq(addLines(calls), {
         "Mount", "Achievement reward", "Lockout: —",
         "Achievement: Glory of the Hero", "Heroic feats.", "  Done one", "  Open one",
-        "Click to set waypoint",
+        "Click to open the achievement",
       })
       local byText = {}
       for _, c in ipairs(calls) do if c[1] == "AddLine" then byText[c[2]] = c end end
@@ -256,7 +286,7 @@ describe("ui achievements", function()
       local repainted = {}
       for i = first + 1, #calls do repainted[#repainted + 1] = calls[i] end
       local lines = addLines(repainted)
-      eq(lines[#lines], "Click to set waypoint", "repainted")
+      eq(lines[#lines], "Click to open the achievement", "repainted")
       local found = false
       for _, l in ipairs(lines) do
         if l == "Achievement: looking up..." then found = true end

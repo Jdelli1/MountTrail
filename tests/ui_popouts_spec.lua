@@ -1,5 +1,6 @@
--- Pop-out checklists (UI/Popouts.lua), custom lists in the detail pane and
--- the Checklist, and the flat widgets (UI.ShowMenu / UI.AskText).
+-- Pop-out checklists (UI/Popouts.lua): expansion groups, appearance,
+-- snapped stacks; custom lists in the detail pane and the Checklist, and the
+-- flat widgets (UI.ShowMenu / UI.AskText).
 
 local UI_FILES = { "UI/Frame.lua", "UI/Tooltip.lua", "UI/List.lua", "UI/DetailPane.lua",
   "UI/Tabs.lua", "UI/LockoutHelpers.lua", "UI/ChecklistView.lua", "UI/Popouts.lua", "UI/ZonePanel.lua" }
@@ -14,7 +15,12 @@ for _, name in ipairs({ "SetTexCoord", "SetJustifyH", "SetWordWrap", "SetDesatur
   "SetBackdrop", "SetBackdropColor", "SetRotation", "AddMaskTexture" }) do
   RegionMT[name] = RegionMT[name] or noop
 end
-function RegionMT:SetFontObject(font) self.font = font end
+-- Fonts: a font object resets the font; SetFont / GetFont / the text
+-- colour are recorded (pop-out appearance).
+function RegionMT:SetFontObject(font) self.font = font; self.fontPath, self.fontSize = nil, nil end
+function RegionMT:GetFont() return self.fontPath or "Fonts\\FRIZQT__.TTF", self.fontSize or 10, "" end
+function RegionMT:SetFont(path, size) self.fontPath, self.fontSize = path, size end
+function RegionMT:SetTextColor(r, g, b) self.textColor = { r, g, b } end
 function RegionMT:SetWordWrap(on) self.wordWrap = on end
 function RegionMT:SetDesaturated(on) self.desaturated = on end
 function RegionMT:GetStringWidth() return 60 end
@@ -382,6 +388,195 @@ describe("pop-out windows", function()
     ok(row.Badge:IsShown())
     eq(row.Badge.Text:GetText(), "WOD")
     eq(row.Badge.exp, WOD)
+  end)
+
+  it("groups rows by expansion on ready-made sets, never on the player's own lists", function()
+    local ns = loadUI()
+    local U = ns.UI
+    local rows = {
+      { key = "a", entry = { exp = WOD } }, { key = "b", entry = { m = { exp = "Classic" } }, done = true },
+      { key = "c", entry = {} }, { key = "d", entry = { exp = WOD } },
+    }
+    local g = U.PopoutGroups(rows, { kind = "quick", key = "mythic" })
+    eq(#g, 3)
+    eq({ g[1].exp, g[2].exp }, { "Classic", WOD }, "expansion order")
+    eq(g[3].exp, nil, "no expansion last")
+    eq({ #g[1].rows, g[1].left, #g[2].rows, g[2].left }, { 1, 0, 2, 2 })
+    eq({ g[2].rows[1].key, g[2].rows[2].key }, { "a", "d" }, "the given order within a group")
+    local one = U.PopoutGroups(rows, { kind = "list", list = 1 })
+    eq(#one, 1)
+    eq(one[1].exp, nil)
+    eq({ #one[1].rows, one[1].left }, { 4, 3 })
+    eq(#U.PopoutGroups({ rows[1], rows[4] }, { kind = "zone" }), 1, "one expansion: no groups")
+  end)
+
+  it("a quick list shows expansion headers; the player's own list keeps its rows as they are", function()
+    local ns = loadUI()
+    setup(ns)
+    ns.QuickLists.Mounts = function() return { 614, 1 } end
+    local q = ns.UI.OpenPopout({ kind = "quick", key = "mythic" })
+    local heads = {}
+    for _, h in ipairs(q.groupFrames) do if h:IsShown() then heads[#heads + 1] = h.Text:GetText() end end
+    eq(#heads, 2)
+    ok(heads[1]:find("^Classic"), heads[1])
+    ok(heads[2]:find("^" .. WOD), heads[2])
+    eq({ q.rows[1].id, q.rows[2].id }, { 1, 614 })
+    local store = ns.UI.ListsDB()
+    local id = ns.Lists.Create(store, "Mine")
+    ns.Lists.Add(store, id, 614)
+    ns.Lists.Add(store, id, 1)
+    local l = ns.UI.OpenPopout({ kind = "list", list = id })
+    for _, h in ipairs(l.groupFrames) do ok(not h:IsShown(), "no headers on a custom list") end
+    eq(#l.rows, 2)
+    ok(string.lower(l.rows[1].name) < string.lower(l.rows[2].name), "by name, expansions mixed")
+  end)
+
+  it("Alt-drag keeps a row inside its expansion group; moving down lands at the line", function()
+    local ns = loadUI()
+    setup(ns)
+    ns.QuickLists.Mounts = function() return { 1, 614, 9 } end
+    local w = ns.UI.OpenPopout({ kind = "quick", key = "mythic" })
+    local function ids()
+      local out = {}
+      for i, r in ipairs(w.rows) do out[i] = r.id end
+      return out
+    end
+    local start = ids()
+    eq(start[1], 1, "Classic first")
+    local x, y = start[2], start[3] -- the two WOD rows
+    local function rowOf(id)
+      for _, c in ipairs(w.Content.children) do if c.data and c.data.id == id and c:IsShown() then return c end end
+    end
+    IsAltKeyDown = function() return true end
+    w.Content.top = 500
+    -- The first WOD row dragged past the end: lands after the other one.
+    rowOf(x):RunScript("OnDragStart")
+    STUB_CURSOR[1], STUB_CURSOR[2] = 50, 300
+    w:RunScript("OnUpdate")
+    eq(w.dropAt, 4)
+    local _, _, _, _, lineY = w.DropLine:GetPoint(1)
+    eq(lineY, -100, "under the group's last row")
+    rowOf(x):RunScript("OnDragStop")
+    eq(ids(), { 1, y, x }, "moved down one")
+    -- Dragged to the very top: stays in its group (its first row).
+    rowOf(x):RunScript("OnDragStart")
+    STUB_CURSOR[1], STUB_CURSOR[2] = 50, 500
+    w:RunScript("OnUpdate")
+    eq(w.dropAt, 2, "the group's first slot")
+    rowOf(x):RunScript("OnDragStop")
+    eq(ids(), { 1, x, y })
+    IsAltKeyDown = nil
+    STUB_CURSOR[1], STUB_CURSOR[2] = 0, 0
+  end)
+
+  it("appearance: right-click the title; saved per window; Apply to all; Reset", function()
+    local ns = loadUI()
+    setup(ns)
+    local a = ns.UI.OpenPopout({ kind = "camp", exp = WOD })
+    local b = ns.UI.OpenPopout({ kind = "daily", exp = WOD })
+    local menu
+    local function click(text)
+      for _, it in ipairs(menu.items) do
+        if it:IsShown() and it.data and it.data.text == text then
+          it:RunScript("OnClick", "LeftButton")
+          return it
+        end
+      end
+      error("no menu item " .. text)
+    end
+    a.Strip:RunScript("OnMouseUp", "RightButton")
+    menu = _G.AzerothTrailMenu
+    ok(menu:IsShown(), "the flat menu")
+    eq(menu.items[1].data.title, "Appearance")
+    ok(menu.items[2].Arrow:IsShown(), "a sub-menu item shows its arrow")
+    click("Opacity: 92%")
+    ok(menu:IsShown(), "the sub-menu replaces it")
+    eq(menu.items[1].data.title, "Opacity")
+    click("60%")
+    ok(menu:IsShown(), "stays open to try another")
+    local st = ns.db.global.popouts["camp|" .. WOD].style
+    eq(st.alpha, 0.6)
+    eq(a.Fill.color[4], 0.6, "the window follows")
+    eq(b.Fill.color[4], 0.92, "the other window keeps its look")
+    click("Back")
+    click("Background colour")
+    click("Forest")
+    eq(st.bg, { 0.05, 0.12, 0.07 })
+    click("Back")
+    click("Text colour")
+    click("Gold")
+    eq(st.text, { 1, 0.82, 0 })
+    click("Back")
+    click("Font size")
+    click("Large")
+    eq(st.size, 14)
+    ok(a.rowHeight > 20, "taller rows for bigger text")
+    click("Back")
+    click("Font")
+    click("Morpheus")
+    eq(st.font, "Fonts\\MORPHEUS.TTF")
+    local row
+    for _, c in ipairs(a.Content.children) do if c.data and c.data.id == 657 then row = c end end
+    eq({ row.Name.fontPath, row.Name.fontSize }, { "Fonts\\MORPHEUS.TTF", 14 })
+    eq(row.Name.textColor, { 1, 0.82, 0 })
+    click("Back")
+    click("Apply to all pop-outs")
+    ok(not menu:IsShown(), "closed")
+    eq(ns.db.global.popoutStyle.alpha, 0.6)
+    eq(ns.db.global.popouts["camp|" .. WOD].style, nil, "the shared look now")
+    eq(b.Fill.color[4], 0.6, "every window")
+    local c = ns.UI.OpenPopout({ kind = "weekly", exp = WOD })
+    eq(c.Fill.color[4], 0.6, "a new window too")
+    b.Strip:RunScript("OnMouseUp", "RightButton")
+    click("Reset appearance")
+    eq(b.Fill.color[4], 0.92, "back to the add-on's look")
+    eq(a.Fill.color[4], 0.6, "the others keep the shared look")
+    ok(ns.UI.PopoutFonts()[1].path:find("FRIZQT"), "the game's fonts first")
+    eq(ns.UI.PopoutStyle({ alpha = 5 }).alpha, 1, "opacity clamped")
+  end)
+
+  it("snapped windows move together: the top one takes the stack, a middle one those below", function()
+    local ns = loadUI()
+    local chain = ns.UI.SnapChain
+    local rects = {
+      a = { left = 100, top = 600, right = 380, bottom = 500 },
+      b = { left = 100, top = 500, right = 380, bottom = 400 },
+      c = { left = 100, top = 400, right = 380, bottom = 300 },
+      d = { left = 380, top = 600, right = 660, bottom = 500 }, -- right of a
+      e = { left = 900, top = 600, right = 1180, bottom = 450 }, -- apart
+    }
+    eq(chain("a", rects), { "b", "c", "d" })
+    eq(chain("b", rects), { "c" })
+    eq(chain("c", rects), {})
+    eq(chain("e", rects), {})
+
+    setup(ns)
+    local top = ns.UI.OpenPopout({ kind = "camp", exp = WOD })
+    local mid = ns.UI.OpenPopout({ kind = "daily", exp = WOD })
+    local low = ns.UI.OpenPopout({ kind = "weekly", exp = WOD })
+    local function place(w, r) w.left, w.top, w.right, w.bottom = r.left, r.top, r.right, r.bottom end
+    place(top, rects.a)
+    place(mid, rects.b)
+    place(low, rects.c)
+    local function anchor(w)
+      local p, rel, rp, x, y = w:GetPoint(1)
+      return { p, rp, x, y }, rel
+    end
+    mid.Strip:RunScript("OnDragStart")
+    local pt, rel = anchor(low)
+    eq(pt, { "TOPLEFT", "TOPLEFT", 0, -100 }, "pinned to the one dragged")
+    ok(rel == mid)
+    ok(select(2, top:GetPoint(1)) ~= mid, "the one above stays")
+    place(mid, { left = 1000, top = 300, right = 1280, bottom = 200 })
+    mid.Strip:RunScript("OnDragStop")
+    pt, rel = anchor(mid)
+    eq(pt, { "TOPLEFT", "BOTTOMLEFT", 1000, 300 })
+    ok(rel == UIParent)
+    pt, rel = anchor(low)
+    eq(pt, { "TOPLEFT", "BOTTOMLEFT", 1000, 200 }, "came along")
+    ok(rel == UIParent)
+    local saved = ns.db.global.popouts["weekly|" .. WOD]
+    eq({ saved.point, saved.relPoint, saved.x, saved.y }, { "TOPLEFT", "BOTTOMLEFT", 1000, 200 })
   end)
 
   it("open windows come back after /reload", function()

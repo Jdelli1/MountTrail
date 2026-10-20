@@ -163,7 +163,11 @@ end
 
 -- The tooltip's bottom line: "Click to plot all 6 spawn points" when a row
 -- click plots several points (Map.PlotCount), else "Click to set waypoint".
-function UI.ClickHint(mountID, routeBoss)
+function UI.ClickHint(mountID, routeBoss, waypointOnly)
+  local scan = ns.AchievementScan
+  if not waypointOnly and mountID and scan and scan.Lookup and scan.Lookup(mountID) then
+    return L["Click to open the achievement"]
+  end
   local map = ns.Map
   local n = map and map.PlotCount and map.PlotCount(mountID, routeBoss) or 0
   if n > 1 then return string.format(L["Click to plot all %d spawn points"], n) end

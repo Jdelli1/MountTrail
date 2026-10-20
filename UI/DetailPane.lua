@@ -348,7 +348,7 @@ local function build(parent)
     if pane.mountID then UI.GoTo(pane.mountID, pane.routeBoss) end
   end)
   waypoint:SetScript("OnEnter", function(self)
-    if pane.mountID and UI.ClickHint then UI.ShowHint(self, UI.ClickHint(pane.mountID, pane.routeBoss)) end
+    if pane.mountID and UI.ClickHint then UI.ShowHint(self, UI.ClickHint(pane.mountID, pane.routeBoss, true)) end
   end)
   waypoint:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   mapButton:SetScript("OnClick", function()

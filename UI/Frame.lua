@@ -246,6 +246,7 @@ end
 -- function returning one)
 --   { title = "Text" }                                 a gold heading
 --   { text =, onClick = fn, checked = bool|nil, disabled = bool, keepOpen = bool }
+--   { text =, submenu = items }                        opens another menu in its place (">")
 --   { separator = true }
 -- A checked / unchecked item shows a small square box (filled gold when
 -- checked). A click runs onClick and closes the menu (keepOpen: stays open
@@ -301,6 +302,10 @@ local function menuItem(i)
   local text = it:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   text:SetJustifyH("LEFT")
   it.Label = text
+  local arrow = it:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  arrow:SetPoint("RIGHT", it, "RIGHT", -8, 0)
+  arrow:SetText(">")
+  it.Arrow = arrow
   local rule = it:CreateTexture(nil, "ARTWORK")
   rule:SetHeight(1)
   rule:SetPoint("LEFT", it, "LEFT", 6, 0)
@@ -310,6 +315,10 @@ local function menuItem(i)
   it:SetScript("OnClick", function(self)
     local data = self.data
     if not data or data.title or data.separator or data.disabled then return end
+    if data.submenu then
+      UI.ShowMenu(menu.owner, data.submenu, menu.anchor)
+      return
+    end
     if data.onClick then data.onClick(data) end
     if data.keepOpen and menu.lastItems then
       UI.ShowMenu(menu.owner, menu.lastItems, menu.anchor)
@@ -345,6 +354,7 @@ function UI.ShowMenu(owner, items, anchor)
       it.Label:SetPoint("LEFT", it, "LEFT", 9, 0)
     end
     it.Rule:SetShown(data.separator == true)
+    it.Arrow:SetShown(data.submenu ~= nil)
     it.Highlight:SetShown(not (data.title or data.separator or data.disabled))
     if data.separator then
       it:SetHeight(7)

@@ -1046,6 +1046,36 @@ function UI.GoTo(mountID, routeBoss)
   mapAction("SetWaypoint", mountID, routeBoss)
 end
 
+-- An achievement mount's plain click: opens its achievement in the
+-- Achievements window when the achievement scan knows it (-> "achievement");
+-- while the scan still looks it up, a note only (-> "pending"); not an
+-- achievement mount (or no match) -> nil.
+function UI.AchievementClick(mountID)
+  local scan = ns.AchievementScan
+  if not (mountID and scan and scan.Lookup) then return nil end
+  local id, status = scan.Lookup(mountID)
+  if id then
+    UI.OpenMountAchievement(mountID)
+    return "achievement"
+  end
+  if status == "pending" then
+    if ns.addon and ns.addon.Print then ns.addon:Print(L["Achievement: looking up..."]) end
+    return "pending"
+  end
+  return nil
+end
+
+-- A mount row's plain click: an achievement mount opens its achievement
+-- (UI.AchievementClick), anything else goes there (UI.GoTo).
+-- -> "achievement" | "waypoint" | nil (still looking the achievement up).
+function UI.RowGo(mountID, routeBoss)
+  local done = UI.AchievementClick(mountID)
+  if done == "achievement" then return "achievement" end
+  if done == "pending" then return nil end
+  UI.GoTo(mountID, routeBoss)
+  return "waypoint"
+end
+
 -- OnClick of a mount row (lists, Checklist and zone panel): reads the modifier keys and
 -- runs UI.RowClickAction's action for `mountID`. `routeBoss` (optional): the
 -- route / checklist row's boss, so the waypoint and map go to that boss's
@@ -1064,7 +1094,7 @@ function UI.HandleRowClick(mountID, button, routeBoss, eventMap)
   if action == "waypoint" and eventMap and UI.OpenEventMap then
     UI.OpenEventMap(eventMap)
   elseif action == "waypoint" then
-    UI.GoTo(mountID, routeBoss)
+    UI.RowGo(mountID, routeBoss)
   elseif action == "map" then
     mapAction("OpenMap", mountID, routeBoss)
   elseif action == "preview" then
@@ -1373,14 +1403,16 @@ local function setupRow(row)
   end)
   row:SetScript("OnLeave", function() UI.HideMountTooltip() end)
   row:SetScript("OnClick", function(self, button)
-    -- In a list with the detail pane a plain left-click selects the row.
-    -- Otherwise: left-click waypoint, Shift+left-click world map,
+    -- In a list with the detail pane a plain left-click selects the row
+    -- (an achievement mount also opens its achievement). Otherwise:
+    -- left-click waypoint (or the achievement), Shift+left-click world map,
     -- Ctrl+left-click preview, Shift+right-click achievement
     -- (UI.RowClickAction).
     if self.onSelect and button == "LeftButton" and self.mountID
       and not (type(IsShiftKeyDown) == "function" and IsShiftKeyDown())
       and not (type(IsControlKeyDown) == "function" and IsControlKeyDown()) then
       self.onSelect(self.mountID, self)
+      UI.AchievementClick(self.mountID)
       return
     end
     UI.HandleRowClick(self.mountID, button, self.routeBoss, self.eventMap)

@@ -189,6 +189,24 @@ describe("detail pane", function()
     eq(shown, false, "the pane replaces the hover tooltip")
   end)
 
+  it("a plain left-click on an achievement mount selects it and opens its achievement", function()
+    local ns = loadUI()
+    local list = makeList(ns)
+    local opened
+    ns.Game.OpenAchievement = function(id) opened = id; return true end
+    ns.AchievementScan.Lookup = function(id) if id == 2 then return 77, "ready" end return nil, "none" end
+    local row = CreateFrame("Button")
+    ns.UI.InitMountRow(row, mountRows(list)[2])
+    row:RunScript("OnClick", "LeftButton")
+    eq(list.selectedID, 2)
+    eq(opened, 77)
+    opened = nil
+    ns.UI.InitMountRow(row, mountRows(list)[1])
+    row:RunScript("OnClick", "LeftButton")
+    eq(list.selectedID, 1)
+    eq(opened, nil, "other mounts: selected only")
+  end)
+
   it("Shift-click still opens the map from a row", function()
     local ns = loadUI()
     local list = makeList(ns)
