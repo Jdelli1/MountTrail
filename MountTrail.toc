@@ -1,10 +1,11 @@
 ## Interface: 120105
 ## Title: MountTrail
-## Notes: A mount-collection guide: tracks the mounts you are missing and the daily / weekly lockouts left to farm them.
+## Notes: A mount-collection guide: tracks the mounts you are missing and the daily / weekly lockouts left to farm them. Requires TomTom.
 ## Author: James
 ## Version: @project-version@
 ## SavedVariables: MountTrailDB, AzerothTrailDB
 ## OptionalDeps: TomTom, Rarity
+# TomTom is required, but listed under OptionalDeps (not Dependencies) so MountTrail still loads without it and can say so.
 ## IconTexture: 132261
 
 embeds.xml

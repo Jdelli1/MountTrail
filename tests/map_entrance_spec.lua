@@ -20,7 +20,8 @@ local function fakeApi(opts)
   local function rec(...) log[#log + 1] = { ... } end
   return {
     log = log,
-    waypointMode = "game",
+    -- TomTom (required for waypoints) records { "TomTom", map, x, y }.
+    TomTom = { AddWaypoint = function(self, m, x, y) rec("TomTom", m, x, y) return "uid" end },
     C_Map = {
       CanSetUserWaypointOnMap = function(m) return (opts.canSet or {})[m] == true end,
       GetMapInfo = function(m)
@@ -92,8 +93,7 @@ describe("Map.Resolve for raid and dungeon mounts", function()
     local api = fakeApi(ONYXIA_WORLD)
     local place, kind = Map.SetWaypoint(349, api)
     eq(kind, "entrance")
-    eq(api.log[1][1], "SetUserWaypoint")
-    eq(api.log[1][2], { m = 70, x = 0.52, y = 0.76 })
+    eq(api.log[1], { "TomTom", 70, 0.52, 0.76 })
     eq(api.log[#api.log], { "Print", "Waypoint: " .. place })
     ok(place:find("(entrance)", 1, true), place)
   end)
@@ -192,7 +192,7 @@ describe("Map.Resolve / SetWaypoint / OpenMap with a route boss", function()
     local api = fakeApi(WORLD)
     local place, kind = Map.SetWaypoint(69, api, "Grand Hoarder")
     eq(kind, "entrance")
-    eq(api.log[1], { "SetUserWaypoint", { m = 2025, x = 0.61, y = 0.84 } })
+    eq(api.log[1], { "TomTom", 2025, 0.61, 0.84 })
     eq(place, "Instance 1209 (entrance)", "the journal's instance name, not Stratholme")
     eq(api.log[#api.log], { "Print", "Waypoint: Instance 1209 (entrance)" })
   end)

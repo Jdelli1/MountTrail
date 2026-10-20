@@ -89,13 +89,13 @@ describe("options", function()
     eq(lines[#lines - 2], "UI\\ZonePanel.lua")
   end)
 
-  it("db default: in-game pin waypoints, unobtainable mounts hidden", function()
+  it("db default: unobtainable mounts hidden; no Waypoints setting (TomTom is required)", function()
     local ns = loadOptions()
-    eq(ns.db.global.settings, { waypoints = "game", showUnobtainable = false })
+    eq(ns.db.global.settings, { showUnobtainable = false })
   end)
 
   describe("Register", function()
-    it("registers a vertical-layout AddOns category with the four controls", function()
+    it("registers a vertical-layout AddOns category with the three controls", function()
       local ns = loadOptions()
       local S = fakeSettings()
       local category = ns.Options.Register(S)
@@ -104,8 +104,6 @@ describe("options", function()
       eq(ns.Options.category, category)
       eq(S.log, {
         { "Category", "MountTrail" },
-        { "Setting", "MOUNTTRAIL_WAYPOINTS" },
-        { "Dropdown", "MOUNTTRAIL_WAYPOINTS" },
         { "Setting", "MOUNTTRAIL_UNOBTAINABLE" },
         { "Checkbox", "MOUNTTRAIL_UNOBTAINABLE" },
         { "Setting", "MOUNTTRAIL_MINIMAP" },
@@ -114,8 +112,7 @@ describe("options", function()
         { "Checkbox", "MOUNTTRAIL_DEBUG" },
         { "AddOnCategory", category },
       })
-      local wp, mm, dbg = S.settings.MOUNTTRAIL_WAYPOINTS, S.settings.MOUNTTRAIL_MINIMAP, S.settings.MOUNTTRAIL_DEBUG
-      eq({ wp.varType, wp.name, wp.default }, { "string", "Waypoints", "game" })
+      local mm, dbg = S.settings.MOUNTTRAIL_MINIMAP, S.settings.MOUNTTRAIL_DEBUG
       local un = S.settings.MOUNTTRAIL_UNOBTAINABLE
       eq({ un.varType, un.name, un.default }, { "boolean", "Show unobtainable mounts", false })
       eq({ mm.varType, mm.name, mm.default }, { "boolean", "Show minimap button", true })
@@ -124,7 +121,6 @@ describe("options", function()
         eq(c.category, category)
         eq(type(c.tooltip), "string", c.setting.variable .. " has a tooltip")
       end
-      ok(S.controls[1].tooltip:find("TomTom", 1, true), "the dropdown tooltip carries the TomTom note")
     end)
 
     it("is skipped (nil, no error) without the Settings API or before ns.db", function()
@@ -134,8 +130,8 @@ describe("options", function()
       S.RegisterVerticalLayoutCategory = nil
       eq(ns.Options.Register(S), nil, "no vertical layout")
       S = fakeSettings()
-      S.CreateControlTextContainer = nil
-      eq(ns.Options.Register(S), nil, "no text container")
+      S.CreateCheckbox = nil
+      eq(ns.Options.Register(S), nil, "no checkbox")
       eq(#logOf(S, "AddOnCategory"), 0)
       local early = loadOptions({ noInit = true })
       S = fakeSettings()
@@ -164,55 +160,20 @@ describe("options", function()
     end)
   end)
 
-  describe("waypoints dropdown", function()
-    it("reads and writes ns.db.global.settings.waypoints; unknown values are ignored", function()
-      local ns = loadOptions()
-      local S = fakeSettings()
-      ns.Options.Register(S)
-      local wp = S.settings.MOUNTTRAIL_WAYPOINTS
-      eq(wp.get(), "game")
-      wp.set("tomtom")
-      eq(ns.db.global.settings.waypoints, "tomtom")
-      eq(wp.get(), "tomtom")
-      eq(ns.Map.WaypointMode(), "tomtom", "Map.SetWaypoint follows it")
-      wp.set("both")
-      eq(ns.db.global.settings.waypoints, "both")
-      wp.set("arrow")
-      eq(ns.db.global.settings.waypoints, "both", "unknown value ignored")
-      ns.db.global.settings.waypoints = "junk"
-      eq(wp.get(), "game", "a junk saved value reads as the default")
-    end)
-
-    it("offers the three modes; TomTom ones say they fall back when TomTom is not loaded", function()
-      local ns = loadOptions()
-      local S = fakeSettings()
-      ns.Options.Register(S)
-      local options = S.controls[1].options
-      eq(type(options), "function", "an options generator")
-      withGlobals(nil, { AddWaypoint = function() end }, function()
-        local data = options()
-        eq(#data, 3)
-        eq({ data[1].value, data[1].label }, { "game", "In-game map pin" })
-        eq({ data[2].value, data[2].label }, { "tomtom", "TomTom arrow" })
-        eq({ data[3].value, data[3].label }, { "both", "Both" })
-      end)
-      withGlobals(nil, nil, function()
-        local data = options()
-        eq({ data[1].value, data[1].label }, { "game", "In-game map pin" })
-        eq({ data[2].value, data[2].label }, { "tomtom", "TomTom arrow (not loaded)" })
-        eq({ data[3].value, data[3].label }, { "both", "Both (TomTom not loaded)" })
-        ok(data[2].tooltip:find("in-game map pin", 1, true), "tooltip explains the fallback")
-        ok(data[3].tooltip:find("in-game map pin", 1, true), "tooltip explains the fallback")
-      end)
-    end)
-
-    it("WaypointOptions is pure: labels per TomTom state", function()
-      local ns = loadOptions()
-      local loaded, missing = ns.Options.WaypointOptions(true), ns.Options.WaypointOptions(false)
-      eq(loaded[2].label, "TomTom arrow")
-      eq(missing[2].label, "TomTom arrow (not loaded)")
-      eq(missing[1].label, "In-game map pin")
-    end)
+  it("an old Waypoints setting is dropped on load", function()
+    local ns = loadOptions({ noInit = true })
+    local AceDB = LibStub("AceDB-3.0")
+    local real = AceDB.New
+    AceDB.New = function(self, name, defaults)
+      local db = real(self, name, defaults)
+      db.global.settings.waypoints = "both" -- saved by an earlier version
+      return db
+    end
+    local good, err = pcall(ns.addon.OnInitialize, ns.addon)
+    AceDB.New = real
+    ok(good, tostring(err))
+    eq(ns.db.global.settings.waypoints, nil)
+    eq(ns.db.global.settings.showUnobtainable, false)
   end)
 
   describe("unobtainable checkbox", function()
@@ -233,7 +194,7 @@ describe("options", function()
       eq(refreshed, 2)
       ns.db.global.settings.showUnobtainable = "junk"
       eq(un.get(), false, "only true counts as on")
-      ok(S.controls[2].tooltip:find("Misc", 1, true), "the tooltip says where they show")
+      ok(S.controls[1].tooltip:find("Misc", 1, true), "the tooltip says where they show")
     end)
 
     it("ShowUnobtainable reads the saved setting (false without a db)", function()

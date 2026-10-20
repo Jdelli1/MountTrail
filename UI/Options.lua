@@ -4,11 +4,8 @@ local ADDON, ns = ...
 -- vertical-layout category (Settings.RegisterVerticalLayoutCategory) with
 -- proxy settings over our own saved variables, registered with
 -- Settings.RegisterAddOnCategory on PLAYER_LOGIN (after AceDB's
--- OnInitialize, so ns.db exists). The page holds:
---   "Waypoints": In-game map pin / TomTom arrow / Both
---                (ns.db.global.settings.waypoints, read by Map.SetWaypoint;
---                the TomTom choices fall back to the in-game pin when TomTom
---                is not loaded, as the labels and tooltips say),
+-- OnInitialize, so ns.db exists). The page holds (waypoints are always
+-- TomTom's, Integrations/Map.lua: no setting):
 --   "Show unobtainable mounts" (ns.db.global.settings.showUnobtainable: off by
 --                default; on lists not-owned unobtainable mounts on the Misc
 --                tab under "Unobtainable"; a change refreshes the window),
@@ -23,47 +20,15 @@ local Options = {}
 ns.Options = Options
 
 -- Proxy setting variable names: global to the settings system, so prefixed.
-Options.WAYPOINTS = "MOUNTTRAIL_WAYPOINTS"
 Options.UNOBTAINABLE = "MOUNTTRAIL_UNOBTAINABLE"
 Options.MINIMAP = "MOUNTTRAIL_MINIMAP"
 Options.DEBUG = "MOUNTTRAIL_DEBUG"
-
-local MODES = { "game", "tomtom", "both" }
-local VALID = { game = true, tomtom = true, both = true }
-
--- The dropdown's entries -> { { value =, label =, tooltip = } } in order.
--- Without TomTom the TomTom choices say they use the in-game pin instead.
-function Options.WaypointOptions(tomtomLoaded)
-  local fallback = L["TomTom is not loaded: the in-game map pin is used instead."]
-  return {
-    { value = "game", label = L["In-game map pin"],
-      tooltip = L["The game's own map pin, tracked on screen."] },
-    { value = "tomtom", label = tomtomLoaded and L["TomTom arrow"] or L["TomTom arrow (not loaded)"],
-      tooltip = tomtomLoaded and L["Only a TomTom waypoint and its arrow."] or fallback },
-    { value = "both", label = tomtomLoaded and L["Both"] or L["Both (TomTom not loaded)"],
-      tooltip = tomtomLoaded and L["The in-game map pin and a TomTom waypoint."] or fallback },
-  }
-end
-
--- Whether TomTom is loaded (its global, as Integrations/Map.lua uses it).
-local function tomtomLoaded()
-  return type(TomTom) == "table"
-end
 
 -- ns.db.global.settings, created when missing.
 local function settings()
   local global = ns.db.global
   if type(global.settings) ~= "table" then global.settings = {} end
   return global.settings
-end
-
-local function getWaypoints()
-  local mode = settings().waypoints
-  return VALID[mode] and mode or "game"
-end
-
-local function setWaypoints(value)
-  if VALID[value] then settings().waypoints = value end
 end
 
 -- Whether not-owned unobtainable mounts are listed (on Misc): the list's own
@@ -116,24 +81,12 @@ local function report(err)
   if game and type(game.ReportError) == "function" then game.ReportError(err) end
 end
 
-local REQUIRED = { "RegisterVerticalLayoutCategory", "RegisterProxySetting", "CreateDropdown",
-  "CreateCheckbox", "CreateControlTextContainer", "RegisterAddOnCategory" }
+local REQUIRED = { "RegisterVerticalLayoutCategory", "RegisterProxySetting", "CreateCheckbox",
+  "RegisterAddOnCategory" }
 
 local function build(api)
   local VarType = type(api.VarType) == "table" and api.VarType or {}
   local category = api.RegisterVerticalLayoutCategory(L["MountTrail"])
-
-  local waypoints = api.RegisterProxySetting(category, Options.WAYPOINTS, VarType.String or "string",
-    L["Waypoints"], "game", getWaypoints, setWaypoints)
-  local function waypointOptions()
-    local container = api.CreateControlTextContainer()
-    for _, option in ipairs(Options.WaypointOptions(tomtomLoaded())) do
-      container:Add(option.value, option.label, option.tooltip)
-    end
-    return container:GetData()
-  end
-  api.CreateDropdown(category, waypoints, waypointOptions,
-    L["Where a mount row's left-click puts the waypoint. TomTom arrow and Both need TomTom; without it the in-game map pin is used."])
 
   local unobtainable = api.RegisterProxySetting(category, Options.UNOBTAINABLE, VarType.Boolean or "boolean",
     L["Show unobtainable mounts"], false, Options.ShowUnobtainable, setUnobtainable)

@@ -218,9 +218,9 @@ function addon:OnInitialize()
       debug = false, -- /mtrail debug: show caught map / waypoint errors
       achievementMap = {}, -- { build=, ids={[mountID]=achievementID|false} } (Integrations\AchievementScan.lua)
       zonePanel = { open = false }, -- zone side panel shown with the window (UI\ZonePanel.lua)
-      -- Options > AddOns > MountTrail (UI\Options.lua): waypoints = "game" | "tomtom" | "both"
-      -- (Integrations\Map.lua); showUnobtainable: not-owned unobtainable mounts on Misc (UI\List.lua)
-      settings = { waypoints = "game", showUnobtainable = false },
+      -- Options > AddOns > MountTrail (UI\Options.lua): showUnobtainable: not-owned
+      -- unobtainable mounts on Misc (UI\List.lua)
+      settings = { showUnobtainable = false },
       collapsed = {}, -- list headers the player collapsed: { ["<view>|<exp>|<section>[|<sub-group>]"] = true } (UI\List.lua)
       altsHidden = {}, -- alt lockout matrix: characters hidden from it, { ["Name - Realm"] = true } (UI\AltsWindow.lua)
       altsWindow = {}, -- alt lockout matrix window position (UI\AltsWindow.lua)
@@ -236,6 +236,8 @@ function addon:OnInitialize()
   -- Pre-F15 saved variables kept the Journal's source filters as flat keys.
   ns.Journal.MigrateFilters(ns.db.global.filters)
   ns.RetireRoute(ns.db)
+  -- Waypoints are TomTom's now: the old Waypoints setting goes.
+  if type(ns.db.global.settings) == "table" then ns.db.global.settings.waypoints = nil end
   self:RegisterChatCommand("mtrail", "OnSlash")
   self:RegisterChatCommand("mounttrail", "OnSlash")
   self:RegisterChatCommand("mtl", "OnSlash")
@@ -245,6 +247,8 @@ function addon:OnInitialize()
 end
 
 function addon:OnEnable()
+  -- TomTom is required for waypoints: a popup and a red line when it is missing.
+  if ns.Map and ns.Map.CheckTomTom then ns.Map.CheckTomTom() end
   self:RegisterEvent("PLAYER_ENTERING_WORLD", "OnEnteringWorld")
   self:RegisterEvent("UPDATE_INSTANCE_INFO", "OnLockoutEvent")
   self:RegisterEvent("QUEST_TURNED_IN", "OnLockoutEvent")

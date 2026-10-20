@@ -7,3 +7,6 @@ ignore:
   - .superpowers
   - .gitignore
   - .pkgmeta
+
+required-dependencies:
+  - tomtom
