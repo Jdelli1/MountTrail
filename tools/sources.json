@@ -7,5 +7,9 @@
     "repo": "WowRarity/Rarity",
     "commit": "af5be85bbee86992621b9372efff92fbf5d5c115"
   },
-  "db2build": "12.1.5.70448"
+  "db2build": "12.1.5.70448",
+  "allthethings": {
+    "repo": "ATTWoWAddon/AllTheThings",
+    "commit": "f2faf7c8cfccbaf85d7d64c144f34c39de790f47"
+  }
 }

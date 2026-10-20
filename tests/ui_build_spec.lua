@@ -974,6 +974,7 @@ describe("ui build", function()
       return nil
     end
     ns.Map.CoordsFor = function() return nil end
+    ns.Map.Spots = function() return {} end -- the fixture zones only
     local computed = 0
     local real = ns.Zone.MountsFor
     ns.Zone.MountsFor = function(...) computed = computed + 1; return real(...) end

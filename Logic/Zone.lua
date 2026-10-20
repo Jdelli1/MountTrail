@@ -83,7 +83,9 @@ end
 -- (normally C_Map.GetBestMapForUnit("player")); a mount matches when
 --   (a) "coords": its coords map is the root (Zone.Root) or a map under it
 --       (micro / dungeon floors, sub-zones; a continent root matches only
---       itself; inside an instance: any floor of the root's map group),
+--       itself; inside an instance: any floor of the root's map group);
+--       "spot": the same for a map of one of its spots (ctx.spotMaps: the
+--       vendor that sells it, a rare's spawn points),
 --   (b) "source": one of its source text's "Zone:" / "Location:" lines (a
 --       drop's, a vendor's, a quest's...), or one name of a comma list on
 --       such a line, is the zone's name, the name of a zone inside it
@@ -112,6 +114,7 @@ end
 --   instance (Zone.Root; a UI map, never passed to GetInstanceForGameMap),
 --   instanceUiMap(journalInstanceID) -> the instance's first floor UI map,
 --   mapGroup(mapID) -> map group ID (floors of one instance share it),
+--   spotMaps(id) -> the maps of its spots (Map.Spots),
 --   versionOk(rootMapID, m) -> false when the root is a same-named zone
 --   version the mount is not in (Zone.VersionOk),
 --   instanceName(journalInstanceID) -> name (EJ_GetInstanceInfo),
@@ -125,7 +128,7 @@ end
 -- Valdrakken, Isle of Dorn above Dornogal) counts for (a) itself, not its
 -- other maps; the root and the title stay the inner zone.
 -- The gate runs first: excluded mounts are never looked up.
--- -> list of { id=, m=, owned=, via= "coords"|"source"|"instance" } sorted
+-- -> list of { id=, m=, owned=, via= "coords"|"spot"|"source"|"instance" } sorted
 -- by name (case-insensitive), then id; zone = { mapID = root, name =,
 -- instance = journalInstanceID (inside one) } ({ name = } by instance name
 -- only) or nil when nothing is known.
@@ -324,6 +327,14 @@ function Zone.MountsFor(mapID, ctx)
     if cm then
       if underRoot(cm) then return "coords" end
       if insideInstance and root and sameGroup(cm, root) then return "coords" end
+    end
+    if ctx.spotMaps then
+      local maps = ctx.spotMaps(id)
+      if type(maps) == "table" then
+        for _, sm in ipairs(maps) do
+          if underRoot(sm) then return "spot" end
+        end
+      end
     end
     if sourceNamed(id) and not (root and ctx.versionOk and ctx.versionOk(root, m) == false) then
       return "source"

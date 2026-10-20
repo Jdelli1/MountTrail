@@ -533,3 +533,21 @@ describe("Zone.InstanceForFloor", function()
     eq(ns.Zone.InstanceForFloor(nil, ctx), nil)
   end)
 end)
+
+describe("Zone.MountsFor: spots", function()
+  it("a mount whose vendor or spawn point stands in the zone is listed there (via spot)", function()
+    local ns = loadZone()
+    local mounts = {
+      [6] = { name = "Sold in Netherstorm", tab = "misc", section = "vendor", coords = { m = 107 } },
+      [7] = { name = "Spawns on a Mechanar floor", tab = "journal", section = "world" },
+    }
+    local ctx = worldCtx(ns, mounts, { spotMaps = function(id)
+      return ({ [6] = { 109 }, [7] = { 266, 554 } })[id]
+    end })
+    local list = ns.Zone.MountsFor(109, ctx)
+    eq(ids(list), { 6, 7 })
+    eq(list[1].via, "spot")
+    eq(ids(ns.Zone.MountsFor(554, ctx)), { 7 })
+    eq(ids(ns.Zone.MountsFor(107, ctx)), { 6 }, "and where its coords are")
+  end)
+end)

@@ -653,3 +653,92 @@ describe("Map.SetWaypoint waypoint modes", function()
     end
   end)
 end)
+
+describe("Map spots (Data.Spots)", function()
+  local function withSpots(Map, ns, spots, extra)
+    ns.Data.Spots = spots
+    ns.Data.SpotsExtra = extra
+  end
+  -- World positions: maps 525 and 550 on continent 1 (x * 1000), 56 on continent 2.
+  local CONT = { [525] = 1, [550] = 1, [56] = 2, [70] = 3 }
+  local function spotApi(opts)
+    local api = fakeApi(opts)
+    api.CreateVector2D = function(x, y) return { x = x, y = y } end
+    api.C_Map.GetWorldPosFromMapPos = function(m, v)
+      local c = CONT[m]
+      if not c then return nil end
+      return c, { x = v.x * 1000 + (m == 550 and 5000 or 0), y = v.y * 1000 }
+    end
+    api.C_Map.GetBestMapForUnit = function() return opts.playerMap end
+    api.C_Map.GetPlayerMapPosition = function() return opts.playerPos end
+    api.Faction = function() return opts.faction end
+    return api
+  end
+
+  it("Spots: generated and hand-kept, the other faction's left out", function()
+    local Map, ns = loadMap({ [6] = { name = "Brown Horse" } })
+    withSpots(Map, ns, { [6] = { { npc = 1, kind = "vendor", faction = "Alliance", pts = { 56, 9.2, 56.6 } },
+      { npc = 2, kind = "vendor", faction = "Horde", pts = { 70, 1, 1 } } } },
+      { [6] = { { name = "Mine", kind = "vendor", pts = { 525, 5, 5 } } } })
+    eq(#Map.Spots(6), 3)
+    local a = Map.Spots(6, "Alliance")
+    eq({ a[1].npc, a[2].name }, { 1, "Mine" })
+    eq(Map.Spots(99), {})
+  end)
+
+  it("WaypointSpots prefers vendors", function()
+    local Map = loadMap()
+    local d, v = { kind = "drop", pts = {} }, { kind = "vendor", pts = {} }
+    eq(Map.WaypointSpots({ d, v }), { v })
+    eq(Map.WaypointSpots({ d }), { d })
+  end)
+
+  it("NearestPoint: the closest point on the player's continent, else the first", function()
+    local Map = loadMap()
+    local spots = { { name = "A", pts = { 525, 10, 10, 525, 90, 90 } }, { name = "B", pts = { 56, 50, 50 } } }
+    local toWorld = function(m, x, y)
+      return CONT[m], x * 1000, y * 1000
+    end
+    local spot, m, x, y = Map.NearestPoint(spots, { continent = 1, x = 800, y = 800 }, toWorld)
+    eq({ spot.name, m, x, y }, { "A", 525, 90, 90 })
+    spot, m = Map.NearestPoint(spots, { continent = 2, x = 0, y = 0 }, toWorld)
+    eq({ spot.name, m }, { "B", 56 })
+    spot, m, x = Map.NearestPoint(spots, nil, toWorld)
+    eq({ spot.name, m, x }, { "A", 525, 10 }, "nothing known about the player")
+    eq(Map.NearestPoint({}, nil, toWorld), nil)
+  end)
+
+  it("Resolve: a vendor mount goes to its vendor nearest the player, named in chat", function()
+    local Map, ns = loadMap({ [6] = { name = "Brown Horse", tab = "misc", section = "vendor" } })
+    withSpots(Map, ns, { [6] = {
+      { npc = 1, name = "Far Vendor", kind = "vendor", pts = { 525, 10, 10 } },
+      { npc = 2, name = "Near Vendor", kind = "vendor", pts = { 525, 80, 80 } },
+      { npc = 3, name = "Rare", kind = "drop", pts = { 525, 79, 79 } },
+    } })
+    local api = spotApi({ canSet = { [525] = true }, names = { [525] = "Frostfire Ridge" },
+      playerMap = 525, playerPos = { x = 0.75, y = 0.75 }, faction = "Alliance" })
+    local r = Map.Resolve(6, api)
+    eq({ r.map, r.x, r.y, r.kind, r.spot.name }, { 525, 80, 80, "pin", "Near Vendor" })
+    local place = Map.SetWaypoint(6, api)
+    eq(place, "Near Vendor (Frostfire Ridge)")
+    eq(Map.HasLocation(6), true)
+    eq(Map.HasSpot(6), true)
+  end)
+
+  it("Resolve: a rare's spawn points beat its single coords; raid entrances and holidays come first", function()
+    local Map, ns = loadMap({
+      [614] = { name = "Mottled Meadowstomper", tab = "journal", section = "world", coords = { m = 550, x = 1, y = 1 } },
+      [7] = { name = "Holiday", tab = "holiday", section = "brewfest" },
+    }, { brewfest = { title = "Brewfest", coords = { m = 70, x = 5, y = 5 } } })
+    withSpots(Map, ns, {
+      [614] = { { npc = 50981, name = "Luk'hok", kind = "drop", pts = { 550, 67.6, 42.6, 550, 84.6, 64 } } },
+      [7] = { { npc = 9, name = "Ram vendor", kind = "vendor", pts = { 525, 1, 1 } } },
+    })
+    local api = spotApi({ canSet = { [550] = true, [70] = true, [525] = true },
+      playerMap = 550, playerPos = { x = 0.85, y = 0.6 } })
+    local r = Map.Resolve(614, api)
+    eq({ r.x, r.y, r.spot.name }, { 84.6, 64, "Luk'hok" })
+    r = Map.Resolve(7, api)
+    eq({ r.map, r.x, r.spot }, { 70, 5, nil }, "the holiday's own place")
+  end)
+end)

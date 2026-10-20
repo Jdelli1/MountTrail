@@ -61,6 +61,7 @@ local function loadUI(over)
     [8] = { name = "Tanaris rare", tab = "journal", section = "world", coords = { m = 71 } },
   }
   ns.Data.Holidays = { brewfest = { title = "Brewfest", coords = { m = 249, x = 1, y = 1 } } }
+  ns.Data.Spots, ns.Data.SpotsExtra = {}, {} -- the fixture mounts only
   ns.Data.Route = { { title = "Run The Vortex Pinnacle (Dungeon)", bosses = { { boss = "Asaad", mount = 7 } } } }
   return ns, calls
 end

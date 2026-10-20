@@ -49,6 +49,11 @@ local function realApi()
     TomTom = TomTom,
     Print = defaultPrint,
     GetTime = GetTime,
+    CreateVector2D = CreateVector2D,
+    Faction = function()
+      local game = ns.Game
+      return game and type(game.Faction) == "function" and game.Faction() or nil
+    end,
     InCombat = function()
       local game = ns.Game
       return game and type(game.InCombat) == "function" and game.InCombat() or false
@@ -95,6 +100,116 @@ local function coordsFor(mountID)
   end
   if type(mount.coords) == "table" and mount.coords.m then return mount.coords end
   return nil
+end
+
+-- Spots ------------------------------------------------------------------------
+-- Where the NPC behind a mount stands (Data/Spots.lua, generated from
+-- AllTheThings; Data.SpotsExtra, hand-kept additions in the same shape):
+-- { { npc =, name =, kind = "drop" | "vendor", quest =, daily =, faction =,
+-- pts = { map, x, y, map, x, y, ... } } }.
+
+-- The mount's spots for `faction` (others' vendors left out; nil: all).
+function Map.Spots(mountID, faction)
+  local data = ns.Data or {}
+  local out = {}
+  for _, source in ipairs({ data.Spots, data.SpotsExtra }) do
+    local list = type(source) == "table" and source[mountID] or nil
+    if type(list) == "table" then
+      for _, spot in ipairs(list) do
+        if type(spot) == "table" and type(spot.pts) == "table" and #spot.pts >= 3
+          and not (faction and spot.faction and spot.faction ~= faction) then
+          out[#out + 1] = spot
+        end
+      end
+    end
+  end
+  return out
+end
+
+-- The spots a waypoint goes to: the vendors when the mount has any (a sure
+-- place to get it), else every spot.
+function Map.WaypointSpots(spots)
+  local vendors = {}
+  for _, spot in ipairs(spots or {}) do
+    if spot.kind == "vendor" then vendors[#vendors + 1] = spot end
+  end
+  if #vendors > 0 then return vendors end
+  return spots or {}
+end
+
+-- The point nearest `here` ({ continent =, x =, y = } in world coordinates,
+-- or nil) among the spots' points, by toWorld(map, x0to1, y0to1) ->
+-- continent, wx, wy. Only points on here's continent compete; when none is
+-- (or nothing is known about here) the first point of the first spot wins.
+-- -> spot, map, x, y (percent) or nil.
+function Map.NearestPoint(spots, here, toWorld)
+  local first, best, bestD
+  for _, spot in ipairs(spots or {}) do
+    local pts = spot.pts
+    for i = 1, #pts - 2, 3 do
+      local m, x, y = pts[i], pts[i + 1], pts[i + 2]
+      if not first then first = { spot, m, x, y } end
+      if here and toWorld then
+        local continent, wx, wy = toWorld(m, x / 100, y / 100)
+        if continent and continent == here.continent and wx and wy then
+          local d = (wx - here.x) ^ 2 + (wy - here.y) ^ 2
+          if not bestD or d < bestD then best, bestD = { spot, m, x, y }, d end
+        end
+      end
+    end
+  end
+  local pick = best or first
+  if not pick then return nil end
+  return pick[1], pick[2], pick[3], pick[4]
+end
+
+-- World position of a map point -> continent, x, y (C_Map.GetWorldPosFromMapPos).
+local function worldPos(api, m, x, y)
+  local vector = type(api.CreateVector2D) == "function" and api.CreateVector2D(x, y) or nil
+  if not vector then return nil end
+  local continent, pos = try(api.C_Map, "GetWorldPosFromMapPos", m, vector)
+  if not (continent and pos) then return nil end
+  local wx, wy = pos.x, pos.y
+  if (wx == nil or wy == nil) and type(pos.GetXY) == "function" then
+    local good, px, py = guarded(pos.GetXY, pos)
+    if good then wx, wy = px, py end
+  end
+  return continent, wx, wy
+end
+
+-- Where the player stands in world coordinates, or nil.
+local function playerWorld(api)
+  local m = try(api.C_Map, "GetBestMapForUnit", "player")
+  if not m then return nil end
+  local pos = try(api.C_Map, "GetPlayerMapPosition", m, "player")
+  if not pos then return nil end
+  local x, y = pos.x, pos.y
+  if (x == nil or y == nil) and type(pos.GetXY) == "function" then
+    local good, px, py = guarded(pos.GetXY, pos)
+    if good then x, y = px, py end
+  end
+  if not (x and y) then return nil end
+  local continent, wx, wy = worldPos(api, m, x, y)
+  if not continent then return nil end
+  return { continent = continent, x = wx, y = wy }
+end
+
+-- The spot point a waypoint for the mount goes to -> spot, map, x, y or nil.
+local function spotTarget(api, mountID)
+  local faction = type(api.Faction) == "function" and api.Faction() or nil
+  local spots = Map.WaypointSpots(Map.Spots(mountID, faction))
+  if #spots == 0 then return nil end
+  local here = playerWorld(api)
+  return Map.NearestPoint(spots, here, function(m, x, y) return worldPos(api, m, x, y) end)
+end
+
+-- A holiday mount whose holiday has its own place (Data.Holidays coords).
+local function holidayPlace(mountID)
+  local data = ns.Data or {}
+  local mount = data.Mounts and data.Mounts[mountID]
+  if type(mount) ~= "table" or mount.tab ~= "holiday" or not mount.section or not data.Holidays then return false end
+  local holiday = data.Holidays[mount.section]
+  return type(holiday) == "table" and type(holiday.coords) == "table" and holiday.coords.m ~= nil
 end
 
 -- The mount's location as coordsFor picks it ({ m=, x=, y= }, the holiday's
@@ -272,19 +387,29 @@ end
 -- whose per-boss spec (e.g. a Vault of Archavon watcher) picks the instance
 -- before the mount's first route row; with such a spec the entrance is
 -- found even for a mount without coords.
+-- Then a holiday's own place, then the mount's spots (Map.Spots: the vendor
+-- that sells it, else the rare's spawn points; the point nearest the player,
+-- Map.NearestPoint; the spot rides along as target.spot), then its coords.
 function Map.Resolve(mountID, api, routeBoss)
   api = api or realApi()
   local coords = coordsFor(mountID)
-  if not coords then
-    if bossSpec(routeBoss) then
-      local em, ex0, ey0 = instanceEntrance(api, mountID, nil, routeBoss)
-      if em then return { map = em, x = ex0 * 100, y = ey0 * 100, kind = "entrance" } end
-    end
-    return { kind = "none" }
+  if coords or bossSpec(routeBoss) then
+    local em, ex0, ey0 = instanceEntrance(api, mountID, coords and coords.m, routeBoss)
+    if em then return { map = em, x = ex0 * 100, y = ey0 * 100, kind = "entrance" } end
   end
+  if not holidayPlace(mountID) then
+    local spot, sm, sx, sy = spotTarget(api, mountID)
+    if spot then
+      if try(api.C_Map, "CanSetUserWaypointOnMap", sm) == true then
+        return { map = sm, x = sx, y = sy, kind = "pin", spot = spot }
+      end
+      local parent, ex, ey = findEntrance(api, sm)
+      if parent then return { map = parent, x = ex * 100, y = ey * 100, kind = "entrance", spot = spot } end
+      return { map = sm, kind = "open", spot = spot }
+    end
+  end
+  if not coords then return { kind = "none" } end
   local m, x, y = coords.m, coords.x, coords.y
-  local em, ex0, ey0 = instanceEntrance(api, mountID, m, routeBoss)
-  if em then return { map = em, x = ex0 * 100, y = ey0 * 100, kind = "entrance" } end
   local hasXY = type(x) == "number" and type(y) == "number"
   local canSet = try(api.C_Map, "CanSetUserWaypointOnMap", m) == true
   if hasXY and canSet then return { map = m, x = x, y = y, kind = "pin" } end
@@ -301,7 +426,7 @@ end
 -- checklist row's boss; a per-boss instance spec (Data.BossLockouts) is a
 -- location of its own (Map.Resolve goes to that instance's entrance).
 function Map.HasLocation(mountID, routeBoss)
-  return coordsFor(mountID) ~= nil or bossSpec(routeBoss)
+  return coordsFor(mountID) ~= nil or bossSpec(routeBoss) or #Map.Spots(mountID) > 0
 end
 
 -- Whether a click can drop a waypoint on a spot rather than only show a
@@ -312,6 +437,7 @@ end
 -- (its instance's entrance, as Map.Resolve picks it).
 function Map.HasSpot(mountID, routeBoss)
   if bossSpec(routeBoss) then return true end
+  if #Map.Spots(mountID) > 0 then return true end
   local coords = coordsFor(mountID)
   if not coords then return false end
   if type(coords.x) == "number" and type(coords.y) == "number" then return true end
@@ -397,6 +523,12 @@ end
 --   open     the map's name, else the source text's "Zone:"
 -- The mount's name when nothing else is known.
 local function placeLabel(api, mountID, target, routeBoss)
+  if target.spot and target.spot.name then
+    -- "Unger Statforth (Wetlands)": the NPC and the map of the point.
+    local where = mapName(api, target.map)
+    if where then return string.format("%s (%s)", target.spot.name, where) end
+    return target.spot.name
+  end
   if target.kind == "entrance" and bossSpec(routeBoss) then
     -- The boss's instance, not the mount's own source zone.
     local game = instanceOf(mountID, routeBoss)

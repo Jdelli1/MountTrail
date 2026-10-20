@@ -99,6 +99,7 @@ function UI.ZoneContext()
   local filters = (db and db.filters) or ns.Journal.DefaultFilters
   local subGroupCtx = { sourceText = sourceText, mapName = UI.MemoText(game.MapName) }
   local data = ns.Data or {}
+  local faction = game.Faction and game.Faction() or nil
   local expIndex = {}
   for i, name in ipairs(data.Expansions or {}) do expIndex[name] = i - 1 end
   local ctx
@@ -117,6 +118,21 @@ function UI.ZoneContext()
         if jid then return jid end
       end
       return ns.Zone.InstanceForFloor(mapID, ctx)
+    end,
+    spotMaps = function(id)
+      local map = ns.Map
+      if not (map and map.Spots) then return nil end
+      local maps, seen = {}, {}
+      for _, spot in ipairs(map.Spots(id, faction)) do
+        local pts = spot.pts
+        for i = 1, #pts - 2, 3 do
+          if not seen[pts[i]] then
+            seen[pts[i]] = true
+            maps[#maps + 1] = pts[i]
+          end
+        end
+      end
+      return maps
     end,
     versionOk = function(root, m)
       return ns.Zone.VersionOk(data.ZoneVersions, root, m and expIndex[m.exp])
