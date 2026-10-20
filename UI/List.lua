@@ -415,6 +415,17 @@ function UI.SourceZone(text)
   return nil
 end
 
+-- Every "Zone:" / "Location:" value of a Mount Journal source string, in
+-- order (a drop's zone, a vendor's, ...); {} when there is none.
+function UI.SourceZones(text)
+  local out = {}
+  local kinds = labelKinds()
+  for _, pair in ipairs(UI.SourcePairs(text)) do
+    if pair.label and UI.SourceLabelKind(pair.label, kinds) == "zone" then out[#out + 1] = pair.value end
+  end
+  return out
+end
+
 -- Name of the achievement the achievement scan mapped the mount to, or nil
 -- (not an achievement mount, not known yet, or no match).
 local function scannedAchievementName(mountID)

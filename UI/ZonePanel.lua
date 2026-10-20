@@ -40,17 +40,18 @@ local function sourceText(id)
   return v
 end
 
--- The source text's "Zone:" value per mount (UI.SourceZone; false: none).
+-- The source text's "Zone:" / "Location:" values per mount (UI.SourceZones:
+-- every line, a drop's and a vendor's zone alike; {} when none).
 local sourceZones = {}
 local function sourceZone(id)
   local v = sourceZones[id]
   if v == nil then
     local text = sourceText(id)
     if text == nil then return nil end
-    v = UI.SourceZone(text) or false
+    v = UI.SourceZones(text)
     sourceZones[id] = v
   end
-  return v or nil
+  return v
 end
 
 -- Map and Encounter Journal data is static for the session: each lookup is

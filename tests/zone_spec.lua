@@ -397,15 +397,71 @@ local function worldCtx(ns, mounts, over)
 end
 
 describe("Zone.MountsFor: versions, neighbours and map IDs", function()
-  it("a mount's coords decide: Timeless Isle's mount is not in Netherstorm, whatever its name says", function()
+  it("Timeless Isle's mount is not in Netherstorm (its map is no game map ID)", function()
     local ns = loadZone()
     local mounts = {
       [561] = { name = "Thundering Onyx Cloud Serpent", tab = "journal", section = "world", coords = { m = 554 } },
       [2] = { name = "Mechanar drop", tab = "journal", section = "dungeon", coords = { m = 266 } },
     }
-    local ctx = worldCtx(ns, mounts, { sourceZone = function() return "Netherstorm" end })
+    local ctx = worldCtx(ns, mounts, {
+      sourceZone = function(id) if id == 561 then return { "Timeless Isle" } end end,
+      -- Asked with UI map 554, GetInstanceForGameMap would say The Mechanar.
+      instanceForMap = function(id) if id == 554 then return 258 end end,
+    })
     eq(ids(ns.Zone.MountsFor(109, ctx)), { 2 })
     eq(ids(ns.Zone.MountsFor(554, ctx)), { 561 })
+  end)
+
+  it("a vendor's zone lists the mount even when it drops elsewhere; every Zone: line counts", function()
+    local ns = loadZone()
+    local mounts = {
+      [1] = { name = "Dropped in Outland, sold in Netherstorm", tab = "journal", section = "world", coords = { m = 107 } },
+      [2] = { name = "Two vendors", tab = "misc", section = "other" },
+      [3] = { name = "Comma list", tab = "journal", section = "world" },
+    }
+    local ctx = worldCtx(ns, mounts, { sourceZone = function(id)
+      return ({ [1] = { "Nagrand", "Netherstorm" }, [2] = { "Timeless Isle", "Netherstorm" },
+        [3] = { "Blasted Lands, Netherstorm" } })[id]
+    end })
+    eq(ids(ns.Zone.MountsFor(109, ctx)), { 3, 1, 2 })
+    local list = ns.Zone.MountsFor(107, ctx)
+    eq(ids(list), { 1 }, "and still where it drops")
+    eq(list[1].via, "coords")
+  end)
+
+  it("a zone inside the zone counts: a city vendor's mount shows on the zone around it", function()
+    local ns = loadZone()
+    local world = setmetatable({ [111] = { name = "Shattrath City", mapType = 3, parentMapID = 108 },
+      [108] = { name = "Terokkar Forest", mapType = 3, parentMapID = 101 } }, { __index = WORLD })
+    local mounts = { [1] = { name = "Sold in Shattrath", tab = "misc", section = "other" } }
+    local ctx = worldCtx(ns, mounts, {
+      mapInfo = function(id) return world[id] end,
+      children = function(id) if id == 108 then return { { mapID = 111, mapType = 3 } } end return {} end,
+      sourceZone = function() return { "Shattrath City" } end,
+    })
+    eq(ids(ns.Zone.MountsFor(108, ctx)), { 1 }, "Terokkar Forest")
+    eq(ids(ns.Zone.MountsFor(111, ctx)), { 1 }, "Shattrath City")
+    eq(ids(ns.Zone.MountsFor(109, ctx)), {}, "Netherstorm")
+  end)
+
+  it("the zone version applies to vendor zones too: an 8.3 Uldum mount with coords is not in old Uldum", function()
+    local ns = loadZone()
+    local world = setmetatable({ [12] = { name = "Kalimdor", mapType = 2, parentMapID = 1 },
+      [249] = { name = "Uldum", mapType = 3, parentMapID = 12 },
+      [1527] = { name = "Uldum", mapType = 3, parentMapID = 12 } }, { __index = WORLD })
+    local versions = { [249] = { g = 3, e = 3 }, [1527] = { g = 3, e = 7 } }
+    local mounts = {
+      [1314] = { name = "Drake of the Four Winds", exp = "Battle for Azeroth", tab = "journal", section = "world", coords = { m = 1527 } },
+      [398] = { name = "Brown Riding Camel", exp = "Cataclysm", tab = "journal", section = "world" },
+    }
+    local exps = { ["Battle for Azeroth"] = 7, ["Cataclysm"] = 3 }
+    local ctx = worldCtx(ns, mounts, {
+      mapInfo = function(id) return world[id] end,
+      sourceZone = function() return { "Uldum" } end,
+      versionOk = function(root, m) return ns.Zone.VersionOk(versions, root, exps[m.exp]) end,
+    })
+    eq(ids(ns.Zone.MountsFor(249, ctx)), { 398 })
+    eq(ids(ns.Zone.MountsFor(1527, ctx)), { 1314 })
   end)
 
   it("a neighbour's entrance drawn on the zone map does not bring its instance's mounts", function()

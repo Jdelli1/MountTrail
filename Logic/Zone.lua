@@ -84,9 +84,13 @@ end
 --   (a) "coords": its coords map is the root (Zone.Root) or a map under it
 --       (micro / dungeon floors, sub-zones; a continent root matches only
 --       itself; inside an instance: any floor of the root's map group),
---   (b) "source": it has no coords and its source text's "Zone:" equals the
---       zone's name (or, in an instance, the instance's), compared by
---       ctx.key, in the zone version of its expansion (ctx.versionOk: TBC
+--   (b) "source": one of its source text's "Zone:" / "Location:" lines (a
+--       drop's, a vendor's, a quest's...), or one name of a comma list on
+--       such a line, is the zone's name, the name of a zone inside it
+--       (Valdrakken in Thaldraszus, Dornogal on the Isle of Dorn) or, in an
+--       instance, the instance's, compared by ctx.key - whatever its coords
+--       say (the vendor that sells a mount may stand far from where it
+--       drops) - in the zone version of its expansion (ctx.versionOk: TBC
 --       and WoD Nagrand, Uldum and its 8.3 assault version, the Midnight
 --       Eversong Woods... share a name),
 --   (c) "instance": it belongs to a journal instance whose entrance is in
@@ -95,15 +99,13 @@ end
 --       ctx.instanceUiMap, lies in the zone or is unknown: a zone map also
 --       shows a neighbour's entrances near its edge; inside an instance:
 --       that instance) - its coords map is a floor of the instance (that
---       map or its map group), or it has no coords (inside an instance:
---       with or without) and its instance sub-group or route instance
+--       map or its map group), or its instance sub-group or route instance
 --       names the instance.
--- A mount's coords decide where it is: a mount with coords never matches by
--- name in a zone its coords are not in.
 -- Every mount appears once, with the first rule that matched.
 -- ctx: mounts = { [id] = m }, mapInfo(id), and optionally
 --   coords(id, m) -> { m= } (default m.coords; the holiday override),
---   sourceZone(id) -> "Zone:" value, subGroup(id, m) -> instance name,
+--   sourceZone(id) -> the "Zone:" values (a string or a list of them),
+--   subGroup(id, m) -> instance name,
 --   routeInstance(id) -> instance name, entrances(mapID) -> { {
 --   journalInstanceID=, name= } }, children(mapID) -> { { mapID=,
 --   mapType= } } (every descendant), instanceForMap(floor mapID) -> journal
@@ -194,6 +196,17 @@ function Zone.MountsFor(mapID, ctx)
     if name then names[key(name)] = true end
   end
   addName(zoneName)
+  if rootIsZone and ctx.children then
+    local children = ctx.children(root)
+    if type(children) == "table" then
+      for _, child in ipairs(children) do
+        if type(child) == "table" and child.mapType == ZONE then
+          local ci = info(child.mapID)
+          if ci then addName(ci.name) end
+        end
+      end
+    end
+  end
 
   -- (c) Journal instances of the zone, by ID and by name key, and their
   -- first floors.
@@ -275,7 +288,6 @@ function Zone.MountsFor(mapID, ctx)
     return name ~= nil and set[key(name)] == true
   end
 
-  local inInstance = insideInstance ~= nil or byName ~= nil
   local function onFloor(cm)
     for _, floor in ipairs(floors) do
       if sameGroup(cm, floor) then return true end
@@ -287,19 +299,36 @@ function Zone.MountsFor(mapID, ctx)
     if ctx.routeInstance and named(ctx.routeInstance(id), instanceNames) then return true end
     return false
   end
+  -- A Zone: value, or one name of its comma list ("Dread Wastes, Kun-Lai
+  -- Summit"), names the zone.
+  local function zoneNamed(value)
+    if named(value, names) then return true end
+    if type(value) == "string" and string.find(value, ",", 1, true) then
+      for part in string.gmatch(value, "[^,]+") do
+        if named(string.match(part, "^%s*(.-)%s*$"), names) then return true end
+      end
+    end
+    return false
+  end
+  local function sourceNamed(id)
+    if not ctx.sourceZone then return false end
+    local v = ctx.sourceZone(id)
+    if type(v) ~= "table" then return zoneNamed(v) end
+    for _, z in ipairs(v) do
+      if zoneNamed(z) then return true end
+    end
+    return false
+  end
   local function via(id, m)
     local cm = coordsMap(id, m)
     if cm then
       if underRoot(cm) then return "coords" end
       if insideInstance and root and sameGroup(cm, root) then return "coords" end
-      if anyInstance and (onFloor(cm) or (inInstance and namesInstance(id, m))) then return "instance" end
-      return nil
     end
-    if ctx.sourceZone and named(ctx.sourceZone(id), names)
-      and not (root and ctx.versionOk and ctx.versionOk(root, m) == false) then
+    if sourceNamed(id) and not (root and ctx.versionOk and ctx.versionOk(root, m) == false) then
       return "source"
     end
-    if anyInstance and namesInstance(id, m) then return "instance" end
+    if anyInstance and ((cm and onFloor(cm)) or namesInstance(id, m)) then return "instance" end
     return nil
   end
 

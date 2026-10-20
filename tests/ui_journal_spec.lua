@@ -1118,6 +1118,11 @@ describe("ui journal", function()
         { label = "Cost:", value = "|T1357489:0|t 5 |T1357489:0|t" }, "value starts and ends with an icon")
       eq(SP("|T1357489:14|tCost: 5", true)[1], { label = "Cost:", value = "5" }, "icon before the label")
       eq(ns.UI.SourceZone("Zone: Dalaran |T1:0|t"), "Dalaran", "zone matching stays stripped")
+      eq(ns.UI.SourceZones("|cFFFFD200Drop:|r Huolon|n|cFFFFD200Zone:|r Timeless Isle|n"
+        .. "|cFFFFD200Vendor:|r Mistweaver Xia|n|cFFFFD200Location: |rTimeless Isle, Kun-Lai Summit"),
+        { "Timeless Isle", "Timeless Isle, Kun-Lai Summit" }, "every Zone: / Location: line")
+      eq(ns.UI.SourceZones("|cFFFFD200Vendor:|r Someone"), {})
+      eq(ns.UI.SourceZones(nil), {})
     end)
 
     it("RowDescription keeps icons", function()
