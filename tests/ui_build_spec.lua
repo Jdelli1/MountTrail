@@ -4,10 +4,9 @@
 -- stand-ins below, so the widget code runs instead of being compile-checked
 -- only. Checks the Filter dropdown wiring (menu content, writes to
 -- ns.db.global.filters, reset arrow) and its checkbox-panel fallback.
--- UI/Arrow.lua is not loaded.
 
 local UI_FILES = { "UI/Frame.lua", "UI/Tooltip.lua", "UI/List.lua", "UI/JournalHome.lua",
-  "UI/Tabs.lua", "UI/LockoutHelpers.lua", "UI/ChecklistView.lua", "UI/Popouts.lua", "UI/ZonePanel.lua" }
+  "UI/Tabs.lua", "UI/LockoutHelpers.lua", "UI/ChecklistView.lua", "UI/AltsWindow.lua", "UI/Popouts.lua", "UI/ZonePanel.lua" }
 
 -- Widget methods the views call that the base stub does not need.
 local probe = CreateFrame("Frame")
@@ -182,7 +181,7 @@ describe("ui build", function()
     for _, f in ipairs(frames) do
       if f.Stripe then
         if f.Stripe:IsShown() then sawStripe = true else sawPlain = true end
-        ok(f.Name.font == "GameFontNormal" or f.Name.font == ns.UI.OwnedFont(), "GameFont family")
+        ok(f.Name.font == ns.UI.Font("GameFontNormal") or f.Name.font == ns.UI.OwnedFont(), "GameFont family")
       end
     end
     ok(sawStripe and sawPlain, "every other row striped")
@@ -209,12 +208,12 @@ describe("ui build", function()
     eq(f.Name.font, ns.UI.OwnedFont(), "light green name")
     local p = frames[plain]
     ok(not p.Owned:IsShown(), "missing mounts: no green")
-    eq(p.Name.font, "GameFontNormal")
+    eq(p.Name.font, ns.UI.Font("GameFontNormal"))
     eq(p.Icon.desaturated, false)
     -- A recycled frame drops the green look.
     list.ScrollBox.view.factory(function(_, init) init(f, rows[plain]) end, rows[plain])
     ok(not f.Owned:IsShown(), "recycled: green off")
-    eq(f.Name.font, "GameFontNormal")
+    eq(f.Name.font, ns.UI.Font("GameFontNormal"))
     list.ScrollBox.view.factory(function(_, init) init(f, rows[owned]) end, rows[owned])
     ok(f.Owned:IsShown(), "and on again")
   end)
@@ -224,7 +223,7 @@ describe("ui build", function()
     local name = ns.UI.OwnedFont()
     eq(name, "MountTrailFontOwned")
     local font = _G[name]
-    eq(font.base, GameFontNormal)
+    eq(font.base, _G[ns.UI.Font("GameFontNormal")], "from the sized copy of GameFontNormal")
     eq(font.color, { 0.55, 0.95, 0.6 })
   end)
 
@@ -374,7 +373,7 @@ describe("ui build", function()
     ok(list.FilterPanel, "checkbox panel")
     eq(ns.UI.TemplateFallbacks["DropdownButton:SetupMenu"], "checkbox panel", "listed by /mtrail debug")
     eq(ns.UI.TemplateFallbacks.WowStyle1FilterDropdownTemplate, nil, "the template itself was there")
-    run_slash(ns.addon, "azt", "debug")
+    run_slash(ns.addon, "mtrail", "debug")
     eq(ns.addon.printed[#ns.addon.printed], "Template DropdownButton:SetupMenu missing, using checkbox panel")
   end)
 
@@ -716,14 +715,13 @@ describe("ui build", function()
     eq(header.height, 96)
     ok(header.ChecklistFilter and header.ChecklistFilter:IsShown(), "Filter button shown")
     eq(header.PopOut, nil, "no pop-out button: rare headers pop out on right-click")
-    -- Chips: All (shown, gold) / Daily (n) / Weekly (n) / Rare spawns (n).
+    -- Chips: All (shown, gold) / Daily (n) / Weekly (n) / Rare Spawns (n).
     local chips = header.Chips
-    eq(#chips, 5)
-    ok(chips[5].Text:GetText():find("^Lists %(%d+%)$"), chips[5].Text:GetText())
+    eq(#chips, 4, "All / Daily / Weekly / Rare Spawns (the lists live in the navigation)")
     eq(chips[1].Text:GetText(), "All")
     eq(chips[1].selected, true)
     ok(chips[2].Text:GetText():find("^Daily %(%d+%)$"), chips[2].Text:GetText())
-    ok(chips[4].Text:GetText():find("^Rare spawns %(%d+%)$"), chips[4].Text:GetText())
+    ok(chips[4].Text:GetText():find("^Rare Spawns %(%d+%)$"), chips[4].Text:GetText())
     chips[4]:RunScript("OnClick", "LeftButton")
     eq(ns.db.char.checklistShow, "camp")
     eq(chips[4].selected, true)
@@ -741,7 +739,7 @@ describe("ui build", function()
     eq(boxes, 0, "no route list beside the checklist")
     -- Everything done: the Oregon line.
     ns.db.char.checklistFilters = { raids = false, dungeons = false, worldbosses = false, rares = false,
-      holidays = false, other = false, camp = false, quick = false }
+      holidays = false, other = false, camp = false }
     ns.Refresh()
     eq(header.Flavour:GetText(), "Tester has reached Oregon. Nothing left to farm until reset.")
     ok(header.Checklist.Empty:IsShown(), "empty line")
@@ -858,6 +856,53 @@ describe("ui build", function()
     return shown
   end
 
+  it("Shift-click a header: every header of the list collapses; on a collapsed one, all expand (nested too)", function()
+    local ns = loadUI()
+    local list = openJournalList(ns)
+    local rows = list.ScrollBox.provider.rows
+    local before = #rows
+    local tops = 0
+    for _, r in ipairs(rows) do if r.header and r.depth == 1 then tops = tops + 1 end end
+    ok(tops >= 2, "several sections")
+    -- A sub-header collapsed earlier, to see Expand all reach it.
+    local sub
+    for _, r in ipairs(rows) do if r.header and r.depth == 2 then sub = r.key break end end
+    ns.db.global.collapsed[sub or "journal|Classic|x|y"] = true
+    IsShiftKeyDown = function() return true end
+    render(list.ScrollBox)[1]:RunScript("OnMouseUp", "LeftButton")
+    rows = list.ScrollBox.provider.rows
+    for _, r in ipairs(rows) do ok(r.header and r.collapsed, "only collapsed headers left") end
+    eq(#rows, tops)
+    render(list.ScrollBox)[1]:RunScript("OnMouseUp", "LeftButton")
+    IsShiftKeyDown = nil
+    eq(ns.db.global.collapsed, {}, "all expanded, the nested one too")
+    eq(#list.ScrollBox.provider.rows, before)
+  end)
+
+  it("headers explain collapsing on hover; a pop-out hint keeps its line on top", function()
+    local ns = loadUI()
+    eq({ ns.UI.HeaderHint(nil, true) }, { "Click: collapse or expand", "Shift-click: collapse or expand all" })
+    eq({ ns.UI.HeaderHint("Right-click to pop out Weeklies", true) },
+      { "Right-click to pop out Weeklies", "Click: collapse or expand. Shift-click: all at once" })
+    eq({ ns.UI.HeaderHint("Just a hint", false) }, { "Just a hint", nil })
+    eq(ns.UI.HeaderHint(nil, false), nil, "nothing to say")
+    local hints = {}
+    ns.UI.ShowHint = function(_, title, text) hints[#hints + 1] = { title, text } end
+    local list = openJournalList(ns)
+    render(list.ScrollBox)[1]:RunScript("OnEnter")
+    eq(hints[#hints], { "Click: collapse or expand", "Shift-click: collapse or expand all" })
+  end)
+
+  it("UI.ToggleAllCollapsed: collapse every shown header; expand them and the keys under them", function()
+    local ns = loadUI()
+    local store = { ["c|a|x"] = true, ["other|z"] = true }
+    local rows = { { header = true, key = "c|a" }, { id = 1 }, { header = true, key = "c|b", collapsed = true } }
+    eq(ns.UI.ToggleAllCollapsed(store, rows, rows[1]), true)
+    eq(store, { ["c|a"] = true, ["c|b"] = true, ["c|a|x"] = true, ["other|z"] = true })
+    eq(ns.UI.ToggleAllCollapsed(store, rows, rows[3]), false)
+    eq(store, { ["other|z"] = true }, "another list's keys stay")
+  end)
+
   it("section headers collapse on left-click, saved per view and expansion", function()
     local ns = loadUI()
     eq(ns.db.global.collapsed, {}, "AceDB default")
@@ -911,8 +956,8 @@ describe("ui build", function()
       if not row.header then eq(row.owned, false, "Collected off: no owned rows") end
     end
     ok(sub, "dungeon/raid/world sections split into sub-groups")
-    eq(top.Label.font, "GameFontNormal")
-    eq(sub.Label.font, "GameFontNormalSmall")
+    eq(top.Label.font, ns.UI.Font("GameFontNormal"))
+    eq(sub.Label.font, ns.UI.Font("GameFontNormalSmall"))
     ok(select(4, sub.Indicator:GetPoint(1)) > select(4, top.Indicator:GetPoint(1)), "sub-header indented")
     eq(list.ScrollBox.view.extent(1, { header = true, depth = 2 }) < list.ScrollBox.view.extent(1, rows[1]), true,
       "sub-headers are shorter")
@@ -1049,12 +1094,14 @@ describe("ui build", function()
     ns.ToggleWindow()
     local frame, panel = ns.UI.frame, ns.UI.zonePanel
     ok(panel and frame.ZoneButton, "panel and toggle built with the window")
+    ok(frame.ZoneButton:GetFrameLevel() >= frame:GetFrameLevel() + 20, "above the window's border art")
+    ok(frame.SettingsButton:GetFrameLevel() >= frame:GetFrameLevel() + 20, "the cogwheel too")
     eq(panel:GetParent(), frame, "child of the window: shown only with it")
     eq({ panel:GetPoint(1) }, { "TOPLEFT", frame, "TOPRIGHT", 2, 0 })
     eq({ panel:GetPoint(2) }, { "BOTTOMLEFT", frame, "BOTTOMRIGHT", 2, 0 })
     eq(panel.width, 260)
     ok(not panel:IsShown(), "closed by default")
-    eq({ frame.DragHandle:GetPoint(2) }, { "TOPRIGHT", frame, "TOPRIGHT", -52, 0 }, "drag handle leaves room")
+    eq({ frame.DragHandle:GetPoint(2) }, { "TOPRIGHT", frame, "TOPRIGHT", -74, 0 }, "drag handle leaves room (zone panel and settings buttons)")
 
     frame.ZoneButton:RunScript("OnClick")
     eq(ns.db.global.zonePanel.open, true)
@@ -1062,7 +1109,11 @@ describe("ui build", function()
     ok(frame.ZoneButton.Selected:IsShown(), "toggle shows the open state")
     local title = panel.Title:GetText()
     ok(title:find("^Mounts in Tanaris  "), title)
-    local rows = panel.ScrollBox.provider.rows
+    -- Mount rows (the zone's sources may add a header each).
+    local rows = {}
+    for _, row in ipairs(panel.ScrollBox.provider.rows) do
+      if not row.header then rows[#rows + 1] = row end
+    end
     ok(#rows > 0, "mounts listed")
     ok(title:find("(" .. #rows .. ")", 1, true), "count in the title")
     ok(not panel.Empty:IsShown(), "no empty line")
@@ -1075,13 +1126,23 @@ describe("ui build", function()
     -- Rows are the mount list's rows: tooltip, pin, click dispatch.
     local got = {}
     ns.UI.HandleRowClick = function(id, button) got[#got + 1] = { id, button } end
-    local frames = render(panel.ScrollBox)
+    local all = render(panel.ScrollBox)
+    eq(#all, #panel.ScrollBox.provider.rows)
+    -- Source headers (Dungeon drops, Vendors, ...) when the zone has several.
+    local frames, headers = {}, 0
+    for i, f in ipairs(all) do
+      if panel.ScrollBox.provider.rows[i].header then
+        headers = headers + 1
+        ok(f.Label and f.Label:GetText() ~= "", "a source header")
+      else
+        frames[#frames + 1] = f
+      end
+    end
     eq(#frames, #rows)
     ok(frames[1].Name and frames[1].Pin and frames[1].Source, "mount row look")
     eq(frames[1].clickButtons, { "LeftButtonUp", "RightButtonUp" })
     frames[1]:RunScript("OnClick", "LeftButton")
     eq(got[1], { rows[1].id, "LeftButton" })
-    ok(frames[2] == nil or frames[2].Stripe:IsShown(), "second row striped")
 
     frame.ZoneButton:RunScript("OnClick")
     eq(ns.db.global.zonePanel.open, false)
@@ -1111,7 +1172,9 @@ describe("ui build", function()
     fire_frame_event("ZONE_CHANGED_NEW_AREA")
     eq(computed(), n + 1)
     ok(panel.Title:GetText():find("^Mounts in Uldum"), "new zone")
-    for _, row in ipairs(panel.ScrollBox.provider.rows) do eq(row.id % 11, 0) end
+    for _, row in ipairs(panel.ScrollBox.provider.rows) do
+      if not row.header then eq(row.id % 11, 0) end
+    end
     ns.Refresh()
     eq(computed(), n + 2, "data refresh rebuilds")
     fire_frame_event("PLAYER_ENTERING_WORLD")
@@ -1209,22 +1272,22 @@ describe("ui build", function()
 
   it("/mtrail zone opens the window with the panel, then toggles the panel; help lists it", function()
     local ns, _, computed = loadZoneUI()
-    run_slash(ns.addon, "azt", "zone")
+    run_slash(ns.addon, "mtrail", "zone")
     ok(ns.UI.frame:IsShown(), "window opened")
     ok(ns.UI.zonePanel:IsShown(), "panel opened")
     eq(ns.db.global.zonePanel.open, true)
     eq(computed(), 1, "one build")
     ok(ns.UI.frame.ZoneButton.Selected:IsShown())
-    run_slash(ns.addon, "azt", "zone")
+    run_slash(ns.addon, "mtrail", "zone")
     ok(ns.UI.frame:IsShown(), "window stays")
     ok(not ns.UI.zonePanel:IsShown(), "panel closed")
     eq(ns.db.global.zonePanel.open, false)
-    run_slash(ns.addon, "azt", "zone")
+    run_slash(ns.addon, "mtrail", "zone")
     ok(ns.UI.zonePanel:IsShown(), "and open again")
     ns.ToggleWindow()
-    run_slash(ns.addon, "azt", "zone")
+    run_slash(ns.addon, "mtrail", "zone")
     ok(ns.UI.frame:IsShown() and ns.UI.zonePanel:IsShown(), "window closed: opens both")
-    run_slash(ns.addon, "azt", "help")
+    run_slash(ns.addon, "mtrail", "help")
     local found = false
     for _, line in ipairs(ns.addon.printed) do if line:find("^/mtrail zone") then found = true end end
     ok(found, "help lists /mtrail zone")
@@ -1244,8 +1307,8 @@ describe("ui build", function()
     local calls = openMenu(dd)
     local labels = {}
     for _, c in ipairs(calls) do if c.kind == "checkbox" then labels[#labels + 1] = c.text end end
-    eq(labels, { "Show raids", "Show dungeons", "Show world bosses", "Show rares", "Show holidays", "Show other",
-      "Show rare spawns (no lockout)", "Show quick lists" })
+    eq(labels, { "Show completed", "Show raids", "Show dungeons", "Show world bosses", "Show rares", "Show holidays",
+      "Show other", "Show rare spawns (no lockout)" })
 
     local box = header.Checklist.ScrollBox
     local function count(category)
@@ -1313,7 +1376,7 @@ describe("ui build", function()
     ok(hi, "the camp group is listed")
     local frames = render(box)
     local label = frames[hi].Label:GetText()
-    ok(label:find("^Rare spawns %(no lockout%)"), label)
+    ok(label:find("^Rare Spawns %(no lockout%)"), label)
     ok(label:find("(" .. top.left .. " left)", 1, true), label)
     ok(not label:find("resets in", 1, true), "no reset timer")
     ok(find(function(r) return r.key == "checklist|camp|Warlords of Draenor|Nagrand" end), "expansion -> zone")
@@ -1378,7 +1441,7 @@ describe("ui build", function()
     ok(rows[3].category, "category header")
     eq(box.view.extent(1, rows[3]), 20, "category header: sub-header height")
     eq({ frames[3].Indicator:GetPoint(1) }, { "LEFT", frames[3], "LEFT", 22 + 16, 0 }, "indented a step further")
-    eq(frames[3].Label.font, "GameFontNormalSmall")
+    eq(frames[3].Label.font, ns.UI.Font("GameFontNormalSmall"))
     ok(frames[3].Label:GetText():find("(0/" .. rows[3].total .. ")", 1, true), "category done/total")
 
     -- A row: list look, pin, click, hover. A game-tracked lockout has no
@@ -1544,5 +1607,90 @@ describe("ui build", function()
     ok(check, "a row with a tick box")
     eq(check.template, "UICheckButtonTemplate")
     eq(ns.UI.TemplateFallbacks.MinimalCheckboxTemplate, "UICheckButtonTemplate")
+  end)
+
+  it("Alt lockouts: a column per character, a cell per lockout, hide / show all, /mtrail alts", function()
+    local ns = loadUI()
+    RAID_CLASS_COLORS = { MAGE = { r = 0.2, g = 0.8, b = 1 } }
+    local now = ns.Game.Now()
+    ns.db.char.seen = { name = "Tester", class = "MAGE", faction = "Alliance", level = 80,
+      at = now, dailyReset = now + 3600, weeklyReset = now + 86400 }
+    ns.db.char.last = { snap = {}, quests = {}, lfg = {} }
+    ns.db.sv = { char = {
+      ["Tester - Realm"] = ns.db.char,
+      ["Alt - Realm"] = { seen = { name = "Alt", class = "WARRIOR", faction = "Horde" } },
+      ["Never - Realm"] = { last = {} }, -- never stamped: no column
+    } }
+    ns.db.keys = { char = "Tester - Realm" }
+    eq(ns.UI.AltsWidth(1), 380)
+    eq(select(2, ns.UI.AltsWidth(40)), 14, "columns past the max width are left off")
+    eq(ns.UI.AltsCellHint("Alt", "unknown"), "Alt: no data yet (log in once)")
+    run_slash(ns.addon, "mtrail", "alts")
+    local w = ns.UI.AltsWindow()
+    ok(w and w:IsShown(), "opened")
+    eq(w.Title:GetText(), "Alt lockouts")
+    ok(w.Resets:GetText():find("Weekly reset in ", 1, true), w.Resets:GetText())
+    eq(#w.shownChars, 2)
+    eq(w.Columns[1].Text:GetText(), "Tester", "the current character first")
+    eq({ ns.UI.AltsColumnColor("MAGE") }, { 0.2, 0.8, 1 }, "class colour")
+    eq({ ns.UI.AltsColumnColor("NOPE") }, { 1, 1, 1 })
+    eq(w.Columns[2].Text:GetText(), "Alt")
+    ok(not w.ShowAll:IsShown(), "nothing hidden")
+    local rows = w.ScrollBox.provider.rows
+    eq(rows[1].header, true)
+    eq(rows[1].key, "alts|weekly")
+    local frames = render(w.ScrollBox)
+    local seen = {}
+    for i, f in ipairs(frames) do
+      local data = rows[i]
+      if not data.header then
+        local c1, c2 = f.Cells[1], f.Cells[2]
+        ok(c1:IsShown() and c2:IsShown(), "one cell per character")
+        seen[c1.state] = true
+        ok(c2.state == "unknown" or c2.state == "na", "the alt has no stored lockouts: " .. tostring(c2.state))
+        if c2.state == "na" then eq(c2.Text:GetText(), "-") else eq(c2.Text:GetText(), "?") end
+        if c1.state == "open" then ok(c1.Box:IsShown() and not c1.Check:IsShown(), "open: the square") end
+      end
+    end
+    ok(seen.open, "the current character has open lockouts")
+    -- Hover a cell: the hint names the character and the state.
+    local cell
+    for i, f in ipairs(frames) do if not rows[i].header and not cell then cell = f.Cells[2] end end
+    cell:RunScript("OnEnter")
+    ok(cell.char and cell.char.name == "Alt")
+    cell:RunScript("OnLeave")
+    -- A header click collapses its group.
+    frames[1].Name:RunScript("OnClick", "LeftButton")
+    eq(ns.db.global.collapsed["alts|weekly"], true)
+    eq(w.ScrollBox.provider.rows[1].collapsed, true)
+    -- Right-click a column header: Hide <name>; then Show all.
+    local menu
+    ns.UI.ShowMenu = function(owner, items) menu = items end
+    w.Columns[2]:RunScript("OnClick", "RightButton")
+    eq(menu[2].text, "Hide Alt")
+    menu[2].onClick()
+    eq(ns.db.global.altsHidden["Alt - Realm"], true)
+    eq(#w.shownChars, 1)
+    ok(not w.Columns[2]:IsShown(), "the hidden column is gone")
+    ok(w.ShowAll:IsShown(), "Show all")
+    w.ShowAll:RunScript("OnClick", "LeftButton")
+    eq(#w.shownChars, 2)
+    ok(not w.ShowAll:IsShown())
+    -- Closed: the refresh hook leaves it alone; the slash toggles.
+    run_slash(ns.addon, "mtrail", "alts")
+    ok(not w:IsShown(), "closed")
+    -- The navigation column's Alts entry opens it again (the Checklist
+    -- header has no Alts button any more).
+    ns.ToggleWindow()
+    ns.UI.SelectTab("checklist")
+    local header = content(ns, "checklist").children[2].children[1]
+    eq(header.AltsButton, nil, "no Alts button on the Checklist")
+    ns.UI.NavClick({ action = "alts" })
+    ok(w:IsShown(), "opened from the navigation")
+    run_slash(ns.addon, "mtrail", "help")
+    local found = false
+    for _, line in ipairs(ns.addon.printed) do if line:find("^/mtrail alts") then found = true end end
+    ok(found, "help lists /mtrail alts")
+    RAID_CLASS_COLORS = nil
   end)
 end)

@@ -102,17 +102,17 @@ describe("journal home", function()
     local summary = home.Summary
     ok(summary and home.children[#home.children] == summary, "summary strip on the home")
     eq(summary.Title:GetText(), "Mount Collection")
-    eq(summary.Title.template, "GameFontNormalLarge")
-    eq(summary.Totals.template, "GameFontHighlight")
+    eq(summary.Title.template, ns.UI.Font("GameFontNormalLarge"))
+    eq(summary.Totals.template, ns.UI.Font("GameFontHighlight"))
     eq(summary.Bar.height, 4, "4 px summary bar")
     eq(summary.Bar:GetNumPoints(), 2, "full width: anchored left and right")
-    eq(summary.Bar.barColor, { 1, 0.82, 0, 1 }, "gold fill")
+    eq(summary.Bar.barColor, ns.UI.ProgressColor(summary.have, summary.total), "its percent's colour")
     for i, tile in ipairs(tiles(ns, home)) do
       eq(tile.kind, "Button", "tile " .. i)
       eq(tile.Bar.height, 3, "slim 3 px tile bar")
       ok(tile.Edge and #tile.Edge.edges == 4, "1 px edge")
-      eq(tile.Count.template, "GameFontHighlightSmall")
-      eq(tile.Percent.template, "GameFontDisableSmall")
+      eq(tile.Count.template, ns.UI.Font("GameFontHighlightSmall"))
+      eq(tile.Percent.template, ns.UI.Font("GameFontDisableSmall"))
       eq(tile.Count:GetPoint(1), "BOTTOMLEFT", "owned / total on the left")
       eq(tile.Percent:GetPoint(1), "BOTTOMRIGHT", "percent on the right")
     end
@@ -183,7 +183,7 @@ describe("journal home", function()
     eq(P(5, 5), 100)
   end)
 
-  it("completed expansions: green bar and the check atlas in the top-right corner", function()
+  it("completed expansions: blue bar and the check atlas in the top-right corner", function()
     local ns = loadUI(function() return true end)
     STUB_ATLASES[CHECK_ATLAS] = true -- after loadUI: reset_ui_stub clears atlases
     local home = openHome(ns)
@@ -191,7 +191,7 @@ describe("journal home", function()
     for _, tile in ipairs(tiles(ns, home)) do
       if tile.total > 0 then
         seen = seen + 1
-        eq(tile.Bar.barColor, { 0.25, 0.78, 0.35, 1 }, "green when complete")
+        eq(tile.Bar.barColor, { 0.25, 0.6, 1, 1 }, "blue when complete")
         ok(tile.Check:IsShown(), "check shown")
         eq(tile.Check.atlas, CHECK_ATLAS)
         eq(tile.Check:GetPoint(1), "TOPRIGHT")
@@ -201,12 +201,13 @@ describe("journal home", function()
     STUB_ATLASES[CHECK_ATLAS] = nil
   end)
 
-  it("incomplete tiles keep a gold bar and no check; no atlas -> the classic check texture", function()
+  it("incomplete tiles: red / yellow / green by percent and no check; no atlas -> the classic check texture", function()
     local ns = loadUI()
     local home = openHome(ns)
     for _, tile in ipairs(tiles(ns, home)) do
       if tile.have < tile.total then
-        eq(tile.Bar.barColor, { 1, 0.82, 0, 1 }, "gold while incomplete")
+        eq(tile.Bar.barColor, ns.UI.ProgressColor(tile.have, tile.total), "its percent's colour")
+        ok(tile.Bar.barColor[3] ~= 1, "never blue while incomplete")
         ok(not tile.Check:IsShown(), "no check")
       end
     end
@@ -306,13 +307,15 @@ describe("journal home", function()
     eq(list.SearchBox:GetText(), "", "search cleared")
   end)
 
-  it("the 4 x 3 grid and the strip fit the content area of the 800 x 560 window", function()
+  it("the 4 x 3 grid and the strip fit the view area of the 900 x 560 window beside the navigation", function()
     local ns = loadUI()
     local G = ns.UI.HomeLayout
     eq(G.cols, 4)
     ok(G.gap >= 10 and G.gap <= 12, "10-12 px gaps")
-    -- Window 800 x 560: inset 6 px in, 60 px down (tabs); content 4 px inside.
-    local contentW, contentH = 800 - 12 - 8, 560 - 60 - 6 - 8
+    -- Window 900 x 560: the navigation column (6 + NAV_WIDTH + 4) on the left,
+    -- 6 px right; views from 34 px down to 6 px from the bottom; 4 px inside.
+    local contentW = 900 - (6 + ns.UI.NAV_WIDTH + 4) - 6 - 8
+    local contentH = 560 - 34 - 6 - 8
     local rows = math.ceil(#ns.Data.Expansions / G.cols)
     eq(rows, 3)
     local right = G.left + G.cols * G.tileW + (G.cols - 1) * G.gap
@@ -329,7 +332,9 @@ describe("journal home", function()
   it("tiles fill a resized window (same margins and gaps); never under 80%; unknown size: defaults", function()
     local ns = loadUI()
     local G = ns.UI.HomeLayout
-    eq({ ns.UI.HomeTileSize(0, 0, 12) }, { G.tileW, G.tileH, 1 })
+    local dw, dh, ds = ns.UI.HomeTileSize(0, 0, 12)
+    eq({ dw, dh }, { G.tileW, G.tileH })
+    ok(ds > 0.9 and ds <= 1, "the default tile's logo scale: " .. ds)
     local w, h, s = ns.UI.HomeTileSize(1200, 800, 12)
     eq(w, math.floor((1200 - 2 * G.left - 3 * G.gap) / 4))
     eq(h, math.floor((800 + G.top - 10 - 2 * G.gap) / 3))
@@ -343,5 +348,20 @@ describe("journal home", function()
     eq({ tile.width, tile.height }, { w, h })
     local p, _, relP, x, y = tile:GetPoint(1)
     eq({ p, relP, x, y }, { "TOPLEFT", "TOPLEFT", G.left + w + G.gap, G.top - h - G.gap })
+  end)
+end)
+
+describe("UI.ProgressColor", function()
+  it("red under 25 %, yellow under 75 %, green below complete, blue when complete", function()
+    local ns = loadUI()
+    local P = ns.UI.ProgressColor
+    eq(P(0, 10), { 0.85, 0.22, 0.2, 1 })
+    eq(P(2, 10), { 0.85, 0.22, 0.2, 1 }, "20 %")
+    eq(P(25, 100), { 1, 0.82, 0, 1 }, "25 %: yellow")
+    eq(P(74, 100), { 1, 0.82, 0, 1 })
+    eq(P(75, 100), { 0.25, 0.78, 0.35, 1 }, "75 %: green")
+    eq(P(99, 100), { 0.25, 0.78, 0.35, 1 })
+    eq(P(100, 100), { 0.25, 0.6, 1, 1 }, "complete: blue")
+    eq(P(0, 0), { 0.85, 0.22, 0.2, 1 }, "nothing to collect")
   end)
 end)

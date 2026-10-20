@@ -170,15 +170,15 @@ describe("Checklist with the detail pane", function()
     eq(mounts[1].selected, true)
     eq(mounts[1].pin, nil)
     eq(root.Detail.mountID, mounts[1].entry.id)
-    local waypoints = 0
-    ns.UI.HandleRowClick = function() waypoints = waypoints + 1 end
+    local clicks = {}
+    ns.UI.PaneRowClick = function(id) clicks[#clicks + 1] = id end
     local frames = render(box)
     local target
     for _, f in ipairs(frames) do
       if f.entry and f.entry.key == mounts[2].entry.key then target = f end
     end
     target:RunScript("OnClick", "LeftButton")
-    eq(waypoints, 0, "no waypoint on a plain click")
+    eq(clicks, { mounts[2].entry.id }, "selects, then the row's click")
     eq(root.Detail.mountID, mounts[2].entry.id)
     local again = {}
     for _, row in ipairs(box.provider.rows) do
@@ -188,6 +188,6 @@ describe("Checklist with the detail pane", function()
     IsShiftKeyDown = function() return true end
     target:RunScript("OnClick", "LeftButton")
     IsShiftKeyDown = nil
-    eq(waypoints, 1, "Shift-click still goes through HandleRowClick")
+    eq(#clicks, 2, "Shift-click too (UI.PaneRowClick reads the modifiers)")
   end)
 end)

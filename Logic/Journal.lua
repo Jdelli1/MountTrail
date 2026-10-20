@@ -44,6 +44,55 @@ local RANK, VIEW_RANK = {}, {}
 for tab, list in pairs(ORDER) do RANK[tab] = rankOf(list) end
 for view, list in pairs(VIEW_ORDER) do VIEW_RANK[view] = rankOf(list) end
 
+-- Every source section in one order, for lists that mix the tabs (the
+-- zone's mounts): the Journal's sources, then Misc's, then the holidays',
+-- "other" and "unobtainable" last.
+local SOURCE_ORDER = {}
+do
+  local seen = { other = true, unobtainable = true }
+  for _, tab in ipairs({ "journal", "misc", "holiday" }) do
+    for _, key in ipairs(ORDER[tab]) do
+      if not seen[key] then
+        seen[key] = true
+        SOURCE_ORDER[#SOURCE_ORDER + 1] = key
+      end
+    end
+  end
+  SOURCE_ORDER[#SOURCE_ORDER + 1] = "other"
+  SOURCE_ORDER[#SOURCE_ORDER + 1] = "unobtainable"
+end
+Journal.SOURCE_ORDER = SOURCE_ORDER
+local SOURCE_RANK = rankOf(SOURCE_ORDER)
+
+-- A section's place in SOURCE_ORDER (unknown sections after it).
+function Journal.SourceRank(section)
+  return SOURCE_RANK[section or "other"] or (#SOURCE_ORDER + 1)
+end
+
+-- `items` grouped by their source section (sectionOf(item), nil counting as
+-- "other") -> { { key = section, items = { ... } } } in SOURCE_ORDER, unknown
+-- sections after it by name; each group keeps the items' order.
+function Journal.GroupBySource(items, sectionOf)
+  local groups, byKey = {}, {}
+  for _, item in ipairs(items or {}) do
+    local key = sectionOf(item) or "other"
+    local g = byKey[key]
+    if not g then
+      g = { key = key, items = {} }
+      byKey[key] = g
+      groups[#groups + 1] = g
+    end
+    g.items[#g.items + 1] = item
+  end
+  local unknown = #SOURCE_ORDER + 1
+  table.sort(groups, function(a, b)
+    local ra, rb = SOURCE_RANK[a.key] or unknown, SOURCE_RANK[b.key] or unknown
+    if ra ~= rb then return ra < rb end
+    return tostring(a.key) < tostring(b.key)
+  end)
+  return groups
+end
+
 -- The list views, in tab order (UI/Frame.lua's tabs minus Route).
 Journal.Views = { "journal", "holidays", "achievements", "timewalking", "misc" }
 
@@ -96,23 +145,6 @@ function Journal.SetSectionShown(filters, view, section, shown)
     filters[view] = t
   end
   t[section] = false
-end
-
--- Before F15 the Journal's source filters were flat keys (filters.raid =
--- false). Moves them into filters.journal (hidden ones only) and removes
--- them; `collected` stays. -> true when anything was moved. Idempotent.
-function Journal.MigrateFilters(filters)
-  if type(filters) ~= "table" then return false end
-  local moved = false
-  for _, key in ipairs(ORDER.journal) do
-    local v = filters[key]
-    if v ~= nil and type(v) ~= "table" then
-      if v == false then Journal.SetSectionShown(filters, "journal", key, false) end
-      filters[key] = nil
-      moved = true
-    end
-  end
-  return moved
 end
 
 -- Misc section of not-owned unobtainable mounts when the "Show unobtainable
@@ -262,7 +294,9 @@ function Journal.Select(mounts, query)
       local owned = gate(id, m, isOwned, exists, query.faction, showUnobtainable)
       if owned ~= nil and (showCollected or not owned) then
         local keep = true
-        if needle then
+        if query.match then
+          keep = query.match[id] == true
+        elseif needle then
           keep = (m.name or ""):lower():find(needle, 1, true) ~= nil
             or (m.group or ""):lower():find(needle, 1, true) ~= nil
         end

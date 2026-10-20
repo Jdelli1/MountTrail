@@ -43,23 +43,28 @@ describe("ui", function()
     ok(f and f:IsShown(), "window shown")
     eq(f:GetName(), "MountTrailFrame")
     eq(f.template, "PortraitFrameFlatTemplate", "modern flat window")
-    eq({ f:GetSize() }, { 800, 560 })
+    eq({ f:GetSize() }, { 900, 560 })
     eq(f.title, "MountTrail")
     eq(f.portraitAsset, 132261)
     ok(f.movable and f.clamped, "movable and clamped")
-    eq(f.numTabs, 6)
+    -- The navigation column on the left (no tabs), the views right of it.
+    ok(f.Nav and f.isFlat, "flat window with a navigation column")
+    eq(f.Tabs, nil, "no tab buttons")
+    eq({ f.Nav:GetPoint(1) }, { "TOPLEFT", f, "TOPLEFT", 6, -60 }, "under the portrait")
+    eq(f.Nav.width, ns.UI.NAV_WIDTH)
+    eq({ f.Inset:GetPoint(1) }, { "TOPLEFT", f, "TOPLEFT", 6 + ns.UI.NAV_WIDTH + 4, -34 }, "views right of it, clear of the title bar")
     local labels = {}
-    for i, tab in ipairs(f.Tabs) do labels[i] = tab:GetText() end
-    eq(labels, { "Journal", "Holidays", "Achievements", "Timewalking", "Misc", "Checklist" })
-    eq(f.Tabs[1].template, "PanelTopTabButtonTemplate", "modern top tabs")
-    ok(f.topTabs and f.isFlat, "flat window with top tabs")
-    eq({ f.Tabs[1]:GetPoint(1) }, { "BOTTOMLEFT", f.Inset, "TOPLEFT", 60, 0 }, "tabs sit on the content's top edge")
+    for i = 1, f.Nav.shown do labels[i] = f.Nav.Buttons[i].Text:GetText() end
+    eq({ labels[1], labels[2], labels[3] }, { "Home", "Lockouts", "Current Zone" })
+    ok(labels[4]:find("^Alts"), labels[4])
+    eq({ labels[5], labels[8] }, { "Drops", "Achievements" }, "Browse by source")
     eq(f.Inset.template, nil, "flat content area, no classic inset")
     eq(f.Inset.Fill:GetParent(), f.Inset, "flat fill drawn on the inset")
     eq(f.Inset.Fill.color, { 0, 0, 0, 0.3 })
     eq(#f.Inset.Edge.edges, 4, "faint 1 px edge")
     eq(next(ns.UI.TemplateFallbacks), nil, "no fallback used")
-    eq(f.selectedTab, 1, "journal by default")
+    eq(ns.UI.CurrentTab(), "journal", "Home by default")
+    ok(f.Nav.Buttons[1].selected and f.Nav.Buttons[1].Bar:IsShown(), "Home marked")
     eq(UISpecialFrames, { "MountTrailFrame" })
     ns.ToggleWindow()
     ok(not f:IsShown(), "second toggle hides")
@@ -87,7 +92,7 @@ describe("ui", function()
     eq(route.builds, 1)
     eq(route.refreshes, 1)
     ok(route.parent:IsShown() and not journal.parent:IsShown(), "only the selected content is shown")
-    eq(ns.UI.frame.selectedTab, 6)
+    eq(ns.UI.CurrentTab(), "checklist")
     eq(ns.db.global.window.tab, "checklist")
 
     ns.Refresh()
@@ -102,39 +107,211 @@ describe("ui", function()
     eq(journal.refreshes, 3, "nothing refreshes while closed")
   end)
 
-  it("tab buttons select their tab", function()
+  it("navigation entries select their view and move the gold mark; Alts opens its window", function()
     local ns = loadUI()
     local views = {}
-    for _, key in ipairs({ "journal", "holidays", "achievements", "timewalking", "misc", "checklist" }) do
+    for _, key in ipairs({ "journal", "holidays", "achievements", "timewalking", "misc", "checklist", "here", "browse" }) do
       views[key] = countingView()
       ns.UI.RegisterView(key, views[key])
     end
     ns.ToggleWindow()
-    ns.UI.frame.Tabs[3]:RunScript("OnClick", "LeftButton")
-    eq(ns.UI.frame.selectedTab, 3)
+    local nav = ns.UI.frame.Nav
+    local function button(label)
+      for i = 1, nav.shown do
+        local b = nav.Buttons[i]
+        if b.Text:GetText():find("^" .. label) then return b end
+      end
+    end
+    button("Achievements"):RunScript("OnClick", "LeftButton")
+    eq(ns.UI.CurrentTab(), "achievements")
     eq(views.achievements.builds, 1)
     eq(ns.db.global.window.tab, "achievements")
-    ns.UI.frame.Tabs[4]:RunScript("OnClick", "LeftButton")
-    eq(views.timewalking.builds, 1)
-    eq(ns.db.global.window.tab, "timewalking")
-    ns.UI.frame.Tabs[5]:RunScript("OnClick", "LeftButton")
-    eq(views.misc.builds, 1)
+    ok(button("Achievements").selected and not button("Home").selected, "the mark follows")
+    button("Lockouts"):RunScript("OnClick", "LeftButton")
+    eq(views.checklist.builds, 1)
+    button("Current Zone"):RunScript("OnClick", "LeftButton")
+    eq(views.here.builds, 1)
+    local alts = 0
+    ns.UI.ToggleAltsWindow = function() alts = alts + 1 end
+    button("Alts"):RunScript("OnClick", "LeftButton")
+    eq(alts, 1)
+    eq(ns.UI.CurrentTab(), "here", "Alts is a window, not a view")
+    -- Current Zone: right-click pops the zone's mounts out; both entries explain themselves.
+    local popped = 0
+    ns.UI.ToggleZoneMountsPopout = function() popped = popped + 1 end
+    button("Current Zone"):RunScript("OnClick", "RightButton")
+    eq(popped, 1)
+    eq(ns.UI.CurrentTab(), "here", "a right-click does not switch the view")
+    local hints = {}
+    ns.UI.ShowHint = function(_, title, text) hints[#hints + 1] = { title, text } end
+    button("Current Zone"):RunScript("OnEnter")
+    ok(hints[1][2]:find("Right%-click to pop it out"), hints[1][2])
+    button("Lockouts"):RunScript("OnEnter")
+    eq(hints[2][1], "Lockouts")
+    -- Browse entries are indented under their heading.
+    local function leftInset(b)
+      for i = 1, b.Text:GetNumPoints() do
+        local p, _, _, x = b.Text:GetPoint(i)
+        if p == "LEFT" then return x end
+      end
+    end
+    eq(leftInset(button("Holidays")), 18)
+    eq(leftInset(button("Lockouts")), 12)
   end)
 
-  it("sizes the six tabs to their text within fixed bounds that fit the window", function()
+  it("the navigation's text is the font object's size plus the bonus, however often it repaints", function()
+    local ns = loadUI()
+    -- As in the game: a size set with SetFont survives SetFontObject.
+    local probe = CreateFrame("Frame")
+    local RegionMT = getmetatable(getmetatable(probe).__index).__index or getmetatable(probe).__index
+    local mt = getmetatable(probe:CreateFontString(nil, "OVERLAY", "GameFontHighlight")).__index
+    local savedSet, savedGet = mt.SetFont, mt.GetFont
+    mt.SetFont = function(self, path, size) self.fontPath, self.fontSize = path, size end
+    mt.GetFont = function(self) return self.fontPath or "Fonts\\FRIZQT__.TTF", self.fontSize or 12, "" end
+    local fonts = { "GameFontHighlight", "GameFontNormal", "GameFontNormalSmall", "GameFontDisableSmall" }
+    for _, name in ipairs(fonts) do
+      _G[name] = { GetFont = function() return "Fonts\\FRIZQT__.TTF", 12, "" end }
+    end
+    ns.ToggleWindow()
+    for _ = 1, 5 do ns.UI.RefreshNav() end
+    local nav = ns.UI.frame.Nav
+    eq(nav.Buttons[2].Text.fontSize, 12 + ns.UI.NAV_FONT_BONUS, "no growth")
+    eq(nav.Headings[1].Text.fontSize, 12 + ns.UI.NAV_FONT_BONUS)
+    for _, name in ipairs(fonts) do _G[name] = nil end
+    mt.SetFont, mt.GetFont = savedSet, savedGet
+  end)
+
+  it("drag the navigation's right edge to resize it (saved, clamped); right-click: the default", function()
     local ns = loadUI()
     ns.ToggleWindow()
     local f = ns.UI.frame
-    local size = ns.UI.TabSize
-    eq(size, { padding = 10, min = 70, max = 116 })
-    for i, tab in ipairs(f.Tabs) do
-      eq(tab.resized, { padding = 10, minWidth = 70, maxWidth = 116 }, "tab " .. i)
+    local nav, split = f.Nav, f.NavSplitter
+    ok(split, "a drag handle on the navigation's edge")
+    nav.left = 100
+    STUB_CURSOR[1] = 300
+    split:RunScript("OnMouseDown", "LeftButton")
+    split:GetScript("OnUpdate")(split, 0.01)
+    eq(nav.width, 200, "follows the cursor")
+    local function insetLeft()
+      for i = 1, f.Inset:GetNumPoints() do
+        local p, _, _, x = f.Inset:GetPoint(i)
+        if p == "TOPLEFT" then return x end
+      end
     end
-    -- Worst case (every label at the cap): the first tab starts 60 px into
-    -- the 6 px inset, tabs are 2 px apart and the last tab's right edge
-    -- texture overhangs 8 px; all of it must stay inside the 800 px window.
-    local worst = 6 + 60 + #f.Tabs * size.max + (#f.Tabs - 1) * 2 + 8
-    ok(worst <= 800, "six tabs fit: " .. worst)
+    eq(insetLeft(), 6 + 200 + 4, "the views move beside it")
+    split:RunScript("OnMouseUp", "LeftButton")
+    eq(ns.db.global.window.navWidth, 200, "saved on release")
+    STUB_CURSOR[1] = 1000
+    split:RunScript("OnMouseDown", "LeftButton")
+    split:GetScript("OnUpdate")(split, 0.01)
+    split:RunScript("OnMouseUp", "LeftButton")
+    eq(ns.db.global.window.navWidth, ns.UI.NAV_MAX, "no wider than the maximum")
+    split:RunScript("OnClick", "RightButton")
+    eq(ns.db.global.window.navWidth, ns.UI.NAV_WIDTH, "right-click: the default")
+    eq(nav.width, ns.UI.NAV_WIDTH)
+  end)
+
+  it("the title bar's cogwheel opens the settings menu: sliders and checkboxes that apply at once", function()
+    local ns = loadUI()
+    local applied = {}
+    ns.Options = {
+      SCALE_RANGE = { min = 80, max = 150, step = 5 }, TEXT_RANGE = { min = -2, max = 6, step = 1 },
+      NAV_TEXT_RANGE = { min = 0, max = 6, step = 1 },
+      TEXT_LABELS = { header = "Gold text size", body = "White text size", detail = "Grey text size" },
+      WindowScale = function() return 100 end, TextSize = function() return 0 end, NavTextSize = function() return 2 end,
+      Set = function(name, v) applied[#applied + 1] = { name, v } end,
+      SetTextSize = function(role, v) applied[#applied + 1] = { role, v } end,
+      ResetTextSizes = function() applied[#applied + 1] = { "reset" } end,
+      Open = function() applied[#applied + 1] = { "open" } end,
+    }
+    ns.ToggleWindow()
+    local cog = ns.UI.frame.SettingsButton
+    ok(cog and cog.Icon.texture == ns.UI.COG_TEXTURE, "a cogwheel")
+    ok(cog:GetFrameLevel() >= ns.UI.frame:GetFrameLevel() + 20, "above the window's border art")
+    local shown
+    ns.UI.ShowMenu = function(owner, items) shown = type(items) == "function" and items() or items end
+    cog:RunScript("OnClick", "LeftButton")
+    eq(shown[1].title, "Settings")
+    local byText = {}
+    for _, it in ipairs(shown) do if it.text then byText[it.text] = it end end
+    ok(byText["Window scale"].slider and byText["Gold text size"].slider and byText["Grey text size"].slider)
+    byText["Window scale"].onChange(120)
+    byText["White text size"].onChange(3)
+    byText["Show unobtainable mounts"].onClick()
+    byText["Reset text sizes"].onClick()
+    byText["All options..."].onClick()
+    eq(applied, { { "windowScale", 120 }, { "body", 3 }, { "showUnobtainable", true }, { "reset" }, { "open" } })
+  end)
+
+  it("UI.Font: a sized copy per game font, by its role (gold / white / grey); a change resizes them all", function()
+    local ns = loadUI()
+    local sizes = { header = 3, body = 0, detail = -1 }
+    ns.Options = { TextSize = function(role) return sizes[role] end }
+    eq(ns.UI.Font("GameFontNormal"), "GameFontNormal", "no CreateFont: the game font")
+    CreateFont = function(name)
+      local f = { name = name }
+      function f:CopyFontObject(base) self.copied = base end
+      function f:SetFont(path, size) self.path, self.size = path, size end
+      _G[name] = f
+      return f
+    end
+    for _, name in ipairs({ "GameFontNormal", "GameFontHighlightSmall", "GameFontDisableSmall" }) do
+      _G[name] = { GetFont = function() return "Fonts\\FRIZQT__.TTF", 12, "" end }
+    end
+    eq(ns.UI.Font("GameFontNormal"), "MountTrailGameFontNormal")
+    eq(_G.MountTrailGameFontNormal.size, 15, "gold: +3")
+    eq(_G[ns.UI.Font("GameFontDisableSmall")].size, 11, "grey: -1")
+    eq(ns.UI.Font("SomeOtherFont"), "SomeOtherFont", "not a role's font")
+    sizes.header = 6
+    ns.UI.ApplyTextSizes()
+    eq(_G.MountTrailGameFontNormal.size, 18, "follows the setting")
+    eq(ns.UI.RowHeight(40), 46, "rows grow with gold and grey (grey smaller: no shrink)")
+    eq(ns.UI.HeaderHeight(24), 30)
+    CreateFont = nil
+    for _, name in ipairs({ "GameFontNormal", "GameFontHighlightSmall", "GameFontDisableSmall",
+      "MountTrailGameFontNormal", "MountTrailGameFontDisableSmall" }) do _G[name] = nil end
+  end)
+
+  it("UI.NavMove / UI.ApplyNavOrder: one place up or down, never across the favourites' line", function()
+    local ns = loadUI()
+    local fav = { a = true }
+    local isFav = function(k) return fav[k] == true end
+    eq(ns.UI.NavMove({ "a", "b", "c" }, "c", -1, isFav), { "a", "c", "b" })
+    eq(ns.UI.NavMove({ "a", "b", "c" }, "b", -1, isFav), nil, "a list never goes above a favourite")
+    eq(ns.UI.NavMove({ "a", "b", "c" }, "a", 1, isFav), nil, "nor a favourite below the rest")
+    eq(ns.UI.NavMove({ "a", "b", "c" }, "c", 1), nil, "at the end")
+    eq(ns.UI.NavMove({ "a", "b", "c" }, "a", 1), { "b", "a", "c" }, "no favourites: anywhere")
+    local function keys(list) local out = {} for i, e in ipairs(list) do out[i] = e.key end return out end
+    eq(keys(ns.UI.ApplyNavOrder({ { key = "x" }, { key = "y" }, { key = "z" } }, { "z", "x" })), { "z", "x", "y" },
+      "saved order first, the rest after")
+  end)
+
+  it("UI.NavMoveTo / UI.NavDropIndex: Alt-drag lands where dropped, inside its own part", function()
+    local ns = loadUI()
+    local isFav = function(k) return k == "a" end
+    eq(ns.UI.NavMoveTo({ "a", "b", "c", "d" }, "d", 2, isFav), { "a", "d", "b", "c" })
+    eq(ns.UI.NavMoveTo({ "a", "b", "c", "d" }, "d", 1, isFav), { "a", "d", "b", "c" }, "clamped below the favourite")
+    eq(ns.UI.NavMoveTo({ "a", "b", "c" }, "a", 3, isFav), nil, "a favourite stays among favourites")
+    eq(ns.UI.NavMoveTo({ "a", "b", "c" }, "a", 3), { "b", "c", "a" }, "no favourites: anywhere")
+    eq(ns.UI.NavMoveTo({ "a", "b" }, "x", 1), nil, "unknown key")
+    local rects = { { top = 100, bottom = 80 }, { top = 80, bottom = 60 }, { top = 60, bottom = 40 } }
+    eq(ns.UI.NavDropIndex(rects, 95), 1)
+    eq(ns.UI.NavDropIndex(rects, 75), 2)
+    eq(ns.UI.NavDropIndex(rects, 10), 3, "below the last: the end")
+  end)
+
+  it("UI.NavSelected / UI.NavListEntries: a list page marks its list; lists then quick lists", function()
+    local ns = loadUI()
+    eq(ns.UI.NavSelected("checklist", nil), "checklist")
+    eq(ns.UI.NavSelected("journal", { kind = "list", list = 3 }), "list:3")
+    eq(ns.UI.NavSelected("journal", { kind = "quick", key = "mythic" }), "quick:mythic")
+    local store = { lists = { [1] = { id = 1, name = "B" }, [2] = { id = 2, name = "A" } }, nextId = 3 }
+    local entries = ns.UI.NavListEntries(store, { { key = "mythic", name = "Mythic Mounts" } })
+    local keys = {}
+    for i, e in ipairs(entries) do keys[i] = e.key end
+    eq(keys[#keys], "quick:mythic")
+    eq(entries[#entries].builtIn, true)
+    eq(entries[#entries].source, { kind = "quick", key = "mythic" })
   end)
 
   it("shows a Coming soon placeholder until a view is registered", function()
@@ -147,7 +324,7 @@ describe("ui", function()
       n = n + 1
       eq(content:GetParent(), ns.UI.frame.Inset, key .. " content in the inset")
     end
-    eq(n, 6, "one content frame per tab")
+    eq(n, 8, "one content frame per view")
     local holidaysContent = contents.holidays
     ok(holidaysContent:IsShown(), "holidays content shown")
     local placeholder = holidaysContent.children[1]
@@ -165,28 +342,22 @@ describe("ui", function()
   it("restores the saved tab and position", function()
     local ns = loadUI({ window = { tab = "misc", point = "TOPLEFT", relPoint = "TOPLEFT", x = 100, y = -50 } })
     ns.ToggleWindow()
-    eq(ns.UI.frame.selectedTab, 5)
+    eq(ns.UI.CurrentTab(), "misc")
     eq({ ns.UI.frame:GetPoint(1) }, { "TOPLEFT", UIParent, "TOPLEFT", 100, -50 })
   end)
 
   it("falls back to journal for an unknown saved tab", function()
     local ns = loadUI({ window = { tab = "bogus" } })
     ns.ToggleWindow()
-    eq(ns.UI.frame.selectedTab, 1)
+    eq(ns.UI.CurrentTab(), "journal")
     eq(ns.db.global.window.tab, "journal")
   end)
 
-  it("the retired Route tab's key opens the Checklist tab (F16)", function()
-    local ns = loadUI({ window = { tab = "route" } })
-    eq(ns.UI.TabKey("route"), "checklist")
+  it("TabKey: a tab's key, else the first tab", function()
+    local ns = loadUI()
     eq(ns.UI.TabKey("misc"), "misc")
+    eq(ns.UI.TabKey("route"), "journal", "a retired key: the first tab")
     eq(ns.UI.TabKey(nil), "journal")
-    ns.ToggleWindow()
-    eq(ns.UI.frame.selectedTab, 6)
-    eq(ns.db.global.window.tab, "checklist")
-    ns.UI.SelectTab("route")
-    eq(ns.db.global.window.tab, "checklist", "SelectTab maps it too")
-    ok(not pcall(ns.UI.RegisterView, "route", countingView()), "no view registers as route any more")
   end)
 
   it("saves the position after a title drag", function()
@@ -203,7 +374,7 @@ describe("ui", function()
     eq({ w.point, w.relPoint, w.x, w.y }, { "BOTTOMLEFT", "BOTTOMLEFT", 12, 34 })
   end)
 
-  it("falls back to the classic window, inset and bottom tabs without the modern templates", function()
+  it("falls back to the classic window and inset without the modern templates", function()
     local ns = loadUI()
     STUB_TEMPLATES.PortraitFrameFlatTemplate = nil
     STUB_TEMPLATES.PanelTopTabButtonTemplate = nil
@@ -214,14 +385,10 @@ describe("ui", function()
     eq(f.portraitAsset, 132261)
     eq(f.Inset.template, "InsetFrameTemplate")
     eq(f.Inset.Fill, nil, "classic inset draws its own background")
-    eq(f.Tabs[1].template, "PanelTabButtonTemplate")
-    eq({ f.Tabs[1]:GetPoint(1) }, { "TOPLEFT", f, "BOTTOMLEFT", 11, 2 }, "tabs under the window")
-    eq(ns.UI.TemplateFallbacks, {
-      PortraitFrameFlatTemplate = "PortraitFrameTemplate",
-      PanelTopTabButtonTemplate = "PanelTabButtonTemplate",
-    })
+    ok(f.Nav, "the navigation column still there")
+    eq(ns.UI.TemplateFallbacks, { PortraitFrameFlatTemplate = "PortraitFrameTemplate" })
     ns.UI.SelectTab("checklist")
-    eq(f.selectedTab, 6, "tabs still work")
+    eq(ns.UI.CurrentTab(), "checklist", "views still switch")
   end)
 
   describe("Template", function()
@@ -263,13 +430,13 @@ describe("ui", function()
       local ns = loadUI()
       ns.UI.Template("NoSuchTemplate", "UIPanelButtonTemplate")
       ns.UI.Template("AlsoMissing")
-      run_slash(ns.addon, "azt", "debug")
+      run_slash(ns.addon, "mtrail", "debug")
       local n = #ns.addon.printed
       eq({ ns.addon.printed[n - 1], ns.addon.printed[n] }, {
         "Template AlsoMissing missing, using none",
         "Template NoSuchTemplate missing, using UIPanelButtonTemplate",
       })
-      run_slash(ns.addon, "azt", "debug")
+      run_slash(ns.addon, "mtrail", "debug")
       eq(ns.addon.printed[#ns.addon.printed], "Debug: off", "nothing listed when turned off")
     end)
   end)

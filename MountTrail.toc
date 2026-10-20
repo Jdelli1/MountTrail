@@ -1,17 +1,26 @@
 ## Interface: 120105
 ## Title: MountTrail
-## Notes: A mount-collection guide: tracks the mounts you are missing and the daily / weekly lockouts left to farm them.
+## Notes: A mount-collection guide: tracks the mounts you are missing and the daily / weekly lockouts left to farm them. Requires TomTom.
 ## Author: James
 ## Version: @project-version@
-## SavedVariables: MountTrailDB, AzerothTrailDB
-## OptionalDeps: TomTom, Rarity
+## SavedVariables: MountTrailDB
+## OptionalDeps: TomTom, Rarity, AllTheThings
+# TomTom is required, but listed under OptionalDeps (not Dependencies) so MountTrail still loads without it and can say so.
 ## IconTexture: 132261
+## Category: Collections
+## X-License: GPL-2.0
+## X-Website: https://github.com/jdelli1/mounttrail
+# Fill these in once the CurseForge and Wago projects exist (the release
+# workflow's packager reads them):
+# ## X-Curse-Project-ID: 000000
+# ## X-Wago-ID: xxxxxxxx
 
 embeds.xml
 Core\Locale.lua
 Data\Mounts.lua
 Data\Route.lua
 Data\Lockouts.lua
+Data\JournalDrops.lua
 Data\Holidays.lua
 Data\Events.lua
 Data\Zones.lua
@@ -20,8 +29,8 @@ Data\SpotsExtra.lua
 Logic\Resets.lua
 Logic\HolidayDates.lua
 Logic\Lockouts.lua
-Logic\Route.lua
 Logic\Checklist.lua
+Logic\Alts.lua
 Logic\Events.lua
 Logic\Journal.lua
 Logic\Zone.lua
@@ -31,22 +40,38 @@ Logic\Stats.lua
 Logic\Odds.lua
 Logic\Lists.lua
 Logic\QuickLists.lua
+Logic\Share.lua
 Logic\Search.lua
+Logic\Browse.lua
+Logic\Guide.lua
 Game\API.lua
 Integrations\Map.lua
 Integrations\Rarity.lua
 Integrations\AchievementScan.lua
+Integrations\MountsRarity.lua
+Guides\ThunderingRubyCloudSerpent.lua
+Integrations\Notes.lua
 Core\Init.lua
 UI\Frame.lua
+UI\Widgets.lua
+UI\Nav.lua
 UI\Tooltip.lua
 UI\List.lua
+UI\Search.lua
 UI\DetailPane.lua
 UI\JournalHome.lua
 UI\Tabs.lua
 UI\LockoutHelpers.lua
-UI\Arrow.lua
 UI\ChecklistView.lua
+UI\AltsWindow.lua
 UI\Popouts.lua
+UI\DifficultyCheck.lua
+UI\HereView.lua
+UI\BrowseView.lua
+UI\Share.lua
+UI\Guides.lua
+UI\GuideWindow.lua
+UI\GuideEditor.lua
 UI\ZonePanel.lua
 UI\MapTab.lua
 UI\Options.lua

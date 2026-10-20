@@ -44,6 +44,17 @@ local function fakeSettings()
     S.controls[#S.controls + 1] = { kind = "checkbox", category = category, setting = setting, tooltip = tooltip }
     return {}
   end
+  function S.CreateSliderOptions(min, max, step)
+    local o = { min = min, max = max, step = step }
+    function o:SetLabelFormatter(where, fn) self.format = fn end
+    return o
+  end
+  function S.CreateSlider(category, setting, options, tooltip)
+    rec("Slider", setting.variable)
+    S.controls[#S.controls + 1] = { kind = "slider", category = category, setting = setting,
+      options = options, tooltip = tooltip }
+    return {}
+  end
   function S.CreateControlTextContainer()
     local container = { data = {} }
     function container:Add(value, label, tooltip)
@@ -89,9 +100,9 @@ describe("options", function()
     eq(lines[#lines - 2], "UI\\ZonePanel.lua")
   end)
 
-  it("db default: in-game pin waypoints, unobtainable mounts hidden", function()
+  it("db default: unobtainable mounts hidden; no Waypoints setting (TomTom is required)", function()
     local ns = loadOptions()
-    eq(ns.db.global.settings, { waypoints = "game", showUnobtainable = false })
+    eq(ns.db.global.settings, { showUnobtainable = false, rarityColors = false })
   end)
 
   describe("Register", function()
@@ -104,18 +115,33 @@ describe("options", function()
       eq(ns.Options.category, category)
       eq(S.log, {
         { "Category", "MountTrail" },
-        { "Setting", "MOUNTTRAIL_WAYPOINTS" },
-        { "Dropdown", "MOUNTTRAIL_WAYPOINTS" },
         { "Setting", "MOUNTTRAIL_UNOBTAINABLE" },
         { "Checkbox", "MOUNTTRAIL_UNOBTAINABLE" },
+        { "Setting", "MOUNTTRAIL_RARITY_COLORS" },
+        { "Checkbox", "MOUNTTRAIL_RARITY_COLORS" },
+        { "Setting", "MOUNTTRAIL_DIFFICULTY_WARNING" },
+        { "Checkbox", "MOUNTTRAIL_DIFFICULTY_WARNING" },
+        { "Setting", "MOUNTTRAIL_WINDOW_SCALE" },
+        { "Slider", "MOUNTTRAIL_WINDOW_SCALE" },
+        { "Setting", "MOUNTTRAIL_TEXT_HEADER" },
+        { "Slider", "MOUNTTRAIL_TEXT_HEADER" },
+        { "Setting", "MOUNTTRAIL_TEXT_BODY" },
+        { "Slider", "MOUNTTRAIL_TEXT_BODY" },
+        { "Setting", "MOUNTTRAIL_TEXT_DETAIL" },
+        { "Slider", "MOUNTTRAIL_TEXT_DETAIL" },
+        { "Setting", "MOUNTTRAIL_NAV_TEXT" },
+        { "Slider", "MOUNTTRAIL_NAV_TEXT" },
+        { "Setting", "MOUNTTRAIL_SHOW_LISTS" },
+        { "Checkbox", "MOUNTTRAIL_SHOW_LISTS" },
+        { "Setting", "MOUNTTRAIL_SHOW_QUICK" },
+        { "Checkbox", "MOUNTTRAIL_SHOW_QUICK" },
         { "Setting", "MOUNTTRAIL_MINIMAP" },
         { "Checkbox", "MOUNTTRAIL_MINIMAP" },
         { "Setting", "MOUNTTRAIL_DEBUG" },
         { "Checkbox", "MOUNTTRAIL_DEBUG" },
         { "AddOnCategory", category },
       })
-      local wp, mm, dbg = S.settings.MOUNTTRAIL_WAYPOINTS, S.settings.MOUNTTRAIL_MINIMAP, S.settings.MOUNTTRAIL_DEBUG
-      eq({ wp.varType, wp.name, wp.default }, { "string", "Waypoints", "game" })
+      local mm, dbg = S.settings.MOUNTTRAIL_MINIMAP, S.settings.MOUNTTRAIL_DEBUG
       local un = S.settings.MOUNTTRAIL_UNOBTAINABLE
       eq({ un.varType, un.name, un.default }, { "boolean", "Show unobtainable mounts", false })
       eq({ mm.varType, mm.name, mm.default }, { "boolean", "Show minimap button", true })
@@ -124,7 +150,6 @@ describe("options", function()
         eq(c.category, category)
         eq(type(c.tooltip), "string", c.setting.variable .. " has a tooltip")
       end
-      ok(S.controls[1].tooltip:find("TomTom", 1, true), "the dropdown tooltip carries the TomTom note")
     end)
 
     it("is skipped (nil, no error) without the Settings API or before ns.db", function()
@@ -134,8 +159,8 @@ describe("options", function()
       S.RegisterVerticalLayoutCategory = nil
       eq(ns.Options.Register(S), nil, "no vertical layout")
       S = fakeSettings()
-      S.CreateControlTextContainer = nil
-      eq(ns.Options.Register(S), nil, "no text container")
+      S.CreateCheckbox = nil
+      eq(ns.Options.Register(S), nil, "no checkbox")
       eq(#logOf(S, "AddOnCategory"), 0)
       local early = loadOptions({ noInit = true })
       S = fakeSettings()
@@ -164,54 +189,58 @@ describe("options", function()
     end)
   end)
 
-  describe("waypoints dropdown", function()
-    it("reads and writes ns.db.global.settings.waypoints; unknown values are ignored", function()
+  describe("rarity colours checkbox", function()
+    it("reads and writes ns.db.global.settings.rarityColors and refreshes", function()
       local ns = loadOptions()
+      local refreshed = 0
+      ns.Refresh = function() refreshed = refreshed + 1 end
       local S = fakeSettings()
       ns.Options.Register(S)
-      local wp = S.settings.MOUNTTRAIL_WAYPOINTS
-      eq(wp.get(), "game")
-      wp.set("tomtom")
-      eq(ns.db.global.settings.waypoints, "tomtom")
-      eq(wp.get(), "tomtom")
-      eq(ns.Map.WaypointMode(), "tomtom", "Map.SetWaypoint follows it")
-      wp.set("both")
-      eq(ns.db.global.settings.waypoints, "both")
-      wp.set("arrow")
-      eq(ns.db.global.settings.waypoints, "both", "unknown value ignored")
-      ns.db.global.settings.waypoints = "junk"
-      eq(wp.get(), "game", "a junk saved value reads as the default")
+      local rc = S.settings.MOUNTTRAIL_RARITY_COLORS
+      eq({ rc.varType, rc.name, rc.default }, { "boolean", "Colour pop-out names by rarity", false })
+      eq(rc.get(), false)
+      rc.set(true)
+      eq(ns.db.global.settings.rarityColors, true)
+      eq(ns.Options.RarityColors(), true)
+      eq(refreshed, 1)
+      local rcTip
+      for _, c in ipairs(S.controls) do if c.setting == rc then rcTip = c.tooltip end end
+      ok(rcTip:find("Mount Journal Enhanced", 1, true), "says where the data comes from")
     end)
+  end)
 
-    it("offers the three modes; TomTom ones say they fall back when TomTom is not loaded", function()
+  describe("text size sliders", function()
+    it("window scale 80-150 % in 5 % steps and navigation text +0 to +6, saved and applied", function()
       local ns = loadOptions()
+      local applied, navs = 0, 0
+      ns.UI = ns.UI or {}
+      ns.UI.ApplyWindowScale = function() applied = applied + 1 end
+      ns.UI.RefreshNav = function() navs = navs + 1 end
       local S = fakeSettings()
       ns.Options.Register(S)
-      local options = S.controls[1].options
-      eq(type(options), "function", "an options generator")
-      withGlobals(nil, { AddWaypoint = function() end }, function()
-        local data = options()
-        eq(#data, 3)
-        eq({ data[1].value, data[1].label }, { "game", "In-game map pin" })
-        eq({ data[2].value, data[2].label }, { "tomtom", "TomTom arrow" })
-        eq({ data[3].value, data[3].label }, { "both", "Both" })
-      end)
-      withGlobals(nil, nil, function()
-        local data = options()
-        eq({ data[1].value, data[1].label }, { "game", "In-game map pin" })
-        eq({ data[2].value, data[2].label }, { "tomtom", "TomTom arrow (not loaded)" })
-        eq({ data[3].value, data[3].label }, { "both", "Both (TomTom not loaded)" })
-        ok(data[2].tooltip:find("in-game map pin", 1, true), "tooltip explains the fallback")
-        ok(data[3].tooltip:find("in-game map pin", 1, true), "tooltip explains the fallback")
-      end)
+      local scale, nav = S.settings.MOUNTTRAIL_WINDOW_SCALE, S.settings.MOUNTTRAIL_NAV_TEXT
+      eq({ scale.default, nav.default }, { 100, 2 })
+      eq(scale.get(), 100)
+      scale.set(123)
+      eq(ns.db.global.settings.windowScale, 125, "to the 5 % step")
+      eq(applied, 1)
+      scale.set(500)
+      eq(scale.get(), 150, "no more than 150 %")
+      nav.set(9)
+      eq(nav.get(), 6)
+      eq(navs, 1)
+      local slider
+      for _, c in ipairs(S.controls) do if c.kind == "slider" and c.setting == scale then slider = c end end
+      eq({ slider.options.min, slider.options.max, slider.options.step }, { 80, 150, 5 })
     end)
 
-    it("WaypointOptions is pure: labels per TomTom state", function()
+    it("no sliders (and no such settings) on clients without Settings.CreateSlider", function()
       local ns = loadOptions()
-      local loaded, missing = ns.Options.WaypointOptions(true), ns.Options.WaypointOptions(false)
-      eq(loaded[2].label, "TomTom arrow")
-      eq(missing[2].label, "TomTom arrow (not loaded)")
-      eq(missing[1].label, "In-game map pin")
+      local S = fakeSettings()
+      S.CreateSlider = nil
+      ns.Options.Register(S)
+      eq(S.settings.MOUNTTRAIL_WINDOW_SCALE, nil)
+      eq(ns.Options.WindowScale(), 100)
     end)
   end)
 
@@ -233,7 +262,7 @@ describe("options", function()
       eq(refreshed, 2)
       ns.db.global.settings.showUnobtainable = "junk"
       eq(un.get(), false, "only true counts as on")
-      ok(S.controls[2].tooltip:find("Misc", 1, true), "the tooltip says where they show")
+      ok(S.controls[1].tooltip:find("Misc", 1, true), "the tooltip says where they show")
     end)
 
     it("ShowUnobtainable reads the saved setting (false without a db)", function()
@@ -299,7 +328,7 @@ describe("options", function()
       local S = fakeSettings()
       ns.Options.Register(S)
       withGlobals(S, nil, function()
-        run_slash(ns.addon, "azt", "debug")
+        run_slash(ns.addon, "mtrail", "debug")
       end)
       eq(ns.db.global.debug, true)
       eq(logOf(S, "Notify"), { { "Notify", "MOUNTTRAIL_DEBUG" } })
@@ -337,11 +366,11 @@ describe("options", function()
       local S = fakeSettings()
       withGlobals(S, nil, function()
         ns.Options.Register(S)
-        run_slash(ns.addon, "azt", "options")
-        run_slash(ns.addon, "azt", " OPTIONS ")
+        run_slash(ns.addon, "mtrail", "options")
+        run_slash(ns.addon, "mtrail", " OPTIONS ")
       end)
       eq(logOf(S, "Open"), { { "Open", 77 }, { "Open", 77 } })
-      run_slash(ns.addon, "azt", "help")
+      run_slash(ns.addon, "mtrail", "help")
       ok(table.concat(ns.addon.printed, "\n"):find("/mtrail options", 1, true), "help mentions /mtrail options")
     end)
   end)

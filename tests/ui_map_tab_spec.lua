@@ -207,4 +207,30 @@ describe("world map tab", function()
     QuestMapFrame:RunScript("OnShow")
     ok(ns.UI.mapPanel:IsShown(), "OnShow re-applies it")
   end)
+
+  it("MapTabContent groups mounts by source under collapsible headers, with their own keys", function()
+    local ns = loadUI()
+    ns.UI.ZoneMounts = function()
+      return {
+        { id = 1, m = { name = "A", section = "vendor" } },
+        { id = 2, m = { name = "B", section = "vendor" } },
+        { id = 3, m = { name = "C", section = "world" } },
+      }, { name = "Eversong Woods" }
+    end
+    local rows, title = ns.UI.MapTabContent(249)
+    local headers = {}
+    for _, r in ipairs(rows) do if r.header then headers[#headers + 1] = r.key end end
+    eq(#headers, 2, "one header per source")
+    ok(headers[1]:find("^maptab|"), headers[1])
+    ok(title:find("(3)", 1, true), "the title counts mounts, not rows: " .. title)
+    local under, inFirst = 0, false
+    for _, r in ipairs(rows) do
+      if r.header then inFirst = r.key == headers[1] elseif inFirst then under = under + 1 end
+    end
+    ns.db.global.collapsed = { [headers[1]] = true }
+    local collapsed = ns.UI.MapTabContent(249)
+    eq(#collapsed, #rows - under, "a collapsed source hides its mounts")
+    eq(ns.UI.ZoneGroupedRows(ns.UI.ZoneMounts(), {})[1].key:find("^zonepanel|") ~= nil, true,
+      "the zone panel keeps its own keys")
+  end)
 end)

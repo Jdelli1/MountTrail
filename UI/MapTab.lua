@@ -24,6 +24,7 @@ local ICON = 132261 -- same as ## IconTexture in the .toc
 local TAB_GAP = 3
 local ICON_SIZE = 26
 local HEADER = 34
+local SOURCE_HEADER_HEIGHT = 20 -- a source header (UI/List.lua's sub-header height)
 local ZONE_TYPE = 3 -- Enum.UIMapType.Zone: coarser maps list nothing
 local MAX_HOPS = 12 -- anchor-chain steps followed when looking for a cycle
 
@@ -104,8 +105,10 @@ function UI.MapTabContent(mapID, ctx)
   ctx = ctx or UI.ZoneContext()
   ctx.currentInstance = nil
   local list, zone = UI.ZoneMounts(mapID, ctx)
-  local rows = UI.ZoneRows(list)
-  return rows, UI.ZoneTitle(zone or { name = info.name }, #rows), L["Nothing left to collect here"]
+  -- By source under collapsible headers (as the zone panel; its own keys).
+  local global = ns.db and ns.db.global
+  local rows = UI.ZoneGroupedRows(list, global and global.collapsed, "maptab")
+  return rows, UI.ZoneTitle(zone or { name = info.name }, #list), L["Nothing left to collect here"]
 end
 
 local function refreshPanel()
@@ -116,6 +119,7 @@ local function refreshPanel()
     rows, title, emptyText = {}, L["MountTrail"], ""
   end
   panel.Title:SetText(title)
+  panel.ScrollBox.rowsShown = rows -- a header's Shift-click (UI.ToggleAllCollapsed)
   panel.ScrollBox:SetDataProvider(CreateDataProvider(rows))
   panel.Empty:SetText(emptyText)
   panel.Empty:SetShown(#rows == 0)
@@ -206,7 +210,7 @@ local function buildPanel(qmf)
   rule:SetPoint("TOPRIGHT", strip, "BOTTOMRIGHT", 0, 0)
   rule:SetColorTexture(1, 0.82, 0, 0.25)
 
-  local title = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  local title = p:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormal"))
   title:SetPoint("LEFT", strip, "LEFT", 10, 0)
   title:SetPoint("RIGHT", strip, "RIGHT", -10, 0)
   title:SetJustifyH("LEFT")
@@ -222,11 +226,40 @@ local function buildPanel(qmf)
   scrollBar:SetPoint("BOTTOMLEFT", scrollBox, "BOTTOMRIGHT", 4, 0)
   p.ScrollBar = scrollBar
   local view = CreateScrollBoxListLinearView()
-  view:SetElementExtentCalculator(function() return UI.MOUNT_ROW_HEIGHT end)
-  view:SetElementFactory(function(factory) factory("Button", UI.InitMountRow) end)
+  view:SetElementExtentCalculator(function(_, row)
+    if row.header then return UI.HeaderHeight(SOURCE_HEADER_HEIGHT) end
+    return UI.RowHeight(UI.MOUNT_ROW_HEIGHT)
+  end)
+  view:SetElementFactory(function(factory, row)
+    if row.header then
+      factory("Frame", function(f, data)
+        -- A source header: click collapses it, Shift-click every one (saved).
+        local function collapsedStore()
+          local g = ns.db and ns.db.global
+          if not g then return nil end
+          if type(g.collapsed) ~= "table" then g.collapsed = {} end
+          return g.collapsed
+        end
+        f.onToggle = function(key)
+          local store = collapsedStore()
+          if store then UI.ToggleCollapsed(store, key) end
+          refreshPanel()
+        end
+        f.onToggleAll = function(clicked)
+          local store = collapsedStore()
+          if store then UI.ToggleAllCollapsed(store, scrollBox.rowsShown, clicked) end
+          refreshPanel()
+        end
+        f.onRightClick = nil
+        UI.InitListHeader(f, data)
+      end)
+    else
+      factory("Button", UI.InitMountRow)
+    end
+  end)
   ScrollUtil.InitScrollBoxListWithScrollBar(scrollBox, scrollBar, view)
 
-  local empty = p:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+  local empty = p:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisable"))
   empty:SetPoint("LEFT", scrollBox, "LEFT", 12, 0)
   empty:SetPoint("RIGHT", scrollBox, "RIGHT", -12, 0)
   empty:Hide()

@@ -197,6 +197,31 @@ function UI.ZoneRows(list)
   return rows
 end
 
+-- UI.ZoneRows grouped by source (Journal.GroupBySource: Dungeon drops,
+-- Vendors, Achievements, ...): when the zone's mounts come from more than one
+-- source, a header per source { header = true, depth = 2, key =
+-- "zonepanel|<section>", text = UI.SectionLabel, owned =, total =,
+-- collapsed = } over its rows (striped afresh per group); one source: the
+-- rows alone. collapsed = { [key] = true } (ns.db.global.collapsed).
+function UI.ZoneGroupedRows(list, collapsed, prefix)
+  collapsed = collapsed or {}
+  prefix = prefix or "zonepanel" -- the headers' collapse keys (the map tab has its own)
+  local groups = ns.Journal.GroupBySource(list or {}, function(entry) return entry.m and entry.m.section end)
+  if #groups <= 1 then return UI.ZoneRows(list) end
+  local out = {}
+  for _, g in ipairs(groups) do
+    local key = prefix .. "|" .. tostring(g.key)
+    local owned = 0
+    for _, entry in ipairs(g.items) do if entry.owned then owned = owned + 1 end end
+    out[#out + 1] = { header = true, depth = 2, key = key, text = UI.SectionLabel(g.key),
+      owned = owned, total = #g.items, collapsed = collapsed[key] == true }
+    if not collapsed[key] then
+      for _, row in ipairs(UI.ZoneRows(g.items)) do out[#out + 1] = row end
+    end
+  end
+  return out
+end
+
 -- Saved state ------------------------------------------------------------------
 
 local function stateDB()
@@ -217,6 +242,7 @@ end
 local PANEL_WIDTH = 260
 local PANEL_GAP = 2 -- between the window's right edge and the panel
 local HEADER = 34 -- title strip
+local SOURCE_HEADER_HEIGHT = 20 -- a source header (UI/List.lua's sub-header height)
 local BUTTON_SIZE = 20 -- title-bar toggle
 
 local panel   -- the panel frame (UI.zonePanel)
@@ -271,10 +297,13 @@ function UI.RefreshZonePanel(force)
   lastKey, dirty = key, false
   local list, zone = {}, nil
   if ctx then list, zone = UI.ZoneMounts(mapID, ctx) end
-  local rows = UI.ZoneRows(list)
-  panel.Title:SetText(UI.ZoneTitle(zone, #rows))
+  local global = ns.db and ns.db.global
+  if global and type(global.collapsed) ~= "table" then global.collapsed = {} end
+  local rows = UI.ZoneGroupedRows(list, global and global.collapsed)
+  panel.Title:SetText(UI.ZoneTitle(zone, #list))
   -- Same zone (a data refresh): keep the scroll position; a new zone starts
   -- at the top.
+  panel.ScrollBox.rowsShown = rows
   local provider = CreateDataProvider(rows)
   if sameZone and ScrollBoxConstants then
     panel.ScrollBox:SetDataProvider(provider, ScrollBoxConstants.RetainScrollPosition)
@@ -349,12 +378,27 @@ local function buildPanel(frame)
   close:SetScript("OnClick", function() UI.SetZonePanelOpen(false) end)
   p.CloseButton = close
 
-  local title = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  local title = p:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormal"))
   title:SetPoint("LEFT", strip, "LEFT", 10, 0)
   title:SetPoint("RIGHT", close, "LEFT", -4, 0)
   title:SetJustifyH("LEFT")
   title:SetWordWrap(false)
   p.Title = title
+
+  -- Right-click the title strip: the zone's mounts as a pop-out that follows
+  -- the player (UI.ToggleZoneMountsPopout, UI\Popouts.lua).
+  local titleHit = CreateFrame("Button", nil, p)
+  titleHit:SetPoint("TOPLEFT", strip, "TOPLEFT", 0, 0)
+  titleHit:SetPoint("BOTTOMRIGHT", strip, "BOTTOMRIGHT", -(BUTTON_SIZE + 10), 0)
+  if titleHit.RegisterForClicks then titleHit:RegisterForClicks("RightButtonUp") end
+  titleHit:SetScript("OnClick", function(_, button)
+    if button == "RightButton" and UI.ToggleZoneMountsPopout then UI.ToggleZoneMountsPopout() end
+  end)
+  titleHit:SetScript("OnEnter", function(self)
+    UI.ShowHint(self, L["Right-click to pop out"], L["The mounts of the zone you are in, in a window that follows you"])
+  end)
+  titleHit:SetScript("OnLeave", function(self) UI.HideHint(self) end)
+  p.TitleHit = titleHit
 
   local scrollBox = CreateFrame("Frame", nil, p, "WowScrollBoxList")
   scrollBox:SetPoint("TOPLEFT", rule, "BOTTOMLEFT", 0, -2)
@@ -365,11 +409,38 @@ local function buildPanel(frame)
   scrollBar:SetPoint("BOTTOMLEFT", scrollBox, "BOTTOMRIGHT", 4, 0)
   p.ScrollBar = scrollBar
   local view = CreateScrollBoxListLinearView()
-  view:SetElementExtentCalculator(function() return UI.MOUNT_ROW_HEIGHT end)
-  view:SetElementFactory(function(factory) factory("Button", UI.InitMountRow) end)
+  view:SetElementExtentCalculator(function(_, row)
+    if row.header then return UI.HeaderHeight(SOURCE_HEADER_HEIGHT) end
+    return UI.RowHeight(UI.MOUNT_ROW_HEIGHT)
+  end)
+  view:SetElementFactory(function(factory, row)
+    if row.header then
+      factory("Frame", function(f, data)
+        -- A source header: click collapses it (saved with the lists' headers).
+        f.onToggle = function(key)
+          local g = ns.db and ns.db.global
+          if not g then return end
+          if type(g.collapsed) ~= "table" then g.collapsed = {} end
+          UI.ToggleCollapsed(g.collapsed, key)
+          UI.RefreshZonePanel(true)
+        end
+        f.onToggleAll = function(clicked)
+          local g = ns.db and ns.db.global
+          if not g then return end
+          if type(g.collapsed) ~= "table" then g.collapsed = {} end
+          UI.ToggleAllCollapsed(g.collapsed, panel.ScrollBox.rowsShown, clicked)
+          UI.RefreshZonePanel(true)
+        end
+        f.onRightClick = nil
+        UI.InitListHeader(f, data)
+      end)
+    else
+      factory("Button", UI.InitMountRow)
+    end
+  end)
   ScrollUtil.InitScrollBoxListWithScrollBar(scrollBox, scrollBar, view)
 
-  local empty = p:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+  local empty = p:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisable"))
   empty:SetPoint("LEFT", scrollBox, "LEFT", 12, 0)
   empty:SetPoint("RIGHT", scrollBox, "RIGHT", -12, 0)
   empty:SetText(L["Nothing left to collect here"])
@@ -384,6 +455,7 @@ end
 local function buildButton(frame)
   local b = CreateFrame("Button", nil, frame)
   b:SetSize(BUTTON_SIZE, BUTTON_SIZE)
+  UI.RaiseTitleButton(b, frame)
   if frame.CloseButton then
     b:SetPoint("RIGHT", frame.CloseButton, "LEFT", -2, 0)
   else

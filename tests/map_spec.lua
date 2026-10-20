@@ -18,8 +18,9 @@ end
 -- uids "uid1", "uid2", ... and records RemoveWaypoint as "TomTomRemove".
 -- opts.combat: InCombat() result. opts.clock: { now = seconds } read by
 -- GetTime (absent: no GetTime, so no chat de-duplication). opts.mode: the
--- waypoint setting (F9) as api.waypointMode, "both" by default so the specs
--- written before F9 keep testing the game pin + TomTom behaviour.
+-- waypoint setting of earlier versions (gone: waypoints are TomTom's) as
+-- api.waypointMode; ignored. opts.errors: a UIErrorsFrame that records
+-- { "UIError", msg, r, g, b }.
 local function fakeApi(opts)
   opts = opts or {}
   local log = {}
@@ -52,7 +53,8 @@ local function fakeApi(opts)
     OpenWorldMap = function(m) rec("OpenWorldMap", m) end,
     Print = function(msg) rec("Print", msg) end,
     InCombat = function() return opts.combat == true end,
-    waypointMode = opts.mode or "both",
+    waypointMode = opts.mode,
+    UIErrorsFrame = { AddMessage = function(self, msg, r, g, b) rec("UIError", msg, r, g, b) end },
   }
   if opts.clock then api.GetTime = function() return opts.clock.now end end
   if opts.tomtom ~= false then
@@ -196,17 +198,14 @@ local function drakeApi(names_)
 end
 
 describe("Map.SetWaypoint", function()
-  it("pin: sets and super-tracks the waypoint, adds TomTom, prints the zone, never opens the map", function()
+  it("pin: a TomTom waypoint (no in-game pin), prints the zone, never opens the map", function()
     local Map = loadMap({ [517] = SERPENT })
     local api = fakeApi({ canSet = { [379] = true }, names = { [379] = "Kun-Lai Summit" } })
     local place, kind = Map.SetWaypoint(517, api)
     eq(place, "Kun-Lai Summit")
     eq(kind, "pin")
-    local wp = logOf(api, "SetUserWaypoint")
-    eq(#wp, 1)
-    eq(wp[1][2].uiMapID, 379)
-    ok(near(wp[1][2].x, 0.536) and near(wp[1][2].y, 0.644), "0-1 coordinates")
-    eq(logOf(api, "SuperTrack"), { { "SuperTrack", true } })
+    eq(#logOf(api, "SetUserWaypoint"), 0, "TomTom only")
+    eq(#logOf(api, "SuperTrack"), 0)
     eq(#logOf(api, "OpenWorldMap"), 0, "the world map is not opened")
     local tt = logOf(api, "TomTom")
     eq(#tt, 1)
@@ -233,7 +232,6 @@ describe("Map.SetWaypoint", function()
     local place, kind = Map.SetWaypoint(395, api)
     eq(place, "The Vortex Pinnacle (entrance)")
     eq(kind, "entrance")
-    eq(logOf(api, "SetUserWaypoint")[1][2], { uiMapID = 249, x = 0.5, y = 0.25 })
     eq(logOf(api, "TomTom")[1], { "TomTom", 249, 0.5, 0.25, { title = "Drake of the North Wind", persistent = false } })
     eq(#logOf(api, "OpenWorldMap"), 0)
     eq(logOf(api, "Print"), { { "Print", "Waypoint: The Vortex Pinnacle (entrance)" } })
@@ -316,8 +314,9 @@ describe("Map.SetWaypoint", function()
     eq(n, 2)
     ok(reported[#reported]:find("remove broke", 1, true), reported[#reported])
     api = fakeApi({ canSet = { [379] = true }, tomtom = false })
-    eq(Map.SetWaypoint(517, api), "Heavenly Onyx Cloud Serpent")
-    eq(#logOf(api, "SetUserWaypoint"), 1)
+    eq({ Map.SetWaypoint(517, api) }, { "Heavenly Onyx Cloud Serpent", "notomtom" })
+    eq(#logOf(api, "SetUserWaypoint"), 0, "no in-game pin instead")
+    eq(#logOf(api, "UIError"), 1, "TomTom missing: the red error")
   end)
 
   it("OpenZone opens the world map on a zone; in combat it only says so", function()
@@ -340,12 +339,11 @@ describe("Map.SetWaypoint", function()
     eq(logOf(api, "Print"), { { "Print", "Can't open the map in combat" } })
     api = fakeApi({ combat = true, canSet = { [379] = true }, names = { [379] = "Kun-Lai Summit" } })
     eq(Map.SetWaypoint(517, api), "Kun-Lai Summit")
-    eq(#logOf(api, "SetUserWaypoint"), 1)
     eq(#logOf(api, "TomTom"), 1)
     eq(logOf(api, "Print"), { { "Print", "Waypoint: Kun-Lai Summit" } })
   end)
 
-  it("opens the map instead when the target map takes no waypoint and TomTom is not used", function()
+  it("without TomTom: nothing set, no map opened, a red error; TomTom refusing the point opens the map", function()
     local Map = loadMap({ [395] = DRAKE })
     local names_ = { [325] = "The Vortex Pinnacle" }
     local function api(opts)
@@ -354,32 +352,27 @@ describe("Map.SetWaypoint", function()
       opts.names = names_
       return fakeApi(opts)
     end
-    -- No user waypoint on 249, no TomTom: open the map.
-    local a = api({ tomtom = false })
-    eq({ Map.SetWaypoint(395, a) }, { "The Vortex Pinnacle (entrance)", "entrance" })
+    local a = api({ tomtom = false, canSet = { [249] = true } })
+    eq({ Map.SetWaypoint(395, a) }, { "The Vortex Pinnacle (entrance)", "notomtom" })
     eq(#logOf(a, "SetUserWaypoint"), 0)
-    eq(logOf(a, "OpenWorldMap"), { { "OpenWorldMap", 249 } })
-    eq(logOf(a, "Print"), { { "Print", "Opened map: The Vortex Pinnacle (entrance)" } })
+    eq(#logOf(a, "OpenWorldMap"), 0)
+    eq(logOf(a, "UIError"), { { "UIError", "MountTrail needs TomTom for waypoints. Install TomTom, then /reload.", 1, 0.1, 0.1 } })
+    eq(logOf(a, "Print"), { { "Print", "|cffff2020MountTrail needs TomTom for waypoints. Install TomTom, then /reload.|r" } })
     -- TomTom took it: that is the waypoint, no map.
     a = api({})
     Map.SetWaypoint(395, a)
     eq(#logOf(a, "TomTom"), 1)
     eq(#logOf(a, "OpenWorldMap"), 0)
     eq(logOf(a, "Print"), { { "Print", "Waypoint: The Vortex Pinnacle (entrance)" } })
-    -- TomTom failing counts as not used.
+    -- TomTom failing: the map opens there.
     a = api({ tomtom = false })
     a.TomTom = { AddWaypoint = function() error("tomtom broke") end }
     Map.SetWaypoint(395, a)
     eq(logOf(a, "OpenWorldMap"), { { "OpenWorldMap", 249 } })
-    -- SetUserWaypoint failing counts as not set.
-    a = api({ tomtom = false, canSet = { [249] = true } })
-    a.C_Map.SetUserWaypoint = function() error("bad point") end
-    Map.SetWaypoint(395, a)
-    eq(#logOf(a, "SuperTrack"), 0, "nothing to super-track")
-    eq(logOf(a, "OpenWorldMap"), { { "OpenWorldMap", 249 } })
     eq(logOf(a, "Print"), { { "Print", "Opened map: The Vortex Pinnacle (entrance)" } })
     -- The fallback respects the combat guard.
     a = api({ tomtom = false, combat = true })
+    a.TomTom = { AddWaypoint = function() error("tomtom broke") end }
     Map.SetWaypoint(395, a)
     eq(#logOf(a, "OpenWorldMap"), 0)
     eq(logOf(a, "Print"), { { "Print", "Can't open the map in combat" } })
@@ -390,14 +383,12 @@ describe("Map.SetWaypoint", function()
     local reported = {}
     ns.Game = { ReportError = function(err) reported[#reported + 1] = tostring(err) end }
     local api = fakeApi({ canSet = { [5] = true }, tomtom = false })
-    api.C_Map.SetUserWaypoint = function() error("bad point") end
     api.OpenWorldMap = function() error("combat") end
     api.TomTom = { AddWaypoint = function() error("tomtom broke") end }
     Map.SetWaypoint(1, api)
-    eq(#reported, 3)
-    ok(reported[1]:find("bad point", 1, true), reported[1])
-    ok(reported[2]:find("tomtom broke", 1, true), reported[2])
-    ok(reported[3]:find("combat", 1, true), reported[3])
+    eq(#reported, 2)
+    ok(reported[1]:find("tomtom broke", 1, true), reported[1])
+    ok(reported[2]:find("combat", 1, true), reported[2])
   end)
 
   it("drops an identical chat line repeated within 2 s", function()
@@ -530,127 +521,53 @@ describe("integrations toc", function()
   end)
 end)
 
--- F9: the "Waypoints" setting (ns.db.global.settings.waypoints).
-describe("Map.WaypointMode", function()
-  it("reads the setting; missing or unknown values are the in-game pin", function()
-    local Map, ns = loadMap({})
-    eq(Map.WaypointMode(), "game", "no ns.db yet")
-    ns.db = { global = {} }
-    eq(Map.WaypointMode(), "game", "no settings table")
-    for _, mode in ipairs({ "game", "tomtom", "both" }) do
-      ns.db.global.settings = { waypoints = mode }
-      eq(Map.WaypointMode(), mode)
-    end
-    ns.db.global.settings = { waypoints = "arrow" }
-    eq(Map.WaypointMode(), "game", "unknown value")
-    ns.db.global.settings = "junk"
-    eq(Map.WaypointMode(), "game", "junk settings")
+-- TomTom is required: no in-game pin, no setting; without it a red error.
+describe("TomTom required", function()
+  it("HasTomTom: TomTom with AddWaypoint", function()
+    local Map = loadMap({})
+    ok(Map.HasTomTom(fakeApi({})))
+    ok(not Map.HasTomTom(fakeApi({ tomtom = false })))
+    local api = fakeApi({ tomtom = false })
+    api.TomTom = {}
+    ok(not Map.HasTomTom(api), "loaded without AddWaypoint")
+    eq(Map.WaypointMode, nil, "the Waypoints setting is gone")
   end)
-end)
 
-describe("Map.SetWaypoint waypoint modes", function()
-  local function serpentApi(opts)
-    opts.canSet = opts.canSet or { [379] = true }
-    opts.names = { [379] = "Kun-Lai Summit" }
-    return fakeApi(opts)
-  end
-
-  it("game: only the user waypoint and super-track, never TomTom", function()
+  it("every waypoint click without TomTom says so, red, on screen and in chat", function()
     local Map = loadMap({ [517] = SERPENT })
-    local api = serpentApi({ mode = "game" })
-    eq({ Map.SetWaypoint(517, api) }, { "Kun-Lai Summit", "pin" })
-    eq(#logOf(api, "SetUserWaypoint"), 1)
-    eq(logOf(api, "SuperTrack"), { { "SuperTrack", true } })
-    eq(#logOf(api, "TomTom"), 0, "TomTom installed but not used")
-    eq(#logOf(api, "TomTomRemove"), 0)
-    eq(logOf(api, "Print"), { { "Print", "Waypoint: Kun-Lai Summit" } }, "chat line unchanged")
-  end)
-
-  it("game: an MountTrail TomTom waypoint from an earlier both / tomtom click is removed", function()
-    local Map = loadMap({ [517] = SERPENT })
-    local api = serpentApi({ mode = "both" })
+    local api = fakeApi({ tomtom = false, canSet = { [379] = true }, clock = { now = 1 } })
     Map.SetWaypoint(517, api)
-    eq(#logOf(api, "TomTom"), 1)
-    api.waypointMode = "game"
     Map.SetWaypoint(517, api)
-    eq(#logOf(api, "TomTomRemove"), 1, "the old TomTom waypoint goes")
-    eq(#logOf(api, "TomTom"), 1, "and no new one is added")
-  end)
-
-  it("game: an entrance map without user waypoints opens the world map, not TomTom", function()
-    local Map = loadMap({ [395] = DRAKE })
-    local api = fakeApi({ mode = "game", journal = { [325] = 68 }, parents = { [325] = 249 },
-      entrances = { [249] = { { journalInstanceID = 68, position = { x = 0.5, y = 0.25 } } } },
-      names = { [325] = "The Vortex Pinnacle" } })
-    eq({ Map.SetWaypoint(395, api) }, { "The Vortex Pinnacle (entrance)", "entrance" })
-    eq(#logOf(api, "TomTom"), 0, "TomTom installed but the mode is game")
-    eq(logOf(api, "OpenWorldMap"), { { "OpenWorldMap", 249 } })
-    eq(logOf(api, "Print"), { { "Print", "Opened map: The Vortex Pinnacle (entrance)" } })
-  end)
-
-  it("tomtom: only the TomTom waypoint (replacing ours), no user waypoint", function()
-    local Map = loadMap({ [517] = SERPENT })
-    local api = serpentApi({ mode = "tomtom" })
-    eq({ Map.SetWaypoint(517, api) }, { "Kun-Lai Summit", "pin" })
-    eq(#logOf(api, "SetUserWaypoint"), 0)
-    eq(#logOf(api, "SuperTrack"), 0)
-    eq(logOf(api, "TomTom")[1], { "TomTom", 379, 0.536, 0.644, { title = "Heavenly Onyx Cloud Serpent", persistent = false } })
-    eq(logOf(api, "Print"), { { "Print", "Waypoint: Kun-Lai Summit" } })
-    Map.SetWaypoint(517, api)
-    eq(logOf(api, "TomTomRemove"), { { "TomTomRemove", "uid1" } }, "still one MountTrail TomTom waypoint")
+    eq(#logOf(api, "UIError"), 2, "not de-duplicated")
+    eq(#logOf(api, "Print"), 2)
     eq(#logOf(api, "SetUserWaypoint"), 0)
   end)
 
-  it("tomtom: falls back to the in-game pin when TomTom is missing or fails", function()
-    local Map = loadMap({ [517] = SERPENT })
-    local api = serpentApi({ mode = "tomtom", tomtom = false })
-    eq(Map.SetWaypoint(517, api), "Kun-Lai Summit")
-    eq(#logOf(api, "SetUserWaypoint"), 1, "TomTom not loaded: the game pin")
-    eq(logOf(api, "SuperTrack"), { { "SuperTrack", true } })
-    eq(logOf(api, "Print"), { { "Print", "Waypoint: Kun-Lai Summit" } })
-    api = serpentApi({ mode = "tomtom", tomtom = false })
-    api.TomTom = { AddWaypoint = function() error("tomtom broke") end }
-    Map.SetWaypoint(517, api)
-    eq(#logOf(api, "SetUserWaypoint"), 1, "TomTom failed: the game pin")
-    api = serpentApi({ mode = "tomtom", tomtom = false })
-    api.TomTom = {} -- loaded without AddWaypoint
-    Map.SetWaypoint(517, api)
-    eq(#logOf(api, "SetUserWaypoint"), 1)
-  end)
-
-  it("both: the user waypoint and TomTom, as before F9", function()
-    local Map = loadMap({ [517] = SERPENT })
-    local api = serpentApi({ mode = "both" })
-    Map.SetWaypoint(517, api)
-    eq(#logOf(api, "SetUserWaypoint"), 1)
-    eq(#logOf(api, "TomTom"), 1)
-    eq(logOf(api, "Print"), { { "Print", "Waypoint: Kun-Lai Summit" } })
-  end)
-
-  it("without api.waypointMode the saved setting decides (default: the in-game pin)", function()
-    local Map, ns = loadMap({ [517] = SERPENT })
-    local api = serpentApi({})
-    api.waypointMode = nil
-    Map.SetWaypoint(517, api)
-    eq(#logOf(api, "SetUserWaypoint"), 1)
-    eq(#logOf(api, "TomTom"), 0, "default: game only")
-    ns.db = { global = { settings = { waypoints = "tomtom" } } }
-    api = serpentApi({})
-    api.waypointMode = nil
-    Map.SetWaypoint(517, api)
-    eq(#logOf(api, "SetUserWaypoint"), 0)
-    eq(#logOf(api, "TomTom"), 1, "the saved setting")
-  end)
-
-  it("open and none targets ignore the mode", function()
+  it("open and none targets need no TomTom", function()
     local Map = loadMap({ [118] = TANK, [6] = { name = "Brown Horse" } })
-    for _, mode in ipairs({ "game", "tomtom", "both" }) do
-      local api = fakeApi({ mode = mode, names = { [319] = "Ahn'Qiraj" } })
-      eq({ Map.SetWaypoint(118, api) }, { "Ahn'Qiraj", "open" }, mode)
-      eq(logOf(api, "OpenWorldMap"), { { "OpenWorldMap", 319 } }, mode)
-      eq(#logOf(api, "TomTom"), 0, mode)
-      eq({ Map.SetWaypoint(6, api) }, { nil, "none" }, mode)
-    end
+    local api = fakeApi({ tomtom = false, names = { [319] = "Ahn'Qiraj" } })
+    eq({ Map.SetWaypoint(118, api) }, { "Ahn'Qiraj", "open" })
+    eq(logOf(api, "OpenWorldMap"), { { "OpenWorldMap", 319 } })
+    eq({ Map.SetWaypoint(6, api) }, { nil, "none" })
+    eq(#logOf(api, "UIError"), 0)
+  end)
+
+  it("CheckTomTom: at login, a popup and the red error when TomTom is missing; quiet when it is there", function()
+    local Map = loadMap({})
+    local shown = {}
+    local api = fakeApi({ tomtom = false })
+    api.StaticPopupDialogs = {}
+    api.StaticPopup_Show = function(which) shown[#shown + 1] = which end
+    eq(Map.CheckTomTom(api), false)
+    eq(shown, { "MOUNTTRAIL_NO_TOMTOM" })
+    ok(api.StaticPopupDialogs.MOUNTTRAIL_NO_TOMTOM.text:find("requires the TomTom", 1, true))
+    eq(#logOf(api, "UIError"), 1)
+    api = fakeApi({})
+    api.StaticPopupDialogs = {}
+    api.StaticPopup_Show = function(which) shown[#shown + 1] = which end
+    eq(Map.CheckTomTom(api), true)
+    eq(#shown, 1, "no popup with TomTom")
+    eq(#logOf(api, "UIError"), 0)
   end)
 end)
 
@@ -746,22 +663,23 @@ end)
 describe("Map.SetWaypointAt", function()
   it("pins one point, names the NPC and the map in chat", function()
     local Map = loadMap()
-    local api = fakeApi({ canSet = { [550] = true }, names = { [550] = "Nagrand" }, mode = "game" })
+    local api = fakeApi({ canSet = { [550] = true }, names = { [550] = "Nagrand" } })
     eq(Map.SetWaypointAt(550, 67.6, 42.6, "Luk'hok", api), true)
-    local set, printed
-    for _, l in ipairs(api.log) do
-      if l[1] == "SetUserWaypoint" then set = l[2] end
-      if l[1] == "Print" then printed = l[2] end
-    end
-    eq(set.uiMapID, 550)
-    ok(near(set.x, 0.676) and near(set.y, 0.426), "point in 0-1")
-    eq(printed, "Waypoint: Luk'hok (Nagrand)")
+    local tt = logOf(api, "TomTom")[1]
+    eq({ tt[2], tt[5].title }, { 550, "Luk'hok" })
+    ok(near(tt[3], 0.676) and near(tt[4], 0.426), "point in 0-1")
+    eq(logOf(api, "Print"), { { "Print", "Waypoint: Luk'hok (Nagrand)" } })
   end)
-  it("opens the map when the map takes no pin; nothing without a point", function()
+  it("without TomTom: the red error, nothing set; TomTom refusing opens the map; nothing without a point", function()
     local Map = loadMap()
-    local api = fakeApi({ names = { [1] = "Somewhere" }, mode = "game" })
+    local api = fakeApi({ tomtom = false, names = { [1] = "Somewhere" } })
     eq(Map.SetWaypointAt(1, 5, 5, nil, api), false)
-    eq(api.log[#api.log - 1][1], "OpenWorldMap")
+    eq(#logOf(api, "UIError"), 1)
+    eq(#logOf(api, "OpenWorldMap"), 0)
+    api = fakeApi({ tomtom = false, names = { [1] = "Somewhere" } })
+    api.TomTom = { AddWaypoint = function() error("no") end }
+    eq(Map.SetWaypointAt(1, 5, 5, nil, api), false)
+    eq(logOf(api, "OpenWorldMap"), { { "OpenWorldMap", 1 } })
     eq(Map.SetWaypointAt(nil, 5, 5, "X", api), false)
   end)
 end)
@@ -800,15 +718,13 @@ describe("Map plotting many points (TomTom)", function()
     eq(removes, { "uid1", "uid2", "uid3" }, "the last plot removed first")
   end)
 
-  it("without TomTom: pins the nearest point and says TomTom is needed", function()
+  it("without TomTom: nothing plotted or pinned, the red error", function()
     local Map, ns = loadMap({ [614] = { name = "Mottled Meadowstomper" } })
     ns.Data.Spots = { [614] = { { npc = 1, name = "Luk'hok", kind = "drop", pts = { 550, 67.6, 42.6, 550, 72.8, 53.4 } } } }
-    local api = fakeApi({ tomtom = false, canSet = { [550] = true }, mode = "game" })
+    local api = fakeApi({ tomtom = false, canSet = { [550] = true } })
     eq(Map.PlotMounts({ 614 }, "x", api), 0)
-    local set
-    for _, l in ipairs(api.log) do if l[1] == "SetUserWaypoint" then set = l[2] end end
-    eq(set.uiMapID, 550)
-    eq(api.log[#api.log][2], "Install TomTom to plot all 2 points at once; pinned the nearest.")
+    eq(#logOf(api, "SetUserWaypoint"), 0)
+    eq(#logOf(api, "UIError"), 1)
   end)
 
   it("no points: says so", function()

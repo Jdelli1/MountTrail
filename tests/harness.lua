@@ -69,13 +69,25 @@ end
 
 -- Runs each file (path relative to repo root) with ("MountTrail", ns)
 -- sharing one ns table; returns ns.
+-- Files split out of a bigger one load right after it, as in the .toc, so a
+-- spec that names UI/Frame.lua or UI/List.lua gets the whole of it.
+COMPANIONS = {
+  ["UI/Frame.lua"] = { "UI/Widgets.lua", "UI/Nav.lua" },
+  ["UI/List.lua"] = { "UI/Search.lua" },
+}
+
 function load_addon(files)
   local ns = {}
-  for _, path in ipairs(files) do
+  local loaded = {}
+  local function load(path)
+    if loaded[path] then return end
+    loaded[path] = true
     local chunk, err = loadfile(ROOT .. "/" .. path)
-    if not chunk then error("cannot load " .. path .. ": " .. tostring(err), 2) end
+    if not chunk then error("cannot load " .. path .. ": " .. tostring(err), 3) end
     chunk("MountTrail", ns)
+    for _, extra in ipairs(COMPANIONS[path] or {}) do load(extra) end
   end
+  for _, path in ipairs(files) do load(path) end
   return ns
 end
 

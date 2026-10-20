@@ -153,7 +153,7 @@ describe("detail pane", function()
     eq(rows[1].id, 1)
     eq(rows[1].selected, true)
     eq(rows[2].selected, false)
-    eq(rows[1].pin, nil, "no location icon: the pane's buttons stand for it")
+    eq(rows[1].pin, nil, "no location icon: the row's clicks stand for it")
     local pane = list.Detail
     eq(pane.mountID, 1)
     eq(pane.Name:GetText(), "Alpha")
@@ -161,11 +161,10 @@ describe("detail pane", function()
     eq(pane.Scene.sceneID, 7)
     eq(pane.Scene.noRider, true, "rider hidden while the Mount Journal setting is off")
     eq(pane.Scene.fanfare, false, "no present box")
-    eq(pane.Waypoint.enabled, true, "has a location")
-    eq(pane.Achievement.enabled, false)
+    eq(pane.Waypoint, nil, "no buttons: the rows' clicks do it")
   end)
 
-  it("a plain left-click selects (no waypoint); rows show no tooltip", function()
+  it("a plain left-click selects (nowhere to go: no waypoint); the hover says what clicks do", function()
     local ns = loadUI()
     local list = makeList(ns)
     local waypoints = 0
@@ -187,9 +186,13 @@ describe("detail pane", function()
     row:RunScript("OnEnter")
     ns.UI.ShowMountTooltip = old
     eq(shown, false, "the pane replaces the hover tooltip")
+    local hint = ns.UI.PaneRowHint(3)
+    ok(not hint:find("Left-click", 1, true) and not hint:find("Right-click", 1, true), "no location, no achievement: no right-click line")
+    ok(not hint:find("Shift-click", 1, true), "nor the map")
+    ok(hint:find("Ctrl-click", 1, true) and hint:find("preview", 1, true), hint)
   end)
 
-  it("a plain left-click on an achievement mount selects it and opens its achievement", function()
+  it("a plain left-click on an achievement mount only selects it; right-click with nowhere to go opens the achievement", function()
     local ns = loadUI()
     local list = makeList(ns)
     local opened
@@ -197,14 +200,17 @@ describe("detail pane", function()
     ns.AchievementScan.Lookup = function(id) if id == 2 then return 77, "ready" end return nil, "none" end
     local row = CreateFrame("Button")
     ns.UI.InitMountRow(row, mountRows(list)[2])
+    ns.Map.HasLocation = function() return false end
     row:RunScript("OnClick", "LeftButton")
     eq(list.selectedID, 2)
+    eq(opened, nil, "left-click: view only")
+    row:RunScript("OnClick", "RightButton")
     eq(opened, 77)
     opened = nil
     ns.UI.InitMountRow(row, mountRows(list)[1])
     row:RunScript("OnClick", "LeftButton")
     eq(list.selectedID, 1)
-    eq(opened, nil, "other mounts: selected only")
+    eq(opened, nil, "other mounts: no achievement")
   end)
 
   it("Shift-click still opens the map from a row", function()
@@ -258,7 +264,7 @@ describe("detail pane", function()
     ok(list2.Detail.BigIcon:IsShown())
   end)
 
-  it("buttons: waypoint and map through Map, achievement through the achievement opener", function()
+  it("row clicks: plain views, right-click plots (an achievement mount: its achievement), Shift map, Ctrl preview", function()
     local ns = loadUI()
     local list = makeList(ns)
     local calls = {}
@@ -266,10 +272,30 @@ describe("detail pane", function()
       OpenMap = function(id) calls[#calls + 1] = "map" .. id end,
       HasLocation = function() return true end, HasSpot = function() return true end }
     ns.UI.OpenMountAchievement = function(id) calls[#calls + 1] = "ach" .. id end
-    list.Detail.Waypoint:RunScript("OnClick")
-    list.Detail.MapButton:RunScript("OnClick")
-    list.Detail.Achievement:RunScript("OnClick")
-    eq(calls, { "wp1", "map1", "ach1" })
+    ns.UI.PreviewMount = function(id) calls[#calls + 1] = "preview" .. id end
+    local achievement = false
+    ns.AchievementScan.Lookup = function() if achievement then return 77, "ready" end return nil, "none" end
+    local row = CreateFrame("Button")
+    ns.UI.InitMountRow(row, mountRows(list)[1])
+    row:RunScript("OnClick", "LeftButton")
+    eq(calls, {}, "a plain click only views")
+    row:RunScript("OnClick", "RightButton")
+    IsShiftKeyDown = function() return true end
+    row:RunScript("OnClick", "LeftButton")
+    IsShiftKeyDown = nil
+    IsControlKeyDown = function() return true end
+    row:RunScript("OnClick", "LeftButton")
+    IsControlKeyDown = nil
+    achievement = true
+    row:RunScript("OnClick", "RightButton")
+    eq(calls, { "wp1", "map1", "preview1", "ach1" })
+    eq(list.selectedID, 1, "each click also selects")
+    local hint = ns.UI.PaneRowHint(1)
+    ok(hint:find("view the achievement", 1, true) and not hint:find("plot", 1, true), hint)
+    ok(hint:find("show on the map", 1, true) and hint:find("preview", 1, true), hint)
+    ok(not hint:find("Left-click", 1, true), "no line for the plain click")
+    achievement = false
+    ok(ns.UI.PaneRowHint(1):find("plot the coordinates", 1, true))
   end)
 
   it("opts.detail = false keeps the old full-width list and click", function()
@@ -306,13 +332,15 @@ describe("detail pane", function()
     end
     ok(heading, "heading")
     ok(label and label:find("daily", 1, true), tostring(label))
-    eq(rights[label], "Nagrand, Old Nagrand 9483 3 spawn points")
+    eq(rights[label], "Nagrand, Old Nagrand \194\183 3 spawn points")
     eq(pane.pointButtons, nil, "no coordinate buttons")
     eq(pane.PlotAll, nil, "no Plot all")
     local went
     ns.UI.GoTo = function(id) went = id end
-    pane.Waypoint:RunScript("OnClick", "LeftButton")
-    eq(went, 1, "the Waypoint button is the one go-to")
+    local row = CreateFrame("Button")
+    ns.UI.InitMountRow(row, mountRows(list)[1])
+    row:RunScript("OnClick", "RightButton")
+    eq(went, 1, "a row's right-click is the one go-to")
   end)
 
   it("a row click plots every spawn point when the rare has several (map tab, zone panel)", function()
@@ -328,5 +356,59 @@ describe("detail pane", function()
     eq(waypoint, 2)
     eq(ns.UI.ClickHint(1), "Click to plot all 3 spawn points")
     eq(ns.UI.ClickHint(2), "Click to set waypoint")
+  end)
+end)
+
+describe("detail pane width", function()
+  it("drag its left edge: every pane takes the width, saved and clamped; right-click: the default", function()
+    local ns = loadUI()
+    local a = ns.UI.CreateDetailPane(UIParent)
+    local b = ns.UI.CreateDetailPane(UIParent)
+    eq(a.width, ns.UI.DETAIL_WIDTH)
+    a.right = 900
+    STUB_CURSOR[1] = 540
+    a.Splitter:RunScript("OnMouseDown", "LeftButton")
+    a.Splitter:GetScript("OnUpdate")(a.Splitter, 0.01)
+    a.Splitter:RunScript("OnMouseUp", "LeftButton")
+    eq({ a.width, b.width }, { 360, 360 }, "both panes")
+    eq(ns.db.global.window.paneWidth, 360)
+    STUB_CURSOR[1] = 0
+    a.Splitter:RunScript("OnMouseDown", "LeftButton")
+    a.Splitter:GetScript("OnUpdate")(a.Splitter, 0.01)
+    a.Splitter:RunScript("OnMouseUp", "LeftButton")
+    eq(ns.db.global.window.paneWidth, ns.UI.PANE_MAX, "no wider than the maximum")
+    a.Splitter:RunScript("OnClick", "RightButton")
+    eq(b.width, ns.UI.DETAIL_WIDTH)
+    eq(ns.UI.CreateDetailPane(UIParent).width, ns.UI.DETAIL_WIDTH, "new panes take the saved width")
+  end)
+
+  it("How to get it: AllTheThings' description of the item, else of the NPC behind it", function()
+    local ns = loadUI()
+    ns.Data.Mounts[1].item, ns.Data.Mounts[1].spell = 900, 132036
+    local db = {
+      itemID = { [900] = { { parent = { npcID = 50981, description = "Collect ten Skyshards first." } } } },
+    }
+    ns.Notes.app = { SearchForField = function(field, id) return (db[field] or {})[id] end }
+    eq(ns.Notes.Description(1), "Collect ten Skyshards first.", "the dropping NPC's note")
+    db.npcID = { [1] = { { description = "Sells it." } } }
+    eq(ns.Notes.Description(3), nil, "a Horde vendor's spot only: not this character's")
+    ns.Notes.app = false
+    eq(ns.Notes.Description(2), nil, "no ATT: nothing")
+    eq(ns.Notes.WowheadURL(1), "https://www.wowhead.com/spell=132036")
+    ns.Notes.app = { SearchForField = function(field, id) return (db[field] or {})[id] end }
+    local list = makeList(ns)
+    local texts = {}
+    for _, fs in ipairs(list.Detail.lineStrings) do if fs:IsShown() then texts[fs:GetText()] = true end end
+    ok(texts["How to get it"] and texts["Collect ten Skyshards first."], "in the pane")
+  end)
+
+  it("the Wowhead button opens the mount's page in a box to copy", function()
+    local ns = loadUI()
+    ns.Data.Mounts[1].spell = 132036
+    local list = makeList(ns)
+    local shown
+    ns.UI.ShowCopyText = function(title, text) shown = text end
+    list.Detail.Wowhead:RunScript("OnClick", "LeftButton")
+    eq(shown, "https://www.wowhead.com/spell=132036")
   end)
 end)

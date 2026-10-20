@@ -11,7 +11,7 @@
 --   any spec may add requires={ quest=<questID>, text="<unlock needed>" }
 --   { camp=true, zone="<Zone>" }: a rare spawn with no known kill flag and no
 --     reset (long-respawn rares: owner ruling). No reset, no tick, never "done",
---     no attempts: the checklist lists it under "Rare spawns (no lockout)" by
+--     no attempts: the checklist lists it under "Rare Spawns (no lockout)" by
 --     expansion and zone until the mount is owned, with a box recording when
 --     the player last checked the spawn. `zone` is a Zone / Location of the
 --     mount's Mount.db2 SourceText (tools/verify_data.py check 7); omitted when
@@ -37,8 +37,8 @@
 -- Boss encounter names and difficulties partly derived from Rarity
 -- (https://github.com/WowRarity/Rarity, DB/Mounts/*.lua `lockBossName`,
 -- `instanceDifficulties`, `lockDungeonId`), GPL-2.0.
--- Entries marked `-- verify in game` are unconfirmed: check them with `/azt dump`
--- (docs/ingame-checklist.md).
+-- Entries marked `-- verify in game` are unconfirmed: check them with `/mtrail dump`
+-- (docs/BETA_TESTING.md lists what to check in game).
 
 local ADDON, ns = ...
 ns.Data = ns.Data or {}
@@ -176,7 +176,7 @@ ns.Data.Lockouts = {
   -- Primeval Skyfriend: JournalInstance 1320 The Venomous Abyss (MapID 3004, LfgDungeons TypeID 2 raid, 14/15/16), DungeonEncounter 3492 "Ula'tek", item 275658 -- difficulty: verify in game
   [3030] = { instance = 3004, boss = "Ula'tek", difficulties = { 16 }, reset = "weekly" },
 
-  -- Rare spawns with no known kill flag (camp specs) ------------------------
+  -- Rare Spawns with no known kill flag (camp specs) ------------------------
   -- Mount.db2 SourceText "Drop: <creature>" (tools/verify_data.py check 7, build
   -- 12.1.5.70448), not Encounter Journal loot, no Rarity quest: no daily lockout
   -- (owner: long-respawn rares). zone = the source text's Zone / Location.

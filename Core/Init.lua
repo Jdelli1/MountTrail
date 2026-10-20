@@ -111,7 +111,32 @@ function ns.UpdateAttempts(freshInstances)
     ns.Attempts.AddForChar(global.attemptsByChar, charKey, mountID)
   end
   char.last = curr
+  ns.RecordSeen(char, ns.Game.Now(), true)
   return newly
+end
+
+-- Stamps `char` (this character's AceDB section) with who it is, so the alt
+-- lockout matrix (Logic\Alts.lua), which reads every character's section,
+-- gives it a column. `observed`: char.last was just stored, so the stamp
+-- also says when that observation stops being true (the daily / weekly
+-- reset after `now`; the matrix counts a lockout fresh once it has passed).
+-- Without it the reset times stay those of the last observation, so a
+-- login whose lockout data never arrives cannot make old lockouts look
+-- current. Called at login (identity only) and after each observation.
+function ns.RecordSeen(char, now, observed)
+  local Game = ns.Game
+  local old = type(char.seen) == "table" and char.seen or {}
+  local name = Game.PlayerName()
+  char.seen = {
+    name = name or old.name,
+    realm = (GetNormalizedRealmName and GetNormalizedRealmName()) or (GetRealmName and GetRealmName()) or old.realm,
+    class = Game.ClassFile() or old.class,
+    level = Game.Level() or old.level,
+    faction = Game.Faction(),
+    at = observed and now or old.at,
+    dailyReset = observed and (now + (Game.UntilDaily() or 0)) or old.dailyReset,
+    weeklyReset = observed and (now + (Game.UntilWeekly() or 0)) or old.weeklyReset,
+  }
 end
 
 -- Kill statistics -------------------------------------------------------------
@@ -138,40 +163,10 @@ end
 
 -- Lifecycle -------------------------------------------------------------------
 
--- The route planner is retired for now (F16): the Route tab became the
--- Checklist tab and the route arrow is parked. On `db` (AceDB: .char,
--- .global): the arrow can't come back on (routeMode forced to "list"), the
--- route list's settings go (routeView, showCompleted) and a saved "route"
--- tab opens the Checklist tab.
-function ns.RetireRoute(db)
-  local char, global = db and db.char, db and db.global
-  if type(char) == "table" then
-    char.routeMode = "list"
-    char.routeView = nil
-    char.showCompleted = nil
-  end
-  local window = type(global) == "table" and global.window or nil
-  if type(window) == "table" and window.tab == "route" then window.tab = "checklist" end
-end
-
--- The add-on was called AzerothTrail: its saved variable (AzerothTrailDB,
--- still listed in the .toc) becomes MountTrailDB once, when there is no
--- MountTrailDB yet; the old one is then cleared. WoW reads it from
--- WTF\Account\<account>\SavedVariables\MountTrail.lua, so the old
--- AzerothTrail.lua has to be copied to that name first
--- (tools\link_addon.ps1 does it).
-function ns.MigrateOldName()
-  if type(MountTrailDB) ~= "table" and type(AzerothTrailDB) == "table" then
-    MountTrailDB = AzerothTrailDB
-  end
-  AzerothTrailDB = nil
-end
-
 function addon:OnInitialize()
   -- One saved variable, MountTrailDB: AceDB keeps the per-character section
   -- under .char ("Name - Realm"), so no SavedVariablesPerCharacter is needed.
   -- char.last (the last lockout observation) starts nil.
-  ns.MigrateOldName()
   ns.db = LibStub("AceDB-3.0"):New("MountTrailDB", {
     global = {
       -- { collected = bool, [view] = { [section] = false } } (Logic\Journal.lua)
@@ -185,34 +180,34 @@ function addon:OnInitialize()
       stats = {}, -- kill statistics: { [charKey] = { [mountID] = kills } } (Logic\Stats.lua)
       minimap = { hide = false },
       window = {},
-      arrow = {}, -- route arrow frame position (UI\Arrow.lua)
       debug = false, -- /mtrail debug: show caught map / waypoint errors
       achievementMap = {}, -- { build=, ids={[mountID]=achievementID|false} } (Integrations\AchievementScan.lua)
       zonePanel = { open = false }, -- zone side panel shown with the window (UI\ZonePanel.lua)
-      -- Options > AddOns > MountTrail (UI\Options.lua): waypoints = "game" | "tomtom" | "both"
-      -- (Integrations\Map.lua); showUnobtainable: not-owned unobtainable mounts on Misc (UI\List.lua)
-      settings = { waypoints = "game", showUnobtainable = false },
+      -- Options > AddOns > MountTrail (UI\Options.lua): showUnobtainable: not-owned
+      -- unobtainable mounts on Misc (UI\List.lua)
+      -- rarityColors: pop-out names in their rarity colour (UI\Popouts.lua)
+      settings = { showUnobtainable = false, rarityColors = false },
       collapsed = {}, -- list headers the player collapsed: { ["<view>|<exp>|<section>[|<sub-group>]"] = true } (UI\List.lua)
+      altsHidden = {}, -- alt lockout matrix: characters hidden from it, { ["Name - Realm"] = true } (UI\AltsWindow.lua)
+      altsWindow = {}, -- alt lockout matrix window position (UI\AltsWindow.lua)
     },
     char = {
       ticks = {},
-      routeMode = "list", -- the parked route arrow (UI\Arrow.lua): always "list" (ns.RetireRoute)
-      checklistHideDone = false, -- Checklist: hide done lockouts
       checklistFilters = {}, -- Checklist Filter menu: { [category] = false } for hidden ones (Logic\Checklist.lua)
       campChecked = {}, -- Checklist rare spawns with no lockout: { [tick key] = time the player last checked the spawn }
     },
   }, true)
-  -- Pre-F15 saved variables kept the Journal's source filters as flat keys.
-  ns.Journal.MigrateFilters(ns.db.global.filters)
-  ns.RetireRoute(ns.db)
+  -- Mythic Mounts, once, as an example custom list (My lists).
+  if type(ns.db.global.lists) ~= "table" then ns.db.global.lists = {} end
+  ns.QuickLists.SeedExamples(ns.db.global, ns.db.global.lists)
   self:RegisterChatCommand("mtrail", "OnSlash")
   self:RegisterChatCommand("mounttrail", "OnSlash")
-  -- The add-on's old name (AzerothTrail): its commands still work.
-  self:RegisterChatCommand("azt", "OnSlash")
-  self:RegisterChatCommand("azerothtrail", "OnSlash")
+  self:RegisterChatCommand("mtl", "OnSlash")
 end
 
 function addon:OnEnable()
+  -- TomTom is required for waypoints: a popup and a red line when it is missing.
+  if ns.Map and ns.Map.CheckTomTom then ns.Map.CheckTomTom() end
   self:RegisterEvent("PLAYER_ENTERING_WORLD", "OnEnteringWorld")
   self:RegisterEvent("UPDATE_INSTANCE_INFO", "OnLockoutEvent")
   self:RegisterEvent("QUEST_TURNED_IN", "OnLockoutEvent")
@@ -232,11 +227,31 @@ function addon:OnEnable()
   self:RegisterEvent("CONTRIBUTION_COLLECTOR_UPDATE", "OnEventStatus")
 end
 
+-- Game events often come several in one frame (lockouts, LFG, quests): one
+-- ns.Refresh on the next frame for the lot (at once without C_Timer).
+local refreshPending = false
+function ns.RefreshSoon()
+  if refreshPending then return end
+  local timer = C_Timer
+  if type(timer) ~= "table" or type(timer.After) ~= "function" then
+    ns.Refresh()
+    return
+  end
+  refreshPending = true
+  timer.After(0, function()
+    refreshPending = false
+    ns.Refresh()
+  end)
+end
+
 function addon:OnEnteringWorld()
+  -- A column in the alt lockout matrix from the first login on, whatever
+  -- happens to the lockout data after.
+  ns.RecordSeen(ns.db.char, ns.Game.Now())
   ns.Game.RequestLockouts()
   ns.Resets.Prune(ns.db.char.ticks, ns.Game.Now())
   ns.UpdateStats()
-  ns.Refresh()
+  ns.RefreshSoon()
 end
 
 function addon:OnLockoutEvent(event)
@@ -244,7 +259,7 @@ function addon:OnLockoutEvent(event)
   if event == "LFG_UPDATE_RANDOM_INFO" then ready.lfg = true end
   ns.UpdateAttempts(event == "UPDATE_INSTANCE_INFO")
   if event == "UPDATE_INSTANCE_INFO" then ns.UpdateStats() end
-  ns.Refresh()
+  ns.RefreshSoon()
 end
 
 -- Reads the kill statistics a combat-time event had to skip, then refreshes.
@@ -258,7 +273,7 @@ end
 
 function addon:OnCalendarUpdate()
   ns.Game.CalendarChanged()
-  ns.Refresh()
+  ns.RefreshSoon()
 end
 
 function addon:OnEventStatus()
@@ -308,6 +323,30 @@ function addon:OnSlash(input)
     else
       self:Print(L["The window is not available yet. Type /mtrail help for commands."])
     end
+  elseif cmd == "here" then
+    if ns.UI and ns.UI.ToggleZoneMountsPopout then
+      ns.UI.ToggleZoneMountsPopout()
+    else
+      self:Print(L["The window is not available yet. Type /mtrail help for commands."])
+    end
+  elseif cmd == "sharetest" then
+    if ns.UI and ns.UI.ShareSelfTest then
+      ns.UI.ShareSelfTest()
+    else
+      self:Print(L["Sharing is not loaded: restart the game fully (a /reload does not load new files)."])
+    end
+  elseif cmd == "import" then
+    if ns.UI and ns.UI.ImportListPrompt then
+      ns.UI.ImportListPrompt()
+    else
+      self:Print(L["The window is not available yet. Type /mtrail help for commands."])
+    end
+  elseif cmd == "alts" then
+    if ns.UI and ns.UI.ToggleAltsWindow then
+      ns.UI.ToggleAltsWindow()
+    else
+      self:Print(L["The window is not available yet. Type /mtrail help for commands."])
+    end
   elseif cmd == "options" then
     if ns.Options and ns.Options.Open then
       ns.Options.Open()
@@ -336,7 +375,11 @@ function addon:OnSlash(input)
     self:Print(L["/mtrail dump - list saved instances (instance ID, difficulty ID, bosses)"])
     self:Print(L["/mtrail zone - show or hide the zone panel (mounts in your current zone)"])
     self:Print(L["/mtrail rares - show or hide the rare spawns of your zone"])
+    self:Print(L["/mtrail here - show or hide every mount still to get in your zone"])
     self:Print(L["/mtrail options - open the MountTrail options (Options > AddOns)"])
+    self:Print(L["/mtrail alts - show or hide the alt lockout matrix (who is still unsaved)"])
+    self:Print(L["/mtrail import - paste a list someone shared"])
+    self:Print(L["/mtrail sharetest - check that sharing works on this client"])
     self:Print(L["/mtrail debug - show or hide caught map and waypoint errors"])
     self:Print(L["/mtrail help - this list"])
   end

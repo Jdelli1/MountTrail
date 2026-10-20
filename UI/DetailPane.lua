@@ -8,24 +8,47 @@ local ADDON, ns = ...
 -- tooltip's lines (UI.TooltipLines without the click hints: source, chance,
 -- attempts, lockout, achievement) and "Where to find it": each NPC behind
 -- the mount (Map.Spots: the vendor, a rare) by name, its zones and how
--- many spawn points - all in a scrolling area - and Waypoint / Map /
--- Achievement buttons (Waypoint: UI.GoTo, every spawn point of a
--- multi-spawn rare on TomTom).
+-- many spawn points - all in a scrolling area. No buttons: the list's rows
+-- do it (UI.PaneRowClick: right-click plots or opens the achievement, Shift map, Ctrl preview).
 --   local pane = UI.CreateDetailPane(parent)
 --   pane:SetMount(mountID[, routeBoss])   -- nil: empty
 --   pane:Refresh()                        -- same mount, fresh numbers
 -- The model is reloaded only when the mount changes. Clients without the
 -- model scene template show the large icon instead.
+-- Its width is shared by every pane and saved (ns.db.global.window.
+-- paneWidth, UI.PANE_MIN..UI.PANE_MAX): drag its left edge (UI.Splitter),
+-- right-click there for the default.
 
 local L = ns.L
 
 local UI = ns.UI or {}
 ns.UI = UI
 
-UI.DETAIL_WIDTH = 300
+UI.DETAIL_WIDTH = 300 -- the default width
+
+local panes = {} -- every pane built, so a new width reaches them all
+
+-- The panes' width: the saved one, else UI.DETAIL_WIDTH.
+function UI.PaneWidth()
+  local global = ns.db and ns.db.global
+  local window = global and type(global.window) == "table" and global.window or nil
+  local clamp = UI.ClampWidth or function(w) return w end
+  return clamp(window and window.paneWidth, UI.PANE_MIN or 220, UI.PANE_MAX or 460, UI.DETAIL_WIDTH)
+end
+
+-- Sets every pane's width (clamped); `save`: keep it.
+function UI.SetPaneWidth(w, save)
+  local clamp = UI.ClampWidth or function(v) return v end
+  w = clamp(w, UI.PANE_MIN or 220, UI.PANE_MAX or 460, UI.DETAIL_WIDTH)
+  if save and ns.db and ns.db.global then
+    if type(ns.db.global.window) ~= "table" then ns.db.global.window = {} end
+    ns.db.global.window.paneWidth = w
+  end
+  for _, pane in ipairs(panes) do pane:SetPaneWidth(w) end
+  return w
+end
 local MODEL_HEIGHT = 230
 local HEADER_HEIGHT = 44
-local BUTTON_HEIGHT = 22
 local PAD = 10
 local LINE_GAP = 3
 local SCROLL_STEP = 30
@@ -69,7 +92,7 @@ end
 
 -- Pure: the pane's text for a mount -> { name =, flavor =, lines = UI.TooltipLines
 -- without hints, achievement = achievementID or nil, location = bool, spots =
--- UI.DetailSpots }.
+-- UI.DetailSpots, notes = ATT's description (Notes.Description) or nil }.
 function UI.DetailContent(mountID, routeBoss)
   local m = mountData(mountID) or {}
   local name = ns.Game.MountInfo and ns.Game.MountInfo(mountID) or nil
@@ -81,6 +104,7 @@ function UI.DetailContent(mountID, routeBoss)
     achievement = achievementID,
     location = UI.HasLocation(mountID, routeBoss) and true or false,
     spots = UI.DetailSpots(mountID),
+    notes = ns.Notes and ns.Notes.Description(mountID) or nil,
   }
 end
 
@@ -130,22 +154,15 @@ function UI.ShowMountModel(scene, mountID)
   return true
 end
 
-local function flatButton(parent, label)
-  local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-  b:SetHeight(BUTTON_HEIGHT)
-  b:SetText(label)
-  return b
-end
-
 -- Lines in the scrolling info area: font strings reused between mounts.
 local function lineString(pane, i)
   local fs = pane.lineStrings[i]
   if not fs then
-    fs = pane.Info:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    fs = pane.Info:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlightSmall"))
     fs:SetJustifyH("LEFT")
     fs:SetWordWrap(true)
     pane.lineStrings[i] = fs
-    local right = pane.Info:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    local right = pane.Info:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlightSmall"))
     right:SetJustifyH("RIGHT")
     pane.rightStrings[i] = right
   end
@@ -153,7 +170,7 @@ local function lineString(pane, i)
 end
 
 local function layoutInfo(pane, content)
-  local width = UI.DETAIL_WIDTH - 2 * PAD - 12
+  local width = (pane.paneWidth or UI.DETAIL_WIDTH) - 2 * PAD - 12
   local y = 0
   local n = 0
   local function place(text, r, g, b, rightText, rr, rg, rb)
@@ -188,8 +205,14 @@ local function layoutInfo(pane, content)
       place(l.left, l.r, l.g, l.b)
     end
   end
-  -- Where to find it: each NPC, its zones and how many spawn points (the
-  -- Waypoint button plots them all).
+  -- How to get it, in words (AllTheThings, when loaded).
+  if content.notes then
+    y = y + 6
+    place(L["How to get it"], 1, 0.82, 0)
+    place(content.notes, 0.9, 0.9, 0.9)
+  end
+  -- Where to find it: each NPC, its zones and how many spawn points (a
+  -- right-click on the row plots them all).
   if content.spots and #content.spots > 0 then
     y = y + 6
     place(L["Where to find it"], 1, 0.82, 0)
@@ -203,7 +226,7 @@ local function layoutInfo(pane, content)
         count = count + #group.points
       end
       local line = table.concat(where, ", ")
-      if count > 1 then line = line .. " 9483 " .. string.format(L["%d spawn points"], count) end
+      if count > 1 then line = line .. " \194\183 " .. string.format(L["%d spawn points"], count) end
       place(label, 1, 1, 1, line, 0.7, 0.7, 0.7)
     end
   end
@@ -223,10 +246,23 @@ local function paint(pane)
   pane.Icon:SetShown(has)
   pane.Info:SetShown(has)
   pane.Empty:SetShown(not has)
-  pane.Waypoint:SetShown(has)
-  pane.MapButton:SetShown(has)
-  pane.Achievement:SetShown(has)
   pane.AddList:SetShown(has)
+  pane.Wowhead:SetShown(has)
+  -- "+ List" while the mount is on none of your lists, else "Lists (n)".
+  local store = has and UI.ListsDB and UI.ListsDB()
+  local on = 0
+  for _, l in ipairs(store and ns.Lists.Sorted(store) or {}) do
+    if ns.Lists.Has(store, l.id, id) then on = on + 1 end
+  end
+  UI.FlatButtonSetText(pane.AddList, on > 0 and string.format(L["Lists (%d)"], on) or L["+ List"])
+  local guides = has and UI.GuidesForMount and UI.GuidesForMount(id) or {}
+  if #guides > 0 then
+    UI.FlatButtonSetText(pane.Guide, L["Guide"])
+    pane.Guide:Show()
+  else
+    pane.Guide:SetWidth(1)
+    pane.Guide:Hide()
+  end
   if not has then return end
   local content = UI.DetailContent(id, pane.routeBoss)
   pane.content = content
@@ -234,14 +270,12 @@ local function paint(pane)
   pane.Icon:SetTexture(UI.MountIcon(id))
   pane.Owned:SetShown(ns.Game.IsOwned and ns.Game.IsOwned(id) and true or false)
   layoutInfo(pane, content)
-  pane.Waypoint:SetEnabled(content.location)
-  pane.MapButton:SetEnabled(content.location)
-  pane.Achievement:SetEnabled(content.achievement ~= nil)
 end
 
 local function build(parent)
   local pane = CreateFrame("Frame", nil, parent)
-  pane:SetWidth(UI.DETAIL_WIDTH)
+  pane.paneWidth = UI.PaneWidth()
+  pane:SetWidth(pane.paneWidth)
   pane.lineStrings, pane.rightStrings = {}, {}
 
   local fill = pane:CreateTexture(nil, "BACKGROUND")
@@ -282,7 +316,7 @@ local function build(parent)
     rider:SetSize(22, 22)
     rider:SetPoint("BOTTOMRIGHT", modelArea, "BOTTOMRIGHT", -4, 4)
     if rider.SetFrameLevel then rider:SetFrameLevel(scene:GetFrameLevel() + 10) end
-    local riderText = rider:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    local riderText = rider:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalSmall"))
     riderText:SetPoint("RIGHT", rider, "LEFT", 0, 0)
     riderText:SetText(L["Rider"])
     rider:SetScript("OnShow", function(self)
@@ -313,13 +347,46 @@ local function build(parent)
   addList:SetScript("OnClick", function(self)
     if pane.mountID then UI.ShowListMenu(self, pane.mountID) end
   end)
-  addList:SetScript("OnEnter", function(self) UI.ShowHint(self, L["Add to a custom list"]) end)
+  addList:SetScript("OnEnter", function(self)
+    UI.ShowHint(self, L["Your lists"], L["Tick a list to add this mount to it, untick to remove it."])
+  end)
   addList:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   pane.AddList = addList
+  -- "Wowhead": the mount's page (guides, comments) in a box to copy.
+  local wowhead = UI.FlatButton(pane, L["Wowhead"], "plain", 18)
+  wowhead:SetPoint("RIGHT", addList, "LEFT", -4, 0)
+  wowhead:SetScript("OnClick", function()
+    local url = pane.mountID and ns.Notes and ns.Notes.WowheadURL(pane.mountID)
+    if url then UI.ShowCopyText(L["Wowhead"], url, L["Ctrl+C to copy, then paste it into your browser"]) end
+  end)
+  wowhead:SetScript("OnEnter", function(self)
+    UI.ShowHint(self, L["Wowhead"], L["The mount's Wowhead page: guides and comments (a link to copy)"])
+  end)
+  wowhead:SetScript("OnLeave", function(self) UI.HideHint(self) end)
+  pane.Wowhead = wowhead
+  -- "Guide": follow a guide written for this mount (UI/Guides.lua); only
+  -- when one exists (narrowed to nothing otherwise, so the name keeps room).
+  local guide = UI.FlatButton(pane, L["Guide"], "gold", 18)
+  guide:SetPoint("RIGHT", wowhead, "LEFT", -4, 0)
+  guide:SetScript("OnClick", function(self)
+    local guides = pane.mountID and UI.GuidesForMount and UI.GuidesForMount(pane.mountID) or {}
+    if #guides == 1 then
+      UI.StartGuide(guides[1].id)
+    elseif #guides > 1 then
+      local items = { { title = L["Guides"] } }
+      for _, g in ipairs(guides) do
+        items[#items + 1] = { text = g.title, onClick = function() UI.StartGuide(g.id) end }
+      end
+      UI.ShowMenu(self, items, "cursor")
+    end
+  end)
+  guide:SetScript("OnEnter", function(self) UI.ShowHint(self, L["Guide"], L["Follow a step-by-step guide for this mount."]) end)
+  guide:SetScript("OnLeave", function(self) UI.HideHint(self) end)
+  pane.Guide = guide
 
-  local name = pane:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+  local name = pane:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalLarge"))
   name:SetPoint("LEFT", icon, "RIGHT", 8, 0)
-  name:SetPoint("RIGHT", addList, "LEFT", -22, 0)
+  name:SetPoint("RIGHT", guide, "LEFT", -22, 0)
   name:SetJustifyH("LEFT")
   name:SetWordWrap(true)
   if name.SetMaxLines then name:SetMaxLines(2) end
@@ -335,37 +402,13 @@ local function build(parent)
   owned:Hide()
   pane.Owned = owned
 
-  -- Buttons along the bottom.
-  local waypoint = flatButton(pane, L["Waypoint"])
-  local mapButton = flatButton(pane, L["Map"])
-  local achievement = flatButton(pane, L["Achievement"])
-  local bw = math.floor((UI.DETAIL_WIDTH - 2 * PAD - 8) / 3)
-  for i, b in ipairs({ waypoint, mapButton, achievement }) do
-    b:SetWidth(bw)
-    b:SetPoint("BOTTOMLEFT", pane, "BOTTOMLEFT", PAD + (i - 1) * (bw + 4), 6)
-  end
-  waypoint:SetScript("OnClick", function()
-    if pane.mountID then UI.GoTo(pane.mountID, pane.routeBoss) end
-  end)
-  waypoint:SetScript("OnEnter", function(self)
-    if pane.mountID and UI.ClickHint then UI.ShowHint(self, UI.ClickHint(pane.mountID, pane.routeBoss, true)) end
-  end)
-  waypoint:SetScript("OnLeave", function(self) UI.HideHint(self) end)
-  mapButton:SetScript("OnClick", function()
-    if pane.mountID then UI.MapAction("OpenMap", pane.mountID, pane.routeBoss) end
-  end)
-  achievement:SetScript("OnClick", function()
-    if pane.mountID then UI.OpenMountAchievement(pane.mountID) end
-  end)
-  pane.Waypoint, pane.MapButton, pane.Achievement = waypoint, mapButton, achievement
-
   -- Scrolling info: flavor text and the tooltip's lines.
   local scroll = CreateFrame("ScrollFrame", nil, pane)
   scroll:SetPoint("TOPLEFT", icon, "BOTTOMLEFT", 0, -10)
-  scroll:SetPoint("BOTTOMRIGHT", pane, "BOTTOMRIGHT", -PAD, BUTTON_HEIGHT + 14)
+  scroll:SetPoint("BOTTOMRIGHT", pane, "BOTTOMRIGHT", -PAD, 8)
   if scroll.EnableMouseWheel then scroll:EnableMouseWheel(true) end
   local info = CreateFrame("Frame", nil, scroll)
-  info:SetSize(UI.DETAIL_WIDTH - 2 * PAD, 1)
+  info:SetSize(pane.paneWidth - 2 * PAD, 1)
   scroll:SetScrollChild(info)
   scroll:SetScript("OnMouseWheel", function(self, delta)
     local max = math.max(0, (pane.infoHeight or 0) - (self:GetHeight() or 0))
@@ -374,7 +417,7 @@ local function build(parent)
   end)
   pane.Scroll, pane.Info = scroll, info
 
-  local empty = pane:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+  local empty = pane:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisable"))
   empty:SetPoint("TOPLEFT", modelArea, "BOTTOMLEFT", PAD, -20)
   empty:SetPoint("TOPRIGHT", modelArea, "BOTTOMRIGHT", -PAD, -20)
   empty:SetText(L["Click a mount to see it here"])
@@ -396,6 +439,27 @@ local function build(parent)
     paint(self)
   end
 
+  -- A new width (UI.SetPaneWidth): the pane, its buttons and its lines.
+  function pane:SetPaneWidth(w)
+    self.paneWidth = w
+    self:SetWidth(w)
+    self.Info:SetWidth(w - 2 * PAD)
+    paint(self)
+  end
+
+  -- Its left edge: drag to share the width with the list.
+  if UI.Splitter then
+    local split = UI.Splitter(pane, function(x)
+      return (pane:GetRight() or 0) - x
+    end, function(w) UI.SetPaneWidth(w) end, function(w) UI.SetPaneWidth(w, true) end, function()
+      UI.SetPaneWidth(UI.DETAIL_WIDTH, true)
+    end)
+    split:SetPoint("TOPRIGHT", pane, "TOPLEFT", 3, 0)
+    split:SetPoint("BOTTOMRIGHT", pane, "BOTTOMLEFT", 3, 0)
+    pane.Splitter = split
+  end
+
+  panes[#panes + 1] = pane
   pane:SetMount(nil)
   return pane
 end
@@ -408,7 +472,17 @@ function UI.ShowListMenu(owner, mountID)
   local store = UI.ListsDB and UI.ListsDB()
   if not store then return end
   UI.ShowMenu(owner, function()
-    local items = { { title = L["Add to list"] } }
+    local items = { { title = L["Your lists"] } }
+    -- On one of your list's pages: removing it from that list comes first.
+    local page = UI.CurrentListPage and UI.CurrentListPage()
+    local here = page and page.kind == "list" and ns.Lists.Get(store, page.list)
+    if here and ns.Lists.Has(store, page.list, mountID) then
+      items[#items + 1] = { text = string.format(L["Remove from %s"], here.name), onClick = function()
+        ns.Lists.Remove(store, page.list, mountID)
+        ns.Refresh()
+      end }
+      items[#items + 1] = { separator = true }
+    end
     for _, l in ipairs(ns.Lists.Sorted(store)) do
       items[#items + 1] = {
         text = l.name, checked = ns.Lists.Has(store, l.id, mountID), keepOpen = true,

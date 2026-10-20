@@ -48,7 +48,7 @@ local ROUTE = {
 }
 
 describe("ui journal", function()
-  it("toc lists Tooltip, List, DetailPane, JournalHome right after Frame", function()
+  it("toc lists Frame's parts, then Tooltip, List (and Search), DetailPane, JournalHome", function()
     local fh = assert(io.open(ROOT .. "/MountTrail.toc", "r"))
     local lines = {}
     for line in fh:lines() do
@@ -59,8 +59,10 @@ describe("ui journal", function()
     local frame
     for i, line in ipairs(lines) do if line == "UI\\Frame.lua" then frame = i end end
     ok(frame, "UI\\Frame.lua in toc")
-    eq({ lines[frame + 1], lines[frame + 2], lines[frame + 3], lines[frame + 4] },
-      { "UI\\Tooltip.lua", "UI\\List.lua", "UI\\DetailPane.lua", "UI\\JournalHome.lua" })
+    local got = {}
+    for i = 1, 7 do got[i] = lines[frame + i] end
+    eq(got, { "UI\\Widgets.lua", "UI\\Nav.lua", "UI\\Tooltip.lua", "UI\\List.lua", "UI\\Search.lua",
+      "UI\\DetailPane.lua", "UI\\JournalHome.lua" })
   end)
 
   it("loads the UI files and registers the journal view without building it", function()

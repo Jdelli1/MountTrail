@@ -5,16 +5,24 @@ local ADDON, ns = ...
 --   { kind = "camp", exp = }                 rare spawns with no lockout of an expansion
 --   { kind = "daily" | "weekly", exp = [, category = ] }   that reset's lockouts
 --                                            of an expansion (one category, e.g. "rares")
+--   { kind = "daily" | "weekly" | "camp", all = true }   that whole group, every
+--                                            expansion (a Checklist chip's right-click)
 --   { kind = "zone" }                        the rares of the zone the player is in
+--   { kind = "zonemounts" }                  every mount still to get in the zone the
+--                                            player is in (the zone panel's list)
 --   { kind = "list", list = id }             a custom list (Logic/Lists.lua)
 --   { kind = "quick", key = }                a quick list (Logic/QuickLists.lua)
 -- Opened by right-clicking a Checklist header (that set), a custom list's
--- header menu, and /mtrail rares (the zone's rares). Rows come from the
+-- header menu, /mtrail rares (the zone's rares), and /mtrail here or a
+-- right-click on the zone panel's title (the zone's mounts; both zone windows
+-- follow the player). Rows come from the
 -- Checklist (UI.ChecklistBuild), so they match it: a box (a lockout ticked
 -- and dimmed when the game says done; a rare spawn's "last checked" box,
 -- left-click marks, right-click clears), the name (the rare's for rare
 -- rows) and its zone. A click on the row is UI.GoTo: every spawn point of
--- a rare that has several on TomTom, else the waypoint. "Plot all" in the
+-- a rare that has several on TomTom, else the waypoint; Shift-click opens
+-- the world map there and Ctrl-click previews the mount, as in the lists
+-- (UI.RowClickAction). "Plot all" in the
 -- title puts the spawn points of every row whose box is not ticked on
 -- TomTom at once (Map.PlotMounts). Ctrl-click a window's x to close every
 -- pop-out. A custom list's rows are its mounts (ones already known left out);
@@ -24,7 +32,10 @@ local ADDON, ns = ...
 -- a row to move it: the order is saved per window (done rows stay last).
 -- Windows that are not the player's own list (quick lists, the zone's
 -- rares) group their rows under expansion headers when they span several
--- (UI.PopoutGroups). Right-click a window's title for its appearance:
+-- (UI.PopoutGroups); click a group header to collapse it, Shift-click to
+-- collapse (or, on a collapsed one, expand) every group of the window
+-- (saved per window as ns.db.global.popouts[key].collapsed, UI.ToggleAllCollapsed).
+-- Right-click a window's title for its appearance:
 -- opacity and font size (sliders, 20-100 % and 8-24), background and text
 -- colour and font (saved per window, UI.PopoutStyle; "Apply to all
 -- pop-outs" makes it every window's look, new ones too; "Reset
@@ -67,12 +78,15 @@ UI.ListsDB = listsDB
 
 -- Pure helpers -------------------------------------------------------------------
 
--- The saved key of a set: "camp|Legion", "daily|Legion|rares", "zone", "list|3".
+-- The saved key of a set: "camp|Legion", "daily|Legion|rares", "daily|all",
+-- "zone", "list|3".
 function UI.PopoutKey(source)
   if type(source) ~= "table" or not source.kind then return nil end
   if source.kind == "list" then return "list|" .. tostring(source.list) end
   if source.kind == "quick" then return "quick|" .. tostring(source.key) end
   if source.kind == "zone" then return "zone" end
+  if source.kind == "zonemounts" then return "zonemounts" end
+  if source.all then return source.kind .. "|all" end
   local key = source.kind .. "|" .. tostring(source.exp)
   if source.category then key = key .. "|" .. source.category end
   return key
@@ -85,10 +99,16 @@ function UI.PopoutTitle(source, store)
     local l = store and ns.Lists.Get(store, source.list)
     return l and l.name or L["List"]
   end
-  if source.kind == "zone" then return L["Rare spawns here"] end
+  if source.kind == "zone" then return L["Rare Spawns here"] end
+  if source.kind == "zonemounts" then
+    return string.format(L["Mounts in %s"], source.zoneName or L["this zone"])
+  end
   if source.kind == "quick" then
     local q = ns.QuickLists and ns.QuickLists.Get(source.key)
     return q and L[q.name] or L["List"]
+  end
+  if source.all then
+    return L[({ camp = "Rare Spawns", weekly = "Weeklies" })[source.kind] or "Dailies"]
   end
   local exp = L[source.exp or ""] or tostring(source.exp)
   local title
@@ -120,7 +140,8 @@ end
 -- =, camp =, checked = (a rare spawn's last check), spots = Map.Spots, listOnly
 -- = (a custom list's mount the Checklist does not track) } - open ones first,
 -- then by name - and how many are left (not done).
--- ctx: { zoneIDs = { [mountID] = true } (kind "zone"), campStore =
+-- ctx: { zoneIDs = { [mountID] = true } (kind "zone"), zoneMounts = the
+-- zone's mount IDs in the zone panel's order (kind "zonemounts"), campStore =
 -- ns.db.char.campChecked, store = the lists store (kind "list"), isOwned =
 -- fn(id) }.
 function UI.PopoutRows(source, built, ctx)
@@ -144,11 +165,13 @@ function UI.PopoutRows(source, built, ctx)
   local kind = source.kind
   if kind == "daily" or kind == "weekly" then
     for _, e in ipairs(built[kind] or {}) do
-      if expOf(e) == source.exp and (not source.category or e.category == source.category) then add(e) end
+      if (source.all or expOf(e) == source.exp) and (not source.category or e.category == source.category) then
+        add(e)
+      end
     end
   elseif kind == "camp" then
     for _, e in ipairs(built.camp or {}) do
-      if expOf(e) == source.exp then add(e) end
+      if source.all or expOf(e) == source.exp then add(e) end
     end
   elseif kind == "zone" then
     local ids = ctx.zoneIDs or {}
@@ -157,9 +180,11 @@ function UI.PopoutRows(source, built, ctx)
         if ids[e.id] and rareLike(e) then add(e) end
       end
     end
-  elseif kind == "list" or kind == "quick" then
+  elseif kind == "list" or kind == "quick" or kind == "zonemounts" then
     local ids
-    if kind == "quick" then
+    if kind == "zonemounts" then
+      ids = ctx.zoneMounts or {}
+    elseif kind == "quick" then
       ids = ns.QuickLists and ns.QuickLists.Mounts(source.key) or {}
     else
       local l = ctx.store and ns.Lists.Get(ctx.store, source.list)
@@ -186,6 +211,7 @@ function UI.PopoutRows(source, built, ctx)
       if e then
         add(e, { name = mountName })
       elseif not owned then
+        -- A mount the Checklist does not track: a plain row (no box).
         add({ id = id, m = m, key = "list:" .. tostring(id), name = mountName, listOnly = true,
           mounts = { id } }, { name = mountName })
       end
@@ -294,8 +320,27 @@ end
 -- -> list of { exp =, rows = { ... }, left = } in expansion order (Data
 -- order; unknown last), each group's rows in their given order; one group
 -- with exp = nil when the window is a custom list or spans one expansion.
+-- The zone's mounts (kind "zonemounts") split by source instead when they
+-- span several: { source =, label = (UI.SectionLabel), rows =, left = }.
 function UI.PopoutGroups(rows, source, expansions)
   local function expOf(row) return row.entry and (row.entry.exp or (row.entry.m and row.entry.m.exp)) or nil end
+  -- The zone's mounts: by source instead (Journal.GroupBySource; Vendors,
+  -- Achievements, Dungeon drops, ...), each group labelled.
+  if source.kind == "zonemounts" then
+    local groups = ns.Journal.GroupBySource(rows, function(row)
+      local m = row.entry and row.entry.m
+      return m and m.section
+    end)
+    if #groups > 1 then
+      local out = {}
+      for i, g in ipairs(groups) do
+        local left = 0
+        for _, row in ipairs(g.items) do if not row.done then left = left + 1 end end
+        out[i] = { source = g.key, label = UI.SectionLabel and UI.SectionLabel(g.key) or g.key, rows = g.items, left = left }
+      end
+      return out
+    end
+  end
   if source.kind ~= "list" then
     local seen, n = {}, 0
     for _, row in ipairs(rows) do
@@ -380,6 +425,17 @@ function UI.MoveKey(keys, key, to)
   return out
 end
 
+-- The name colour of an open row when "Colour pop-out names by rarity" is on
+-- and MountsRarity-2.0 knows the mount (ns.Owners), else nil (the style's).
+function UI.PopoutRarityColor(mountID)
+  local global = ns.db and ns.db.global
+  local settings = global and global.settings
+  local owners = ns.Owners
+  if not (type(settings) == "table" and settings.rarityColors == true and owners) then return nil end
+  local pct = owners.Percent(mountID)
+  return pct and owners.Color(pct) or nil
+end
+
 -- A row's click (the row or its pin): UI.GoTo for its mount and boss.
 function UI.PopoutGo(row)
   if row then UI.RowGo(row.id, row.entry and row.entry.boss) end
@@ -431,7 +487,7 @@ local function rowFrame(w, i)
     ns.Refresh()
   end)
   r.Check = check
-  local zone = r:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  local zone = r:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisableSmall"))
   zone:SetPoint("RIGHT", r, "RIGHT", -4, 0)
   zone:SetJustifyH("RIGHT")
   zone:SetWordWrap(false)
@@ -439,7 +495,7 @@ local function rowFrame(w, i)
   -- The mount's expansion: a small coloured tag.
   r.Badge = UI.ExpansionBadge(r)
   r.Badge:SetPoint("LEFT", check, "RIGHT", 2, 0)
-  local name = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  local name = r:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlightSmall"))
   name:SetPoint("LEFT", r.Badge, "RIGHT", 5, 0)
   name:SetPoint("RIGHT", zone, "LEFT", -6, 0)
   name:SetJustifyH("LEFT")
@@ -464,8 +520,16 @@ local function rowFrame(w, i)
       w.justDragged = nil
       return
     end
-    if button == "LeftButton" then
-      UI.PopoutGo(self.data)
+    local action = UI.RowClickAction and UI.RowClickAction(button,
+      type(IsControlKeyDown) == "function" and IsControlKeyDown() and true or false,
+      type(IsShiftKeyDown) == "function" and IsShiftKeyDown() and true or false)
+    local data = self.data
+    if action == "map" and data then
+      if UI.MapAction then UI.MapAction("OpenMap", data.id, data.entry and data.entry.boss) end
+    elseif action == "preview" and data then
+      if UI.PreviewMount then UI.PreviewMount(data.id) end
+    elseif button == "LeftButton" then
+      UI.PopoutGo(data)
     elseif button == "RightButton" and w.source.kind == "list" and self.data then
       local data = self.data
       UI.ShowMenu(self, {
@@ -569,12 +633,42 @@ end
 
 -- Expansion group headers in a window, reused between refreshes.
 local GROUP_HEIGHT = 18
+-- The window's collapsed groups ({ [group key] = true }), created on demand.
+local function collapsedOf(w)
+  local db = popoutsDB()
+  if not db then return {} end
+  db[w.key] = db[w.key] or {}
+  if type(db[w.key].collapsed) ~= "table" then db[w.key].collapsed = {} end
+  return db[w.key].collapsed
+end
+
+-- The key a group header collapses under: its source or expansion.
+function UI.PopoutGroupKey(g)
+  return tostring(g.source or g.exp or "?")
+end
+
 local function groupHeader(w, i)
   local h = w.groupFrames[i]
   if h then return h end
   h = CreateFrame("Frame", nil, w.Content)
   h:SetHeight(GROUP_HEIGHT)
-  local text = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  h:EnableMouse(true)
+  -- Click: collapse / expand this group; Shift-click: every group at once.
+  h:SetScript("OnMouseUp", function(self, button)
+    if button ~= "LeftButton" or not self.groupKey then return end
+    local store = collapsedOf(w)
+    if UI.ShiftDown and UI.ShiftDown() then
+      UI.ToggleAllCollapsed(store, w.groupRows, { collapsed = store[self.groupKey] == true })
+    else
+      UI.ToggleCollapsed(store, self.groupKey)
+    end
+    UI.RefreshPopouts()
+  end)
+  h:SetScript("OnEnter", function(self)
+    UI.ShowHint(self, L["Click: collapse or expand"], L["Shift-click: all groups at once"])
+  end)
+  h:SetScript("OnLeave", function(self) UI.HideHint(self) end)
+  local text = h:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalSmall"))
   text:SetPoint("LEFT", h, "LEFT", 2, 0)
   h.Text = text
   local rule = h:CreateTexture(nil, "ARTWORK")
@@ -618,12 +712,62 @@ local function styleOf(w)
   return UI.PopoutStyle(state and state.style or sharedStyle())
 end
 
+-- A title or header in a style: its font and size, the Header colour, else
+-- `fallback`, else the font's own colour (gold). Never the Text colour:
+-- headers and body text are set apart in the appearance menu.
+local function headerText(fs, style, fontObject, sizeDelta, fallback)
+  styleText(fs, { font = style.font, size = style.size }, fontObject, sizeDelta, style.header or fallback)
+end
+
 -- The window's background and title in its style.
 local function applyChrome(w, style)
   w.Fill:SetColorTexture(style.bg[1], style.bg[2], style.bg[3], style.alpha)
-  -- The title takes the header colour (else the font's own gold), not the
-  -- body text colour.
-  styleText(w.Title, { font = style.font, size = style.size }, "GameFontNormal", 2, style.header)
+  headerText(w.Title, style, UI.Font("GameFontNormal"), 2)
+end
+
+-- Windows outside this file that take the pop-outs' appearance menu, their
+-- shared look ("Apply to all pop-outs") and their snapping (the alt lockout
+-- matrix, UI/AltsWindow.lua). Each has `key` (its slot in
+-- ns.db.global.popouts, holding only its style) and Restyle(chromeOnly):
+-- repaint the background only, or redraw everything in the new style.
+local extras = {}
+
+function UI.AddStyledWindow(w)
+  extras[#extras + 1] = w
+end
+
+-- A window's style (its own, else the shared one, over the defaults), and a
+-- font string in a style, for the extra windows.
+UI.PopoutStyleOf = function(w) return styleOf(w) end
+UI.PopoutStyleText = styleText
+UI.PopoutStyleHeader = headerText
+
+-- Every shown pop-out, extra window and the main window but those in
+-- `except` ({ [frame] = true }) -> their rects (UI.SnapRect's `others`).
+function UI.PopoutSnapTargets(except)
+  except = except or {}
+  local out = {}
+  local function add(f)
+    if f and not except[f] and f:IsShown() then out[#out + 1] = rectOf(f) end
+  end
+  for _, o in pairs(windows) do add(o) end
+  for _, o in ipairs(extras) do add(o) end
+  if UI.frame then add(UI.frame) end
+  return out
+end
+
+-- Redraws the pop-outs and the extra windows after a style change.
+local function repaintAll(chromeOnly)
+  for _, x in ipairs(extras) do
+    if x:IsShown() and x.Restyle then x.Restyle(chromeOnly) end
+  end
+  if chromeOnly then
+    for _, win in pairs(windows) do
+      if win:IsShown() then applyChrome(win, styleOf(win)) end
+    end
+  else
+    UI.RefreshPopouts()
+  end
 end
 
 local function refreshWindow(w, built)
@@ -634,14 +778,32 @@ local function refreshWindow(w, built)
     UI.ClosePopout(w.key) -- the list was deleted
     return
   end
+  -- The zone windows remember the map they show (their zone events compare).
+  local follows = w.source.kind == "zone" or w.source.kind == "zonemounts"
+  if follows then w.map = ns.Game.PlayerMap() end
+  local zoneMounts
+  if w.source.kind == "zonemounts" then
+    zoneMounts = {}
+    local list, zone = {}, nil
+    if UI.ZoneMounts then list, zone = UI.ZoneMounts() end
+    for _, entry in ipairs(list or {}) do zoneMounts[#zoneMounts + 1] = entry.id end
+    w.source.zoneName = zone and zone.name or nil
+  end
   local rows, left = UI.PopoutRows(w.source, built, {
     zoneIDs = w.source.kind == "zone" and zoneIDs() or nil,
+    zoneMounts = zoneMounts,
     campStore = char and char.campChecked,
     store = store,
     isOwned = ns.Game.IsOwned,
   })
   local db = popoutsDB()
   local state = db and db[w.key]
+  -- Show completed (the appearance menu, per window): off leaves done rows out.
+  if not (state and state.showDone) then
+    local open = {}
+    for _, row in ipairs(rows) do if not row.done then open[#open + 1] = row end end
+    rows = open
+  end
   UI.ApplyOrder(rows, state and state.order)
   local style = styleOf(w)
   applyChrome(w, style)
@@ -657,8 +819,14 @@ local function refreshWindow(w, built)
   local y = 0
   local now = ns.Game.Now()
   local n, usedHeaders = 0, 0
+  local collapsed = collapsedOf(w)
+  w.groupRows = {} -- the headers shown, as rows (a Shift-click's UI.ToggleAllCollapsed)
   for gi, g in ipairs(groups) do
-    if g.exp ~= nil or #groups > 1 then
+    local gkey = UI.PopoutGroupKey(g)
+    local hasHeader = g.exp ~= nil or g.label ~= nil or #groups > 1
+    local isCollapsed = hasHeader and collapsed[gkey] == true
+    if hasHeader then
+      w.groupRows[#w.groupRows + 1] = { header = true, key = gkey, collapsed = isCollapsed }
       usedHeaders = usedHeaders + 1
       local h = groupHeader(w, usedHeaders)
       h:ClearAllPoints()
@@ -666,13 +834,16 @@ local function refreshWindow(w, built)
       h:SetWidth(width)
       h:SetHeight(groupHeight)
       local c = (UI.EXPANSION_COLORS and UI.EXPANSION_COLORS[g.exp]) or { 0.8, 0.8, 0.8 }
-      h.Text:SetText((g.exp and L[g.exp] or L["Other"]) .. "  |cff9d9d9d(" .. string.format(L["%d left"], g.left) .. ")|r")
-      styleText(h.Text, style, "GameFontNormalSmall", 0, style.header or c)
+      h.groupKey = gkey
+      h.Text:SetText((isCollapsed and "+ " or "- ") .. (g.label or (g.exp and L[g.exp]) or L["Other"])
+        .. "  |cff9d9d9d(" .. string.format(L["%d left"], g.left) .. ")|r")
+      headerText(h.Text, style, UI.Font("GameFontNormalSmall"), 0, c)
       h.Rule:SetColorTexture(c[1], c[2], c[3], 0.35)
       h:Show()
       y = y + groupHeight + 2
     end
-    for _, row in ipairs(g.rows) do
+    -- A collapsed group shows its header only.
+    for _, row in ipairs(isCollapsed and {} or g.rows) do
       n = n + 1
       w.rows[n] = row
       local r = rowFrame(w, n)
@@ -684,9 +855,9 @@ local function refreshWindow(w, built)
       r:Show()
       r.Name:SetText(row.name)
       UI.SetExpansionBadge(r.Badge, row.entry and (row.entry.exp or (row.entry.m and row.entry.m.exp)))
-      styleText(r.Name, style, row.done and "GameFontDisableSmall" or "GameFontHighlightSmall", 0,
-        row.done and { 0.5, 0.5, 0.5 } or nil)
-      styleText(r.Zone, style, "GameFontDisableSmall", -1, { 0.55, 0.55, 0.55 })
+      styleText(r.Name, style, row.done and UI.Font("GameFontDisableSmall") or UI.Font("GameFontHighlightSmall"), 0,
+        row.done and { 0.5, 0.5, 0.5 } or UI.PopoutRarityColor(row.id))
+      styleText(r.Zone, style, UI.Font("GameFontDisableSmall"), -1, { 0.55, 0.55, 0.55 })
       local zoneText = row.zone or ""
       if row.camp and row.checked then
         zoneText = string.format(L["checked %s ago"], UI.FormatAgo(now - row.checked))
@@ -804,12 +975,7 @@ local function build(key, source)
     local mine = rectOf(w)
     local left, top = mine and mine.left, mine and mine.top
     if mine then
-      local others = {}
-      for _, o in pairs(windows) do
-        if not moving[o] and o:IsShown() then others[#others + 1] = rectOf(o) end
-      end
-      if UI.frame and UI.frame:IsShown() then others[#others + 1] = rectOf(UI.frame) end
-      local sl, st = UI.SnapRect(mine, others)
+      local sl, st = UI.SnapRect(mine, UI.PopoutSnapTargets(moving))
       if sl then left, top = sl, st end
       w:ClearAllPoints()
       w:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
@@ -865,7 +1031,7 @@ local function build(key, source)
   plot:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   w.PlotAll = plot
 
-  local titleText = strip:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  local titleText = strip:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormal"))
   titleText:SetPoint("LEFT", strip, "LEFT", 8, 0)
   titleText:SetPoint("RIGHT", plot, "LEFT", -4, 0)
   titleText:SetJustifyH("LEFT")
@@ -912,7 +1078,7 @@ local function build(key, source)
   dropLine:Hide()
   w.DropLine = dropLine
 
-  local empty = content:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  local empty = content:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisableSmall"))
   empty:SetPoint("TOPLEFT", content, "TOPLEFT", 4, -6)
   empty:SetText(source.kind == "list" and L["Nothing on this list yet."] or L["Nothing left here."])
   empty:Hide()
@@ -935,13 +1101,7 @@ local function setStyle(w, change, chromeOnly)
   end
   change(st)
   db[w.key].style = st
-  if chromeOnly then
-    for _, win in pairs(windows) do
-      if win:IsShown() then applyChrome(win, styleOf(win)) end
-    end
-  else
-    UI.RefreshPopouts()
-  end
+  repaintAll(chromeOnly)
 end
 
 -- Blizzard's colour picker for a style colour (presets cover most uses).
@@ -976,8 +1136,10 @@ end
 
 -- The appearance menu of a window (right-click its title): opacity and font
 -- size are sliders right in it; the colours and the font each open their own
--- flat menu of choices (the current one ticked; Back returns).
-function UI.ShowPopoutStyleMenu(w, owner)
+-- flat menu of choices (the current one ticked; Back returns). -> the menu's
+-- items function, for UI.ShowMenu or another menu's submenu; `back`
+-- (optional, items or a function of them) adds a Back to that menu.
+function UI.PopoutStyleMenu(w, back)
   local db = popoutsDB()
   local function current() return styleOf(w) end
   local main
@@ -995,8 +1157,16 @@ function UI.ShowPopoutStyleMenu(w, owner)
   end
   main = function()
     local s = current()
+    local state = db and db[w.key]
     return {
       { title = L["Appearance"] },
+      { text = L["Show completed"], checked = state ~= nil and state.showDone == true, keepOpen = true,
+        popoutOnly = true, onClick = function()
+          if not state then return end
+          state.showDone = not state.showDone or nil
+          UI.RefreshPopouts()
+        end },
+      { separator = true, popoutOnly = true },
       { slider = true, text = L["Opacity"], min = math.floor(ALPHA_MIN * 100 + 0.5), max = 100, step = 1,
         value = math.floor(s.alpha * 100 + 0.5), format = "%d%%",
         onChange = function(pct) setStyle(w, function(st) st.alpha = pct / 100 end, true) end },
@@ -1045,16 +1215,34 @@ function UI.ShowPopoutStyleMenu(w, owner)
         for _, state in pairs(db or {}) do
           if type(state) == "table" then state.style = nil end
         end
-        UI.RefreshPopouts()
+        repaintAll()
       end },
       { text = L["Reset appearance"], onClick = function()
         -- Back to the add-on's own look ({}: not the shared one either).
         if db and db[w.key] then db[w.key].style = sharedStyle() and {} or nil end
-        UI.RefreshPopouts()
+        repaintAll()
       end },
     }
   end
-  UI.ShowMenu(owner, main, "cursor")
+  -- Show completed is a pop-out's own (the Alts and guide windows list no
+  -- lockouts to complete).
+  local build = main
+  main = function()
+    local out = {}
+    for _, it in ipairs(build()) do
+      if not it.popoutOnly or windows[w.key] == w then out[#out + 1] = it end
+    end
+    if back then
+      out[#out + 1] = { separator = true }
+      out[#out + 1] = { text = L["Back"], submenu = back }
+    end
+    return out
+  end
+  return main
+end
+
+function UI.ShowPopoutStyleMenu(w, owner)
+  UI.ShowMenu(owner, UI.PopoutStyleMenu(w), "cursor")
 end
 
 -- The fonts offered: the game's own, then LibSharedMedia's when another
@@ -1106,11 +1294,26 @@ function UI.ClosePopout(key)
   stopTickerIfIdle()
 end
 
--- Closes every open pop-out (Ctrl-click on any pop-out's x).
+-- Closes every open pop-out and extra window (Ctrl-click on any one's x).
 function UI.CloseAllPopouts()
   for key, w in pairs(windows) do
     if w:IsShown() then UI.ClosePopout(key) end
   end
+  for _, x in ipairs(extras) do
+    if x:IsShown() and x.CloseWindow then x.CloseWindow() end
+  end
+end
+
+-- /mtrail here (and the zone panel title's right-click): the mounts of the
+-- player's zone, opened or closed.
+function UI.ToggleZoneMountsPopout()
+  local w = windows.zonemounts
+  if w and w:IsShown() then
+    UI.ClosePopout("zonemounts")
+    return false
+  end
+  UI.OpenPopout({ kind = "zonemounts" })
+  return true
 end
 
 -- /mtrail rares: the zone's rares, opened or closed.
@@ -1129,10 +1332,14 @@ UI.PopoutWindows = windows
 UI.AddRefreshHook(function() UI.RefreshPopouts() end)
 
 -- Back on screen after /reload when they were open; the zone's window
--- follows the player.
+-- follows the player: the zone panel's events (a new zone, a sub-zone or
+-- cave map, a loading screen), redrawn only when the player's map changed.
 local events = CreateFrame("Frame")
 events:RegisterEvent("PLAYER_LOGIN")
-events:RegisterEvent("ZONE_CHANGED_NEW_AREA")
+for _, event in ipairs({ "ZONE_CHANGED_NEW_AREA", "ZONE_CHANGED", "ZONE_CHANGED_INDOORS",
+  "PLAYER_ENTERING_WORLD" }) do
+  events:RegisterEvent(event)
+end
 events:SetScript("OnEvent", function(_, event)
   if event == "PLAYER_LOGIN" then
     local db = popoutsDB()
@@ -1141,7 +1348,14 @@ events:SetScript("OnEvent", function(_, event)
         UI.OpenPopout(state.source)
       end
     end
-  elseif windows.zone and windows.zone:IsShown() then
-    UI.RefreshPopouts()
+  else
+    local map = ns.Game.PlayerMap()
+    for _, key in ipairs({ "zone", "zonemounts" }) do
+      local w = windows[key]
+      if w and w:IsShown() and map ~= w.map then
+        UI.RefreshPopouts()
+        return
+      end
+    end
   end
 end)

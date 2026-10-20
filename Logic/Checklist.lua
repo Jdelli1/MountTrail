@@ -12,7 +12,7 @@ local L = ns.L
 local RESETS = { "daily", "weekly" }
 local LABELS = { daily = "Daily", weekly = "Weekly" }
 
--- Route faction rule (Logic/Route.lua): an `alliance` entry needs an
+-- Faction rule of Data/Route.lua entries: an `alliance` entry needs an
 -- Alliance character, a `horde` entry a Horde one.
 local function factionOk(entry, faction)
   if entry.alliance and faction ~= "Alliance" then return false end
@@ -97,12 +97,12 @@ local CATEGORY_LABELS = {
 local CATEGORY_RANK = rankOf(CATEGORIES)
 Checklist.CATEGORIES = CATEGORIES
 
--- Rare spawns with no lockout (camp specs, Lockouts.IsCamp): their own
+-- Rare Spawns with no lockout (camp specs, Lockouts.IsCamp): their own
 -- top-level group after Daily and Weekly, and their own filter key.
 local CAMP = "camp"
 Checklist.CAMP = CAMP
 -- The Filter menu's keys: the lockout categories, then the camp group.
-Checklist.FILTERS = { "raids", "dungeons", "worldbosses", "rares", "holidays", "other", CAMP, "quick" }
+Checklist.FILTERS = { "raids", "dungeons", "worldbosses", "rares", "holidays", "other", CAMP }
 
 -- Localised label of a category key ("raids" -> "Raids").
 function Checklist.CategoryLabel(key)
@@ -342,8 +342,9 @@ end
 --   Unless collapsed, its entries still to do as { id=, m=, entry=, done=,
 --   depth = the parent header's depth (nil right under a reset header) }
 --   (entries already sorted).
--- Done entries are never listed: they disappear on their own, while every
--- header counts them. opts.collapsed = { [key] = true }; opts.filters =
+-- Done entries are not listed (they disappear on their own, while every
+-- header counts them) unless opts.showDone: then they stay, after the open
+-- ones, and groups with nothing left keep their headers. opts.collapsed = { [key] = true }; opts.filters =
 -- { [category] = false } (ns.db.char.checklistFilters, Checklist.Shown):
 -- hidden categories' entries are left out of the rows and of every count.
 -- opts.status(entry) -> text or nil (F17, event rares' live status): each
@@ -432,9 +433,9 @@ local function zoneGroups(entries)
   return groups
 end
 
--- The "Rare spawns (no lockout)" group (camp specs) after Daily and Weekly:
+-- The "Rare Spawns (no lockout)" group (camp specs) after Daily and Weekly:
 -- a header { header = true, depth = 1, key = "checklist|camp", camp = true,
--- text = opts.label("camp") or "Rare spawns (no lockout)", left = mounts
+-- text = opts.label("camp") or "Rare Spawns (no lockout)", left = mounts
 -- left, collapsed = }, then per expansion { depth = 2, key =
 -- "checklist|camp|<exp or Other>", exp =, left = } and per zone (the source
 -- text's Zone, none = "Other") { depth = 3, key = "checklist|camp|<exp>|<zone>",
@@ -448,7 +449,7 @@ local function addCamp(rows, built, collapsed, filters, opts)
   local isCollapsed = collapsed[key] == true
   rows[#rows + 1] = {
     header = true, depth = 1, key = key, reset = CAMP, camp = true,
-    text = opts.label and opts.label(CAMP) or L["Rare spawns (no lockout)"],
+    text = opts.label and opts.label(CAMP) or L["Rare Spawns (no lockout)"],
     left = #list, collapsed = isCollapsed,
   }
   if isCollapsed then return end
@@ -482,10 +483,15 @@ function Checklist.Rows(built, opts)
   local collapsed = opts.collapsed or {}
   local filters = opts.filters
   local statusOf = type(opts.status) == "function" and opts.status or nil
+  local showDone = opts.showDone == true
   local rows = {}
+  local function shownGroups(groups)
+    if showDone then return groups end
+    return withOpen(groups)
+  end
   local function addEntries(entries, depth)
     for _, e in ipairs(entries) do
-      if not e.done then
+      if showDone or not e.done then
         rows[#rows + 1] = { id = e.id, m = e.m, entry = e, done = e.done, depth = depth,
           status = statusOf and statusOf(e) or nil }
       end
@@ -493,7 +499,7 @@ function Checklist.Rows(built, opts)
   end
   -- The category level under the header at `depth` keyed `key`.
   local function addCategories(entries, depth, key, reset, exp)
-    local shown = withOpen(categoryGroups(entries))
+    local shown = shownGroups(categoryGroups(entries))
     if #shown == 1 and shown[1].key == "other" then
       addEntries(shown[1].entries, depth > 1 and depth or nil)
       return
@@ -525,7 +531,7 @@ function Checklist.Rows(built, opts)
         owned = done, total = #list, collapsed = isCollapsed, status = sharedStatus(list, statusOf),
       }
       if not isCollapsed then
-        local shown = withOpen(expGroups(list))
+        local shown = shownGroups(expGroups(list))
         if #shown == 1 and shown[1].exp == nil then
           addCategories(shown[1].entries, 1, key .. "|" .. OTHER, reset, nil)
         else

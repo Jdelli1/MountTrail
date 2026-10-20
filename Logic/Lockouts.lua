@@ -160,3 +160,54 @@ function Lockouts.State(spec, snap, isQuestDone, isLfgDone)
   end
   return "open"
 end
+
+-- Wrong-difficulty check (UI/DifficultyCheck.lua) ------------------------------
+
+-- The difficulty IDs a spec's mount drops on (its groups flattened) -> set.
+function Lockouts.DropDifficulties(spec)
+  local set = {}
+  for _, group in ipairs(type(spec) == "table" and spec.difficulties or {}) do
+    if type(group) == "table" then
+      for _, d in ipairs(group) do set[d] = true end
+    else
+      set[group] = true
+    end
+  end
+  return set
+end
+
+-- The mounts of `mountIDs` that drop in instance `instanceID` but not on
+-- `difficultyID` -> { { id =, wanted = { difficulty IDs, sorted }, journal =
+-- true when the Encounter Journal said so } }. The journal decides when it
+-- knows the mount in this instance (drops = ns.Data.JournalDrops: { map =,
+-- d = difficulty IDs or nil for every one }); else specFor(mountID) -> the
+-- lockout spec (Lockouts.SpecFor). A mount that drops on this difficulty, or
+-- that neither knows here, is left out.
+function Lockouts.WrongDifficulty(mountIDs, instanceID, difficultyID, specFor, drops)
+  local out = {}
+  if not (instanceID and difficultyID) then return out end
+  for _, id in ipairs(mountIDs or {}) do
+    local journal = drops and drops[id]
+    local set
+    if type(journal) == "table" and journal.map == instanceID then
+      set = {}
+      for _, d in ipairs(journal.d or {}) do set[d] = true end
+      if not journal.d then set = nil end -- every difficulty
+    else
+      journal = nil
+      local spec = specFor and specFor(id)
+      if type(spec) == "table" and spec.instance == instanceID and type(spec.difficulties) == "table" then
+        set = Lockouts.DropDifficulties(spec)
+      end
+    end
+    if set then
+      if next(set) and not set[difficultyID] then
+        local wanted = {}
+        for d in pairs(set) do wanted[#wanted + 1] = d end
+        table.sort(wanted)
+        out[#out + 1] = { id = id, wanted = wanted, journal = journal ~= nil }
+      end
+    end
+  end
+  return out
+end

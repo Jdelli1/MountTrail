@@ -1,9 +1,10 @@
 local ADDON, ns = ...
 
--- Points the player at a mount's farm location: a user waypoint (super-tracked)
--- on the world map, the dungeon entrance for instance maps, and / or a TomTom
--- waypoint, as the "Waypoints" setting says (Map.WaypointMode, F9;
--- Map.SetWaypoint, a row's left-click), or
+-- Points the player at a mount's farm location: a TomTom waypoint (TomTom is
+-- required; without it every waypoint is refused with a red error on screen
+-- and in chat, Map.TomTomMissing, and a login popup says so,
+-- Map.CheckTomTom) at the spot or, for instance maps, the dungeon entrance
+-- (Map.SetWaypoint, a row's left-click), or
 -- just the world map there (Map.OpenMap, Shift+left-click; never in combat).
 -- Map.HasLocation is the cheap check behind the rows' pin icons. (Map.Show,
 -- the old Map button's action, was removed with the buttons in F5.) This is an integration layer, so it calls
@@ -24,22 +25,9 @@ local function defaultPrint(msg)
   if addon and addon.Print then addon:Print(msg) else print(msg) end
 end
 
-local MODES = { game = true, tomtom = true, both = true }
-
--- The "Waypoints" setting (Options > AddOns > MountTrail, UI/Options.lua):
--- "game" (the in-game map pin, default), "tomtom" (only TomTom; the in-game
--- pin when TomTom is missing) or "both". Missing or unknown -> "game".
-function Map.WaypointMode()
-  local db = ns.db
-  local settings = db and type(db.global) == "table" and db.global.settings or nil
-  local mode = type(settings) == "table" and settings.waypoints or nil
-  return MODES[mode] and mode or "game"
-end
-
 -- The real WoW globals, looked up at call time.
 local function realApi()
   return {
-    waypointMode = Map.WaypointMode(),
     C_Map = C_Map,
     C_SuperTrack = C_SuperTrack,
     C_EncounterJournal = C_EncounterJournal,
@@ -47,6 +35,7 @@ local function realApi()
     UiMapPoint = UiMapPoint,
     OpenWorldMap = OpenWorldMap,
     TomTom = TomTom,
+    UIErrorsFrame = UIErrorsFrame,
     Print = defaultPrint,
     GetTime = GetTime,
     CreateVector2D = CreateVector2D,
@@ -192,6 +181,19 @@ local function playerWorld(api)
   local continent, wx, wy = worldPos(api, m, x, y)
   if not continent then return nil end
   return { continent = continent, x = wx, y = wy }
+end
+
+-- Yards from the player to map point (m, x, y in percent), or nil when either
+-- position is unknown (instances) or they are on different continents.
+-- World coordinates are in yards.
+function Map.YardsTo(m, x, y, api)
+  api = api or realApi()
+  local here = playerWorld(api)
+  if not here then return nil end
+  local continent, wx, wy = worldPos(api, m, x / 100, y / 100)
+  if not continent or continent ~= here.continent or not (wx and wy) then return nil end
+  local dx, dy = wx - here.x, wy - here.y
+  return math.sqrt(dx * dx + dy * dy)
 end
 
 -- The spot point a waypoint for the mount goes to -> spot, map, x, y or nil.
@@ -553,13 +555,12 @@ end
 
 -- uid of the last TomTom waypoint this file added (TomTom:AddWaypoint's
 -- return), removed before the next one is added so MountTrail keeps at most
--- one TomTom waypoint. The route arrow (UI/Arrow.lua) tracks its own. Both add
--- non-persistent waypoints (persistent = false), so /reload clears them along
+-- one TomTom waypoint. It adds non-persistent waypoints (persistent = false), so /reload clears them along
 -- with this session-only uid: nothing is left behind to remove.
 local tomtomUid
 
--- Removes our TomTom waypoint, if any (game mode: an earlier both / tomtom
--- click's waypoint should not linger).
+-- Removes our TomTom waypoint, if any (a plot of many points replaces
+-- the single waypoint).
 local function removeTomTom(api)
   local tomtom = api.TomTom
   if tomtomUid ~= nil and type(tomtom) == "table" and type(tomtom.RemoveWaypoint) == "function" then
@@ -583,16 +584,44 @@ local function replaceTomTom(api, m, x, y, title)
   return good
 end
 
--- The game's user waypoint at target (x/y in percent), super-tracked, when the
--- map takes one. -> true when the waypoint was set.
-local function setUserWaypoint(api, target)
-  local m = target.map
-  if try(api.C_Map, "CanSetUserWaypointOnMap", m) ~= true then return false end
-  local point = try(api.UiMapPoint, "CreateFromCoordinates", m, target.x / 100, target.y / 100)
-  if not point or type(api.C_Map.SetUserWaypoint) ~= "function" then return false end
-  if not guarded(api.C_Map.SetUserWaypoint, point) then return false end
-  try(api.C_SuperTrack, "SetSuperTrackedUserWaypoint", true)
-  return true
+-- Whether TomTom is loaded (api.TomTom with AddWaypoint).
+function Map.HasTomTom(api)
+  api = api or realApi()
+  return type(api.TomTom) == "table" and type(api.TomTom.AddWaypoint) == "function"
+end
+
+-- A waypoint asked for without TomTom: a red line in the middle of the screen
+-- (UIErrorsFrame) and in chat. Not de-duplicated: every click says it.
+function Map.TomTomMissing(api)
+  api = api or realApi()
+  local msg = L["MountTrail needs TomTom for waypoints. Install TomTom, then /reload."]
+  local errors = api.UIErrorsFrame
+  if type(errors) == "table" and type(errors.AddMessage) == "function" then
+    guarded(errors.AddMessage, errors, msg, 1, 0.1, 0.1)
+  end
+  local print_ = type(api.Print) == "function" and api.Print or defaultPrint
+  guarded(print_, "|cffff2020" .. msg .. "|r")
+end
+
+-- At login: without TomTom a popup (StaticPopup) and the red line say the
+-- add-on needs it. -> true when TomTom is there.
+function Map.CheckTomTom(api)
+  api = api or realApi()
+  if Map.HasTomTom(api) then return true end
+  Map.TomTomMissing(api)
+  local dialogs = api.StaticPopupDialogs or StaticPopupDialogs
+  local show = api.StaticPopup_Show or StaticPopup_Show
+  if type(dialogs) == "table" and type(show) == "function" then
+    dialogs.MOUNTTRAIL_NO_TOMTOM = dialogs.MOUNTTRAIL_NO_TOMTOM or {
+      text = L["MountTrail requires the TomTom add-on for its waypoints.\n\nInstall TomTom (CurseForge or Wago), then restart the game."],
+      button1 = OKAY or "OK",
+      timeout = 0,
+      whileDead = true,
+      hideOnEscape = true,
+    }
+    guarded(show, "MOUNTTRAIL_NO_TOMTOM")
+  end
+  return false
 end
 
 local function inCombat(api)
@@ -622,12 +651,10 @@ function Map.OpenZone(uiMapID, api)
 end
 
 -- Left-click on a mount row: points the player at the mount without opening
--- the world map. pin / entrance, by the waypoint mode (api.waypointMode, else
--- Map.WaypointMode()): game -> the game's user waypoint (super-tracked) only;
--- tomtom -> a TomTom waypoint only (replacing the previous MountTrail one),
--- the user waypoint instead when TomTom is missing or fails; both -> both.
--- Chat "Waypoint: <place>"; when nothing could be set (the map takes no user
--- waypoint and TomTom is not used) it falls back to opening the map.
+-- the world map. pin / entrance: a TomTom waypoint (replacing the previous
+-- MountTrail one), chat "Waypoint: <place>"; without TomTom nothing is set
+-- and Map.TomTomMissing says so (kind "notomtom"); when TomTom refuses the
+-- point it falls back to opening the map.
 -- open (no point to pin): opens the world map there, chat "Opened map:
 -- <place>". Out of combat only: in combat chat says the map can't be opened.
 -- none: chat "No map location for <mount>".
@@ -641,16 +668,11 @@ function Map.SetWaypoint(mountID, api, routeBoss)
   end
   local place = placeLabel(api, mountID, target, routeBoss)
   if target.x and target.y then
-    local mode = MODES[api.waypointMode] and api.waypointMode or Map.WaypointMode()
-    local set, tomtom = false, false
-    if mode ~= "tomtom" then set = setUserWaypoint(api, target) end
-    if mode ~= "game" then
-      tomtom = replaceTomTom(api, target.map, target.x / 100, target.y / 100, mountName(mountID))
-    else
-      removeTomTom(api)
+    if not Map.HasTomTom(api) then
+      Map.TomTomMissing(api)
+      return place, "notomtom"
     end
-    if mode == "tomtom" and not tomtom then set = setUserWaypoint(api, target) end
-    if set or tomtom then
+    if replaceTomTom(api, target.map, target.x / 100, target.y / 100, mountName(mountID)) then
       say(api, string.format(L["Waypoint: %s"], place))
       return place, target.kind
     end
@@ -688,26 +710,20 @@ function Map.OpenMap(mountID, api, routeBoss)
 end
 
 -- A waypoint at one spot point (the detail pane's and the rare tracker's
--- coordinate buttons): the game pin and / or TomTom as the Waypoints setting
--- says; a map that takes no pin opens instead. `name`: the NPC (chat:
--- "Waypoint: Luk'hok (Nagrand)"; TomTom's title). -> true when a waypoint
--- was set.
+-- coordinate buttons): a TomTom waypoint (none without TomTom:
+-- Map.TomTomMissing); the map opens when TomTom refuses it. `name`: the NPC
+-- (chat: "Waypoint: Luk'hok (Nagrand)"; TomTom's title). -> true when a
+-- waypoint was set.
 function Map.SetWaypointAt(m, x, y, name, api)
   api = api or realApi()
   if not (m and x and y) then return false end
   local where = mapName(api, m)
   local label = name and where and string.format("%s (%s)", name, where) or name or where or tostring(m)
-  local target = { map = m, x = x, y = y, kind = "pin" }
-  local mode = MODES[api.waypointMode] and api.waypointMode or Map.WaypointMode()
-  local set, tomtom = false, false
-  if mode ~= "tomtom" then set = setUserWaypoint(api, target) end
-  if mode ~= "game" then
-    tomtom = replaceTomTom(api, m, x / 100, y / 100, name or label)
-  else
-    removeTomTom(api)
+  if not Map.HasTomTom(api) then
+    Map.TomTomMissing(api)
+    return false
   end
-  if mode == "tomtom" and not tomtom then set = setUserWaypoint(api, target) end
-  if set or tomtom then
+  if replaceTomTom(api, m, x / 100, y / 100, name or label) then
     say(api, string.format(L["Waypoint: %s"], label))
     return true
   end
@@ -720,9 +736,8 @@ end
 -- every rare of a list) takes TomTom: each point becomes a TomTom waypoint
 -- (non-persistent, titled after its NPC), the previous plot of ours is
 -- removed first, and TomTom's arrow goes to the closest one
--- (TomTom:SetClosestWaypoint). The game pin goes to the nearest point too
--- unless the Waypoints setting is TomTom only. Without TomTom only that
--- nearest point is pinned and chat says TomTom is needed.
+-- (TomTom:SetClosestWaypoint). Without TomTom nothing is plotted
+-- (Map.TomTomMissing).
 local plotted = {} -- uids of our last plot
 
 local function removePlotted(api)
@@ -733,23 +748,17 @@ local function removePlotted(api)
   plotted = {}
 end
 
--- points: { { m, x, y (percent), title } }; label: what chat calls the plot.
--- -> how many points TomTom took (0 without TomTom).
+-- points: { { m, x, y (percent), title } }; label: what chat calls the plot
+-- (nil: say nothing). -> how many points TomTom took (0 without TomTom).
 function Map.PlotPoints(points, label, api)
   api = api or realApi()
   points = points or {}
   if #points == 0 then return 0 end
-  -- The nearest point, for the game pin (and the fallback).
-  local spots = {}
-  for i, p in ipairs(points) do spots[i] = { name = p[4], pts = { p[1], p[2], p[3] } } end
-  local here = playerWorld(api)
-  local nearest, nm, nx, ny = Map.NearestPoint(spots, here, function(m, x, y) return worldPos(api, m, x, y) end)
-  local tomtom = api.TomTom
-  if type(tomtom) ~= "table" or type(tomtom.AddWaypoint) ~= "function" then
-    Map.SetWaypointAt(nm, nx, ny, nearest and nearest.name, api)
-    say(api, string.format(L["Install TomTom to plot all %d points at once; pinned the nearest."], #points))
+  if not Map.HasTomTom(api) then
+    Map.TomTomMissing(api)
     return 0
   end
+  local tomtom = api.TomTom
   removePlotted(api)
   removeTomTom(api)
   local n = 0
@@ -762,10 +771,16 @@ function Map.PlotPoints(points, label, api)
     end
   end
   if type(tomtom.SetClosestWaypoint) == "function" then guarded(tomtom.SetClosestWaypoint, tomtom) end
-  local mode = MODES[api.waypointMode] and api.waypointMode or Map.WaypointMode()
-  if mode ~= "tomtom" and nm then setUserWaypoint(api, { map = nm, x = nx, y = ny }) end
-  say(api, string.format(L["Plotted %d points on TomTom: %s"], n, label or ""))
+  if label then say(api, string.format(L["Plotted %d points on TomTom: %s"], n, label)) end
   return n
+end
+
+-- Removes our plotted points and waypoint from TomTom (a guide's Back, or
+-- closing it).
+function Map.ClearPlot(api)
+  api = api or realApi()
+  removePlotted(api)
+  removeTomTom(api)
 end
 
 -- The points of a mount's waypoint spots (the vendors, else every spot;

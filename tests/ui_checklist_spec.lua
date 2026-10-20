@@ -350,20 +350,21 @@ describe("checklist filter menu", function()
       kinds[#kinds + 1] = item.kind
       labels[#labels + 1] = item.label or "-"
     end
-    eq(kinds, { "checkbox", "checkbox", "checkbox", "checkbox", "checkbox", "checkbox", "checkbox", "checkbox",
-      "divider", "button", "button" })
-    eq(labels, { "Show raids", "Show dungeons", "Show world bosses", "Show rares", "Show holidays", "Show other",
-      "Show rare spawns (no lockout)", "Show quick lists", "-", "Check all", "Uncheck all" })
+    eq(kinds, { "checkbox", "divider", "checkbox", "checkbox", "checkbox", "checkbox", "checkbox", "checkbox",
+      "checkbox", "divider", "button", "button" })
+    eq(labels, { "Show completed", "-", "Show raids", "Show dungeons", "Show world bosses", "Show rares",
+      "Show holidays", "Show other", "Show rare spawns (no lockout)", "-", "Check all", "Uncheck all" })
+    table.remove(items, 1)
+    table.remove(items, 1)
     eq(items[1].key, "raids")
     eq(items[1].checked, true)
     eq(items[4].key, "rares")
     eq(items[4].checked, false)
     eq(items[7].key, "camp")
     eq(items[7].checked, true)
-    eq(items[8].key, "quick")
-    eq(items[10].action, "checkAll")
-    eq(items[11].action, "uncheckAll")
-    eq(UI.ChecklistFilterItems(nil)[1].checked, true, "no store: all shown")
+    eq(items[9].action, "checkAll")
+    eq(items[10].action, "uncheckAll")
+    eq(UI.ChecklistFilterItems(nil)[3].checked, true, "no store: all shown")
   end)
 
   it("toggling stores only hidden categories", function()
@@ -381,7 +382,7 @@ describe("checklist filter menu", function()
     eq(UI.ChecklistFiltersAreDefault(filters), true)
     UI.ApplyChecklistFilterAction(filters, "uncheckAll")
     eq(filters, { raids = false, dungeons = false, worldbosses = false, rares = false, holidays = false, other = false,
-      camp = false, quick = false })
+      camp = false })
     eq(UI.ChecklistFiltersAreDefault(filters), false)
     UI.ApplyChecklistFilterAction(filters, "checkAll")
     eq(filters, {})
@@ -501,7 +502,7 @@ describe("checklist event status", function()
   end)
 end)
 
--- Rare spawns with no lockout (camp specs): their own checklist group, with a
+-- Rare Spawns with no lockout (camp specs): their own checklist group, with a
 -- "last checked" box per row (ns.db.char.campChecked).
 describe("checklist rare spawns (no lockout)", function()
   it("UI.ChecklistBuild lists camp mounts in their own group", function()
@@ -566,7 +567,7 @@ describe("checklist rare spawns (no lockout)", function()
       "Drop: Nok-Karosh · Frostfire Ridge \194\183 Last checked 3 hr ago")
     eq(UI.ChecklistCampDesc("Drop: X", nil), "Drop: X")
     eq(UI.ChecklistCampDesc("", "Last checked 1 min ago"), "Last checked 1 min ago")
-    eq(UI.ChecklistHeaderLabel("camp", 3600, 86400), "Rare spawns (no lockout)")
+    eq(UI.ChecklistHeaderLabel("camp", 3600, 86400), "Rare Spawns (no lockout)")
     eq(UI.HeaderText({ text = "Gorgrond", left = 3 }), "Gorgrond  |cff9d9d9d(3 left)|r")
   end)
 

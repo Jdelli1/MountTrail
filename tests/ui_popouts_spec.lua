@@ -3,7 +3,8 @@
 -- flat widgets (UI.ShowMenu / UI.AskText).
 
 local UI_FILES = { "UI/Frame.lua", "UI/Tooltip.lua", "UI/List.lua", "UI/DetailPane.lua",
-  "UI/Tabs.lua", "UI/LockoutHelpers.lua", "UI/ChecklistView.lua", "UI/Popouts.lua", "UI/ZonePanel.lua" }
+  "UI/Tabs.lua", "UI/LockoutHelpers.lua", "UI/ChecklistView.lua", "UI/AltsWindow.lua", "UI/Popouts.lua",
+  "UI/ZonePanel.lua" }
 
 -- Widget methods the views call that the base stub does not need.
 local probe = CreateFrame("Frame")
@@ -128,6 +129,8 @@ local function loadUI()
   for _, f in ipairs(UI_FILES) do files[#files + 1] = f end
   local ns = load_addon(files)
   ns.addon:OnInitialize()
+  -- Start with no lists (OnInitialize gives the example Mythic Mounts list).
+  ns.db.global.lists = {}
   local stubGame = {
     MountInfo = function() return nil end,
     IsOwned = function(id) return id == 7 end,
@@ -438,8 +441,8 @@ describe("pop-out windows", function()
     local heads = {}
     for _, h in ipairs(q.groupFrames) do if h:IsShown() then heads[#heads + 1] = h.Text:GetText() end end
     eq(#heads, 2)
-    ok(heads[1]:find("^Classic"), heads[1])
-    ok(heads[2]:find("^" .. WOD), heads[2])
+    ok(heads[1]:find("^%- Classic"), heads[1])
+    ok(heads[2]:find("^%- " .. WOD), heads[2])
     eq({ q.rows[1].id, q.rows[2].id }, { 1, 614 })
     local store = ns.UI.ListsDB()
     local id = ns.Lists.Create(store, "Mine")
@@ -537,7 +540,9 @@ describe("pop-out windows", function()
     op.Slider:SetValue(5)
     eq(st.alpha, 0.2, "no lower than 20%")
     op.Slider:SetValue(60)
-    ok(menu.items[3].Arrow:IsShown(), "a sub-menu item shows its arrow")
+    local bgItem
+    for _, it in ipairs(menu.items) do if it:IsShown() and it.data.text == "Background colour" then bgItem = it end end
+    ok(bgItem.Arrow:IsShown(), "a sub-menu item shows its arrow")
     click("Background colour")
     ok(menu:IsShown(), "the sub-menu replaces it")
     eq(menu.items[1].data.title, "Background colour")
@@ -867,42 +872,42 @@ describe("custom lists in the pane and the Checklist", function()
     eq(ns.Lists.Get(store, sorted[2].id).mounts, { 614 })
   end)
 
-  it("Checklist: My lists chip; a list's header right-click pops it out", function()
+  it("Checklist chips: right-click Daily / Weekly / Rare Spawns pops the whole group out", function()
     local ns = loadUI()
     ns.UI.ChecklistBuild = function() return built() end
     local store = ns.UI.ListsDB()
     local id = ns.Lists.Create(store, "Loop")
-    ns.Lists.Add(store, id, 614)
     ns.ToggleWindow()
     ns.UI.SelectTab("checklist")
-    ns.db.char.checklistShow = "lists"
-    ns.Refresh()
     local root
     for _, c in ipairs(ns.UI.frame.Contents.checklist.children) do if c.Detail then root = c end end
     local header
     for _, c in ipairs(root.children) do if c.Chips then header = c end end
-    local all = header.Checklist.ScrollBox.provider.rows
-    eq(all[1].text, "Quick lists", "quick lists first")
-    eq(all[2].text, "Mythic Mounts")
-    eq(all[2].popout, { kind = "quick", key = "mythic" }, "right-click pops it out")
-    local rows
-    for i, r in ipairs(all) do
-      if r.listsRoot then rows = { unpack(all, i) } end
-    end
-    eq(rows[1].text, "My lists")
-    eq(rows[2].text, "Loop")
-    eq(rows[2].listID, id)
-    eq(rows[3].id, 614)
-    local opened
-    ns.UI.OpenPopout = function(source) opened = source end
-    local f = CreateFrame("Frame", nil, UIParent)
-    header.Checklist.ScrollBox.view.factory(function(kind, init) init(f, rows[2]) end, rows[2])
-    f:RunScript("OnMouseUp", "RightButton")
-    local menu = _G.MountTrailMenu
-    local pop
-    for _, it in ipairs(menu.items) do if it:IsShown() and it.data.text == "Pop out" then pop = it end end
-    pop:RunScript("OnClick", "LeftButton")
-    eq(opened, { kind = "list", list = id })
+    local chip = {}
+    for _, c in ipairs(header.Chips) do chip[c.key] = c end
+    eq(chip.daily.clickButtons, { "LeftButtonUp", "RightButtonUp" })
+    chip.daily:RunScript("OnClick", "RightButton")
+    eq(ns.db.char.checklistShow, nil, "a right-click does not switch the list")
+    local W = ns.UI.PopoutWindows
+    local daily = W["daily|all"]
+    ok(daily and daily:IsShown(), "every daily, one window")
+    ok(daily.Title:GetText():find("^Dailies"), daily.Title:GetText())
+    eq(#daily.rows, 2, "every expansion's dailies still to do")
+    ns.db.global.popouts["daily|all"].showDone = true
+    ns.UI.RefreshPopouts()
+    eq(#daily.rows, 3, "with Show completed: the done one too")
+    chip.weekly:RunScript("OnClick", "RightButton")
+    ok(W["weekly|all"]:IsShown())
+    ok(W["weekly|all"].Title:GetText():find("^Weeklies"))
+    chip.camp:RunScript("OnClick", "RightButton")
+    local camp = W["camp|all"]
+    ok(camp.Title:GetText():find("^Rare Spawns"), camp.Title:GetText())
+    eq(#camp.rows, 2, "rare spawns of every expansion")
+    eq(ns.db.global.popouts["camp|all"].source, { kind = "camp", all = true }, "saved: back after /reload")
+    eq(chip.lists, nil, "no Lists chip: the lists live in the navigation")
+    -- A left-click still switches the list.
+    chip.weekly:RunScript("OnClick", "LeftButton")
+    eq(ns.db.char.checklistShow, "weekly")
   end)
 
   it("deleting a list asks for its name; Delete only works once it is typed", function()
@@ -911,18 +916,8 @@ describe("custom lists in the pane and the Checklist", function()
     local store = ns.UI.ListsDB()
     local id = ns.Lists.Create(store, "WoD loop")
     ns.ToggleWindow()
-    ns.UI.SelectTab("checklist")
-    ns.db.char.checklistShow = "lists"
-    ns.Refresh()
-    local root
-    for _, c in ipairs(ns.UI.frame.Contents.checklist.children) do if c.Detail then root = c end end
-    local header
-    for _, c in ipairs(root.children) do if c.Chips then header = c end end
-    local listRow
-    for _, r in ipairs(header.Checklist.ScrollBox.provider.rows) do if r.listID == id then listRow = r end end
-    local f = CreateFrame("Frame", nil, UIParent)
-    header.Checklist.ScrollBox.view.factory(function(kind, init) init(f, listRow) end, listRow)
-    f:RunScript("OnMouseUp", "RightButton")
+    -- The list's menu (the navigation's right-click on it).
+    ns.UI.ShowCustomListMenu(id, CreateFrame("Frame", nil, UIParent))
     local menu = _G.MountTrailMenu
     local del
     for _, it in ipairs(menu.items) do if it:IsShown() and it.data.text == "Delete..." then del = it end end
@@ -953,5 +948,710 @@ describe("custom lists in the pane and the Checklist", function()
     ok(not p.Hint:IsShown())
     p.OK:RunScript("OnClick", "LeftButton")
     eq(got, "x")
+  end)
+end)
+
+describe("zone window and the alt lockouts window", function()
+  it("the zone's rares follow the player: zone, sub-zone and loading-screen events, only on a new map", function()
+    local ns = loadUI()
+    local builds = 0
+    ns.UI.ChecklistBuild = function() builds = builds + 1; return built() end
+    local map = 550
+    ns.Game.PlayerMap = function() return map end
+    local zoneIDs = { [550] = { { id = 614 } }, [525] = { { id = 657 } } }
+    ns.UI.ZoneMounts = function() return zoneIDs[map] or {} end
+    local w = ns.UI.OpenPopout({ kind = "zone" })
+    eq(w.map, 550)
+    local function shown() local out = {} for i, r in ipairs(w.rows) do out[i] = r.id end return out end
+    eq(shown(), { 614 })
+    local before = builds
+    fire_frame_event("ZONE_CHANGED")
+    eq(builds, before, "same map: no redraw")
+    map = 525
+    fire_frame_event("ZONE_CHANGED_INDOORS")
+    eq(shown(), { 657 }, "a new map: redrawn")
+    map = 550
+    fire_frame_event("PLAYER_ENTERING_WORLD")
+    eq(shown(), { 614 })
+    -- Closed, the player moves on, reopened, back again: still follows.
+    ns.UI.ClosePopout("zone")
+    map = 525
+    fire_frame_event("ZONE_CHANGED_NEW_AREA")
+    ns.UI.OpenPopout({ kind = "zone" })
+    eq(shown(), { 657 })
+    map = 550
+    fire_frame_event("ZONE_CHANGED_NEW_AREA")
+    eq(shown(), { 614 }, "back to the first zone")
+  end)
+
+  it("the alt lockouts window takes the pop-out appearance menu, Apply to all, snapping and a resize grip", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    ns.UI.ToggleAltsWindow(true)
+    local alts = ns.UI.AltsWindow()
+    ok(alts:IsShown(), "opened")
+    eq(alts.Fill.color[4], 0.92, "the pop-outs' default look")
+    -- Right-click the title: the same Appearance menu.
+    alts.Strip:RunScript("OnMouseUp", "RightButton")
+    local menu = _G.MountTrailMenu
+    ok(menu:IsShown())
+    eq(menu.items[1].data.title, "Appearance")
+    local op
+    for _, it in ipairs(menu.items) do
+      if it:IsShown() and it.data and it.data.slider and it.data.text == "Opacity" then op = it end
+    end
+    op.Slider:SetValue(50)
+    eq(ns.db.global.popouts.alts.style.alpha, 0.5, "saved under popouts.alts")
+    eq(alts.Fill.color[4], 0.5, "repainted live")
+    -- A bigger font: taller rows.
+    ns.db.global.popouts.alts.style.size = 20
+    alts.Restyle(false)
+    eq(alts.rowHeight, 29)
+    eq(alts.Title.fontSize, 22, "the title two points up, as the pop-outs'")
+    -- Apply to all from a pop-out: the alts window takes that look too.
+    local camp = ns.UI.OpenPopout({ kind = "camp", exp = WOD })
+    ns.db.global.popouts["camp|" .. WOD].style = { alpha = 0.3 }
+    camp.Strip:RunScript("OnMouseUp", "RightButton")
+    for _, it in ipairs(menu.items) do
+      if it:IsShown() and it.data and it.data.text == "Apply to all pop-outs" then it:RunScript("OnClick", "LeftButton") end
+    end
+    eq(ns.db.global.popoutStyle.alpha, 0.3)
+    eq(ns.db.global.popouts.alts.style, nil)
+    eq(alts.Fill.color[4], 0.3, "follows the shared look")
+    -- Dropped near the pop-out: snaps under it.
+    camp.left, camp.top, camp.right, camp.bottom = 100, 600, 380, 400
+    alts.left, alts.top, alts.right, alts.bottom = 108, 392, 488, 0
+    alts.Strip:RunScript("OnDragStart")
+    alts.Strip:RunScript("OnDragStop")
+    eq({ alts:GetPoint(1) }, { "TOPLEFT", UIParent, "BOTTOMLEFT", 100, 400 })
+    -- Resize grip: the width is kept and decides the columns.
+    alts.Grip:RunScript("OnMouseDown", "LeftButton")
+    alts.width, alts.height = 500, 300
+    alts.Grip:RunScript("OnMouseUp", "LeftButton")
+    eq({ ns.db.global.altsWindow.width, ns.db.global.altsWindow.height }, { 500, 300 })
+    eq(ns.UI.AltsFit(500), 4)
+    alts.Grip:RunScript("OnClick", "RightButton")
+    eq(ns.db.global.altsWindow.width, nil, "fits the columns again")
+    eq(ns.db.global.altsWindow.height, 300, "the height stays")
+    -- Ctrl-click a pop-out's x closes the alts window too.
+    IsControlKeyDown = function() return true end
+    camp.Close:RunScript("OnClick", "LeftButton")
+    IsControlKeyDown = nil
+    ok(not alts:IsShown() and not camp:IsShown(), "both closed")
+  end)
+end)
+
+describe("the zone's mounts pop-out", function()
+  it("lists every mount still to get in the player's zone, follows the map, opens from /mtrail here", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    local map = 550
+    ns.Game.PlayerMap = function() return map end
+    local zones = {
+      [550] = { { id = 614 }, { id = 7 }, { id = 4242 } }, -- 7 is owned (loadUI's IsOwned)
+      [525] = { { id = 657 } },
+    }
+    local names_ = { [550] = "Nagrand", [525] = "Frostfire Ridge" }
+    ns.UI.ZoneMounts = function() return zones[map] or {}, { name = names_[map] } end
+    ns.Data.Mounts[4242] = { name = "Plain Vendor Mount", exp = WOD }
+    run_slash(ns.addon, "mtrail", "here")
+    local w = ns.UI.PopoutWindows.zonemounts
+    ok(w and w:IsShown(), "opened")
+    ok(w.Title:GetText():find("^Mounts in Nagrand"), w.Title:GetText())
+    local function ids() local out = {} for i, r in ipairs(w.rows) do out[i] = r.id end table.sort(out) return out end
+    eq(ids(), { 614, 4242 }, "the tracked lockout and a plain mount; owned ones left out")
+    for _, r in ipairs(w.rows) do
+      if r.id == 614 then eq(r.entry.reset, "daily", "the Checklist's entry when it tracks the mount") end
+      if r.id == 4242 then eq(r.listOnly, true, "a plain row otherwise") end
+    end
+    map = 525
+    fire_frame_event("ZONE_CHANGED_NEW_AREA")
+    eq(ids(), { 657 })
+    ok(w.Title:GetText():find("^Mounts in Frostfire Ridge"), w.Title:GetText())
+    run_slash(ns.addon, "mtrail", "here")
+    ok(not w:IsShown(), "the slash toggles it")
+  end)
+
+  it("pop-out rows: Shift-click opens the map, Ctrl-click previews, a plain click goes there", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    local got = {}
+    ns.UI.MapAction = function(method, id, boss) got[#got + 1] = { method, id, boss } end
+    ns.UI.PreviewMount = function(id) got[#got + 1] = { "preview", id } end
+    ns.UI.RowGo = function(id, boss) got[#got + 1] = { "go", id, boss } end
+    local w = ns.UI.OpenPopout({ kind = "weekly", exp = WOD })
+    local r = w.rowFrames[1]
+    eq(r.data.id, 10)
+    IsShiftKeyDown = function() return true end
+    r:RunScript("OnClick", "LeftButton")
+    IsShiftKeyDown = nil
+    IsControlKeyDown = function() return true end
+    r:RunScript("OnClick", "LeftButton")
+    IsControlKeyDown = nil
+    r:RunScript("OnClick", "LeftButton")
+    eq(got, { { "OpenMap", 10, "Boss" }, { "preview", 10 }, { "go", 10, "Boss" } })
+  end)
+
+  it("right-clicking the zone panel's title pops the zone's mounts out", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    ns.Game.PlayerMap = function() return 550 end
+    ns.UI.ZoneMounts = function() return { { id = 614 } }, { name = "Nagrand" } end
+    ns.ToggleWindow()
+    ns.UI.SetZonePanelOpen(true)
+    local hit = ns.UI.zonePanel.TitleHit
+    ok(hit, "the title takes a right-click")
+    hit:RunScript("OnClick", "RightButton")
+    ok(ns.UI.PopoutWindows.zonemounts:IsShown())
+  end)
+end)
+
+describe("the zone's mounts pop-out, by source", function()
+  it("groups its rows under source headers when the zone has several", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    ns.Game.PlayerMap = function() return 550 end
+    ns.Data.Mounts[4242] = { name = "Vendor Mount", exp = WOD, section = "vendor" }
+    ns.Data.Mounts[4343] = { name = "Achievement Mount", exp = WOD, section = "achievement" }
+    ns.UI.ZoneMounts = function() return { { id = 4343 }, { id = 4242 } }, { name = "Nagrand" } end
+    local groups = ns.UI.PopoutGroups({
+      { id = 4242, entry = { m = ns.Data.Mounts[4242] } },
+      { id = 4343, entry = { m = ns.Data.Mounts[4343] }, done = false },
+    }, { kind = "zonemounts" })
+    eq(#groups, 2)
+    eq({ groups[1].label, groups[2].label }, { "Vendors", "Achievements" })
+    local w = ns.UI.OpenPopout({ kind = "zonemounts" })
+    local shown = {}
+    for _, h in ipairs(w.groupFrames) do if h:IsShown() then shown[#shown + 1] = h.Text:GetText() end end
+    ok(shown[1]:find("^%- Vendors"), shown[1])
+    ok(shown[2]:find("^%- Achievements"), shown[2])
+  end)
+end)
+
+describe("pop-out group headers", function()
+  it("click collapses a group (saved per window); Shift-click collapses or expands them all", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    local w = ns.UI.OpenPopout({ kind = "camp", all = true })
+    local function shownHeads()
+      local out = {}
+      for _, h in ipairs(w.groupFrames) do if h:IsShown() then out[#out + 1] = h end end
+      return out
+    end
+    local heads = shownHeads()
+    eq(#heads, 2, "two expansions")
+    eq(#w.rows, 2)
+    heads[1]:RunScript("OnMouseUp", "LeftButton")
+    eq(ns.db.global.popouts["camp|all"].collapsed[heads[1].groupKey], true)
+    eq(#w.rows, 1, "its rows hidden")
+    ok(shownHeads()[1].Text:GetText():find("^%+ "), "a collapsed header shows +")
+    IsShiftKeyDown = function() return true end
+    shownHeads()[2]:RunScript("OnMouseUp", "LeftButton")
+    eq(#w.rows, 0, "every group collapsed")
+    shownHeads()[1]:RunScript("OnMouseUp", "LeftButton")
+    IsShiftKeyDown = nil
+    eq(#w.rows, 2, "a collapsed header's Shift-click expands them all")
+    eq(ns.db.global.popouts["camp|all"].collapsed, {})
+  end)
+end)
+
+describe("lists in the navigation column", function()
+  -- The journal home too, from here on.
+  UI_FILES[#UI_FILES + 1] = "UI/JournalHome.lua"
+  UI_FILES[#UI_FILES + 1] = "UI/BrowseView.lua"
+
+  local function home(ns)
+    ns.ToggleWindow()
+    ns.UI.SelectTab("journal")
+    return ns.UI.frame.Contents.journal.children[2], ns.UI.frame.Contents.journal
+  end
+
+  it("UI.ListCardStats: owned / total, and the open lockouts of its mounts still to get (each once)", function()
+    local ns = loadUI()
+    local e = { id = 614, mounts = { 614, 615 }, done = false }
+    local built = { daily = { e, { id = 636, done = true } }, weekly = {} }
+    local stats = ns.UI.ListCardStats({ 614, 615, 636, 7 }, function(id) return id == 7 end, built)
+    eq(stats, { have = 1, total = 4, open = 1 })
+  end)
+
+  local function navButton(ns, label)
+    local nav = ns.UI.frame.Nav
+    for i = 1, nav.shown do
+      local b = nav.Buttons[i]
+      if b.Text:GetText():find(label, 1, true) then return b end
+    end
+  end
+
+  it("the navigation lists My lists then the quick lists; a click opens the list page; deleting it goes home", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    local h = home(ns)
+    local nav = ns.UI.frame.Nav
+    ok(nav.Empty:IsShown(), "no lists yet: the hint")
+    ok(navButton(ns, "Weekly lockouts"), "the quick list")
+    local store = ns.UI.ListsDB()
+    local id = ns.Lists.Create(store, "Loop")
+    ns.Lists.Add(store, id, 614)
+    ns.Lists.Add(store, id, 7) -- owned (loadUI's IsOwned)
+    ns.Data.Mounts[614].section = "world"
+    ns.Data.Mounts[7] = { name = "Owned One", exp = WOD, tab = "journal", section = "vendor" }
+    ns.Refresh()
+    ok(not nav.Empty:IsShown())
+    local b = navButton(ns, "Loop")
+    ok(b, "the list's entry")
+    ok(b.Badge:GetText():find("1", 1, true), "its open lockout: " .. tostring(b.Badge:GetText()))
+    eq(navButton(ns, "Weekly lockouts").Text:GetText(), "Weekly lockouts", "no mark in the name (the star is a button)")
+    ok(navButton(ns, "Weekly lockouts").Star:IsShown(), "a favourite star on each list")
+    b:RunScript("OnClick", "LeftButton")
+    local journal = ns.UI.frame.Contents.journal
+    local page
+    for _, c in ipairs(journal.children) do if c.List and c.PopOut then page = c end end
+    ok(page and page:IsShown() and not h:IsShown(), "the list page")
+    eq(page.Title:GetText(), "Loop")
+    ok(navButton(ns, "Loop").selected and not navButton(ns, "Home").selected, "its entry marked")
+    eq(ns.UI.ListCardStatsFor({ kind = "list", list = id }, built()), { have = 1, total = 2, open = 1 })
+    -- Collected on: the owned mount's source shows too.
+    ns.db.global.filters.collected = true
+    page.List:Refresh()
+    local have, total = 0, 0
+    for _, r in ipairs(page.List.ScrollBox.provider.rows) do
+      if r.header and (r.depth or 1) == 1 then have, total = have + (r.owned or 0), total + (r.total or 0) end
+    end
+    eq({ have, total }, { 1, 2 }, "by source, owned counted")
+    ns.db.global.filters.collected = false
+    page.PopOut:RunScript("OnClick", "LeftButton")
+    ok(ns.UI.PopoutWindows["list|" .. id]:IsShown())
+    -- Home leaves the page.
+    navButton(ns, "Home"):RunScript("OnClick", "LeftButton")
+    ok(h:IsShown() and not page:IsShown(), "home again")
+    -- Deleted while open: home.
+    navButton(ns, "Loop"):RunScript("OnClick", "LeftButton")
+    ns.Lists.Delete(store, id)
+    ns.Refresh()
+    ok(h:IsShown() and not page:IsShown(), "home after the delete")
+    eq(navButton(ns, "Loop"), nil, "its entry gone")
+  end)
+
+  it("My lists and Quick lists are separate sections, each collapsing on a click (saved)", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    local store = ns.UI.ListsDB()
+    ns.Lists.Create(store, "Loop")
+    home(ns)
+    local nav = ns.UI.frame.Nav
+    local function heading(text)
+      for _, h in ipairs(nav.Headings) do
+        if h:IsShown() and h.Text:GetText() == text then return h end
+      end
+    end
+    local mine, quick = heading("My lists"), heading("Quick lists")
+    ok(mine and quick, "two headings")
+    eq(mine.key, ns.UI.NAV_LISTS_KEY)
+    ok(navButton(ns, "Loop") and navButton(ns, "Weekly lockouts"), "both sections open")
+    mine:RunScript("OnClick", "LeftButton")
+    eq(ns.db.global.collapsed[ns.UI.NAV_LISTS_KEY], true)
+    eq(navButton(ns, "Loop"), nil, "My lists collapsed")
+    ok(navButton(ns, "Weekly lockouts"), "Quick lists still open")
+    ok(heading("My lists").collapsed, "marked collapsed")
+    heading("Quick lists"):RunScript("OnClick", "LeftButton")
+    eq(navButton(ns, "Weekly lockouts"), nil, "Quick lists collapsed")
+    heading("My lists"):RunScript("OnClick", "LeftButton")
+    ok(navButton(ns, "Loop"), "expanded again")
+    eq(ns.db.global.collapsed[ns.UI.NAV_LISTS_KEY], nil)
+    eq(heading("Browse").key, ns.UI.NAV_BROWSE_KEY, "Browse collapses too")
+    heading("Browse"):RunScript("OnClick", "LeftButton")
+    eq(navButton(ns, "Drops"), nil, "Browse collapsed")
+    heading("Browse"):RunScript("OnClick", "LeftButton")
+    ok(navButton(ns, "Drops"), "and back")
+  end)
+
+  it("Quick lists hold Daily / Weekly lockouts and Rare Spawns: a click opens Lockouts on that group", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    home(ns)
+    local daily = navButton(ns, "Daily lockouts")
+    ok(daily and navButton(ns, "Weekly lockouts") and navButton(ns, "Rare Spawns"), "the three groups")
+    eq(daily.Badge:GetText(), "2", "what is left")
+    daily:RunScript("OnClick", "LeftButton")
+    eq(ns.UI.CurrentTab(), "checklist")
+    eq(ns.db.char.checklistShow, "daily")
+    ok(navButton(ns, "Daily lockouts").selected and not navButton(ns, "Lockouts").selected, "the group marked")
+    navButton(ns, "Lockouts"):RunScript("OnClick", "LeftButton")
+    eq(ns.db.char.checklistShow, "all", "Lockouts shows everything")
+    ok(navButton(ns, "Lockouts").selected)
+    -- Right-click pops the group out.
+    ns.UI.ShowMenu = function(_, items) for _, it in ipairs(items) do if it.onClick then it.onClick() end end end
+    navButton(ns, "Weekly lockouts"):RunScript("OnClick", "RightButton")
+    ok(ns.UI.PopoutWindows["weekly|all"]:IsShown())
+  end)
+
+  it("the star favourites a list: pinned to the top of its section, saved; again unpins", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    local store = ns.UI.ListsDB()
+    ns.Lists.Create(store, "Alpha")
+    ns.Lists.Create(store, "Beta")
+    home(ns)
+    local nav = ns.UI.frame.Nav
+    local function order(names)
+      local out = {}
+      for i = 1, nav.shown do
+        local t = nav.Buttons[i].Text:GetText()
+        for _, n in ipairs(names) do if t == n then out[#out + 1] = t end end
+      end
+      return out
+    end
+    eq(order({ "Alpha", "Beta" }), { "Alpha", "Beta" })
+    local beta = navButton(ns, "Beta")
+    eq(beta.Star.favorite, false)
+    beta.Star:RunScript("OnClick", "LeftButton")
+    eq(order({ "Alpha", "Beta" }), { "Beta", "Alpha" }, "pinned to the top")
+    ok(navButton(ns, "Beta").Star.favorite, "a filled star")
+    eq(navButton(ns, "Beta").Star.Icon.atlas, ns.UI.STAR_ON)
+    ok(next(ns.db.global.navFavorites), "saved")
+    navButton(ns, "Weekly lockouts").Star:RunScript("OnClick", "LeftButton")
+    eq(order({ "Daily lockouts", "Weekly lockouts" }), { "Weekly lockouts", "Daily lockouts" }, "quick lists too")
+    navButton(ns, "Beta").Star:RunScript("OnClick", "LeftButton")
+    eq(order({ "Alpha", "Beta" }), { "Alpha", "Beta" }, "unpinned")
+    ok(not navButton(ns, "Lockouts").Star:IsShown(), "views have no star")
+  end)
+
+  it("Alt-drag reorders lists, quick lists and Browse; favourites stay on top; right-click pops out", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    local store = ns.UI.ListsDB()
+    ns.Lists.Create(store, "Alpha")
+    ns.Lists.Create(store, "Beta")
+    ns.Lists.Create(store, "Gamma")
+    home(ns)
+    local nav = ns.UI.frame.Nav
+    local function order(names)
+      local out = {}
+      for i = 1, nav.shown do
+        local t = nav.Buttons[i].Text:GetText()
+        for _, n in ipairs(names) do if t == n then out[#out + 1] = t end end
+      end
+      return out
+    end
+    -- Lay the buttons out 20 px apart, top to bottom.
+    local function layout()
+      for i = 1, nav.shown do
+        local b = nav.Buttons[i]
+        b.top, b.bottom = 1000 - i * 20, 1000 - i * 20 - 20
+      end
+    end
+    local function drag(label, onto)
+      layout()
+      local b, target = navButton(ns, label), navButton(ns, onto)
+      IsAltKeyDown = function() return true end
+      b:RunScript("OnDragStart", "LeftButton")
+      IsAltKeyDown = nil
+      STUB_CURSOR[2] = target.top - 2
+      b:RunScript("OnDragStop")
+      return b
+    end
+    local b = drag("Gamma", "Alpha")
+    eq(order({ "Alpha", "Beta", "Gamma" }), { "Gamma", "Alpha", "Beta" })
+    ok(b.justDragged, "the drop's click is swallowed")
+    b:RunScript("OnMouseDown", "LeftButton")
+    eq(b.justDragged, nil, "the next press clicks again")
+    navButton(ns, "Alpha").Star:RunScript("OnClick", "LeftButton")
+    drag("Beta", "Alpha")
+    eq(order({ "Alpha", "Beta", "Gamma" }), { "Alpha", "Beta", "Gamma" }, "cannot pass the favourite")
+    drag("Rare Spawns", "Daily lockouts")
+    eq(order({ "Daily lockouts", "Rare Spawns" }), { "Rare Spawns", "Daily lockouts" }, "quick lists")
+    drag("PvP", "Drops")
+    eq(order({ "Drops", "PvP" }), { "PvP", "Drops" }, "Browse")
+    ok(ns.db.global.navOrder.browse and ns.db.global.navOrder.lists, "saved")
+    local without = navButton(ns, "Beta")
+    IsAltKeyDown = function() return false end
+    without:RunScript("OnDragStart", "LeftButton")
+    IsAltKeyDown = nil
+    ok(not without.dragging, "no Alt: no drag")
+    local popped, menu
+    ns.UI.OpenPopout = function(src) popped = src end
+    ns.UI.ShowMenu = function() menu = true end
+    navButton(ns, "Rare Spawns"):RunScript("OnClick", "RightButton")
+    ok(popped and popped.kind, "right-click pops out")
+    eq(menu, nil, "no menu")
+  end)
+
+  it("Options can hide My lists and Quick lists from the navigation", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    ns.Lists.Create(ns.UI.ListsDB(), "Loop")
+    home(ns)
+    ns.db.global.settings.navHideLists = true
+    ns.UI.RefreshNav()
+    eq(navButton(ns, "Loop"), nil, "My lists hidden")
+    ok(not ns.UI.frame.Nav.AddList:IsShown(), "and its +")
+    ok(navButton(ns, "Weekly lockouts"), "Quick lists still there")
+    ns.db.global.settings.navHideQuick = true
+    ns.UI.RefreshNav()
+    eq(navButton(ns, "Weekly lockouts"), nil, "Quick lists hidden")
+    ok(navButton(ns, "Drops"), "Browse stays")
+  end)
+
+  it("right-click a list entry pops it out, Shift-right-click opens its menu; + starts a list", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    local store = ns.UI.ListsDB()
+    local id = ns.Lists.Create(store, "Loop")
+    home(ns)
+    local menuFor, popped
+    ns.UI.ShowCustomListMenu = function(listID) menuFor = listID end
+    ns.UI.OpenPopout = function(src) popped = src end
+    navButton(ns, "Loop"):RunScript("OnClick", "RightButton")
+    eq(menuFor, nil)
+    eq(popped and popped.list, id, "right-click pops it out")
+    IsShiftKeyDown = function() return true end
+    navButton(ns, "Loop"):RunScript("OnClick", "RightButton")
+    IsShiftKeyDown = nil
+    eq(menuFor, id, "Shift-right-click: rename / delete")
+    local asked = 0
+    ns.UI.NewListPrompt = function() asked = asked + 1 end
+    local items
+    ns.UI.ShowMenu = function(_, list) items = list end
+    ns.UI.frame.Nav.AddList:RunScript("OnClick", "LeftButton")
+    local by = {}
+    for _, it in ipairs(items or {}) do if it.text then by[it.text] = it end end
+    ok(by["Import list..."], "+ also imports")
+    by["New list..."].onClick()
+    eq(asked, 1)
+  end)
+end)
+
+describe("Browse in the navigation column", function()
+  it("Drops opens a browse page by expansion; Achievements opens its own view; the choice is saved", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    ns.ToggleWindow()
+    local nav = ns.UI.frame.Nav
+    local function button(label)
+      for i = 1, nav.shown do
+        local b = nav.Buttons[i]
+        if b.Text:GetText() == label then return b end
+      end
+    end
+    button("Drops"):RunScript("OnClick", "LeftButton")
+    eq(ns.UI.CurrentTab(), "browse")
+    local page = ns.UI.frame.Contents.browse.children[2]
+    eq(page.Title:GetText(), "Drops")
+    local rows = page.List.ScrollBox.provider.rows
+    ok(#rows > 0 and rows[1].header, "headers")
+    ok(button("Drops").selected, "Drops marked")
+    -- The home page's fuzzy search: "tbc" keeps the Burning Crusade's drops.
+    page.List.searchText = "tbc"
+    page.List:Refresh()
+    local exps, mounts = {}, 0
+    for _, r in ipairs(page.List.ScrollBox.provider.rows) do
+      if r.header and (r.depth or 1) == 1 then exps[#exps + 1] = r.text end
+      if not r.header then mounts = mounts + 1 end
+    end
+    eq(exps, { "The Burning Crusade" }, "tbc: only TBC drops")
+    page.List.searchText = ""
+    page.List:Refresh()
+    button("Professions"):RunScript("OnClick", "LeftButton")
+    eq(page.Title:GetText(), "Professions")
+    eq(ns.db.global.window.browse, "professions")
+    ok(button("Professions").selected and not button("Drops").selected)
+    button("Achievements"):RunScript("OnClick", "LeftButton")
+    eq(ns.UI.CurrentTab(), "achievements", "its own view")
+    ok(button("Achievements").selected)
+  end)
+end)
+
+describe("refresh cost", function()
+  it("one Checklist build per ns.Refresh, fresh again after it", function()
+    local ns = loadUI()
+    local calls = 0
+    local old = ns.Checklist.Build
+    ns.Checklist.Build = function(...) calls = calls + 1 return old(...) end
+    ns.ToggleWindow()
+    ns.UI.SelectTab("checklist")
+    calls = 0
+    ns.Refresh()
+    eq(calls, 1, "view and navigation share it")
+    ns.UI.ChecklistBuild(ns.Game.Now())
+    eq(calls, 2, "outside a refresh: built anew")
+  end)
+
+  it("game events in one frame refresh once (ns.RefreshSoon)", function()
+    local ns = loadUI()
+    local timers, n = {}, 0
+    C_Timer = { After = function(_, fn) timers[#timers + 1] = fn end }
+    local old = ns.Refresh
+    ns.Refresh = function() n = n + 1 end
+    ns.RefreshSoon()
+    ns.RefreshSoon()
+    ns.RefreshSoon()
+    eq(#timers, 1)
+    timers[1]()
+    eq(n, 1)
+    ns.RefreshSoon()
+    eq(#timers, 2, "a later burst schedules again")
+    C_Timer = nil
+    ns.Refresh = old
+  end)
+
+  it("the search pages share one cache, dropped when the window closes", function()
+    local ns = loadUI()
+    ns.ToggleWindow()
+    ns.UI.SearchMatches({ 1, 2 }, "alpha")
+    ok(next(ns.UI.SearchCache()), "filled")
+    ns.ToggleWindow()
+    eq(next(ns.UI.SearchCache()), nil, "closed: emptied")
+  end)
+end)
+
+describe("example lists", function()
+  it("Mythic Mounts arrives once in My lists, as the player's own list", function()
+    local ns = load_addon({ "Core/Locale.lua", "Data/Mounts.lua", "Data/Lockouts.lua", "Logic/Lists.lua", "Logic/QuickLists.lua" })
+    local global, store = {}, {}
+    local made = ns.QuickLists.SeedExamples(global, store)
+    eq(#made, 1)
+    local l = ns.Lists.Get(store, made[1])
+    eq(l.name, "Mythic Mounts")
+    eq(l.mounts, ns.QuickLists.Mounts("mythic"), "the mythic dungeon mounts")
+    ok(#l.mounts > 0)
+    ns.Lists.Delete(store, made[1])
+    eq(#ns.QuickLists.SeedExamples(global, store), 0, "deleted: not given again")
+    local other = {}
+    local store2 = { lists = { [1] = { name = "Mythic Mounts", mounts = {} } }, nextID = 2 }
+    eq(#ns.QuickLists.SeedExamples(other, store2), 0, "a list by that name already: left alone")
+    eq(#ns.QuickLists.LISTS, 0, "no longer a quick list")
+    ok(ns.QuickLists.Get("mythic"), "still found by key (old pop-outs)")
+  end)
+end)
+
+describe("Show completed", function()
+  it("Lockouts' Filter menu has Show completed; reset turns it off", function()
+    local ns = loadUI()
+    local items = ns.UI.ChecklistFilterItems({})
+    eq(items[1].label, "Show completed")
+    eq(items[1].checked, false)
+    eq(items[2].kind, "divider")
+    ns.UI.SetChecklistShowDone(true)
+    eq(ns.db.global.settings.checklistShowDone, true)
+    eq(ns.UI.ChecklistFilterItems({})[1].checked, true)
+    local filters = {}
+    ns.UI.ApplyChecklistFilterAction(filters, "uncheckAll")
+    eq(ns.UI.ChecklistShowDone(), true, "Uncheck all is about categories only")
+  end)
+
+  it("a pop-out's menu toggles its done rows", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    ns.UI.OpenPopout({ kind = "daily", all = true })
+    local w = ns.UI.PopoutWindows["daily|all"]
+    eq(#w.rows, 2)
+    local items
+    ns.UI.ShowMenu = function(_, list) items = type(list) == "function" and list() or list end
+    ns.UI.ShowPopoutStyleMenu(w, w)
+    local item
+    for _, it in ipairs(items) do if it.text == "Show completed" then item = it end end
+    eq(item.checked, false)
+    item.onClick()
+    eq(#w.rows, 3)
+    eq(ns.db.global.popouts["daily|all"].showDone, true)
+  end)
+end)
+
+describe("adding and removing a mount from your lists", function()
+  it("the pane's button counts your lists; on a list's page Remove comes first", function()
+    local ns = loadUI()
+    local store = ns.UI.ListsDB()
+    local id = ns.Lists.Create(store, "Loop")
+    local pane = ns.UI.CreateDetailPane(UIParent)
+    pane:SetMount(614)
+    eq(pane.AddList.Text:GetText(), "+ List")
+    ns.Lists.Add(store, id, 614)
+    pane:Refresh()
+    eq(pane.AddList.Text:GetText(), "Lists (1)")
+    local items
+    ns.UI.ShowMenu = function(_, list) items = type(list) == "function" and list() or list end
+    ns.UI.CurrentListPage = function() return { kind = "list", list = id } end
+    ns.UI.ShowListMenu(pane.AddList, 614)
+    eq(items[2].text, "Remove from Loop")
+    items[2].onClick()
+    eq(ns.Lists.Has(store, id, 614), false)
+    ns.UI.ShowListMenu(pane.AddList, 614)
+    eq(items[2].text, "Loop", "not on it: just the lists to tick")
+    eq(items[2].checked, false)
+  end)
+end)
+
+describe("the Appearance menu on other windows", function()
+  it("Show completed is a pop-out's own; other styled windows get the rest", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    local items
+    ns.UI.ShowMenu = function(_, list) items = type(list) == "function" and list() or list end
+    local other = CreateFrame("Frame", nil, UIParent)
+    other.key = "guide"
+    ns.UI.ShowPopoutStyleMenu(other, other)
+    local texts = {}
+    for _, it in ipairs(items) do if it.text then texts[it.text] = true end end
+    ok(not texts["Show completed"], "not on the guide window")
+    ok(texts["Background colour"] and texts["Reset appearance"], "the rest is there")
+    ns.UI.OpenPopout({ kind = "daily", all = true })
+    ns.UI.ShowPopoutStyleMenu(ns.UI.PopoutWindows["daily|all"], other)
+    local found
+    for _, it in ipairs(items) do if it.text == "Show completed" then found = true end end
+    ok(found, "still on a pop-out")
+  end)
+end)
+
+describe("header and text colours stay apart", function()
+  local RED, BLUE = { 1, 0, 0 }, { 0, 0, 1 }
+  local function same(a, b) return a and b and a[1] == b[1] and a[2] == b[2] and a[3] == b[3] end
+
+  it("a pop-out: Text colours the rows only, Header the title and group headers only", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    ns.db.global.popoutStyle = { text = RED }
+    ns.UI.OpenPopout({ kind = "daily", all = true })
+    local w = ns.UI.PopoutWindows["daily|all"]
+    ok(same(w.rowFrames[1].Name.textColor, RED), "the rows take the Text colour")
+    ok(not same(w.Title.textColor, RED), "the title does not")
+    local h = w.groupFrames[1]
+    ok(not h or not same(h.Text.textColor, RED), "nor a group header")
+    ns.db.global.popoutStyle = { text = RED, header = BLUE }
+    ns.UI.RefreshPopouts()
+    ok(same(w.Title.textColor, BLUE), "Header colours the title")
+    ok(not h or same(h.Text.textColor, BLUE), "and a group header")
+    ok(same(w.rowFrames[1].Name.textColor, RED), "the rows keep the Text colour")
+  end)
+
+  it("the shared helper never gives a header the Text colour", function()
+    local ns = loadUI()
+    local fs = UIParent:CreateFontString()
+    ns.UI.PopoutStyleHeader(fs, ns.UI.PopoutStyle({ text = RED }), "GameFontNormal", 0)
+    ok(not same(fs.textColor, RED), "Default header: the font's own colour, not Text")
+    ns.UI.PopoutStyleHeader(fs, ns.UI.PopoutStyle({ text = RED }), "GameFontNormal", 0, { 0.5, 0.5, 0.5 })
+    ok(same(fs.textColor, { 0.5, 0.5, 0.5 }), "or the header's own fallback")
+    ns.UI.PopoutStyleHeader(fs, ns.UI.PopoutStyle({ text = RED, header = BLUE }), "GameFontNormal", 0)
+    ok(same(fs.textColor, BLUE))
+  end)
+end)
+
+describe("menus fit their text", function()
+  it("a long line widens the menu; one past the cap wraps onto more rows", function()
+    local ns = loadUI()
+    local oldW, oldH = RegionMT.GetStringWidth, RegionMT.GetStringHeight
+    RegionMT.GetStringWidth = function(self) return #(self.text or "") * 6 end
+    RegionMT.GetStringHeight = function(self)
+      local w = self.width and self.width > 0 and self.width or math.huge
+      return math.ceil((#(self.text or "") * 6) / w) * 12
+    end
+    local owner = CreateFrame("Button", nil, UIParent)
+    local menu = ns.UI.ShowMenu(owner, { { title = "Short" }, { text = "Go" } })
+    eq(menu.width, 190, "short items: the usual width")
+    menu = ns.UI.ShowMenu(owner, { { title = "T" }, { text = string.rep("x", 40), disabled = true } })
+    eq(menu.width, 240 + 9 + 22, "fits the longest line")
+    menu = ns.UI.ShowMenu(owner, { { title = "T" }, { text = string.rep("x", 100), disabled = true } })
+    eq(menu.width, 340, "no wider than the cap")
+    ok(menu.items[2].height > 18, "the long line wraps onto more rows")
+    RegionMT.GetStringWidth, RegionMT.GetStringHeight = oldW, oldH
   end)
 end)

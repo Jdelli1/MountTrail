@@ -164,6 +164,13 @@ function Region:GetText() return self.text end
 function Region:SetTexture(tex) self.texture = tex end
 function Region:SetColorTexture(r, g, b, a) self.color = { r, g, b, a } end
 function Region:SetAtlas(atlas) self.atlas = atlas end
+-- Font strings: justification, wrapping and font objects are recorded.
+function Region:SetJustifyH(j) self.justifyH = j end
+function Region:SetTextColor(r, g, b, a) self.textColor = { r, g, b, a } end
+function Region:SetAlpha(a) self.alpha = a end
+function Region:GetAlpha() return self.alpha or 1 end
+function Region:SetWordWrap(on) self.wordWrap = on end
+function Region:SetFontObject(font) self.font = font end
 
 local Frame = setmetatable({}, { __index = Region })
 Frame.__index = Frame
@@ -178,6 +185,10 @@ function Frame:RegisterEvent(event) self.events[event] = true end
 function Frame:UnregisterEvent(event) self.events[event] = nil end
 function Frame:EnableMouse(on) self.mouse = on end
 function Frame:SetMovable(on) self.movable = on end
+-- ScrollFrame: the scroll child and the vertical offset are recorded.
+function Frame:SetScrollChild(child) self.scrollChild = child end
+function Frame:SetVerticalScroll(v) self.vscroll = v end
+function Frame:GetVerticalScroll() return self.vscroll or 0 end
 function Frame:IsMovable() return self.movable end
 function Frame:SetClampedToScreen(on) self.clamped = on end
 function Frame:SetToplevel(on) self.toplevel = on end
@@ -208,6 +219,9 @@ function Frame:GetLeft() return self.left end
 function Frame:GetTop() return self.top end
 function Frame:GetRight() return self.right end
 function Frame:GetBottom() return self.bottom end
+function Frame:SetHyperlinksEnabled(on) self.hyperlinks = on end
+function Frame:SetEnabled(on) self.enabled = on end
+function Frame:IsEnabled() return self.enabled ~= false end
 function Frame:SetFrameLevel(level) self.level = level end
 function Frame:GetFrameLevel() return self.level or 1 end
 function Frame:SetNormalTexture(tex) self.normalTexture = tex end

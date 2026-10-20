@@ -438,6 +438,18 @@ function Game.CharKey()
   return name .. "-" .. realm
 end
 
+-- This character's class file ("MAGE") and level, nil when unknown.
+function Game.ClassFile()
+  if not UnitClass then return nil end
+  local _, classFile = UnitClass("player")
+  return type(classFile) == "string" and classFile or nil
+end
+
+function Game.Level()
+  local level = UnitLevel and UnitLevel("player")
+  return type(level) == "number" and level or nil
+end
+
 -- This character's name (no realm), or nil when unknown.
 function Game.PlayerName()
   local name = UnitName and UnitName("player")
@@ -679,4 +691,172 @@ function Game.ContributionsForMap(uiMapID)
     end
   end
   return out
+end
+
+-- Addon messages and chat links (shared lists, UI/Share.lua) ------------------
+
+-- Registers the addon-message prefix -> true when the client took it.
+function Game.RegisterAddonPrefix(prefix)
+  local chat = C_ChatInfo
+  if not (chat and chat.RegisterAddonMessagePrefix) then return false end
+  local good, result = pcall(chat.RegisterAddonMessagePrefix, prefix)
+  return good and result ~= false
+end
+
+-- Whispers `msg` to `target` ("Name-Realm") addon to addon -> true when sent.
+-- The game can refuse (throttled, or addon messages blocked in an encounter).
+function Game.SendAddonWhisper(prefix, msg, target)
+  local chat = C_ChatInfo
+  if not (chat and chat.SendAddonMessage and target) then return false end
+  local good, result = pcall(chat.SendAddonMessage, prefix, msg, "WHISPER", target)
+  if not good then return false end
+  -- 11.x+ returns an Enum.SendAddonMessageResult (0 = Success); older a boolean.
+  if type(result) == "number" then return result == 0 end
+  return result ~= false
+end
+
+-- Puts `link` into the chat box: the open one, else a new one.
+function Game.InsertChatLink(link)
+  local util = ChatFrameUtil
+  if util and type(util.InsertLink) == "function" and util.InsertLink(link) then return true end
+  if type(ChatEdit_InsertLink) == "function" and ChatEdit_InsertLink(link) then return true end
+  if util and type(util.OpenChat) == "function" then
+    util.OpenChat(link)
+    return true
+  end
+  if type(ChatFrame_OpenChat) == "function" then
+    ChatFrame_OpenChat(link)
+    return true
+  end
+  return false
+end
+
+-- Runs `fn(self, event, msg, ...)` on each `event` chat message before it shows
+-- (it may return false, msg, ... to change the text) -> true when added.
+function Game.AddChatFilter(event, fn)
+  local util = ChatFrameUtil
+  local add = (util and util.AddMessageEventFilter) or ChatFrame_AddMessageEventFilter
+  if type(add) ~= "function" then return false end
+  return pcall(add, event, fn)
+end
+
+-- Whether `value` is a Midnight secret value (unreadable chat text in an
+-- encounter): addons must not touch those.
+function Game.IsSecret(value)
+  return type(issecretvalue) == "function" and issecretvalue(value) == true
+end
+
+-- Guides (UI/Guides.lua) ---------------------------------------------------------
+
+-- How many of an item are in the bags (bank and reagent bank not counted).
+function Game.ItemCount(itemID)
+  local item = C_Item
+  local fn = (item and item.GetItemCount) or GetItemCount
+  if type(fn) ~= "function" then return 0 end
+  local good, n = pcall(fn, itemID)
+  return good and type(n) == "number" and n or 0
+end
+
+-- An item's name, or nil while the client has not loaded it.
+function Game.ItemName(itemID)
+  local item = C_Item
+  local fn = (item and item.GetItemNameByID) or (GetItemInfo and function(id) return (GetItemInfo(id)) end)
+  if type(fn) ~= "function" then return nil end
+  local good, name = pcall(fn, itemID)
+  return good and type(name) == "string" and name or nil
+end
+
+-- A quest's title, or nil when the client does not know it yet.
+function Game.QuestName(questID)
+  local log = C_QuestLog
+  if not (log and log.GetTitleForQuestID) then return nil end
+  local good, name = pcall(log.GetTitleForQuestID, questID)
+  return good and type(name) == "string" and name ~= "" and name or nil
+end
+
+-- An item's link (quality colour and all), or nil while it is not loaded.
+function Game.ItemLink(itemID)
+  local item = C_Item
+  local fn = (item and item.GetItemInfo) or GetItemInfo
+  if type(fn) ~= "function" then return nil end
+  local good, _, link = pcall(fn, itemID)
+  return good and type(link) == "string" and link or nil
+end
+
+-- Asks the client to load an item / a quest (GET_ITEM_INFO_RECEIVED /
+-- QUEST_DATA_LOAD_RESULT follow).
+function Game.RequestItem(itemID)
+  local item = C_Item
+  if item and item.RequestLoadItemDataByID then pcall(item.RequestLoadItemDataByID, itemID) end
+end
+
+function Game.RequestQuest(questID)
+  local log = C_QuestLog
+  if log and log.RequestLoadQuestByID then pcall(log.RequestLoadQuestByID, questID) end
+end
+
+function Game.SpellName(spellID)
+  local spell = C_Spell
+  local fn = (spell and spell.GetSpellName) or (GetSpellInfo and function(id) return (GetSpellInfo(id)) end)
+  if type(fn) ~= "function" then return nil end
+  local good, name = pcall(fn, spellID)
+  return good and type(name) == "string" and name or nil
+end
+
+-- An achievement's link, or nil.
+function Game.AchievementLink(achievementID)
+  if type(GetAchievementLink) ~= "function" then return nil end
+  local good, link = pcall(GetAchievementLink, achievementID)
+  return good and type(link) == "string" and link ~= "" and link or nil
+end
+
+-- Makes (or updates) the account-wide macro `name` with `body` and puts it on
+-- the cursor to drop on an action bar -> true, or false and why ("combat",
+-- "full", "error").
+function Game.MakeMacro(name, body)
+  if type(InCombatLockdown) == "function" and InCombatLockdown() then return false, "combat" end
+  if type(CreateMacro) ~= "function" or type(GetMacroIndexByName) ~= "function" then return false, "error" end
+  local icon = "INV_MISC_QUESTIONMARK"
+  local good, index = pcall(GetMacroIndexByName, name)
+  index = good and index or 0
+  if index and index > 0 and type(EditMacro) == "function" then
+    good = pcall(EditMacro, index, name, icon, body)
+  else
+    local made
+    good, made = pcall(CreateMacro, name, icon, body, false)
+    if not good or not made then return false, "full" end
+  end
+  if not good then return false, "error" end
+  if type(PickupMacro) == "function" then pcall(PickupMacro, name) end
+  return true
+end
+
+-- Where the player is: instance ID (GetInstanceInfo's 8th return, the saved
+-- instance's ID), difficulty ID; nil outside instances.
+function Game.CurrentInstance()
+  if type(GetInstanceInfo) ~= "function" then return nil end
+  local good, _, instanceType, difficultyID, _, _, _, _, instanceID = pcall(GetInstanceInfo)
+  if not good or instanceType == "none" or not instanceID or not difficultyID or difficultyID == 0 then return nil end
+  return instanceID, difficultyID
+end
+
+-- A difficulty's name ("25 Player (Heroic)"), or nil.
+function Game.DifficultyName(difficultyID)
+  if type(GetDifficultyInfo) ~= "function" then return nil end
+  local good, name = pcall(GetDifficultyInfo, difficultyID)
+  return good and type(name) == "string" and name ~= "" and name or nil
+end
+
+-- A big warning in the middle of the screen (the raid warning frame) and its
+-- sound; false when the client has neither.
+function Game.ScreenWarning(text)
+  local shown = false
+  if type(RaidNotice_AddMessage) == "function" and RaidWarningFrame then
+    local info = type(ChatTypeInfo) == "table" and ChatTypeInfo.RAID_WARNING or { r = 1, g = 0.3, b = 0.1 }
+    shown = pcall(RaidNotice_AddMessage, RaidWarningFrame, text, info)
+  end
+  if type(PlaySound) == "function" and type(SOUNDKIT) == "table" and SOUNDKIT.RAID_WARNING then
+    pcall(PlaySound, SOUNDKIT.RAID_WARNING)
+  end
+  return shown
 end

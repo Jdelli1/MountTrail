@@ -10,6 +10,8 @@ local ADDON, ns = ...
 --   "Attempts (this character)  N" and "Total attempts  T" (Attempts.Summary:
 --   kill statistics, else our per-character counters; the total also takes
 --   Rarity's count when larger), "Chance so far  P%" (of T),
+--   "Rarity  0.28% of characters" in its quality colour when MountsRarity-2.0
+--   is loaded (Integrations/MountsRarity.lua),
 --   this character's lockout state, the achievement block for achievement
 --   mounts (UI.AchievementLines) and the click hints.
 -- The lines are built by pure helpers (UI.TooltipLines -> structured lines,
@@ -212,6 +214,15 @@ function UI.TooltipLines(mountID, routeBoss, opts)
     if n then
       lines[#lines + 1] = double(L["Chance so far"], ns.Odds.Percent(ns.Odds.ChanceSoFar(n, counts.total)))
     end
+  end
+
+  -- How many characters own it (MountsRarity-2.0, when another add-on loaded it).
+  local pct = ns.Owners and ns.Owners.Percent(mountID)
+  if pct then
+    local c = ns.Owners.Color(pct)
+    local entry = double(L["Rarity"], string.format(L["%s of characters"], ns.Owners.Text(pct)))
+    entry.rr, entry.rg, entry.rb = c[1], c[2], c[3]
+    lines[#lines + 1] = entry
   end
 
   local status = UI.LockoutStatus(mountID, routeBoss)

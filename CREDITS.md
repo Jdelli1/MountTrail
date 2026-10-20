@@ -32,4 +32,5 @@ Notes:
 
 ## Optional integrations
 
-- [TomTom](https://www.curseforge.com/wow/addons/tomtom) by jnwhiteh: optional waypoint integration, not bundled. Licensed "All Rights Reserved" per its CurseForge page; the integration calls its public API only, no code copied.
+- [TomTom](https://www.curseforge.com/wow/addons/tomtom) by jnwhiteh: required for waypoints, not bundled. Licensed "All Rights Reserved" per its CurseForge page; the integration calls its public API only, no code copied.
+- [MountsRarity](https://github.com/sgade/MountsRarity) by sgade (GPL-3.0): how many characters own each mount. Not bundled: read at run time from the MountsRarity-2.0 library when Mount Journal Enhanced or the MountsRarity add-on has loaded it (public API only, no code or data copied).

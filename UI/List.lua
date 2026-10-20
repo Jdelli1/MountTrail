@@ -42,9 +42,12 @@ local ADDON, ns = ...
 -- The pure helpers above the widget code (SourceLine, RowDescription,
 -- StripMarkup, SourcePairs, MountIcon, SectionLabel,
 -- ListRows, SubGroup, SourceZone, InstanceName, CollapseKey, ToggleCollapsed,
+-- ToggleAllCollapsed,
 -- HeaderIcon, PreviewMount, RowClickAction, HasLocation, PinIcon,
 -- the filter menu helpers) are unit-tested; the widget
 -- code is built under a stub by tests/ui_build_spec.lua.
+-- The search box's matching (UI.SearchMatches, UI.SearchFields and the
+-- shared search cache) is in UI/Search.lua.
 
 local L = ns.L
 
@@ -324,6 +327,12 @@ function UI.SourceLabelKind(label, kinds)
   return key and (kinds or labelKinds())[key] or nil
 end
 
+-- Label key -> kind for UI.SourceLabelKind's second argument, built once per
+-- caller (UI.SearchFields) instead of once per label.
+function UI.SourceLabelKinds()
+  return labelKinds()
+end
+
 -- "<label>: <value>" -> label (with its colon), value; nil when the line has
 -- no short, digit-free label before its first colon.
 local function splitLabel(line)
@@ -438,6 +447,11 @@ local function scannedAchievementName(mountID)
   return nil
 end
 
+-- The same, for UI.SearchFields (UI/Search.lua).
+function UI.ScannedAchievementName(mountID)
+  return scannedAchievementName(mountID)
+end
+
 -- The grey line under a mount row's name: the most specific source the
 -- client's source text (Game.MountSourceText, passed in) or our data gives,
 -- one line:
@@ -487,56 +501,6 @@ function UI.RowDescription(mountID, sourceText)
   if zone then return text(zone) end
   if unlabelled then return unlabelled end
   return UI.SourceLine(mountID)
-end
-
--- Searchable text of a mount for Search.Select -> { name =, boss =,
--- instance =, zone =, achievement =, expansion =, other = } (lists of
--- strings): the client's source text by label kind (Drop -> boss, Zone /
--- Location -> zone, Achievement -> achievement, anything else -> other),
--- the achievement scan's name, the data group (instance / zone / faction /
--- profession) and route instance and boss, the coordinates' map name
--- (ctx.mapName), the expansion, and the section and holiday labels.
--- ctx: { sourceText = fn(id), mapName = fn(mapID) } (both optional).
-function UI.SearchFields(id, m, ctx)
-  ctx = ctx or {}
-  m = m or {}
-  local f = { name = { m.name }, boss = {}, instance = {}, zone = {}, achievement = {}, expansion = {}, other = {} }
-  local function add(kind, text)
-    if type(text) == "string" and text ~= "" then f[kind][#f[kind] + 1] = text end
-  end
-  local kinds = labelKinds()
-  local text = ctx.sourceText and ctx.sourceText(id) or nil
-  for _, pair in ipairs(UI.SourcePairs(text)) do
-    local kind = pair.label and UI.SourceLabelKind(pair.label, kinds) or nil
-    if kind == "drop" then
-      add("boss", pair.value)
-    elseif kind == "zone" then
-      add("zone", pair.value)
-    elseif kind == "achievement" then
-      add("achievement", pair.value)
-    elseif kind ~= "cost" then
-      add("other", pair.value)
-    end
-  end
-  add("achievement", scannedAchievementName(id))
-  local entry = routeEntry(id)
-  if entry then
-    add("boss", entry.boss)
-    add("instance", entry.instance)
-  end
-  local section = m.section
-  if section == "dungeon" or section == "raid" then
-    add("instance", m.group)
-  elseif section == "world" or section == "treasure" or section == "quest" or section == "activity" then
-    add("zone", m.group)
-  else
-    add("other", m.group)
-  end
-  local coords = m.coords
-  if ctx.mapName and type(coords) == "table" and coords.m then add("zone", ctx.mapName(coords.m)) end
-  if m.exp then add("expansion", L[m.exp]) end
-  if section then add("other", UI.SectionLabel(section)) end
-  return f
 end
 
 -- Grouping key of a sub-group name: lower case, trimmed, single spaces, a
@@ -617,6 +581,44 @@ function UI.ToggleCollapsed(store, key)
   end
   store[key] = true
   return true
+end
+
+-- Shift-click on a header: every header of that list at once. `rows`: the
+-- list's rows as shown; `clicked`: the header's row. A collapsed header
+-- expands them all: each shown header and every saved key under one
+-- ("<key>|..."), so headers nested inside collapsed ones open too. An open
+-- header collapses every shown header. -> true when collapsed.
+function UI.ToggleAllCollapsed(store, rows, clicked)
+  local collapse = not (clicked and clicked.collapsed)
+  for _, row in ipairs(rows or {}) do
+    if row.header and row.key ~= nil then
+      local key = tostring(row.key)
+      if collapse then
+        store[key] = true
+      else
+        store[key] = nil
+        local prefix = key .. "|"
+        for k in pairs(store) do
+          if type(k) == "string" and string.sub(k, 1, #prefix) == prefix then store[k] = nil end
+        end
+      end
+    end
+  end
+  return collapse
+end
+
+-- A header's hover hint -> title, text: its own hint (e.g. "Right-click to
+-- pop out ...") over the collapse lines when it collapses; nil when it has
+-- neither.
+function UI.HeaderHint(hint, collapsible)
+  if not collapsible then return hint, nil end
+  if hint then return hint, L["Click: collapse or expand. Shift-click: all at once"] end
+  return L["Click: collapse or expand"], L["Shift-click: collapse or expand all"]
+end
+
+-- Whether Shift is held (a header's Shift-click: all headers at once).
+function UI.ShiftDown()
+  return type(IsShiftKeyDown) == "function" and IsShiftKeyDown() and true or false
 end
 
 local function groupOrder(a, b)
@@ -1104,6 +1106,74 @@ function UI.HandleRowClick(mountID, button, routeBoss, eventMap)
   end
 end
 
+-- Rows of a list with the detail pane (no buttons there: the clicks do it).
+local function hasAchievement(mountID)
+  local scan = ns.AchievementScan
+  return scan and scan.Lookup and scan.Lookup(mountID) ~= nil or false
+end
+
+-- What a click does on such a row (it also selects it): a plain left-click
+-- only selects (nil); right-click "achievement" for an achievement mount,
+-- else "waypoint" (the zone map for an unknown event); Shift "map"; Ctrl
+-- "preview" -> action.
+function UI.PaneRowAction(mountID, button, ctrl, shift, routeBoss, eventMap)
+  if ctrl then return "preview" end
+  if shift then return "map" end
+  if button ~= "RightButton" then return nil end
+  if hasAchievement(mountID) then return "achievement" end
+  if eventMap or UI.HasLocation(mountID, routeBoss) then return "waypoint" end
+  return nil
+end
+
+-- A click on a row of a list with the detail pane (after selecting it).
+function UI.PaneRowClick(mountID, routeBoss, eventMap, button)
+  local ctrl = type(IsControlKeyDown) == "function" and IsControlKeyDown() and true or false
+  local shift = type(IsShiftKeyDown) == "function" and IsShiftKeyDown() and true or false
+  local action = UI.PaneRowAction(mountID, button or "LeftButton", ctrl, shift, routeBoss, eventMap)
+  trace("pane click on mount %s -> %s", tostring(mountID), tostring(action))
+  if action == "waypoint" and eventMap and UI.OpenEventMap then
+    UI.OpenEventMap(eventMap)
+  elseif action == "waypoint" then
+    UI.GoTo(mountID, routeBoss)
+  elseif action == "map" then
+    mapAction("OpenMap", mountID, routeBoss)
+  elseif action == "achievement" then
+    UI.OpenMountAchievement(mountID)
+  elseif action == "preview" then
+    UI.PreviewMount(mountID)
+  end
+  return action
+end
+
+local KEY_CODE = "|cffffd100"
+
+-- The hover hint's lines on such a row: one per click that does something.
+function UI.PaneRowHint(mountID, routeBoss, eventMap)
+  local lines = {}
+  local function add(key, what) lines[#lines + 1] = KEY_CODE .. key .. "|r  " .. what end
+  local located = UI.HasLocation(mountID, routeBoss)
+  local achievement = hasAchievement(mountID)
+  local map = ns.Map
+  local n = located and map and map.PlotCount and map.PlotCount(mountID, routeBoss) or 0
+  if achievement then
+    add(L["Right-click"], L["view the achievement"])
+  elseif eventMap then
+    add(L["Right-click"], L["open the zone map"])
+  elseif n > 1 then
+    add(L["Right-click"], string.format(L["plot all %d spawn points"], n))
+  elseif located then
+    add(L["Right-click"], L["plot the coordinates"])
+  end
+  if located then add(L["Shift-click"], L["show on the map"]) end
+  add(L["Ctrl-click"], L["preview in the dressing room"])
+  return table.concat(lines, "\n")
+end
+
+-- The hint's title: the row's name.
+function UI.RowHintTitle(row)
+  return row.Name and row.Name:GetText() or ""
+end
+
 -- Widgets ----------------------------------------------------------------------------
 
 local FILTER_WIDTH = 150 -- fallback filter panel
@@ -1137,7 +1207,7 @@ function UI.SourceFont()
     font:SetTextColor(0.7, 0.7, 0.7)
     sourceFont = SOURCE_FONT
   else
-    sourceFont = "GameFontDisableSmall"
+    sourceFont = UI.Font("GameFontDisableSmall")
   end
   return sourceFont
 end
@@ -1151,11 +1221,12 @@ function UI.OwnedFont()
   if ownedFont then return ownedFont end
   if type(CreateFont) == "function" and GameFontNormal then
     local font = _G[OWNED_FONT] or CreateFont(OWNED_FONT)
-    font:SetFontObject(GameFontNormal)
+    -- From the add-on's sized copy, so it follows the gold text size.
+    font:SetFontObject(_G[UI.Font("GameFontNormal")] or GameFontNormal)
     font:SetTextColor(0.55, 0.95, 0.6)
     ownedFont = OWNED_FONT
   else
-    ownedFont = "GameFontGreen"
+    ownedFont = UI.Font("GameFontGreen")
   end
   return ownedFont
 end
@@ -1228,16 +1299,17 @@ local function initHeader(frame, data)
     local indicator = frame:CreateTexture(nil, "ARTWORK")
     indicator:SetSize(INDICATOR_SIZE, INDICATOR_SIZE)
     frame.Indicator = indicator
-    local indicatorText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    local indicatorText = frame:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlight"))
     indicatorText:SetPoint("CENTER", indicator, "CENTER", 0, 0)
     frame.IndicatorText = indicatorText
-    local label = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    local label = frame:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormal"))
     label:SetPoint("LEFT", indicator, "RIGHT", 6, 0)
     label:SetJustifyH("LEFT")
     frame.Label = label
     frame:SetScript("OnEnter", function(self)
       self.Hover:Show()
-      if self.hint and UI.ShowHint then UI.ShowHint(self, self.hint, nil, "cursor") end
+      local title, text = UI.HeaderHint(self.hint, self.onToggle ~= nil)
+      if title and UI.ShowHint then UI.ShowHint(self, title, text, "cursor") end
     end)
     frame:SetScript("OnLeave", function(self)
       self.Hover:Hide()
@@ -1251,7 +1323,14 @@ local function initHeader(frame, data)
         self.onRightClick(self.data, self)
         return
       end
-      if button ~= "LeftButton" or not (self.key and self.onToggle) then return end
+      if button ~= "LeftButton" then return end
+      -- Shift-click: every header of the list collapses (or, on a collapsed
+      -- one, expands) at once.
+      if UI.ShiftDown() and self.onToggleAll and self.data then
+        self.onToggleAll(self.data, self)
+        return
+      end
+      if not (self.key and self.onToggle) then return end
       self.onToggle(self.key)
     end)
   end
@@ -1275,7 +1354,7 @@ local function initHeader(frame, data)
     frame.IndicatorText:SetText(glyph)
     frame.IndicatorText:Show()
   end
-  frame.Label:SetFontObject(sub and "GameFontNormalSmall" or "GameFontNormal")
+  frame.Label:SetFontObject(sub and UI.Font("GameFontNormalSmall") or UI.Font("GameFontNormal"))
   frame.Label:SetText(UI.HeaderText(data))
 end
 
@@ -1376,7 +1455,7 @@ local function setupRow(row)
   pin:SetPoint("RIGHT", row, "RIGHT", -PIN_RIGHT, 0)
   row.Pin = pin
 
-  local name = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  local name = row:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormal"))
   -- Same-edge anchor pairs only (a RIGHT anchor would also pin the vertical
   -- centre). The 32 px icon is centred in the 40 px row, so its top is at -4
   -- and the name's at -6; the right edge stops 8 px left of the pin.
@@ -1394,25 +1473,28 @@ local function setupRow(row)
   row.Source = source
 
   row:SetScript("OnEnter", function(self)
-    if self.tooltip then
+    if self.onSelect and self.mountID then
+      -- The detail pane shows the mount: the hover just says what a click does.
+      UI.ShowHint(self, UI.RowHintTitle(self), UI.PaneRowHint(self.mountID, self.routeBoss, self.eventMap), "cursor")
+    elseif self.tooltip then
       self.tooltip(self)
     elseif self.mountID then
       -- A route / checklist row's boss decides the lockout line.
       UI.ShowMountTooltip(self, self.mountID, self.routeBoss)
     end
   end)
-  row:SetScript("OnLeave", function() UI.HideMountTooltip() end)
+  row:SetScript("OnLeave", function(self)
+    UI.HideMountTooltip()
+    UI.HideHint(self)
+  end)
   row:SetScript("OnClick", function(self, button)
-    -- In a list with the detail pane a plain left-click selects the row
-    -- (an achievement mount also opens its achievement). Otherwise:
-    -- left-click waypoint (or the achievement), Shift+left-click world map,
-    -- Ctrl+left-click preview, Shift+right-click achievement
-    -- (UI.RowClickAction).
-    if self.onSelect and button == "LeftButton" and self.mountID
-      and not (type(IsShiftKeyDown) == "function" and IsShiftKeyDown())
-      and not (type(IsControlKeyDown) == "function" and IsControlKeyDown()) then
+    -- In a list with the detail pane any click selects the row, then
+    -- UI.PaneRowClick (right-click plots, Shift map, Ctrl achievement). Otherwise: left-click waypoint (or the
+    -- achievement), Shift+left-click world map, Ctrl+left-click preview,
+    -- Shift+right-click achievement (UI.RowClickAction).
+    if self.onSelect and self.mountID and (button == "LeftButton" or button == "RightButton") then
       self.onSelect(self.mountID, self)
-      UI.AchievementClick(self.mountID)
+      UI.PaneRowClick(self.mountID, self.routeBoss, self.eventMap, button)
       return
     end
     UI.HandleRowClick(self.mountID, button, self.routeBoss, self.eventMap)
@@ -1440,7 +1522,7 @@ local function initRow(row, data)
   -- Owned (collected) mounts: green tint and a light green name, the icon
   -- in full colour; everything reset for a recycled frame.
   row.Owned:SetShown(data.owned == true)
-  row.Name:SetFontObject(data.owned and UI.OwnedFont() or "GameFontNormal")
+  row.Name:SetFontObject(data.owned and UI.OwnedFont() or UI.Font("GameFontNormal"))
   row.Icon:SetDesaturated(false)
 end
 
@@ -1465,7 +1547,7 @@ local function makeCheck(panel, label, onClick)
   cb:SetSize(CHECK_SIZE, CHECK_SIZE)
   local text = cb.Text or cb.text
   if not text then
-    text = cb:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    text = cb:CreateFontString(nil, "ARTWORK", UI.Font("GameFontHighlightSmall"))
     text:SetPoint("LEFT", cb, "RIGHT", 2, 0)
   end
   text:SetWidth(FILTER_LABEL_WIDTH)
@@ -1504,7 +1586,7 @@ local function layoutFilterPanel(list, search)
   collected:SetPoint("TOPLEFT", search, "BOTTOMLEFT", -6, -8)
   list.CollectedCheck = collected
 
-  local sectionsTitle = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  local sectionsTitle = panel:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalSmall"))
   sectionsTitle:SetPoint("TOPLEFT", collected, "BOTTOMLEFT", 4, -8)
   sectionsTitle:SetText(L["Sources"])
   list.SectionsTitle = sectionsTitle
@@ -1748,9 +1830,9 @@ function UI.List(parent, getQuery, opts)
   local view = CreateScrollBoxListLinearView()
   view:SetElementExtentCalculator(function(_, elementData)
     if elementData.header then
-      return elementData.depth == 2 and SUB_HEADER_HEIGHT or HEADER_HEIGHT
+      return UI.HeaderHeight(elementData.depth == 2 and SUB_HEADER_HEIGHT or HEADER_HEIGHT)
     end
-    return ROW_HEIGHT
+    return UI.RowHeight(ROW_HEIGHT)
   end)
   -- Clicking a header flips its saved collapse state and redraws in place.
   local function toggle(key)
@@ -1759,8 +1841,15 @@ function UI.List(parent, getQuery, opts)
     UI.ToggleCollapsed(store, key)
     list:Refresh()
   end
+  local function toggleAll(data)
+    local store = collapsedDB()
+    if not store then return end
+    UI.ToggleAllCollapsed(store, scrollBox.rowsShown, data)
+    list:Refresh()
+  end
   local function initListHeader(frame, data)
     frame.onToggle = toggle
+    frame.onToggleAll = toggleAll
     initHeader(frame, data)
   end
   view:SetElementFactory(function(factory, elementData)
@@ -1772,7 +1861,7 @@ function UI.List(parent, getQuery, opts)
   end)
   ScrollUtil.InitScrollBoxListWithScrollBar(scrollBox, scrollBar, view)
 
-  local empty = list:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+  local empty = list:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisable"))
   empty:SetPoint("CENTER", scrollBox, "CENTER", 0, 0)
   empty:SetText(L["No mounts match these filters."])
   empty:Hide()
@@ -1817,6 +1906,12 @@ function UI.List(parent, getQuery, opts)
     end
 
     local select = (opts and opts.select) or ns.Journal.Select
+    if not (opts and opts.select) and UI.SearchMatches then
+      -- The home page's fuzzy search on the views' own pages too.
+      local ids = {}
+      for id in pairs((ns.Data and ns.Data.Mounts) or {}) do ids[#ids + 1] = id end
+      query.match = UI.SearchMatches(ids, query.search, query.sourceText)
+    end
     local selected = select((ns.Data and ns.Data.Mounts) or {}, query)
     local rows = UI.ListRows(selected, query.isOwned, {
       headerSuffix = opts and opts.headerSuffix,
@@ -1856,7 +1951,7 @@ function UI.List(parent, getQuery, opts)
         n = n + 1
         row.alt = n % 2 == 0
         row.desc = describe(row.id)
-        -- With the detail pane its Waypoint / Map buttons stand for the
+        -- With the detail pane its clicks (UI.PaneRowClick) stand for the
         -- row's location icon.
         if not pane then row.pin = UI.LocationIcon(row.id) end
         if pane then
@@ -1867,6 +1962,7 @@ function UI.List(parent, getQuery, opts)
       end
     end
     if pane then pane:SetMount(selectedID) end
+    scrollBox.rowsShown = rows -- a header's Shift-click (UI.ToggleAllCollapsed)
     local provider = CreateDataProvider(rows)
     if resetScroll or not ScrollBoxConstants then
       scrollBox:SetDataProvider(provider)

@@ -45,12 +45,29 @@ local function kill(title, bosses)
   return { title = title, type = "Raid", bosses = bosses }
 end
 
--- Kill rows of this character's route (Route.Build over UI.RouteContext)
--- not done yet; `showCompleted` lists done rows too.
+-- Kill rows as the Checklist hands them to UI.RouteCheck / UI.RouteToggle:
+-- each Data.Route kill node's bosses (owned mounts left out) with their
+-- UI.RouteContext state; a row is done when every boss is, `auto` when the
+-- game reported each one. Done rows only with `showCompleted`.
 local function routeRows(ns, now, showCompleted)
   local ctx = ns.UI.RouteContext(now)
-  ctx.showCompleted = showCompleted == true
-  return ns.Route.Build(ns.Data.Route, ctx)
+  local out = {}
+  for _, node in ipairs(ns.Data.Route or {}) do
+    local bosses, done, auto = {}, true, true
+    for _, b in ipairs(node.bosses or {}) do
+      if not ctx.isOwned(b.mount) then
+        local state = ctx.stateOf(b.mount, b.boss)
+        bosses[#bosses + 1] = { mount = b.mount, boss = b.boss, state = state }
+        if state ~= "done" and state ~= "manual-done" then done = false end
+        if state ~= "done" then auto = false end
+      end
+    end
+    if #bosses > 0 and (showCompleted or not done) then
+      out[#out + 1] = { kind = "kill", title = node.title, bosses = bosses,
+        state = done and "done" or "open", auto = done and auto }
+    end
+  end
+  return out
 end
 
 local function left(ns, now)
@@ -78,8 +95,8 @@ describe("ui route", function()
 
   it("loads and exposes the helpers without building any view", function()
     local ns = loadUI()
-    for _, name in ipairs({ "RouteContext", "RouteCheck", "RouteToggle", "RouteTickKey", "RouteTargetMount",
-      "RouteNextStep", "RouteRowLines", "RouteFlavour", "FormatDuration", "HolidayBadge", "TradingTag",
+    for _, name in ipairs({ "RouteContext", "RouteCheck", "RouteToggle", "RouteTickKey",
+      "RouteFlavour", "FormatDuration", "HolidayBadge", "TradingTag",
       "HeaderText", "RowSourceText", "RouteBoss" }) do
       eq(type(ns.UI[name]), "function", name)
     end
@@ -163,76 +180,6 @@ describe("ui route", function()
       local ns = loadUI(nil, { Lockouts = { [12] = { manual = true, reset = "daily" } } })
       ns.db.char.ticks[12] = NOW + 1
       eq(ns.UI.RouteContext().stateOf(12), "manual-done")
-    end)
-  end)
-
-  describe("route rows (the parked arrow's steps)", function()
-    local route = {
-      { title = "Fly somewhere", steps = {
-        kill("Saved raid", { { mount = 1, boss = "A" } }),
-        kill("Open raid", { { mount = 2, boss = "B" } }),
-        kill("Manual rare", { { mount = 3, boss = "C" } }),
-        kill("Ticked rare", { { mount = 4, boss = "D" } }),
-        kill("Owned", { { mount = 5, boss = "E" } }),
-      } },
-    }
-    local lockouts = {
-      [1] = { quest = 1001, reset = "weekly" },
-      [2] = { quest = 1002, reset = "weekly" },
-      [3] = { manual = true, reset = "daily" },
-      [4] = { manual = true, reset = "daily" },
-    }
-
-    it("counts kill rows that are not done (owned and done rows excluded)", function()
-      local ns = loadUI({
-        IsQuestDone = function(q) return q == 1001 end,
-        IsOwned = function(id) return id == 5 end,
-      }, { Route = route, Lockouts = lockouts })
-      ns.db.char.ticks[4] = NOW + 60
-      eq(left(ns, NOW), 2, "Open raid + Manual rare")
-    end)
-
-    it("counts active holiday steps and drops to zero when all is done", function()
-      local ns = loadUI({
-        ActiveHolidays = function() return { brewfest = true } end,
-        IsQuestDone = function() return true end,
-      }, {
-        Route = { kill("Done raid", { { mount = 1, boss = "A" } }) },
-        Lockouts = { [1] = { quest = 1001, reset = "weekly" }, [202] = { lfg = 287, reset = "daily" } },
-        Holidays = { brewfest = { title = "Brewfest", mounts = { 202 }, stepTitle = "Queue for Coren Direbrew (Brewfest)" } },
-      })
-      eq(left(ns, NOW), 1, "holiday boss open")
-      ns.Game.IsLfgDone = function() return true end
-      eq(left(ns, NOW), 0)
-    end)
-
-    it("runs on the shipped data for both factions", function()
-      for _, faction in ipairs({ "Horde", "Alliance" }) do
-        reset_ui_stub()
-        local files = toc_lua_files()
-        for _, f in ipairs(UI_FILES) do files[#files + 1] = f end
-        local ns = load_addon(files)
-        ns.addon:OnInitialize()
-        ns.Game.Faction = function() return faction end
-        ns.Game.MountInfo = function() return nil end
-        ns.Game.IsOwned = function() return false end
-        ns.Game.SavedRows = function() return {} end
-        ns.Game.IsQuestDone = function() return false end
-        ns.Game.IsLfgDone = function() return false end
-        ns.Game.ActiveHolidays = function() return { brewfest = true } end
-        local ctx = ns.UI.RouteContext(NOW)
-        local rows = ns.Route.Build(ns.Data.Route, ctx)
-        ok(#rows > 10, faction .. ": route has rows")
-        eq(rows[1].title, "Queue for Coren Direbrew (Brewfest)", faction .. ": holiday boss first")
-        ok(left(ns, NOW) > 10, faction .. ": steps left")
-        for _, row in ipairs(rows) do
-          ns.UI.RouteRowLines(row)
-          if row.kind == "kill" then
-            local store = {}
-            ns.UI.RouteToggle(row, store, NOW, 100, 5000) -- every manual spec has a valid reset
-          end
-        end
-      end
     end)
   end)
 
@@ -332,7 +279,7 @@ describe("ui route", function()
         Lockouts = { [395] = { manual = true, reset = "daily" } },
         BossLockouts = { ["Grand Hoarder"] = { manual = true, reset = "weekly" } },
       })
-      local rows = ns.Route.Build(ns.Data.Route, ns.UI.RouteContext(NOW))
+      local rows = routeRows(ns, NOW, true)
       ns.UI.RouteToggle(rows[2], ns.db.char.ticks, NOW, 100, 5000)
       local ctx = ns.UI.RouteContext(NOW)
       eq(ctx.stateOf(395, "Grand Hoarder"), "manual-done")
@@ -347,7 +294,7 @@ describe("ui route", function()
       })
       ns.addon:OnEnable()
       fire_event(ns.addon, "UPDATE_INSTANCE_INFO")
-      local rows = ns.Route.Build(ns.Data.Route, ns.UI.RouteContext(NOW))
+      local rows = routeRows(ns, NOW, true)
       eq(ns.UI.RouteToggle(rows[1], ns.db.char.ticks, NOW, 100, 5000), false)
       eq(ns.db.char.ticks, {})
       fire_event(ns.addon, "UPDATE_INSTANCE_INFO")
@@ -360,7 +307,7 @@ describe("ui route", function()
         Route = { kill("Rare", { { mount = 3, boss = "C" } }) },
         Lockouts = { [3] = { manual = true, reset = "daily" } },
       })
-      local rows = ns.Route.Build(ns.Data.Route, ns.UI.RouteContext(NOW))
+      local rows = routeRows(ns, NOW, true)
       eq(rows[1].bosses[1].state, "manual-open")
       ns.UI.RouteToggle(rows[1], ns.db.char.ticks, NOW, 100, 5000)
       eq(left(ns, NOW), 0)
@@ -368,58 +315,6 @@ describe("ui route", function()
       eq(rows[1].state, "done")
       eq({ ns.UI.RouteCheck(rows[1]) }, { true, true, false }, "still clickable to untick")
       eq(left(ns, NOW + 100), 1, "gone after the daily reset")
-    end)
-  end)
-
-  describe("RouteTargetMount", function()
-    it("is the first boss not done (by the game or by hand), else the first; nil without bosses", function()
-      local ns = loadUI()
-      local t = ns.UI.RouteTargetMount
-      eq(t({ kind = "kill", bosses = { { mount = 1, state = "open" }, { mount = 2, state = "open" } } }), 1)
-      eq(t({ kind = "kill", bosses = { { mount = 1, state = "done" }, { mount = 2, state = "manual-done" },
-        { mount = 3, state = "manual-open" } } }), 3)
-      eq(t({ kind = "kill", bosses = { { mount = 1, state = "done" }, { mount = 2, state = "done" } } }), 1,
-        "all done: the first")
-      eq(t({ kind = "travel", bosses = {} }), nil)
-      eq(t({ kind = "travel" }), nil)
-      eq(t(nil), nil)
-    end)
-
-    it("also returns the target's route boss", function()
-      local ns = loadUI()
-      local t = ns.UI.RouteTargetMount
-      eq({ t({ kind = "kill", bosses = { { mount = 1, boss = "A", state = "done" }, { mount = 2, boss = "B" } } }) },
-        { 2, "B" })
-      eq({ t({ kind = "kill", bosses = { { mount = 1, boss = "A", state = "done" } } }) }, { 1, "A" })
-    end)
-  end)
-
-  describe("RouteRowLines", function()
-    it("shows boss -> mount, notes in grey and locked text in grey", function()
-      local ns = loadUI({ MountInfo = function(id) if id == 1 then return "Client Mount" end end },
-        { Mounts = { [2] = { name = "Data Mount" } } })
-      local title, lines = ns.UI.RouteRowLines({
-        kind = "kill", title = "Run X", notes = "Heroic only",
-        bosses = {
-          { mount = 1, boss = "Boss One", note = "no watchers" },
-          { mount = 2, boss = "Boss Two", locked = true, lockedText = "Garrison needed" },
-          { mount = 3 },
-        },
-      })
-      eq(title, "Run X")
-      eq(lines, {
-        "Boss One → Client Mount  |cff808080no watchers|r",
-        "Boss Two → Data Mount  |cff808080(Garrison needed)|r",
-        "3",
-        "|cff808080Heroic only|r",
-      })
-    end)
-
-    it("travel rows show only their notes", function()
-      local ns = loadUI()
-      local title, lines = ns.UI.RouteRowLines({ kind = "travel", title = "Portal to Uldum", bosses = {} })
-      eq(title, "Portal to Uldum")
-      eq(lines, {})
     end)
   end)
 

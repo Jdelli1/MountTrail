@@ -1,9 +1,23 @@
 package-as: MountTrail
 
+# Release notes on CurseForge / Wago / GitHub come from the changelog.
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown
+
+# Only the addon ships: development files stay in the repository.
 ignore:
   - tools
   - tests
   - docs
-  - .superpowers
+  - .github
+  - .claude
   - .gitignore
   - .pkgmeta
+  - .luacheckrc
+  - CLAUDE.md
+  - ARCHITECTURE.md
+  - CONTRIBUTING.md
+
+required-dependencies:
+  - tomtom

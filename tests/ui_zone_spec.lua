@@ -195,3 +195,27 @@ describe("zone panel glue", function()
     eq(asked, first, "second build: all from the session cache")
   end)
 end)
+
+describe("UI.ZoneGroupedRows", function()
+  it("one header per source when the zone has several; collapsed headers hide their rows; one source: rows only", function()
+    local ns = loadUI()
+    local list = {
+      { id = 1, m = { name = "A", section = "vendor" } },
+      { id = 2, m = { name = "B", section = "dungeon" } },
+      { id = 3, m = { name = "C", section = "vendor" }, owned = true },
+    }
+    local rows = ns.UI.ZoneGroupedRows(list, {})
+    eq(rows[1].header, true)
+    eq({ rows[1].key, rows[1].text, rows[1].owned, rows[1].total }, { "zonepanel|dungeon", "Dungeon drops", 0, 1 })
+    eq(rows[2].id, 2)
+    eq({ rows[3].key, rows[3].text, rows[3].owned, rows[3].total }, { "zonepanel|vendor", "Vendors", 1, 2 })
+    eq({ rows[4].id, rows[5].id }, { 1, 3 })
+    eq({ rows[4].alt, rows[5].alt }, { false, true }, "striped afresh per group")
+    rows = ns.UI.ZoneGroupedRows(list, { ["zonepanel|vendor"] = true })
+    eq(#rows, 3, "the collapsed group's rows are gone")
+    eq(rows[3].collapsed, true)
+    rows = ns.UI.ZoneGroupedRows({ list[1], list[3] }, {})
+    eq(#rows, 2, "one source: no header")
+    eq(rows[1].header, nil)
+  end)
+end)

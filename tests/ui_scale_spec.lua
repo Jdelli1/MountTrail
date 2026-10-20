@@ -33,6 +33,17 @@ describe("window size", function()
     eq({ frame:GetSize() }, ns.UI.WINDOW_SIZE, "default size")
   end)
 
+  it("the Window scale setting scales the window when built and when changed", function()
+    local ns = loadUI()
+    local pct = 120
+    ns.Options = { WindowScale = function() return pct end }
+    ns.ToggleWindow()
+    eq(ns.UI.frame:GetScale(), 1.2)
+    pct = 90
+    ns.UI.ApplyWindowScale()
+    eq(ns.UI.frame:GetScale(), 0.9)
+  end)
+
   it("the saved size is applied when the window is built", function()
     local ns = loadUI()
     ns.db.global.window.width, ns.db.global.window.height = 1100, 760
