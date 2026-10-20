@@ -17,6 +17,14 @@ local ADDON, ns = ...
 -- off and the subtitle says how many. Position in ns.db.global.altsWindow.
 -- Opened by UI.ToggleAltsWindow: /mtrail alts and the Checklist header's
 -- "Alts" button. Redrawn on ns.Refresh only while shown.
+-- It is customised like a pop-out (UI/Popouts.lua, UI.AddStyledWindow):
+-- right-click the title for the appearance menu (opacity, background,
+-- header and text colour, font size, font; "Apply to all pop-outs" and
+-- "Reset appearance"; saved under ns.db.global.popouts.alts), drag the
+-- corner grip to size it (right-click the grip: fit the columns again;
+-- the columns that fit follow the width), and it snaps to a pop-out or the
+-- main window when dropped near one. Ctrl-click its x closes every pop-out
+-- too.
 -- The pure helpers (AltsSections, AltsData, AltsWidth, AltsCellHint,
 -- AltsColumnColor) and the widget code are run by tests/ui_build_spec.lua.
 
@@ -30,8 +38,8 @@ local CELL_W = 58 -- one character column
 local PAD = 36 -- window insets and the scroll bar
 local MIN_W, MAX_W = 380, 1100
 local HEIGHT = 440
+local MIN_H = 160
 local TITLE_HEIGHT = 26
-local TOP_HEIGHT = 46 -- the reset line and the column headers under the title
 local ROW_HEIGHT = 20
 local HEADER_HEIGHT = 22
 local SUB_HEADER_HEIGHT = 18
@@ -106,11 +114,16 @@ function UI.AltsData(now)
   return rows, chars, hidden
 end
 
+-- How many character columns a window `width` wide holds (at least one).
+function UI.AltsFit(width)
+  return math.max(1, math.floor(((width or MIN_W) - NAME_W - PAD) / CELL_W))
+end
+
 -- Window width for `count` columns and how many of them fit (at least one).
 -- maxW defaults to MAX_W (less on a narrow screen).
 function UI.AltsWidth(count, maxW)
   maxW = math.max(MIN_W, maxW or MAX_W)
-  local fit = math.max(1, math.floor((maxW - NAME_W - PAD) / CELL_W))
+  local fit = UI.AltsFit(maxW)
   local shown = math.min(count, fit)
   local width = math.max(MIN_W, math.min(maxW, NAME_W + PAD + shown * CELL_W))
   return width, shown
@@ -159,8 +172,9 @@ local function cellFrame(r, i)
   local c = r.Cells[i]
   if c then return c end
   c = CreateFrame("Button", nil, r)
-  c:SetSize(CELL_W, ROW_HEIGHT)
-  c:SetPoint("LEFT", r, "LEFT", NAME_W + (i - 1) * CELL_W, 0)
+  c:SetWidth(CELL_W)
+  c:SetPoint("TOPLEFT", r, "TOPLEFT", NAME_W + (i - 1) * CELL_W, 0)
+  c:SetPoint("BOTTOMLEFT", r, "BOTTOMLEFT", NAME_W + (i - 1) * CELL_W, 0)
   local hl = c:CreateTexture(nil, "HIGHLIGHT")
   hl:SetAllPoints(c)
   hl:SetColorTexture(1, 1, 1, 0.08)
@@ -191,8 +205,9 @@ local function cellFrame(r, i)
   return c
 end
 
-local function paintCell(c, state)
+local function paintCell(c, state, style)
   c.state = state
+  if style then UI.PopoutStyleText(c.Text, style, "GameFontDisableSmall", 0, { 0.6, 0.6, 0.6 }) end
   c.Check:SetShown(state == "done")
   c.Box:SetShown(state == "open")
   if state == "na" then
@@ -277,7 +292,12 @@ local function initElement(f, data)
     name.Icon:Hide()
     name.Text:SetPoint("LEFT", name, "LEFT", sub and 18 or 6, 0)
     name.Text:SetPoint("RIGHT", name, "RIGHT", -6, 0)
-    name.Text:SetFontObject(sub and "GameFontNormalSmall" or "GameFontNormal")
+    local style = w and w.style
+    if style then
+      UI.PopoutStyleText(name.Text, style, sub and "GameFontNormalSmall" or "GameFontNormal", sub and 0 or 1, style.header)
+    else
+      name.Text:SetFontObject(sub and "GameFontNormalSmall" or "GameFontNormal")
+    end
     name.Text:SetText((data.collapsed and "+ " or "- ") .. (data.text or "")
       .. "  " .. GREY .. string.format(L["%d open"], data.open or 0) .. "|r")
     name:SetScript("OnClick", function() toggleHeader(data.key) end)
@@ -298,7 +318,11 @@ local function initElement(f, data)
   end
   name.Text:SetPoint("LEFT", name.Icon, "RIGHT", 4, 0)
   name.Text:SetPoint("RIGHT", name, "RIGHT", -4, 0)
-  name.Text:SetFontObject("GameFontHighlightSmall")
+  if w and w.style then
+    UI.PopoutStyleText(name.Text, w.style, "GameFontHighlightSmall")
+  else
+    name.Text:SetFontObject("GameFontHighlightSmall")
+  end
   name.Text:SetText(row.name or "")
   name:SetScript("OnClick", onRowClick)
   name:SetScript("OnEnter", onRowEnter)
@@ -307,7 +331,7 @@ local function initElement(f, data)
   for i, char in ipairs(chars) do
     local c = cellFrame(f, i)
     c.char, c.rowName = char, row.name
-    paintCell(c, row.cells[char.key])
+    paintCell(c, row.cells[char.key], w and w.style)
     c:Show()
   end
   for i = #chars + 1, #(f.Cells or {}) do f.Cells[i]:Hide() end
@@ -329,7 +353,8 @@ local function columnFrame(i)
   local c = w.Columns[i]
   if c then return c end
   c = CreateFrame("Button", nil, w.ColumnStrip)
-  c:SetSize(CELL_W, 18)
+  c:SetWidth(CELL_W)
+  c:SetPoint("TOPLEFT", w.ColumnStrip, "TOPLEFT", NAME_W + (i - 1) * CELL_W, 0)
   c:SetPoint("BOTTOMLEFT", w.ColumnStrip, "BOTTOMLEFT", NAME_W + (i - 1) * CELL_W, 0)
   if c.RegisterForClicks then c:RegisterForClicks("LeftButtonUp", "RightButtonUp") end
   local hl = c:CreateTexture(nil, "HIGHLIGHT")
@@ -359,8 +384,10 @@ end
 
 local function build()
   w = CreateFrame("Frame", "MountTrailAltsWindow", UIParent)
+  w.key = "alts" -- its style's slot in ns.db.global.popouts (UI.ShowPopoutStyleMenu)
   w.Columns = {}
   w.shownChars = {}
+  w.rowHeight, w.headerHeight, w.subHeight = ROW_HEIGHT, HEADER_HEIGHT, SUB_HEADER_HEIGHT
   w:SetSize(MIN_W, HEIGHT)
   w:SetFrameStrata("MEDIUM")
   w:SetMovable(true)
@@ -369,6 +396,12 @@ local function build()
   w:Hide()
   if type(UISpecialFrames) == "table" then tinsert(UISpecialFrames, "MountTrailAltsWindow") end
   local db = windowDB()
+  if db and db.width and db.height then
+    w:SetSize(math.max(MIN_W, db.width), math.max(MIN_H, db.height))
+    w.userSized = true
+  elseif db and db.height then
+    w:SetHeight(math.max(MIN_H, db.height))
+  end
   w:ClearAllPoints()
   if db and db.point then
     w:SetPoint(db.point, UIParent, db.relPoint or db.point, db.x or 0, db.y or 0)
@@ -393,8 +426,22 @@ local function build()
   strip:SetScript("OnDragStop", function()
     w:StopMovingOrSizing()
     if w.SetUserPlaced then w:SetUserPlaced(false) end
+    -- Snap to a pop-out or the main window, as the pop-outs do.
+    local l, t, r, b = w:GetLeft(), w:GetTop(), w:GetRight(), w:GetBottom()
+    if l and t and r and b and UI.SnapRect and UI.PopoutSnapTargets then
+      local sl, st = UI.SnapRect({ left = l, top = t, right = r, bottom = b }, UI.PopoutSnapTargets({ [w] = true }))
+      if sl then
+        w:ClearAllPoints()
+        w:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", sl, st)
+      end
+    end
     savePosition()
   end)
+  strip:SetScript("OnMouseUp", function(self, button)
+    if button == "RightButton" and UI.ShowPopoutStyleMenu then UI.ShowPopoutStyleMenu(w, self) end
+  end)
+  strip:SetScript("OnEnter", function(self) UI.ShowHint(self, L["Drag to move"], L["Right-click: appearance"]) end)
+  strip:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   local stripBg = strip:CreateTexture(nil, "BACKGROUND")
   stripBg:SetAllPoints(strip)
   stripBg:SetColorTexture(1, 1, 1, 0.05)
@@ -408,8 +455,13 @@ local function build()
   local close = UI.FlatButton(strip, "x", "plain", 18)
   close:SetWidth(18)
   close:SetPoint("RIGHT", strip, "RIGHT", -4, 0)
-  close:SetScript("OnClick", function() UI.ToggleAltsWindow(false) end)
-  close:SetScript("OnEnter", function(self) UI.ShowHint(self, L["Close"]) end)
+  close:SetScript("OnClick", function()
+    if type(IsControlKeyDown) == "function" and IsControlKeyDown() and UI.CloseAllPopouts then
+      UI.CloseAllPopouts()
+    end
+    UI.ToggleAltsWindow(false)
+  end)
+  close:SetScript("OnEnter", function(self) UI.ShowHint(self, L["Close"], L["Ctrl-click: close every pop-out"]) end)
   close:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   w.Close = close
 
@@ -440,13 +492,13 @@ local function build()
   w.Resets = resets
 
   local columns = CreateFrame("Frame", nil, w)
-  columns:SetPoint("TOPLEFT", strip, "BOTTOMLEFT", 6, -TOP_HEIGHT + 18)
-  columns:SetPoint("TOPRIGHT", strip, "BOTTOMRIGHT", -6, -TOP_HEIGHT + 18)
+  columns:SetPoint("TOPLEFT", resets, "BOTTOMLEFT", -2, -6)
+  columns:SetPoint("TOPRIGHT", resets, "BOTTOMRIGHT", 2, -6)
   columns:SetHeight(18)
   w.ColumnStrip = columns
 
   local list = CreateFrame("Frame", nil, w)
-  list:SetPoint("TOPLEFT", strip, "BOTTOMLEFT", 6, -TOP_HEIGHT - 2)
+  list:SetPoint("TOPLEFT", columns, "BOTTOMLEFT", 0, -2)
   list:SetPoint("BOTTOMRIGHT", w, "BOTTOMRIGHT", -6, 6)
   local scrollBox = CreateFrame("Frame", nil, list, "WowScrollBoxList")
   scrollBox:SetPoint("TOPLEFT", list, "TOPLEFT", 0, 0)
@@ -456,8 +508,8 @@ local function build()
   scrollBar:SetPoint("BOTTOMLEFT", scrollBox, "BOTTOMRIGHT", 4, 0)
   local view = CreateScrollBoxListLinearView()
   view:SetElementExtentCalculator(function(_, data)
-    if data.header then return (data.depth or 1) >= 2 and SUB_HEADER_HEIGHT or HEADER_HEIGHT end
-    return ROW_HEIGHT
+    if data.header then return (data.depth or 1) >= 2 and w.subHeight or w.headerHeight end
+    return w.rowHeight
   end)
   view:SetElementFactory(function(factory) factory("Frame", initElement) end)
   ScrollUtil.InitScrollBoxListWithScrollBar(scrollBox, scrollBar, view)
@@ -467,6 +519,34 @@ local function build()
   empty:SetPoint("CENTER", scrollBox, "CENTER", 0, 0)
   empty:Hide()
   w.Empty = empty
+
+  -- Resize grip: any size (the columns that fit follow the width); right-click
+  -- fits the columns again (the height stays).
+  UI.SetResizeLimits(w, MIN_W, MIN_H)
+  w.Grip = UI.ResizeGrip(w, function(gw, gh)
+    w.userSized = true
+    local st = windowDB()
+    if st then st.width, st.height = math.floor(gw + 0.5), math.floor(gh + 0.5) end
+    savePosition()
+    UI.RefreshAltsWindow()
+  end, function()
+    w.userSized = nil
+    local st = windowDB()
+    if st then st.width = nil end
+    UI.RefreshAltsWindow()
+  end, L["Right-click: fit the columns"])
+
+  -- The pop-outs' appearance menu repaints it (UI.AddStyledWindow).
+  w.Restyle = function(chromeOnly)
+    if chromeOnly then
+      local style = UI.PopoutStyleOf(w)
+      w.Fill:SetColorTexture(style.bg[1], style.bg[2], style.bg[3], style.alpha)
+    else
+      UI.RefreshAltsWindow()
+    end
+  end
+  w.CloseWindow = function() UI.ToggleAltsWindow(false) end
+  if UI.AddStyledWindow then UI.AddStyledWindow(w) end
   return w
 end
 
@@ -476,8 +556,27 @@ function UI.RefreshAltsWindow()
   local Game = ns.Game
   local now = Game.Now()
   local rows, chars, hidden = UI.AltsData(now)
-  local width, fit = UI.AltsWidth(#chars, screenMax())
-  w:SetWidth(width)
+  -- The pop-out style: background, title, and row heights for its font size.
+  local style = UI.PopoutStyleOf and UI.PopoutStyleOf(w) or nil
+  w.style = style
+  if style then
+    w.Fill:SetColorTexture(style.bg[1], style.bg[2], style.bg[3], style.alpha)
+    UI.PopoutStyleText(w.Title, { font = style.font, size = style.size }, "GameFontNormal", 2, style.header)
+    UI.PopoutStyleText(w.Resets, style, "GameFontHighlightSmall")
+    local size = style.size or 11
+    w.rowHeight = math.max(ROW_HEIGHT, size + 9)
+    w.subHeight = math.max(SUB_HEADER_HEIGHT, size + 7)
+    w.headerHeight = math.max(HEADER_HEIGHT, size + 11)
+    w.ColumnStrip:SetHeight(math.max(18, size + 7))
+  end
+  local width, fit
+  if w.userSized then
+    width = w:GetWidth() or MIN_W
+    fit = UI.AltsFit(width)
+  else
+    width, fit = UI.AltsWidth(#chars, screenMax())
+    w:SetWidth(width)
+  end
   local shown = {}
   for i = 1, fit do shown[i] = chars[i] end
   w.shownChars = shown
@@ -493,6 +592,7 @@ function UI.RefreshAltsWindow()
     local c = columnFrame(i)
     c.char = char
     c.Text:SetText(char.name)
+    if style then UI.PopoutStyleText(c.Text, style, "GameFontHighlightSmall") end
     c.Text:SetTextColor(UI.AltsColumnColor(char.class))
     c:Show()
   end

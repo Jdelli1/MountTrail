@@ -626,6 +626,50 @@ local function applyChrome(w, style)
   styleText(w.Title, { font = style.font, size = style.size }, "GameFontNormal", 2, style.header)
 end
 
+-- Windows outside this file that take the pop-outs' appearance menu, their
+-- shared look ("Apply to all pop-outs") and their snapping (the alt lockout
+-- matrix, UI/AltsWindow.lua). Each has `key` (its slot in
+-- ns.db.global.popouts, holding only its style) and Restyle(chromeOnly):
+-- repaint the background only, or redraw everything in the new style.
+local extras = {}
+
+function UI.AddStyledWindow(w)
+  extras[#extras + 1] = w
+end
+
+-- A window's style (its own, else the shared one, over the defaults), and a
+-- font string in a style, for the extra windows.
+UI.PopoutStyleOf = function(w) return styleOf(w) end
+UI.PopoutStyleText = styleText
+
+-- Every shown pop-out, extra window and the main window but those in
+-- `except` ({ [frame] = true }) -> their rects (UI.SnapRect's `others`).
+function UI.PopoutSnapTargets(except)
+  except = except or {}
+  local out = {}
+  local function add(f)
+    if f and not except[f] and f:IsShown() then out[#out + 1] = rectOf(f) end
+  end
+  for _, o in pairs(windows) do add(o) end
+  for _, o in ipairs(extras) do add(o) end
+  if UI.frame then add(UI.frame) end
+  return out
+end
+
+-- Redraws the pop-outs and the extra windows after a style change.
+local function repaintAll(chromeOnly)
+  for _, x in ipairs(extras) do
+    if x:IsShown() and x.Restyle then x.Restyle(chromeOnly) end
+  end
+  if chromeOnly then
+    for _, win in pairs(windows) do
+      if win:IsShown() then applyChrome(win, styleOf(win)) end
+    end
+  else
+    UI.RefreshPopouts()
+  end
+end
+
 local function refreshWindow(w, built)
   if not w:IsShown() then return end
   local char = ns.db and ns.db.char
@@ -634,6 +678,8 @@ local function refreshWindow(w, built)
     UI.ClosePopout(w.key) -- the list was deleted
     return
   end
+  -- The zone window remembers the map it shows (its zone events compare).
+  if w.source.kind == "zone" then w.map = ns.Game.PlayerMap() end
   local rows, left = UI.PopoutRows(w.source, built, {
     zoneIDs = w.source.kind == "zone" and zoneIDs() or nil,
     campStore = char and char.campChecked,
@@ -804,12 +850,7 @@ local function build(key, source)
     local mine = rectOf(w)
     local left, top = mine and mine.left, mine and mine.top
     if mine then
-      local others = {}
-      for _, o in pairs(windows) do
-        if not moving[o] and o:IsShown() then others[#others + 1] = rectOf(o) end
-      end
-      if UI.frame and UI.frame:IsShown() then others[#others + 1] = rectOf(UI.frame) end
-      local sl, st = UI.SnapRect(mine, others)
+      local sl, st = UI.SnapRect(mine, UI.PopoutSnapTargets(moving))
       if sl then left, top = sl, st end
       w:ClearAllPoints()
       w:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
@@ -935,13 +976,7 @@ local function setStyle(w, change, chromeOnly)
   end
   change(st)
   db[w.key].style = st
-  if chromeOnly then
-    for _, win in pairs(windows) do
-      if win:IsShown() then applyChrome(win, styleOf(win)) end
-    end
-  else
-    UI.RefreshPopouts()
-  end
+  repaintAll(chromeOnly)
 end
 
 -- Blizzard's colour picker for a style colour (presets cover most uses).
@@ -1045,12 +1080,12 @@ function UI.ShowPopoutStyleMenu(w, owner)
         for _, state in pairs(db or {}) do
           if type(state) == "table" then state.style = nil end
         end
-        UI.RefreshPopouts()
+        repaintAll()
       end },
       { text = L["Reset appearance"], onClick = function()
         -- Back to the add-on's own look ({}: not the shared one either).
         if db and db[w.key] then db[w.key].style = sharedStyle() and {} or nil end
-        UI.RefreshPopouts()
+        repaintAll()
       end },
     }
   end
@@ -1106,10 +1141,13 @@ function UI.ClosePopout(key)
   stopTickerIfIdle()
 end
 
--- Closes every open pop-out (Ctrl-click on any pop-out's x).
+-- Closes every open pop-out and extra window (Ctrl-click on any one's x).
 function UI.CloseAllPopouts()
   for key, w in pairs(windows) do
     if w:IsShown() then UI.ClosePopout(key) end
+  end
+  for _, x in ipairs(extras) do
+    if x:IsShown() and x.CloseWindow then x.CloseWindow() end
   end
 end
 
@@ -1129,10 +1167,14 @@ UI.PopoutWindows = windows
 UI.AddRefreshHook(function() UI.RefreshPopouts() end)
 
 -- Back on screen after /reload when they were open; the zone's window
--- follows the player.
+-- follows the player: the zone panel's events (a new zone, a sub-zone or
+-- cave map, a loading screen), redrawn only when the player's map changed.
 local events = CreateFrame("Frame")
 events:RegisterEvent("PLAYER_LOGIN")
-events:RegisterEvent("ZONE_CHANGED_NEW_AREA")
+for _, event in ipairs({ "ZONE_CHANGED_NEW_AREA", "ZONE_CHANGED", "ZONE_CHANGED_INDOORS",
+  "PLAYER_ENTERING_WORLD" }) do
+  events:RegisterEvent(event)
+end
 events:SetScript("OnEvent", function(_, event)
   if event == "PLAYER_LOGIN" then
     local db = popoutsDB()
@@ -1142,6 +1184,6 @@ events:SetScript("OnEvent", function(_, event)
       end
     end
   elseif windows.zone and windows.zone:IsShown() then
-    UI.RefreshPopouts()
+    if ns.Game.PlayerMap() ~= windows.zone.map then UI.RefreshPopouts() end
   end
 end)

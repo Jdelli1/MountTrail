@@ -3,7 +3,8 @@
 -- flat widgets (UI.ShowMenu / UI.AskText).
 
 local UI_FILES = { "UI/Frame.lua", "UI/Tooltip.lua", "UI/List.lua", "UI/DetailPane.lua",
-  "UI/Tabs.lua", "UI/LockoutHelpers.lua", "UI/ChecklistView.lua", "UI/Popouts.lua", "UI/ZonePanel.lua" }
+  "UI/Tabs.lua", "UI/LockoutHelpers.lua", "UI/ChecklistView.lua", "UI/AltsWindow.lua", "UI/Popouts.lua",
+  "UI/ZonePanel.lua" }
 
 -- Widget methods the views call that the base stub does not need.
 local probe = CreateFrame("Frame")
@@ -953,5 +954,95 @@ describe("custom lists in the pane and the Checklist", function()
     ok(not p.Hint:IsShown())
     p.OK:RunScript("OnClick", "LeftButton")
     eq(got, "x")
+  end)
+end)
+
+describe("zone window and the alt lockouts window", function()
+  it("the zone's rares follow the player: zone, sub-zone and loading-screen events, only on a new map", function()
+    local ns = loadUI()
+    local builds = 0
+    ns.UI.ChecklistBuild = function() builds = builds + 1; return built() end
+    local map = 550
+    ns.Game.PlayerMap = function() return map end
+    local zoneIDs = { [550] = { { id = 614 } }, [525] = { { id = 657 } } }
+    ns.UI.ZoneMounts = function() return zoneIDs[map] or {} end
+    local w = ns.UI.OpenPopout({ kind = "zone" })
+    eq(w.map, 550)
+    local function shown() local out = {} for i, r in ipairs(w.rows) do out[i] = r.id end return out end
+    eq(shown(), { 614 })
+    local before = builds
+    fire_frame_event("ZONE_CHANGED")
+    eq(builds, before, "same map: no redraw")
+    map = 525
+    fire_frame_event("ZONE_CHANGED_INDOORS")
+    eq(shown(), { 657 }, "a new map: redrawn")
+    map = 550
+    fire_frame_event("PLAYER_ENTERING_WORLD")
+    eq(shown(), { 614 })
+    -- Closed, the player moves on, reopened, back again: still follows.
+    ns.UI.ClosePopout("zone")
+    map = 525
+    fire_frame_event("ZONE_CHANGED_NEW_AREA")
+    ns.UI.OpenPopout({ kind = "zone" })
+    eq(shown(), { 657 })
+    map = 550
+    fire_frame_event("ZONE_CHANGED_NEW_AREA")
+    eq(shown(), { 614 }, "back to the first zone")
+  end)
+
+  it("the alt lockouts window takes the pop-out appearance menu, Apply to all, snapping and a resize grip", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    ns.UI.ToggleAltsWindow(true)
+    local alts = ns.UI.AltsWindow()
+    ok(alts:IsShown(), "opened")
+    eq(alts.Fill.color[4], 0.92, "the pop-outs' default look")
+    -- Right-click the title: the same Appearance menu.
+    alts.Strip:RunScript("OnMouseUp", "RightButton")
+    local menu = _G.MountTrailMenu
+    ok(menu:IsShown())
+    eq(menu.items[1].data.title, "Appearance")
+    local op
+    for _, it in ipairs(menu.items) do
+      if it:IsShown() and it.data and it.data.slider and it.data.text == "Opacity" then op = it end
+    end
+    op.Slider:SetValue(50)
+    eq(ns.db.global.popouts.alts.style.alpha, 0.5, "saved under popouts.alts")
+    eq(alts.Fill.color[4], 0.5, "repainted live")
+    -- A bigger font: taller rows.
+    ns.db.global.popouts.alts.style.size = 20
+    alts.Restyle(false)
+    eq(alts.rowHeight, 29)
+    eq(alts.Title.fontSize, 22, "the title two points up, as the pop-outs'")
+    -- Apply to all from a pop-out: the alts window takes that look too.
+    local camp = ns.UI.OpenPopout({ kind = "camp", exp = WOD })
+    ns.db.global.popouts["camp|" .. WOD].style = { alpha = 0.3 }
+    camp.Strip:RunScript("OnMouseUp", "RightButton")
+    for _, it in ipairs(menu.items) do
+      if it:IsShown() and it.data and it.data.text == "Apply to all pop-outs" then it:RunScript("OnClick", "LeftButton") end
+    end
+    eq(ns.db.global.popoutStyle.alpha, 0.3)
+    eq(ns.db.global.popouts.alts.style, nil)
+    eq(alts.Fill.color[4], 0.3, "follows the shared look")
+    -- Dropped near the pop-out: snaps under it.
+    camp.left, camp.top, camp.right, camp.bottom = 100, 600, 380, 400
+    alts.left, alts.top, alts.right, alts.bottom = 108, 392, 488, 0
+    alts.Strip:RunScript("OnDragStart")
+    alts.Strip:RunScript("OnDragStop")
+    eq({ alts:GetPoint(1) }, { "TOPLEFT", UIParent, "BOTTOMLEFT", 100, 400 })
+    -- Resize grip: the width is kept and decides the columns.
+    alts.Grip:RunScript("OnMouseDown", "LeftButton")
+    alts.width, alts.height = 500, 300
+    alts.Grip:RunScript("OnMouseUp", "LeftButton")
+    eq({ ns.db.global.altsWindow.width, ns.db.global.altsWindow.height }, { 500, 300 })
+    eq(ns.UI.AltsFit(500), 4)
+    alts.Grip:RunScript("OnClick", "RightButton")
+    eq(ns.db.global.altsWindow.width, nil, "fits the columns again")
+    eq(ns.db.global.altsWindow.height, 300, "the height stays")
+    -- Ctrl-click a pop-out's x closes the alts window too.
+    IsControlKeyDown = function() return true end
+    camp.Close:RunScript("OnClick", "LeftButton")
+    IsControlKeyDown = nil
+    ok(not alts:IsShown() and not camp:IsShown(), "both closed")
   end)
 end)
