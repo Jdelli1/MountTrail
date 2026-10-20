@@ -1525,23 +1525,18 @@ describe("example lists", function()
 end)
 
 describe("Show completed", function()
-  it("Lockouts' checkbox saves the setting and lists done lockouts", function()
+  it("Lockouts' Filter menu has Show completed; reset turns it off", function()
     local ns = loadUI()
-    ns.UI.ChecklistBuild = function() return built() end
-    ns.ToggleWindow()
-    ns.UI.SelectTab("checklist")
-    local root
-    for _, c in ipairs(ns.UI.frame.Contents.checklist.children) do if c.Detail then root = c end end
-    local header
-    for _, c in ipairs(root.children) do if c.ShowDone then header = c end end
-    ok(header, "the checkbox is there")
-    eq(header.ShowDone:GetChecked(), false)
-    eq(header.ShowDoneLabel:GetText(), "Show completed")
-    header.ShowDone:SetChecked(true)
-    header.ShowDone:RunScript("OnClick", "LeftButton")
+    local items = ns.UI.ChecklistFilterItems({})
+    eq(items[1].label, "Show completed")
+    eq(items[1].checked, false)
+    eq(items[2].kind, "divider")
+    ns.UI.SetChecklistShowDone(true)
     eq(ns.db.global.settings.checklistShowDone, true)
-    eq(header.ShowDone:GetChecked(), true, "painted from the setting")
-    eq(ns.UI.ChecklistShowDone(), true)
+    eq(ns.UI.ChecklistFilterItems({})[1].checked, true)
+    local filters = {}
+    ns.UI.ApplyChecklistFilterAction(filters, "uncheckAll")
+    eq(ns.UI.ChecklistShowDone(), true, "Uncheck all is about categories only")
   end)
 
   it("a pop-out's menu toggles its done rows", function()

@@ -157,8 +157,9 @@ it can still spend on a mount.
   its counts.
 - The Daily, Weekly and Rare Spawns chips at the top: right-click one to pop
   out that whole group.
-- `Show completed` (bottom right of the header): lockouts already done stay
-  listed, dimmed, after the open ones (off by default; saved account-wide).
+- `Show completed` (top of the Filter menu): lockouts already done stay
+  listed, dimmed, after the open ones (off by default; saved account-wide;
+  the Filter's reset arrow turns it off too).
 
 **Rare Spawns (no lockout).** Rare-spawn mounts whose rare has no known kill
 flag (long-respawn rares such as Nok-Karosh, Gorok or the Time-Lost

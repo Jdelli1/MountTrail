@@ -350,10 +350,12 @@ describe("checklist filter menu", function()
       kinds[#kinds + 1] = item.kind
       labels[#labels + 1] = item.label or "-"
     end
-    eq(kinds, { "checkbox", "checkbox", "checkbox", "checkbox", "checkbox", "checkbox", "checkbox",
-      "divider", "button", "button" })
-    eq(labels, { "Show raids", "Show dungeons", "Show world bosses", "Show rares", "Show holidays", "Show other",
-      "Show rare spawns (no lockout)", "-", "Check all", "Uncheck all" })
+    eq(kinds, { "checkbox", "divider", "checkbox", "checkbox", "checkbox", "checkbox", "checkbox", "checkbox",
+      "checkbox", "divider", "button", "button" })
+    eq(labels, { "Show completed", "-", "Show raids", "Show dungeons", "Show world bosses", "Show rares",
+      "Show holidays", "Show other", "Show rare spawns (no lockout)", "-", "Check all", "Uncheck all" })
+    table.remove(items, 1)
+    table.remove(items, 1)
     eq(items[1].key, "raids")
     eq(items[1].checked, true)
     eq(items[4].key, "rares")
@@ -362,7 +364,7 @@ describe("checklist filter menu", function()
     eq(items[7].checked, true)
     eq(items[9].action, "checkAll")
     eq(items[10].action, "uncheckAll")
-    eq(UI.ChecklistFilterItems(nil)[1].checked, true, "no store: all shown")
+    eq(UI.ChecklistFilterItems(nil)[3].checked, true, "no store: all shown")
   end)
 
   it("toggling stores only hidden categories", function()

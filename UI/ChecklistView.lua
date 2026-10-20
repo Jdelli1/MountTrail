@@ -318,8 +318,15 @@ local FILTER_LABELS = {
 -- UI.CreateFilterDropdown items: a "Show <category>" checkbox per filter key
 -- (Checklist.FILTERS: the categories, then the rare spawns with no lockout),
 -- then Check all / Uncheck all. `filters` may be nil (all shown).
+-- The Filter menu: Show completed, then a checkbox per category, Check all /
+-- Uncheck all (categories only).
+UI.SHOW_DONE_KEY = "showCompleted"
+
 function UI.ChecklistFilterItems(filters)
-  local items = {}
+  local items = {
+    { kind = "checkbox", key = UI.SHOW_DONE_KEY, label = L["Show completed"], checked = UI.ChecklistShowDone() },
+    { kind = "divider" },
+  }
   for _, key in ipairs(ns.Checklist.FILTERS) do
     items[#items + 1] = { kind = "checkbox", key = key, label = L[FILTER_LABELS[key]],
       checked = ns.Checklist.Shown(filters, key) }
@@ -518,20 +525,23 @@ function view.CreateFilterDropdown(parent)
     onChange = function(kind, value)
       local filters = view.Filters()
       if not filters then return end
-      if kind == "toggle" then
+      if kind == "toggle" and value == UI.SHOW_DONE_KEY then
+        UI.SetChecklistShowDone(not UI.ChecklistShowDone())
+        return
+      elseif kind == "toggle" then
         UI.ToggleChecklistFilter(filters, value)
       else
         UI.ApplyChecklistFilterAction(filters, value)
       end
       ns.Refresh()
     end,
-    isDefault = function() return UI.ChecklistFiltersAreDefault(view.Filters()) end,
+    isDefault = function()
+      return UI.ChecklistFiltersAreDefault(view.Filters()) and not UI.ChecklistShowDone()
+    end,
     reset = function()
       local filters = view.Filters()
-      if filters then
-        UI.ApplyChecklistFilterAction(filters, "reset")
-        ns.Refresh()
-      end
+      if filters then UI.ApplyChecklistFilterAction(filters, "reset") end
+      UI.SetChecklistShowDone(false)
     end,
   })
 end
@@ -808,21 +818,11 @@ local function buildHeader(parent)
     top.Chips[i] = chip
     prev = chip
   end
-
-  -- Show completed: done lockouts stay listed, dimmed, after the open ones.
-  local done = CreateFrame("CheckButton", nil, top,
-    UI.TemplateChain("MinimalCheckboxTemplate", "SettingsCheckboxTemplate", "UICheckButtonTemplate"))
-  done:SetSize(20, 20)
-  done:SetPoint("BOTTOMRIGHT", top, "BOTTOMRIGHT", -6, 4)
-  done:SetScript("OnClick", function(self) UI.SetChecklistShowDone(self:GetChecked() and true or false) end)
-  local doneLabel = top:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlightSmall"))
-  doneLabel:SetPoint("RIGHT", done, "LEFT", -2, 0)
-  doneLabel:SetText(L["Show completed"])
-  top.ShowDone, top.ShowDoneLabel = done, doneLabel
   return top
 end
 
--- Whether Lockouts lists the lockouts already done (account-wide setting).
+-- Whether Lockouts lists the lockouts already done (the Filter menu's Show
+-- completed: they stay, dimmed, after the open ones; account-wide).
 function UI.ChecklistShowDone()
   local global = ns.db and ns.db.global
   return global ~= nil and type(global.settings) == "table" and global.settings.checklistShowDone == true
@@ -1016,7 +1016,6 @@ function view.Refresh()
   paintChips(left, show)
   -- Lockouts left in the categories the Filter menu shows.
   header.Flavour:SetText(UI.RouteFlavour(ns.Checklist.Remaining(built, filters), name))
-  if header.ShowDone then header.ShowDone:SetChecked(UI.ChecklistShowDone()) end
   local filter = header.ChecklistFilter
   if filter and type(filter.ValidateResetState) == "function" then filter:ValidateResetState() end
   return built

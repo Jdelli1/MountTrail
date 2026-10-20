@@ -1307,8 +1307,8 @@ describe("ui build", function()
     local calls = openMenu(dd)
     local labels = {}
     for _, c in ipairs(calls) do if c.kind == "checkbox" then labels[#labels + 1] = c.text end end
-    eq(labels, { "Show raids", "Show dungeons", "Show world bosses", "Show rares", "Show holidays", "Show other",
-      "Show rare spawns (no lockout)" })
+    eq(labels, { "Show completed", "Show raids", "Show dungeons", "Show world bosses", "Show rares", "Show holidays",
+      "Show other", "Show rare spawns (no lockout)" })
 
     local box = header.Checklist.ScrollBox
     local function count(category)
