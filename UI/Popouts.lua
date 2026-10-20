@@ -17,8 +17,11 @@ local ADDON, ns = ...
 -- a rare that has several on TomTom, else the waypoint. "Plot all" in the
 -- title puts the spawn points of every row whose box is not ticked on
 -- TomTom at once (Map.PlotMounts). Ctrl-click a window's x to close every
--- pop-out. A custom list's rows are its mounts (collected ones ticked);
--- right-click one to take it off the list. Each window's position and open
+-- pop-out. A custom list's rows are its mounts (ones already known left out);
+-- right-click one to take it off the list. Each window can be resized with
+-- its corner grip (right-click: fit to its rows again) and snaps to another
+-- pop-out or the main window when dropped near one (UI.SnapRect). Each
+-- window's position and open
 -- state are saved by its set (ns.db.global.popouts) and come back after
 -- /reload.
 
@@ -33,6 +36,8 @@ local ROW_HEIGHT = 20
 local MAX_HEIGHT = 460
 local AGE_TICK = 60
 local CASCADE = 24
+local SNAP = 16 -- how close (px) a dropped window must be to snap
+local MIN_W, MIN_H = 200, 70
 
 local function popoutsDB()
   local global = ns.db and ns.db.global
@@ -163,12 +168,14 @@ function UI.PopoutRows(source, built, ctx)
     for _, id in ipairs(ids) do
       local m = mounts[id]
       local mountName = (ns.Game.MountInfo and ns.Game.MountInfo(id)) or (m and m.name) or tostring(id)
+      -- Mounts already known are left out (the Checklist's entries are
+      -- not-owned ones already).
+      local owned = ctx.isOwned and ctx.isOwned(id) and true or false
       local e = byMount[id]
       if e then
         add(e, { name = mountName })
-      else
-        local owned = ctx.isOwned and ctx.isOwned(id) and true or false
-        add({ id = id, m = m, key = "list:" .. tostring(id), name = mountName, done = owned, listOnly = true,
+      elseif not owned then
+        add({ id = id, m = m, key = "list:" .. tostring(id), name = mountName, listOnly = true,
           mounts = { id } }, { name = mountName })
       end
     end
@@ -189,6 +196,43 @@ function UI.PopoutPlotIDs(rows)
     if not (row.done or (row.camp and row.checked ~= nil)) then ids[#ids + 1] = row.id end
   end
   return ids
+end
+
+-- Where a dropped window snaps: rect = { left =, top =, right =, bottom = }
+-- (screen units, top > bottom), others = list of such rects (the other
+-- open pop-outs, the main window). Edge to edge within `threshold`: under
+-- or above another (its left edge too when close), or beside it (its top
+-- too when close); the nearest snap wins. -> left, top, or nil.
+function UI.SnapRect(rect, others, threshold)
+  threshold = threshold or SNAP
+  local w, h = rect.right - rect.left, rect.top - rect.bottom
+  local best, bestD
+  local function try(d, left, top)
+    if d <= threshold and (not bestD or d < bestD) then best, bestD = { left, top }, d end
+  end
+  local function near(a, b) return math.abs(a - b) <= threshold * 2 end
+  for _, o in ipairs(others or {}) do
+    local overlapX = rect.left < o.right + threshold and rect.right > o.left - threshold
+    local overlapY = rect.bottom < o.top + threshold and rect.top > o.bottom - threshold
+    if overlapX then
+      local left = near(rect.left, o.left) and o.left or rect.left
+      try(math.abs(rect.top - o.bottom), left, o.bottom) -- under it
+      try(math.abs(rect.bottom - o.top), left, o.top + h) -- above it
+    end
+    if overlapY then
+      local top = near(rect.top, o.top) and o.top or rect.top
+      try(math.abs(rect.left - o.right), o.right, top) -- right of it
+      try(math.abs(rect.right - o.left), o.left - w, top) -- left of it
+    end
+  end
+  if best then return best[1], best[2] end
+  return nil
+end
+
+local function rectOf(f)
+  local l, t, r, b = f:GetLeft(), f:GetTop(), f:GetRight(), f:GetBottom()
+  if not (l and t and r and b) then return nil end
+  return { left = l, top = t, right = r, bottom = b }
 end
 
 -- A row's click (the row or its pin): UI.GoTo for its mount and boss.
@@ -277,6 +321,13 @@ local function rowFrame(w, i)
   return r
 end
 
+-- Rows follow the window's width (it can be resized).
+local function layoutWidth(w)
+  local width = math.max(MIN_W, w:GetWidth() or WIDTH)
+  w.Content:SetWidth(width - 12)
+  for _, r in ipairs(w.rowFrames) do r:SetWidth(width - 24) end
+end
+
 local function refreshWindow(w, built)
   if not w:IsShown() then return end
   local char = ns.db and ns.db.char
@@ -293,7 +344,7 @@ local function refreshWindow(w, built)
   })
   w.rows = rows
   w.Title:SetText(UI.PopoutTitle(w.source, store) .. "  |cff9d9d9d(" .. string.format(L["%d left"], left) .. ")|r")
-  local width = WIDTH - 24
+  local width = math.max(MIN_W, w:GetWidth() or WIDTH) - 24
   local y = 0
   local now = ns.Game.Now()
   for i, row in ipairs(rows) do
@@ -308,8 +359,6 @@ local function refreshWindow(w, built)
     local zoneText = row.zone or ""
     if row.camp and row.checked then
       zoneText = string.format(L["checked %s ago"], UI.FormatAgo(now - row.checked))
-    elseif row.listOnly and row.done then
-      zoneText = L["Collected"]
     end
     r.Zone:SetText(zoneText)
     r.Check:SetChecked(row.done or (row.camp and row.checked ~= nil) or false)
@@ -321,7 +370,8 @@ local function refreshWindow(w, built)
   if #rows == 0 then y = 30 end
   w.Content:SetHeight(math.max(y, 1))
   w.contentHeight = y
-  w:SetHeight(math.min(MAX_HEIGHT, TITLE_HEIGHT + y + 10))
+  -- Fit the rows until the player sizes the window; then keep that size.
+  if not w.userSized then w:SetHeight(math.min(MAX_HEIGHT, TITLE_HEIGHT + y + 10)) end
 end
 
 -- Redraws every open pop-out (one Checklist build for all).
@@ -365,6 +415,10 @@ local function build(key, source)
   w:Hide()
   local db = popoutsDB()
   local state = db and db[key]
+  if state and state.width and state.height then
+    w:SetSize(math.max(MIN_W, state.width), math.max(MIN_H, state.height))
+    w.userSized = true
+  end
   w:ClearAllPoints()
   if state and state.point then
     w:SetPoint(state.point, UIParent, state.relPoint or state.point, state.x or 0, state.y or 0)
@@ -390,6 +444,20 @@ local function build(key, source)
   strip:SetScript("OnDragStop", function()
     w:StopMovingOrSizing()
     if w.SetUserPlaced then w:SetUserPlaced(false) end
+    -- Snap to another open pop-out or the main window.
+    local mine = rectOf(w)
+    if mine then
+      local others = {}
+      for _, o in pairs(windows) do
+        if o ~= w and o:IsShown() then others[#others + 1] = rectOf(o) end
+      end
+      if UI.frame and UI.frame:IsShown() then others[#others + 1] = rectOf(UI.frame) end
+      local left, top = UI.SnapRect(mine, others)
+      if left then
+        w:ClearAllPoints()
+        w:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+      end
+    end
     savePosition(w)
   end)
   strip:SetScript("OnEnter", function(self) UI.ShowHint(self, L["Drag to move"]) end)
@@ -444,6 +512,27 @@ local function build(key, source)
   if scroll.EnableMouseWheel then scroll:EnableMouseWheel(true) end
   local content = CreateFrame("Frame", nil, scroll)
   content:SetSize(WIDTH - 12, 1)
+
+  -- Resize grip: any size; right-click fits the rows again.
+  UI.SetResizeLimits(w, MIN_W, MIN_H)
+  w.Grip = UI.ResizeGrip(w, function(gw, gh)
+    w.userSized = true
+    local st = popoutsDB()
+    if st then
+      st[key] = st[key] or {}
+      st[key].width, st[key].height = math.floor(gw + 0.5), math.floor(gh + 0.5)
+    end
+    savePosition(w)
+    layoutWidth(w)
+  end, function()
+    w.userSized = nil
+    w:SetWidth(WIDTH)
+    local st = popoutsDB()
+    if st and st[key] then st[key].width, st[key].height = nil, nil end
+    layoutWidth(w)
+    UI.RefreshPopouts()
+  end, L["Right-click: fit to its rows"])
+  w:SetScript("OnSizeChanged", function() layoutWidth(w) end)
   scroll:SetScrollChild(content)
   scroll:SetScript("OnMouseWheel", function(self, delta)
     local max = math.max(0, (w.contentHeight or 0) - (self:GetHeight() or 0))

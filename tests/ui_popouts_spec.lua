@@ -181,7 +181,7 @@ describe("pop-out sets", function()
       "the zone's rares only")
   end)
 
-  it("a custom list: the Checklist's entry when tracked, else a plain row; collected ones done", function()
+  it("a custom list: the Checklist's entry when tracked, else a plain row; mounts already known left out", function()
     local ns = loadUI()
     local store = {}
     local id = ns.Lists.Create(store, "Mine")
@@ -191,10 +191,9 @@ describe("pop-out sets", function()
     ns.Data.Mounts[7] = { name = "Owned shop mount" }
     ns.Data.Mounts[8] = { name = "Wanted shop mount" }
     local rows, left = ns.UI.PopoutRows({ kind = "list", list = id }, built(), { store = store, isOwned = ns.Game.IsOwned })
-    eq(names(rows), { "Mottled Meadowstomper", "Wanted shop mount", "Owned shop mount" })
+    eq(names(rows), { "Mottled Meadowstomper", "Wanted shop mount" }, "the owned shop mount is not listed")
     eq(rows[1].entry.key, "614", "tracked: the Checklist's entry")
     eq(rows[2].listOnly, true)
-    eq(rows[3].done, true)
     eq(left, 2)
   end)
 end)
@@ -294,6 +293,37 @@ describe("pop-out windows", function()
     ns.Lists.Delete(store, id)
     ns.UI.RefreshPopouts()
     ok(not w:IsShown(), "deleted list: window closed")
+  end)
+
+  it("snapping: under, above, beside another window, aligning the edge when close; nothing when far", function()
+    local ns = loadUI()
+    local S = ns.UI.SnapRect
+    local other = { left = 100, top = 500, right = 380, bottom = 400 }
+    -- 280 x 100 window dropped 10 px under the other, 8 px to the right.
+    eq({ S({ left = 108, top = 390, right = 388, bottom = 290 }, { other }) }, { 100, 400 }, "under, left edges aligned")
+    eq({ S({ left = 108, top = 610, right = 388, bottom = 510 }, { other }) }, { 100, 600 }, "above")
+    eq({ S({ left = 390, top = 505, right = 670, bottom = 405 }, { other }) }, { 380, 500 }, "right of it, tops aligned")
+    eq({ S({ left = -170, top = 450, right = 110, bottom = 350 }, { other }) }, { -180, 450 }, "left of it, tops far apart: kept")
+    eq(S({ left = 600, top = 200, right = 880, bottom = 100 }, { other }), nil, "far away")
+    eq({ S({ left = 300, top = 392, right = 580, bottom = 292 }, { other }) }, { 300, 400 }, "under, edges apart: left kept")
+  end)
+
+  it("resize grip: saved size kept (no auto-fit); right-click fits the rows again", function()
+    local ns = loadUI()
+    setup(ns)
+    local w = ns.UI.OpenPopout({ kind = "camp", exp = WOD })
+    ok(w.resizable, "resizable")
+    w.left, w.top = 100, 600
+    w.Grip:RunScript("OnMouseDown", "LeftButton")
+    w.width, w.height = 420, 300
+    w.Grip:RunScript("OnMouseUp", "LeftButton")
+    local st = ns.db.global.popouts["camp|" .. WOD]
+    eq({ st.width, st.height }, { 420, 300 })
+    ns.UI.RefreshPopouts()
+    eq(w.height, 300, "kept, not fitted")
+    w.Grip:RunScript("OnClick", "RightButton")
+    eq({ st.width, st.height }, { nil, nil })
+    ok(w.height ~= 300, "fitted again")
   end)
 
   it("open windows come back after /reload", function()

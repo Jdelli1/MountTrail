@@ -566,53 +566,49 @@ local function savePosition(frame)
   db.point, db.relPoint, db.x, db.y = point, relPoint, x, y
 end
 
--- Window scale ------------------------------------------------------------------
--- A grip in the bottom-right corner scales the whole window (and the zone
--- panel docked to it): drag it and the corner follows the cursor while the
--- top-left corner stays put; right-click resets to 100%. Saved in
--- ns.db.global.window.scale.
-UI.SCALE_MIN, UI.SCALE_MAX = 0.6, 1.5
+-- Window size ------------------------------------------------------------------
+-- A grip in the bottom-right corner resizes the window freely (any width and
+-- height within UI.MIN_SIZE and the screen); the lists, the detail pane and
+-- the front page's tiles follow. Right-click the grip: the default size.
+-- Saved in ns.db.global.window.width / height. (The old scale setting of
+-- earlier versions is dropped: the window is drawn at 100%.)
+UI.WINDOW_SIZE = { WIDTH, HEIGHT }
+UI.MIN_SIZE = { 700, 480 }
 
--- Scale clamped to UI.SCALE_MIN..MAX and rounded to whole percent; 1 for
--- anything that is not a number.
-function UI.ClampScale(scale)
-  if type(scale) ~= "number" or scale ~= scale then return 1 end
-  scale = math.max(UI.SCALE_MIN, math.min(UI.SCALE_MAX, scale))
-  return math.floor(scale * 100 + 0.5) / 100
+-- A saved size clamped to UI.MIN_SIZE and `maxW` x `maxH` (the screen);
+-- junk -> the default size.
+function UI.ClampSize(w, h, maxW, maxH)
+  if type(w) ~= "number" or type(h) ~= "number" or w ~= w or h ~= h then return WIDTH, HEIGHT end
+  w = math.max(UI.MIN_SIZE[1], math.min(maxW or w, w))
+  h = math.max(UI.MIN_SIZE[2], math.min(maxH or h, h))
+  return math.floor(w + 0.5), math.floor(h + 0.5)
 end
 
--- Scale that puts the window's bottom-right corner nearest the cursor:
--- cursor and the window's top-left (left, top) in screen pixels
--- (GetCursorPosition), the window's unscaled size, parentScale = UIParent's
--- effective scale. The least-squares fit along the window's diagonal, so
--- dragging right, down or both all work. Clamped (UI.ClampScale).
-function UI.ScaleFromCursor(cursorX, cursorY, left, top, width, height, parentScale)
-  local dx = (cursorX - left) / parentScale
-  local dy = (top - cursorY) / parentScale
-  return UI.ClampScale((dx * width + dy * height) / (width * width + height * height))
+local function screenSize()
+  local w = UIParent.GetWidth and UIParent:GetWidth() or nil
+  local h = UIParent.GetHeight and UIParent:GetHeight() or nil
+  if type(w) ~= "number" or w <= 0 then w = nil end
+  if type(h) ~= "number" or h <= 0 then h = nil end
+  return w, h
 end
 
--- Sets the window's scale keeping its top-left corner where it is on
--- screen, then saves scale and position.
-function UI.SetWindowScale(frame, scale)
-  scale = UI.ClampScale(scale)
-  local eff = frame:GetEffectiveScale()
-  local left, top = frame:GetLeft(), frame:GetTop()
-  frame:SetScale(scale)
-  if left and top then
-    local newEff = frame:GetEffectiveScale()
-    frame:ClearAllPoints()
-    frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left * eff / newEff, top * eff / newEff)
+-- Resize limits on `frame` (SetResizeBounds; SetMinResize on older clients).
+function UI.SetResizeLimits(frame, minW, minH)
+  if frame.SetResizable then frame:SetResizable(true) end
+  local maxW, maxH = screenSize()
+  if frame.SetResizeBounds then
+    frame:SetResizeBounds(minW, minH, maxW or 4000, maxH or 3000)
+  elseif frame.SetMinResize then
+    frame:SetMinResize(minW, minH)
   end
-  local db = windowDB()
-  if db then db.scale = scale end
-  savePosition(frame)
 end
 
 local GRIP_SIZE = 14 -- in the corner, clear of the lists' scroll bars
 local GRIP = "Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-"
 
-local function createScaleGrip(frame)
+-- A corner grip that resizes `frame` (StartSizing); onDone(w, h) after a
+-- drag, onReset() on right-click; `hint` for the hover.
+function UI.ResizeGrip(frame, onDone, onReset, hint)
   local grip = CreateFrame("Button", nil, frame)
   grip:SetSize(GRIP_SIZE, GRIP_SIZE)
   grip:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -1, 1)
@@ -621,38 +617,63 @@ local function createScaleGrip(frame)
   grip:SetHighlightTexture(GRIP .. "Highlight")
   grip:SetPushedTexture(GRIP .. "Down")
   grip:RegisterForClicks("RightButtonUp")
-  grip:SetScript("OnMouseDown", function(self, button)
-    if button ~= "LeftButton" then return end
-    local eff = frame:GetEffectiveScale()
-    local left, top = frame:GetLeft(), frame:GetTop()
-    if not (left and top) then return end
-    left, top = left * eff, top * eff
-    local parentScale = UIParent:GetEffectiveScale()
-    self:SetScript("OnUpdate", function()
-      local x, y = GetCursorPosition()
-      local scale = UI.ScaleFromCursor(x, y, left, top, WIDTH, HEIGHT, parentScale)
-      if scale ~= frame:GetScale() then UI.SetWindowScale(frame, scale) end
-    end)
+  grip:SetScript("OnMouseDown", function(_, button)
+    if button ~= "LeftButton" or not frame.StartSizing then return end
+    frame.sizing = true
+    frame:StartSizing("BOTTOMRIGHT")
   end)
-  grip:SetScript("OnMouseUp", function(self)
-    self:SetScript("OnUpdate", nil)
-  end)
-  grip:SetScript("OnHide", function(self) self:SetScript("OnUpdate", nil) end)
+  local function stop()
+    if not frame.sizing then return end
+    frame.sizing = nil
+    frame:StopMovingOrSizing()
+    if frame.SetUserPlaced then frame:SetUserPlaced(false) end
+    if onDone then onDone(frame:GetWidth(), frame:GetHeight()) end
+  end
+  grip:SetScript("OnMouseUp", stop)
+  grip:SetScript("OnHide", stop)
   grip:SetScript("OnClick", function(_, button)
-    if button == "RightButton" then UI.SetWindowScale(frame, 1) end
+    if button == "RightButton" and onReset then onReset() end
   end)
   grip:SetScript("OnEnter", function(self)
-    UI.ShowHint(self, string.format(L["Window size: %d%%"], math.floor(frame:GetScale() * 100 + 0.5)),
-      L["Drag to make the window bigger or smaller. Right-click: back to 100%."], "right")
+    UI.ShowHint(self, L["Drag to resize"], hint or L["Right-click: default size"], "right")
   end)
   grip:SetScript("OnLeave", function(self) UI.HideHint(self) end)
-  frame.ScaleGrip = grip
+  return grip
+end
+
+-- Sets the window's size (clamped), keeping its top-left corner on screen
+-- where it is, and saves size and position.
+function UI.SetWindowSize(frame, w, h)
+  local maxW, maxH = screenSize()
+  w, h = UI.ClampSize(w, h, maxW, maxH)
+  local left, top = frame:GetLeft(), frame:GetTop()
+  frame:SetSize(w, h)
+  if left and top then
+    frame:ClearAllPoints()
+    frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+  end
+  local db = windowDB()
+  if db then db.width, db.height = w, h end
+  savePosition(frame)
+end
+
+local function createSizeGrip(frame)
+  UI.SetResizeLimits(frame, UI.MIN_SIZE[1], UI.MIN_SIZE[2])
+  local grip = UI.ResizeGrip(frame, function(w, h)
+    UI.SetWindowSize(frame, w, h)
+  end, function()
+    UI.SetWindowSize(frame, WIDTH, HEIGHT)
+  end)
+  frame.SizeGrip = grip
   return grip
 end
 
 local function restorePosition(frame)
   local db = windowDB()
-  frame:SetScale(UI.ClampScale(db and db.scale or 1))
+  frame:SetScale(1)
+  if db then db.scale = nil end
+  local maxW, maxH = screenSize()
+  frame:SetSize(UI.ClampSize(db and db.width or WIDTH, db and db.height or HEIGHT, maxW, maxH))
   frame:ClearAllPoints()
   if db and db.point then
     frame:SetPoint(db.point, UIParent, db.relPoint or db.point, db.x or 0, db.y or 0)
@@ -746,7 +767,7 @@ local function createWindow()
     savePosition(frame)
   end)
   frame.DragHandle = drag
-  createScaleGrip(frame)
+  createSizeGrip(frame)
 
   -- Content area below the portrait; one content frame per tab inside it
   -- (frame.Contents[key]). Flat window: a plain frame with a slightly darker

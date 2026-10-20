@@ -370,6 +370,40 @@ local function createSummary()
   return s
 end
 
+-- Tile sizes for a home of `width` x `height` (the window can be resized):
+-- the grid keeps G.cols columns and fills the space below the strip with
+-- the same margins and gaps; never smaller than the defaults' 80%. Unknown
+-- size (0) -> the defaults. -> tileW, tileH, logo scale.
+function UI.HomeTileSize(width, height, count)
+  local rows = math.max(1, math.ceil((count or 12) / G.cols))
+  if not (width and width > 0 and height and height > 0) then return G.tileW, G.tileH, 1 end
+  local w = math.floor((width - 2 * G.left - (G.cols - 1) * G.gap) / G.cols)
+  local h = math.floor((height + G.top - 10 - (rows - 1) * G.gap) / rows)
+  w = math.max(w, math.floor(G.tileW * 0.8))
+  h = math.max(h, math.floor(G.tileH * 0.8))
+  return w, h, math.min(w / G.tileW, h / G.tileH)
+end
+
+-- Re-lays the tiles for the home's current size.
+local function layoutTiles()
+  if not home then return end
+  local w, h, s = UI.HomeTileSize(home:GetWidth(), home:GetHeight(), #cards)
+  home.tileW, home.tileH = w, h
+  for i, card in ipairs(cards) do
+    local col = (i - 1) % G.cols
+    local row = math.floor((i - 1) / G.cols)
+    card:SetSize(w, h)
+    card:ClearAllPoints()
+    card:SetPoint("TOPLEFT", home, "TOPLEFT", G.left + col * (w + G.gap), G.top - row * (h + G.gap))
+    local ls = math.min(s, 1.6)
+    card.Logo:SetSize(LOGO_W * ls, LOGO_H * ls)
+    card.Logo:ClearAllPoints()
+    card.Logo:SetPoint("CENTER", card, "CENTER", 0, (30 + h) / 2 - h / 2)
+    card.Name:SetWidth(w - 16)
+  end
+end
+UI.HomeLayoutTiles = layoutTiles
+
 local function build(parent)
   home = CreateFrame("Frame", nil, parent)
   home:SetAllPoints(parent)
@@ -378,6 +412,8 @@ local function build(parent)
     cards[i] = createCard(i, name)
   end
   home.Summary = createSummary()
+  layoutTiles()
+  home:SetScript("OnSizeChanged", layoutTiles)
 
   listPage = CreateFrame("Frame", nil, parent)
   listPage:SetAllPoints(parent)

@@ -124,6 +124,8 @@ function Region:SetSize(w, h) self.width, self.height = w, h end
 function Region:SetWidth(w) self.width = w end
 function Region:SetHeight(h) self.height = h end
 function Region:GetSize() return self.width, self.height end
+function Region:GetWidth() return self.width or 0 end
+function Region:GetHeight() return self.height or 0 end
 function Region:ClearAllPoints() self.points = {} end
 function Region:SetAllPoints(rel) self.points = { { "ALL", rel or self.parent } } end
 function Region:SetPoint(point, rel, relPoint, x, y)
@@ -185,7 +187,13 @@ function Frame:StartMoving()
   if not self.movable then error("Frame:StartMoving: frame is not movable", 2) end
   self.moving = true
 end
-function Frame:StopMovingOrSizing() self.moving = false end
+function Frame:StopMovingOrSizing() self.moving = false; self.sizingFrom = nil end
+function Frame:SetResizable(on) self.resizable = on end
+function Frame:SetResizeBounds(a, b, c, d) self.resizeBounds = { a, b, c, d } end
+function Frame:StartSizing(point)
+  if not self.resizable then error("Frame:StartSizing: frame is not resizable", 2) end
+  self.sizingFrom = point
+end
 function Frame:SetUserPlaced(on) self.userPlaced = on end
 -- Scale: the effective scale is the product up the parent chain; GetLeft /
 -- GetTop return what a spec put in .left / .top (nil: not laid out yet).
@@ -198,6 +206,8 @@ function Frame:GetEffectiveScale()
 end
 function Frame:GetLeft() return self.left end
 function Frame:GetTop() return self.top end
+function Frame:GetRight() return self.right end
+function Frame:GetBottom() return self.bottom end
 function Frame:SetFrameLevel(level) self.level = level end
 function Frame:GetFrameLevel() return self.level or 1 end
 function Frame:SetNormalTexture(tex) self.normalTexture = tex end

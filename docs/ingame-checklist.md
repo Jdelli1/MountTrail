@@ -507,16 +507,13 @@ A search box sits in the Journal front page's strip, after the title, with the o
 - [ ] Back returns to the front page with an empty home search box; searching again starts fresh.
 - [ ] The home search box's hint fits on one line (no wrapped second line).
 
-## Window scale
+## Window size
 
-A small grip in the main window's bottom-right corner scales the whole window, zone panel included, between 60% and 150%. Dragging it moves the corner with the cursor while the top-left corner stays put; right-click resets to 100%; hovering shows the current size. The scale is saved in `AzerothTrailDB.global.window.scale` with the position.
+A grip in the main window's bottom-right corner resizes it freely (at least 700 x 480, at most the screen); the lists, the detail pane, the Checklist and the front page's tiles (4 x 3, stretched to fill, logos scaled) follow. Right-click the grip: the default 800 x 560. Saved in `AzerothTrailDB.global.window.width / height`; an earlier version's scale is dropped (100%).
 
-- [ ] Drag the grip down-right: the window grows smoothly, top-left fixed; up-left: it shrinks, stopping at 60%. It never goes past 150%.
-- [ ] Text, tiles and lists stay sharp and laid out the same at 60%, 100% and 150%; the zone panel scales with the window.
-- [ ] Right-click the grip: back to 100%. Hover: "Window size: N%".
-- [ ] `/reload`: the window comes back at the same size and place.
-- [ ] The grip does not cover a list's scroll bar.
-
+- [ ] Drag the grip: the window resizes live; lists get more rows / wider rows; the front page's tiles grow or shrink with it.
+- [ ] /reload: same size and place. Right-click the grip: back to 800 x 560.
+- [ ] It can't be made smaller than 700 x 480 or bigger than the screen.
 ## World map tab
 
 An AzerothTrail tab (our icon in a round mask) sits in the Map & Quest Log's column of side tabs, under Map Legend and under any other add-on's tab there. Selecting it covers the quest log with "Mounts in <zone>" for the map being viewed: the zone panel's list (coords, `Zone:` source text, dungeon / raid entrances; owned only with Collected on), rows with tooltip, click for a waypoint, Shift-click map, Ctrl-click preview. World and continent maps say "Open a zone on the map to see its mounts". Blizzard's quest log mode is never changed: clicking Quests / Events / Map Legend, Blizzard switching mode, or opening a quest's details uncovers the quest log. The selection is saved (`AzerothTrailDB.global.mapTab.selected`).
@@ -639,3 +636,9 @@ Ready-made lists AzerothTrail works out from its data (Logic/QuickLists.lua), sh
 
 - [ ] Pop-out "Plot all" skips ticked rows: rares killed today (done) and rare spawns whose box you ticked ("checked 3 hr ago"); right-click a box to clear it and it is plotted again.
 - [ ] Ctrl-click any pop-out's x: every pop-out closes (hover the x for the hint); /reload keeps them closed.
+
+## Pop-outs: resize, snap, known mounts
+
+- [ ] Each pop-out has a corner grip: drag to any size (rows widen; the list scrolls when taller than the window); it keeps that size after /reload. Right-click the grip: back to fitting its rows.
+- [ ] Drag a pop-out near another (or near the main window) and let go: it snaps edge to edge - under / above it with left edges lined up when close, or beside it with tops lined up. Far away: it stays where dropped.
+- [ ] Custom lists, quick lists and their pop-outs don't show mounts you already have.

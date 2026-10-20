@@ -1,5 +1,6 @@
--- Window scale: the bottom-right grip scales the main window, keeping its
--- top-left corner in place; right-click resets; the scale is saved.
+-- Window size: the bottom-right grip resizes the main window freely (within
+-- the minimum and the screen), keeping its top-left corner; right-click
+-- resets to the default size; the size is saved. (Formerly a scale grip.)
 
 local function loadUI()
   reset_ui_stub()
@@ -10,81 +11,55 @@ local function loadUI()
   return ns
 end
 
-local function near(a, b, msg)
-  ok(math.abs(a - b) < 1e-6, (msg or "") .. ": " .. tostring(a) .. " vs " .. tostring(b))
-end
-
-describe("window scale", function()
-  it("ClampScale keeps 60-150% in whole percent; junk is 100%", function()
+describe("window size", function()
+  it("ClampSize keeps the minimum and the screen; junk is the default", function()
     local UI = loadUI().UI
-    eq(UI.ClampScale(1.234), 1.23)
-    eq(UI.ClampScale(0.2), 0.6)
-    eq(UI.ClampScale(3), 1.5)
-    eq(UI.ClampScale(nil), 1)
-    eq(UI.ClampScale(0 / 0), 1, "NaN")
+    eq({ UI.ClampSize(1000.4, 700.6) }, { 1000, 701 })
+    eq({ UI.ClampSize(300, 200) }, UI.MIN_SIZE, "minimum")
+    eq({ UI.ClampSize(5000, 4000, 1920, 1080) }, { 1920, 1080 }, "the screen")
+    eq({ UI.ClampSize(nil, 500) }, UI.WINDOW_SIZE)
+    eq({ UI.ClampSize(0 / 0, 500) }, UI.WINDOW_SIZE, "NaN")
   end)
 
-  it("ScaleFromCursor: the corner follows the cursor along the diagonal", function()
-    local UI = loadUI().UI
-    -- Window 800 x 560 with its top-left at (100, 900) px, UIParent scale 1.
-    eq(UI.ScaleFromCursor(900, 340, 100, 900, 800, 560, 1), 1, "cursor on the 100% corner")
-    eq(UI.ScaleFromCursor(1300, 60, 100, 900, 800, 560, 1), 1.5, "1.5x corner")
-    eq(UI.ScaleFromCursor(740, 452, 100, 900, 800, 560, 1), 0.8, "0.8x corner")
-    eq(UI.ScaleFromCursor(1700, 340, 100, 900, 800, 560, 1) > 1, true, "dragging right alone grows")
-    eq(UI.ScaleFromCursor(100, 900, 100, 900, 800, 560, 1), 0.6, "clamped")
-    eq(UI.ScaleFromCursor(1000, 280, 50, 450, 800, 560, 0.5), 1.5, "UIParent scale counts")
+  it("the window is resizable within the minimum and the screen, at 100%", function()
+    local ns = loadUI()
+    ns.db.global.window.scale = 1.3 -- an earlier version's scale is dropped
+    ns.ToggleWindow()
+    local frame = ns.UI.frame
+    eq(frame.resizable, true)
+    eq({ frame.resizeBounds[1], frame.resizeBounds[2] }, ns.UI.MIN_SIZE)
+    eq(frame:GetScale(), 1)
+    eq(ns.db.global.window.scale, nil)
+    eq({ frame:GetSize() }, ns.UI.WINDOW_SIZE, "default size")
   end)
 
-  it("SetWindowScale keeps the top-left corner on screen and saves scale and position", function()
+  it("the saved size is applied when the window is built", function()
+    local ns = loadUI()
+    ns.db.global.window.width, ns.db.global.window.height = 1100, 760
+    ns.ToggleWindow()
+    eq({ ns.UI.frame:GetSize() }, { 1100, 760 })
+  end)
+
+  it("the grip sizes from the bottom-right, saves on release; right-click resets", function()
     local ns = loadUI()
     ns.ToggleWindow()
     local frame = ns.UI.frame
-    frame.left, frame.top = 200, 700
-    ns.UI.SetWindowScale(frame, 1.25)
-    eq(frame:GetScale(), 1.25)
-    local point, rel, relPoint, x, y = frame:GetPoint(1)
-    eq({ point, relPoint }, { "TOPLEFT", "BOTTOMLEFT" })
-    eq(rel, UIParent)
-    near(x * 1.25, 200, "left edge stays")
-    near(y * 1.25, 700, "top edge stays")
-    local db = ns.db.global.window
-    eq(db.scale, 1.25)
-    eq(db.point, "TOPLEFT")
-    near(db.x, x, "saved x")
-  end)
-
-  it("the saved scale is applied when the window is built", function()
-    local ns = loadUI()
-    ns.db.global.window.scale = 0.8
-    ns.ToggleWindow()
-    eq(ns.UI.frame:GetScale(), 0.8)
-    local ns2 = loadUI()
-    ns2.db.global.window.scale = "big"
-    ns2.ToggleWindow()
-    eq(ns2.UI.frame:GetScale(), 1, "junk -> 100%")
-  end)
-
-  it("the grip scales while dragged, stops on release, and right-click resets", function()
-    local ns = loadUI()
-    ns.ToggleWindow()
-    local frame = ns.UI.frame
-    local grip = frame.ScaleGrip
+    local grip = frame.SizeGrip
     ok(grip, "grip on the window")
     eq(grip:GetPoint(1), "BOTTOMRIGHT")
-    eq(grip.clickButtons, { "RightButtonUp" })
-    frame.left, frame.top = 100, 900
+    frame.left, frame.top = 200, 900
     grip:RunScript("OnMouseDown", "LeftButton")
-    ok(grip:GetScript("OnUpdate"), "dragging")
-    STUB_CURSOR[1], STUB_CURSOR[2] = 1300, 60
-    grip:RunScript("OnUpdate", 0.016)
-    eq(frame:GetScale(), 1.5)
+    eq(frame.sizingFrom, "BOTTOMRIGHT")
+    frame.width, frame.height = 1000, 650 -- the client resized it while dragging
     grip:RunScript("OnMouseUp", "LeftButton")
-    eq(grip:GetScript("OnUpdate"), nil, "stopped")
+    eq(frame.sizingFrom, nil, "stopped")
+    eq({ ns.db.global.window.width, ns.db.global.window.height }, { 1000, 650 })
+    local point, rel, relPoint, x, y = frame:GetPoint(1)
+    eq({ point, relPoint, x, y }, { "TOPLEFT", "BOTTOMLEFT", 200, 900 }, "top-left kept")
     grip:RunScript("OnClick", "RightButton")
-    eq(frame:GetScale(), 1)
-    eq(ns.db.global.window.scale, 1)
+    eq({ frame:GetSize() }, ns.UI.WINDOW_SIZE)
+    eq({ ns.db.global.window.width, ns.db.global.window.height }, ns.UI.WINDOW_SIZE)
     grip:RunScript("OnMouseDown", "RightButton")
-    eq(grip:GetScript("OnUpdate"), nil, "right button does not drag")
-    STUB_CURSOR[1], STUB_CURSOR[2] = 0, 0
+    eq(frame.sizingFrom, nil, "right button does not size")
   end)
 end)

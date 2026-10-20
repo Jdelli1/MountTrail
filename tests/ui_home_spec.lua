@@ -325,4 +325,23 @@ describe("journal home", function()
     local p, rel, relP, x, y = tiles(ns, home)[6]:GetPoint(1)
     eq({ p, relP, x, y }, { "TOPLEFT", "TOPLEFT", G.left + G.tileW + G.gap, G.top - G.tileH - G.gap })
   end)
+
+  it("tiles fill a resized window (same margins and gaps); never under 80%; unknown size: defaults", function()
+    local ns = loadUI()
+    local G = ns.UI.HomeLayout
+    eq({ ns.UI.HomeTileSize(0, 0, 12) }, { G.tileW, G.tileH, 1 })
+    local w, h, s = ns.UI.HomeTileSize(1200, 800, 12)
+    eq(w, math.floor((1200 - 2 * G.left - 3 * G.gap) / 4))
+    eq(h, math.floor((800 + G.top - 10 - 2 * G.gap) / 3))
+    ok(s > 1, "bigger logos")
+    local sw, sh = ns.UI.HomeTileSize(300, 200, 12)
+    eq({ sw, sh }, { math.floor(G.tileW * 0.8), math.floor(G.tileH * 0.8) })
+    local home = openHome(ns)
+    home.width, home.height = 1200, 800
+    home:RunScript("OnSizeChanged")
+    local tile = tiles(ns, home)[6]
+    eq({ tile.width, tile.height }, { w, h })
+    local p, _, relP, x, y = tile:GetPoint(1)
+    eq({ p, relP, x, y }, { "TOPLEFT", "TOPLEFT", G.left + w + G.gap, G.top - h - G.gap })
+  end)
 end)
