@@ -207,6 +207,11 @@ L["/azt options - open the AzerothTrail options (Options > AddOns)"] = "/azt opt
 
 -- Journal home (front page)
 L["Mount Collection"] = "Mount Collection"
+L["Rider"] = "Rider"
+L["Waypoint"] = "Waypoint"
+L["Map"] = "Map"
+L["Achievement"] = "Achievement"
+L["Click a mount to see it here"] = "Click a mount to see it here"
 L["AzerothTrail: mounts on this map"] = "AzerothTrail: mounts on this map"
 L["Open a zone on the map to see its mounts"] = "Open a zone on the map to see its mounts"
 L["Window size: %d%%"] = "Window size: %d%%"

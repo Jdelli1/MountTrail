@@ -1025,6 +1025,8 @@ local function mapAction(method, mountID, routeBoss)
   end
   trace("%s(%s) -> %s, %s", method, tostring(mountID), tostring(kind), tostring(place))
 end
+-- Map.SetWaypoint / Map.OpenMap for a mount, guarded (the detail pane's buttons).
+UI.MapAction = mapAction
 
 -- OnClick of a mount row (lists, Checklist and zone panel): reads the modifier keys and
 -- runs UI.RowClickAction's action for `mountID`. `routeBoss` (optional): the
@@ -1285,6 +1287,22 @@ local function setupRow(row)
   local highlight = row:CreateTexture(nil, "HIGHLIGHT")
   highlight:SetAllPoints(row)
   highlight:SetColorTexture(1, 1, 1, 0.07)
+  -- The row shown in the detail pane: a soft gold fill with a gold bar on
+  -- its left edge.
+  local selected = row:CreateTexture(nil, "BACKGROUND", nil, 2)
+  selected:SetAllPoints(row)
+  selected:SetColorTexture(1, 0.82, 0, 0.12)
+  local bar = row:CreateTexture(nil, "ARTWORK")
+  bar:SetWidth(2)
+  bar:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
+  bar:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0)
+  bar:SetColorTexture(1, 0.82, 0, 0.9)
+  selected:Hide()
+  bar:Hide()
+  row.Selected = {
+    SetShown = function(_, on) selected:SetShown(on); bar:SetShown(on) end,
+    IsShown = function() return selected:IsShown() end,
+  }
 
   local icon = row:CreateTexture(nil, "ARTWORK")
   icon:SetSize(ICON_SIZE, ICON_SIZE)
@@ -1324,16 +1342,28 @@ local function setupRow(row)
   end)
   row:SetScript("OnLeave", function() UI.HideMountTooltip() end)
   row:SetScript("OnClick", function(self, button)
-    -- Left-click waypoint, Shift+left-click world map, Ctrl+left-click
-    -- preview, Shift+right-click achievement (UI.RowClickAction).
+    -- In a list with the detail pane a plain left-click selects the row.
+    -- Otherwise: left-click waypoint, Shift+left-click world map,
+    -- Ctrl+left-click preview, Shift+right-click achievement
+    -- (UI.RowClickAction).
+    if self.onSelect and button == "LeftButton" and self.mountID
+      and not (type(IsShiftKeyDown) == "function" and IsShiftKeyDown())
+      and not (type(IsControlKeyDown) == "function" and IsControlKeyDown()) then
+      self.onSelect(self.mountID)
+      return
+    end
     UI.HandleRowClick(self.mountID, button, self.routeBoss, self.eventMap)
   end)
 end
+
+local function noTooltip() end
 
 local function initRow(row, data)
   if not row.Icon then setupRow(row) end
   row.mountID = data.id
   row.tooltip = data.tooltip
+  row.onSelect = data.onSelect
+  row.Selected:SetShown(data.selected == true)
   row.routeBoss = data.routeBoss
   row.eventMap = data.eventMap
   -- Under a sub-header the icon lines up with the sub-header's indicator.
@@ -1356,6 +1386,8 @@ end
 -- owned=, depth= (2: indented), desc= (UI.RowDescription), tag=, alt=
 -- (striped), pin= (UI.HasLocation), name= (overrides the mount's name),
 -- tooltip= (function(row) shown on hover instead of the mount tooltip),
+-- onSelect= (function(mountID): a plain left-click selects instead of the
+-- waypoint; the detail pane's lists), selected= (the selected row's look),
 -- routeBoss= (the row's route boss, passed to the click: UI.HandleRowClick,
 -- and to the hover: UI.ShowMountTooltip's lockout line) }.
 -- Rows are UI.MOUNT_ROW_HEIGHT tall.
@@ -1583,6 +1615,18 @@ function UI.List(parent, getQuery, opts)
   local initial = (getQuery and getQuery()) or {}
   list.tab = initial.view or initial.tab
 
+  -- Detail pane on the right (UI/DetailPane.lua) unless opts.detail == false:
+  -- a left-click selects a row and shows it there.
+  local pane
+  if not (opts and opts.detail == false) and UI.CreateDetailPane then
+    pane = UI.CreateDetailPane(list)
+    pane:SetPoint("TOPRIGHT", list, "TOPRIGHT", 0, 0)
+    pane:SetPoint("BOTTOMRIGHT", list, "BOTTOMRIGHT", 0, 0)
+    list.Detail = pane
+  end
+  local rightEdge, rightPoint = list, "TOPRIGHT"
+  if pane then rightEdge, rightPoint = pane, "TOPLEFT" end
+
   -- Top row: search box + Filter button. Fallback: the left filter panel
   -- (search box on top of it).
   local dropdown = createFilterDropdown(list)
@@ -1604,7 +1648,7 @@ function UI.List(parent, getQuery, opts)
     -- Flat header strip behind the top row, with a thin rule underneath.
     local strip = list:CreateTexture(nil, "BACKGROUND")
     strip:SetPoint("TOPLEFT", list, "TOPLEFT", 0, 0)
-    strip:SetPoint("TOPRIGHT", list, "TOPRIGHT", 0, 0)
+    strip:SetPoint("TOPRIGHT", rightEdge, rightPoint, 0, 0)
     strip:SetHeight(TOP_ROW - 2)
     strip:SetColorTexture(1, 1, 1, 0.04)
     local rule = list:CreateTexture(nil, "BORDER")
@@ -1626,7 +1670,11 @@ function UI.List(parent, getQuery, opts)
   else
     scrollBox:SetPoint("TOPLEFT", list, "TOPLEFT", 0, -TOP_ROW) -- full width
   end
-  scrollBox:SetPoint("BOTTOMRIGHT", list, "BOTTOMRIGHT", -20, 0)
+  if pane then
+    scrollBox:SetPoint("BOTTOMRIGHT", pane, "BOTTOMLEFT", -20, 0)
+  else
+    scrollBox:SetPoint("BOTTOMRIGHT", list, "BOTTOMRIGHT", -20, 0)
+  end
   list.ScrollBox = scrollBox
 
   local scrollBar = CreateFrame("EventFrame", nil, list, "MinimalScrollBar")
@@ -1666,6 +1714,13 @@ function UI.List(parent, getQuery, opts)
   empty:SetText(L["No mounts match these filters."])
   empty:Hide()
   list.Empty = empty
+
+  -- Selects a mount row (detail pane) and redraws in place.
+  function list:Select(mountID)
+    self.selectedID = mountID
+    self:Refresh()
+  end
+  list.selectHandler = function(mountID) list:Select(mountID) end
 
   -- resetScroll: true to jump back to the top (new expansion, new search).
   function list:Refresh(resetScroll)
@@ -1716,6 +1771,20 @@ function UI.List(parent, getQuery, opts)
     -- source text); rows with a location get the pin (UI.HasLocation).
     local sourceText = query.sourceText
     local describe = memoText(function(id) return UI.RowDescription(id, sourceText(id)) end)
+    -- The selection stays while its mount is in this list (also under a
+    -- collapsed header); else the first mount row.
+    local selectedID
+    if pane then
+      for _, entry in ipairs(selected) do
+        if entry.id == self.selectedID then selectedID = entry.id break end
+      end
+      if not selectedID then
+        for _, row in ipairs(rows) do
+          if not row.header then selectedID = row.id break end
+        end
+      end
+      self.selectedID = selectedID
+    end
     local n = 0
     for _, row in ipairs(rows) do
       if row.header then
@@ -1725,8 +1794,14 @@ function UI.List(parent, getQuery, opts)
         row.alt = n % 2 == 0
         row.desc = describe(row.id)
         row.pin = UI.LocationIcon(row.id)
+        if pane then
+          row.selected = row.id == selectedID
+          row.onSelect = self.selectHandler
+          row.tooltip = noTooltip -- the pane shows what the tooltip would
+        end
       end
     end
+    if pane then pane:SetMount(selectedID) end
     local provider = CreateDataProvider(rows)
     if resetScroll or not ScrollBoxConstants then
       scrollBox:SetDataProvider(provider)

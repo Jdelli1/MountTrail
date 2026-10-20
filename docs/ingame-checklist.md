@@ -544,3 +544,18 @@ The zone panel and the world map tab list a mount where its coordinates are (the
 - [ ] Inside a dungeon (e.g. Karazhan, any floor): the zone panel lists that dungeon's mounts and names it.
 - [ ] A mount sold by a vendor in the zone is listed there even when it drops elsewhere; a mount whose source names two zones (two vendors) is listed in both.
 - [ ] Map tab, Tiragarde Sound / Thaldraszus / Isle of Dorn: the Boralus / Valdrakken / Dornogal vendor mounts are listed too.
+
+## Mount detail pane
+
+Every mount list (Journal expansion lists, Holidays, Achievements, Timewalking, Misc, the front page's search) has a 300 px pane on its right. A plain left-click on a row selects it (gold tint and a gold bar on its left edge) and the pane shows it: Blizzard's own mount preview (the Mount Journal's model scene: drag to rotate, mouse wheel to zoom, the rotate / zoom buttons on hover, a "Rider" checkbox bound to the Mount Journal's own show-player setting), the icon and name (a check when owned), the client's flavor text, then the tooltip's lines without the click hints (source, chance, attempts, lockout, achievement progress), scrolling with the mouse wheel when long, and Waypoint / Map / Achievement buttons (greyed out when not available). Rows no longer show the hover tooltip in these lists; Shift-click (map), Ctrl-click (dressing room) and Shift-right-click (achievement) on a row work as before. The first mount is selected when nothing is; the selection stays through refreshes and collapsing its header, and moves to the first mount when its mount leaves the list. The Checklist and the zone panel keep the old rows (left-click waypoint, hover tooltip).
+
+- [ ] Open Misc (or Holidays): the pane shows the first mount with its 3D model; the list's rows are narrower but readable, the search box and Filter fit above them.
+- [ ] Click another row: it turns gold, the model and text change. Drag the model to rotate, wheel to zoom, hover for the buttons.
+- [ ] No gift-box "present" model appears in place of a mount (also for a mount you just learned).
+- [ ] Tick "Rider": your character sits on the mount; untick: the mount alone. The Mount Journal (Shift-P) follows the same setting.
+- [ ] A mount without a model (rare): its large icon instead.
+- [ ] Waypoint / Map buttons do what a row click used to; Achievement opens the achievement for achievement mounts, greyed out otherwise.
+- [ ] Long achievement criteria scroll inside the pane with the mouse wheel.
+- [ ] Shift-click / Ctrl-click / Shift-right-click on rows still work; hovering a row shows no tooltip.
+- [ ] Journal: open an expansion, collapse the selected row's header: the pane keeps showing it. Back and into another expansion: the first mount there is selected.
+- [ ] Checklist and zone panel rows: unchanged (left-click waypoint, hover tooltip).

@@ -35,6 +35,7 @@ Core\Init.lua
 UI\Frame.lua
 UI\Tooltip.lua
 UI\List.lua
+UI\DetailPane.lua
 UI\JournalHome.lua
 UI\Tabs.lua
 UI\LockoutHelpers.lua

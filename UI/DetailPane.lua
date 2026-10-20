@@ -1,0 +1,336 @@
+local ADDON, ns = ...
+
+-- Mount detail pane: the right side of every mount list (UI.List). Shows the
+-- selected mount: Blizzard's mount preview (the Mount Journal's own
+-- WrappedAndUnwrappedModelScene: drag to rotate, wheel to zoom, the rider
+-- shown or not by the Mount Journal's "mountJournalShowPlayer" setting, its
+-- checkbox here too), the name and icon, the client's flavor text, then the
+-- tooltip's lines (UI.TooltipLines without the click hints: source, chance,
+-- attempts, lockout, achievement) in a scrolling area, and Waypoint / Map /
+-- Achievement buttons.
+--   local pane = UI.CreateDetailPane(parent)
+--   pane:SetMount(mountID[, routeBoss])   -- nil: empty
+--   pane:Refresh()                        -- same mount, fresh numbers
+-- The model is reloaded only when the mount changes. Clients without the
+-- model scene template show the large icon instead.
+
+local L = ns.L
+
+local UI = ns.UI or {}
+ns.UI = UI
+
+UI.DETAIL_WIDTH = 300
+local MODEL_HEIGHT = 230
+local HEADER_HEIGHT = 44
+local BUTTON_HEIGHT = 22
+local PAD = 10
+local LINE_GAP = 3
+local SCROLL_STEP = 30
+local SHOW_PLAYER_CVAR = "mountJournalShowPlayer"
+
+local function report(err)
+  if ns.Game and ns.Game.ReportError then ns.Game.ReportError(err) end
+end
+
+local function mountData(mountID)
+  local mounts = ns.Data and ns.Data.Mounts
+  return mounts and mounts[mountID] or nil
+end
+
+-- Pure: the pane's text for a mount -> { name =, flavor =, lines = UI.TooltipLines
+-- without hints, achievement = achievementID or nil, location = bool }.
+function UI.DetailContent(mountID, routeBoss)
+  local m = mountData(mountID) or {}
+  local name = ns.Game.MountInfo and ns.Game.MountInfo(mountID) or nil
+  local _, achievementID = UI.AchievementLines(mountID)
+  return {
+    name = name or m.name or tostring(mountID),
+    flavor = UI.TooltipFlavor(mountID),
+    lines = UI.TooltipLines(mountID, routeBoss, { hints = false }),
+    achievement = achievementID,
+    location = UI.HasLocation(mountID, routeBoss) and true or false,
+  }
+end
+
+-- Blizzard's mount preview (MountJournal_UpdateMountDisplay) in `scene` for
+-- `mountID`. -> true when a model was set.
+function UI.ShowMountModel(scene, mountID)
+  local journal = C_MountJournal
+  if not (scene and journal and type(journal.GetMountInfoExtraByID) == "function") then return false end
+  local good, err = pcall(function()
+    local displayID, _, _, isSelfMount, _, sceneID, animID, kitID, noRider = journal.GetMountInfoExtraByID(mountID)
+    if not displayID and type(journal.GetMountAllCreatureDisplayInfoByID) == "function" then
+      local all = journal.GetMountAllCreatureDisplayInfoByID(mountID)
+      displayID = type(all) == "table" and all[1] and all[1].creatureDisplayID or nil
+    end
+    if not (displayID and sceneID) then error("no model for mount " .. tostring(mountID), 0) end
+    scene:TransitionToModelSceneID(sceneID, CAMERA_TRANSITION_TYPE_IMMEDIATE, CAMERA_MODIFICATION_TYPE_DISCARD, true)
+    -- No "new mount" present box: the mount actor at full alpha, the
+    -- wrapped one hidden (WrappedAndUnwrappedModelSceneMixin).
+    if scene.PrepareForFanfare then scene:PrepareForFanfare(false) end
+    local actor = scene:GetActorByTag("unwrapped")
+    if not actor then error("no mount actor in scene " .. tostring(sceneID), 0) end
+    if actor.SetOnModelLoadedCallback then
+      actor:Hide()
+      actor:SetOnModelLoadedCallback(function() actor:Show() end)
+    end
+    actor:SetModelByCreatureDisplayID(displayID, true)
+    local blend = Enum and Enum.ModelBlendOperation
+    if isSelfMount then
+      if blend and actor.SetAnimationBlendOperation then actor:SetAnimationBlendOperation(blend.None) end
+      actor:SetAnimation(618) -- MountSelfIdle
+    else
+      if blend and actor.SetAnimationBlendOperation then actor:SetAnimationBlendOperation(blend.Anim) end
+      actor:SetAnimation(0)
+    end
+    local showPlayer = type(GetCVarBool) == "function" and GetCVarBool(SHOW_PLAYER_CVAR)
+    if not showPlayer then noRider = true end
+    local native = PlayerUtil and PlayerUtil.ShouldUseNativeFormInModelScene
+      and PlayerUtil.ShouldUseNativeFormInModelScene() or false
+    if scene.AttachPlayerToMount then
+      scene:AttachPlayerToMount(actor, animID, isSelfMount, noRider, kitID, native)
+    end
+  end)
+  if not good then
+    report(err)
+    return false
+  end
+  return true
+end
+
+local function flatButton(parent, label)
+  local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+  b:SetHeight(BUTTON_HEIGHT)
+  b:SetText(label)
+  return b
+end
+
+-- Lines in the scrolling info area: font strings reused between mounts.
+local function lineString(pane, i)
+  local fs = pane.lineStrings[i]
+  if not fs then
+    fs = pane.Info:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    fs:SetJustifyH("LEFT")
+    fs:SetWordWrap(true)
+    pane.lineStrings[i] = fs
+    local right = pane.Info:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    right:SetJustifyH("RIGHT")
+    pane.rightStrings[i] = right
+  end
+  return fs, pane.rightStrings[i]
+end
+
+local function layoutInfo(pane, content)
+  local width = UI.DETAIL_WIDTH - 2 * PAD - 12
+  local y = 0
+  local n = 0
+  local function place(text, r, g, b, rightText, rr, rg, rb)
+    n = n + 1
+    local fs, right = lineString(pane, n)
+    fs:ClearAllPoints()
+    fs:SetPoint("TOPLEFT", pane.Info, "TOPLEFT", 0, -y)
+    fs:SetWidth(width)
+    fs:SetText(text)
+    fs:SetTextColor(r or 1, g or 1, b or 1)
+    fs:Show()
+    if rightText then
+      right:ClearAllPoints()
+      right:SetPoint("TOPRIGHT", pane.Info, "TOPLEFT", width, -y)
+      right:SetText(rightText)
+      right:SetTextColor(rr or 1, rg or 1, rb or 1)
+      right:Show()
+    else
+      right:Hide()
+    end
+    local h = fs.GetStringHeight and fs:GetStringHeight() or 12
+    y = y + math.max(h or 12, 12) + LINE_GAP
+  end
+  if content.flavor then
+    place(content.flavor, 0.8, 0.8, 0.8)
+    y = y + 4
+  end
+  for _, l in ipairs(content.lines) do
+    if l.double then
+      place(l.left, l.r, l.g, l.b, l.right, l.rr, l.rg, l.rb)
+    else
+      place(l.left, l.r, l.g, l.b)
+    end
+  end
+  for i = n + 1, #pane.lineStrings do
+    pane.lineStrings[i]:Hide()
+    pane.rightStrings[i]:Hide()
+  end
+  pane.Info:SetHeight(math.max(y, 1))
+  pane.infoHeight = y
+  pane.Scroll:SetVerticalScroll(0)
+end
+
+local function paint(pane)
+  local id = pane.mountID
+  local has = id ~= nil
+  pane.Name:SetShown(has)
+  pane.Icon:SetShown(has)
+  pane.Info:SetShown(has)
+  pane.Empty:SetShown(not has)
+  pane.Waypoint:SetShown(has)
+  pane.MapButton:SetShown(has)
+  pane.Achievement:SetShown(has)
+  if not has then return end
+  local content = UI.DetailContent(id, pane.routeBoss)
+  pane.content = content
+  pane.Name:SetText(content.name)
+  pane.Icon:SetTexture(UI.MountIcon(id))
+  pane.Owned:SetShown(ns.Game.IsOwned and ns.Game.IsOwned(id) and true or false)
+  layoutInfo(pane, content)
+  pane.Waypoint:SetEnabled(content.location)
+  pane.MapButton:SetEnabled(content.location)
+  pane.Achievement:SetEnabled(content.achievement ~= nil)
+end
+
+local function build(parent)
+  local pane = CreateFrame("Frame", nil, parent)
+  pane:SetWidth(UI.DETAIL_WIDTH)
+  pane.lineStrings, pane.rightStrings = {}, {}
+
+  local fill = pane:CreateTexture(nil, "BACKGROUND")
+  fill:SetAllPoints(pane)
+  fill:SetColorTexture(0, 0, 0, 0.25)
+  local edge = pane:CreateTexture(nil, "BORDER")
+  edge:SetWidth(1)
+  edge:SetPoint("TOPLEFT", pane, "TOPLEFT", 0, 0)
+  edge:SetPoint("BOTTOMLEFT", pane, "BOTTOMLEFT", 0, 0)
+  edge:SetColorTexture(1, 1, 1, 0.1)
+
+  -- Model: Blizzard's mount preview when the client has the template.
+  local modelArea = CreateFrame("Frame", nil, pane)
+  modelArea:SetPoint("TOPLEFT", pane, "TOPLEFT", 1, 0)
+  modelArea:SetPoint("TOPRIGHT", pane, "TOPRIGHT", 0, 0)
+  modelArea:SetHeight(MODEL_HEIGHT)
+  pane.ModelArea = modelArea
+  local backdrop = modelArea:CreateTexture(nil, "BACKGROUND")
+  backdrop:SetAllPoints(modelArea)
+  backdrop:SetColorTexture(0, 0, 0, 0.35)
+
+  local sceneTemplate = UI.Template("WrappedAndUnwrappedModelScene", nil)
+  if sceneTemplate then
+    local scene = CreateFrame("ModelScene", nil, modelArea, sceneTemplate)
+    scene:SetAllPoints(modelArea)
+    pane.Scene = scene
+    if UI.Template("ModelSceneControlFrameTemplate", nil) then
+      local controls = CreateFrame("Frame", nil, scene, "ModelSceneControlFrameTemplate")
+      controls:SetPoint("BOTTOM", scene, "BOTTOM", 0, 8)
+      if controls.SetFrameLevel then controls:SetFrameLevel(scene:GetFrameLevel() + 10) end
+      pane.Controls = controls
+      scene:HookScript("OnEnter", function() controls:Show() end)
+      scene:HookScript("OnLeave", function()
+        if not (controls.IsMouseOver and controls:IsMouseOver()) then controls:Hide() end
+      end)
+    end
+    local rider = CreateFrame("CheckButton", nil, modelArea, "UICheckButtonTemplate")
+    rider:SetSize(22, 22)
+    rider:SetPoint("BOTTOMRIGHT", modelArea, "BOTTOMRIGHT", -4, 4)
+    if rider.SetFrameLevel then rider:SetFrameLevel(scene:GetFrameLevel() + 10) end
+    local riderText = rider:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    riderText:SetPoint("RIGHT", rider, "LEFT", 0, 0)
+    riderText:SetText(L["Rider"])
+    rider:SetScript("OnShow", function(self)
+      self:SetChecked(type(GetCVarBool) == "function" and GetCVarBool(SHOW_PLAYER_CVAR) and true or false)
+    end)
+    rider:SetScript("OnClick", function(self)
+      if type(SetCVar) == "function" then SetCVar(SHOW_PLAYER_CVAR, self:GetChecked() and 1 or 0) end
+      if pane.mountID then UI.ShowMountModel(scene, pane.mountID) end
+    end)
+    pane.Rider = rider
+  end
+  local bigIcon = modelArea:CreateTexture(nil, "ARTWORK")
+  bigIcon:SetSize(96, 96)
+  bigIcon:SetPoint("CENTER", modelArea, "CENTER", 0, 0)
+  bigIcon:Hide()
+  pane.BigIcon = bigIcon
+
+  -- Header: icon, name, a check when owned.
+  local icon = pane:CreateTexture(nil, "ARTWORK")
+  icon:SetSize(32, 32)
+  icon:SetPoint("TOPLEFT", modelArea, "BOTTOMLEFT", PAD, -8)
+  UI.StyleIcon(pane, icon)
+  pane.Icon = icon
+  local name = pane:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+  name:SetPoint("LEFT", icon, "RIGHT", 8, 0)
+  name:SetPoint("RIGHT", pane, "RIGHT", -PAD - 18, 0)
+  name:SetJustifyH("LEFT")
+  name:SetWordWrap(true)
+  if name.SetMaxLines then name:SetMaxLines(2) end
+  pane.Name = name
+  local owned = pane:CreateTexture(nil, "OVERLAY")
+  owned:SetSize(16, 16)
+  owned:SetPoint("LEFT", name, "RIGHT", 2, 0)
+  if UI.AtlasExists("activities-icon-checkmark") then
+    owned:SetAtlas("activities-icon-checkmark")
+  else
+    owned:SetTexture("Interface\\Scenarios\\ScenarioIcon-Check")
+  end
+  owned:Hide()
+  pane.Owned = owned
+
+  -- Buttons along the bottom.
+  local waypoint = flatButton(pane, L["Waypoint"])
+  local mapButton = flatButton(pane, L["Map"])
+  local achievement = flatButton(pane, L["Achievement"])
+  local bw = math.floor((UI.DETAIL_WIDTH - 2 * PAD - 8) / 3)
+  for i, b in ipairs({ waypoint, mapButton, achievement }) do
+    b:SetWidth(bw)
+    b:SetPoint("BOTTOMLEFT", pane, "BOTTOMLEFT", PAD + (i - 1) * (bw + 4), 6)
+  end
+  waypoint:SetScript("OnClick", function()
+    if pane.mountID then UI.MapAction("SetWaypoint", pane.mountID, pane.routeBoss) end
+  end)
+  mapButton:SetScript("OnClick", function()
+    if pane.mountID then UI.MapAction("OpenMap", pane.mountID, pane.routeBoss) end
+  end)
+  achievement:SetScript("OnClick", function()
+    if pane.mountID then UI.OpenMountAchievement(pane.mountID) end
+  end)
+  pane.Waypoint, pane.MapButton, pane.Achievement = waypoint, mapButton, achievement
+
+  -- Scrolling info: flavor text and the tooltip's lines.
+  local scroll = CreateFrame("ScrollFrame", nil, pane)
+  scroll:SetPoint("TOPLEFT", icon, "BOTTOMLEFT", 0, -10)
+  scroll:SetPoint("BOTTOMRIGHT", pane, "BOTTOMRIGHT", -PAD, BUTTON_HEIGHT + 14)
+  if scroll.EnableMouseWheel then scroll:EnableMouseWheel(true) end
+  local info = CreateFrame("Frame", nil, scroll)
+  info:SetSize(UI.DETAIL_WIDTH - 2 * PAD, 1)
+  scroll:SetScrollChild(info)
+  scroll:SetScript("OnMouseWheel", function(self, delta)
+    local max = math.max(0, (pane.infoHeight or 0) - (self:GetHeight() or 0))
+    local v = math.min(max, math.max(0, (self:GetVerticalScroll() or 0) - delta * SCROLL_STEP))
+    self:SetVerticalScroll(v)
+  end)
+  pane.Scroll, pane.Info = scroll, info
+
+  local empty = pane:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+  empty:SetPoint("TOPLEFT", modelArea, "BOTTOMLEFT", PAD, -20)
+  empty:SetPoint("TOPRIGHT", modelArea, "BOTTOMRIGHT", -PAD, -20)
+  empty:SetText(L["Click a mount to see it here"])
+  pane.Empty = empty
+
+  function pane:SetMount(mountID, routeBoss)
+    local changed = mountID ~= self.mountID
+    self.mountID, self.routeBoss = mountID, routeBoss
+    if changed then
+      local shown = mountID ~= nil and self.Scene ~= nil and UI.ShowMountModel(self.Scene, mountID)
+      if self.Scene then self.Scene:SetShown(mountID ~= nil and shown) end
+      self.BigIcon:SetShown(mountID ~= nil and not shown)
+      if mountID then self.BigIcon:SetTexture(UI.MountIcon(mountID)) end
+    end
+    paint(self)
+  end
+
+  function pane:Refresh()
+    paint(self)
+  end
+
+  pane:SetMount(nil)
+  return pane
+end
+
+UI.CreateDetailPane = build

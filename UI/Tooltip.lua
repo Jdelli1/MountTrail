@@ -166,8 +166,9 @@ end
 -- lines and "Chance so far", { double = true, left =, right =, r, g, b (left colour),
 -- rr, rg, rb (right colour) }. See the file header for the order.
 -- `routeBoss` (optional): the hovered route / checklist row's boss, whose
--- lockout the "Lockout:" line reports (UI.LockoutStatus).
-function UI.TooltipLines(mountID, routeBoss)
+-- lockout the "Lockout:" line reports (UI.LockoutStatus). opts (optional):
+-- { hints = false } leaves out the click hints (the detail pane has buttons).
+function UI.TooltipLines(mountID, routeBoss, opts)
   local m = mountData(mountID) or {}
   local lines = {}
 
@@ -200,6 +201,7 @@ function UI.TooltipLines(mountID, routeBoss)
   for _, a in ipairs(achievementLines) do
     lines[#lines + 1] = { left = a.text, r = a.r, g = a.g, b = a.b, wrap = a.wrap }
   end
+  if opts and opts.hints == false then return lines end
   lines[#lines + 1] = line(L["Click: waypoint · Shift-click: map · Ctrl-click: preview"], HINT)
   if achievementID then
     lines[#lines + 1] = line(L["Shift-right-click to open the achievement"], HINT)
