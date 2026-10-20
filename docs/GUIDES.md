@@ -206,10 +206,15 @@ Give credit where it is due:
 
 ## The window's look
 
-Right-click the guide window's title and pick `Appearance...`: the same menu
-as the pop-outs (opacity, background, header and text colour, font and size,
-`Apply to all pop-outs`, `Reset appearance`). The guide window keeps its own
-look, or takes the shared one.
+- **Look**: right-click the guide window's title, then `Change appearance`:
+  everything the pop-outs offer (opacity, background, header and text colour,
+  font size, font, `Apply to all pop-outs`, `Reset appearance`); `Back`
+  returns to the guide's menu. The guide window keeps its own look, or takes
+  the shared one.
+- **Size**: drag the bottom-right corner to stretch it any way you like. The
+  text re-wraps to the width. The current-step view and the every-step view
+  each remember their size; the current-step view still grows when a step
+  needs more room. Right-click the corner for the default size.
 
 ## Finding IDs and coordinates
 

@@ -6,14 +6,18 @@ local ADDON, ns = ...
 -- move through it; right-click the title for the mode, Edit, Export, Reset
 -- and Close. Its authors show under the title (credits on hover), and a step
 -- with a macro gets Copy macro / Make macro buttons. Its look is set like a
--- pop-out's (the same Appearance menu, UI.AddStyledWindow; slot "guide"). Its position and mode are saved (ns.db.global.guideWindow).
+-- pop-out's (the same Appearance menu, UI.AddStyledWindow; slot "guide").
+-- Drag its corner grip to any size (saved per view; right-click the grip for
+-- the default); the text re-wraps to the width, and the current-step view
+-- still grows when a step needs more room than it was given. Its position and mode are saved (ns.db.global.guideWindow).
 
 local L = ns.L
 
 local UI = ns.UI or {}
 ns.UI = UI
 
-local WIDTH = 300
+local WIDTH = 300 -- the default width
+local MIN_W, MIN_H = 200, 110
 local PAD = 10
 local TITLE_H = 24
 local BUTTONS_H = 30
@@ -94,14 +98,26 @@ function UI.GuidePlaceText(step)
 end
 
 local function showMenu(owner)
-  local entry = UI.ActiveGuide()
-  if not entry then return end
-  local compact = UI.GuideWindowCompact()
-  UI.ShowMenu(owner, {
-    { title = entry.title },
-    { text = L["Appearance..."], onClick = function()
-      if UI.ShowPopoutStyleMenu then UI.ShowPopoutStyleMenu(w, owner) end
-    end },
+  if not UI.ActiveGuide() then return end
+  local items
+  items = function()
+    local entry = UI.ActiveGuide()
+    if not entry then return { { title = L["Guide"] } } end
+    local compact = UI.GuideWindowCompact()
+    local list = { { title = entry.title } }
+    -- Change appearance: the pop-outs' whole appearance menu, Back returns here.
+    if UI.PopoutStyleMenu then
+      list[#list + 1] = { text = L["Change appearance"], submenu = UI.PopoutStyleMenu(w, items) }
+    end
+    for _, it in ipairs(UI.GuideMenuRest(entry, compact)) do list[#list + 1] = it end
+    return list
+  end
+  UI.ShowMenu(owner, items, "cursor")
+end
+
+-- The guide window menu's other items.
+function UI.GuideMenuRest(entry, compact)
+  return {
     { text = compact and L["Show every step"] or L["Current step only"], onClick = function()
       db().full = compact or nil
       UI.RefreshGuideWindow()
@@ -112,13 +128,14 @@ local function showMenu(owner)
     { text = L["Back to step 1"], onClick = function() UI.ResetGuide(entry.id) end },
     { separator = true },
     { text = L["Close guide"], onClick = function() UI.StopGuide() end },
-  }, "cursor")
+  }
 end
 
 local function build()
   w = CreateFrame("Frame", "MountTrailGuide", UIParent)
   w.key = "guide" -- its style's slot in ns.db.global.popouts (UI.ShowPopoutStyleMenu)
-  w:SetSize(WIDTH, 160)
+  w:SetSize(db().width or WIDTH, 160)
+  UI.SetResizeLimits(w, MIN_W, MIN_H)
   w:SetFrameStrata("MEDIUM")
   w:SetClampedToScreen(true)
   w:SetMovable(true)
@@ -227,7 +244,7 @@ local function build()
   scroll:SetPoint("BOTTOMRIGHT", w, "BOTTOMRIGHT", -PAD, BUTTONS_H + 4)
   if scroll.EnableMouseWheel then scroll:EnableMouseWheel(true) end
   local list = CreateFrame("Frame", nil, scroll)
-  list:SetSize(WIDTH - 2 * PAD, 1)
+  list:SetSize(WIDTH - 2 * PAD, 1) -- re-sized with the window (paintFull)
   scroll:SetScrollChild(list)
   scroll:SetScript("OnMouseWheel", function(self, delta)
     local max = math.max(0, (w.listHeight or 0) - (self:GetHeight() or 0))
@@ -242,12 +259,30 @@ local function build()
   w.Back = back
   local nextButton = UI.FlatButton(w, L["Next"], "gold", 22)
   nextButton:SetWidth(80)
-  nextButton:SetPoint("BOTTOMRIGHT", w, "BOTTOMRIGHT", -PAD, 6)
+  nextButton:SetPoint("BOTTOMRIGHT", w, "BOTTOMRIGHT", -(PAD + 12), 6) -- clear of the grip
   -- On the last step it reads Finish and closes the guide.
   nextButton:SetScript("OnClick", function(self)
     if self.finish then UI.FinishGuide() else UI.GuideGo(1) end
   end)
   w.Next = nextButton
+  -- Any size: saved per view (the step view's height is a minimum: it still
+  -- grows to fit a long step); right-click the grip for the default.
+  w.Grip = UI.ResizeGrip(w, function(width, height)
+    local s = db()
+    s.width = math.floor(width + 0.5)
+    if UI.GuideWindowCompact() then s.compactH = math.floor(height + 0.5) else s.fullH = math.floor(height + 0.5) end
+    UI.RefreshGuideWindow()
+  end, function()
+    local s = db()
+    s.width, s.compactH, s.fullH = nil, nil, nil
+    w:SetWidth(WIDTH)
+    UI.RefreshGuideWindow()
+  end)
+  -- While dragging the grip the text re-wraps live.
+  w:SetScript("OnSizeChanged", function()
+    if w.sizing then UI.RefreshGuideWindow() end
+  end)
+
   -- The pop-outs' Appearance menu repaints it.
   w.Restyle = function(chromeOnly)
     if chromeOnly then
@@ -277,6 +312,11 @@ local function styled(fs, fontObject, color, sizeDelta)
   elseif color then
     fs:SetTextColor(color[1], color[2], color[3])
   end
+end
+
+-- The text width inside the window's padding.
+local function innerWidth()
+  return math.max(MIN_W, (w and w:GetWidth()) or WIDTH) - 2 * PAD
 end
 
 local function stepRow(i)
@@ -311,7 +351,7 @@ local function paintCompact(entry, n, step)
       return
     end
     fs:SetPoint("TOPLEFT", w.Body, "TOPLEFT", 0, -y)
-    fs:SetWidth(WIDTH - 2 * PAD)
+    fs:SetWidth(innerWidth())
     fs:SetText(value)
     fs:Show()
     y = y + height(fs) + LINE_GAP
@@ -332,14 +372,15 @@ local function paintCompact(entry, n, step)
     w.CopyMacro:SetPoint("TOPLEFT", w.Body, "TOPLEFT", 0, -y)
     y = y + MACRO_ROW
   end
-  w:SetHeight(w.top + y + BUTTONS_H + 6)
+  if not w.sizing then w:SetHeight(math.max(w.top + y + BUTTONS_H + 6, db().compactH or 0)) end
 end
 
 local function paintFull(entry, n)
   w.Body:Hide()
   w.Scroll:Show()
   local y = 0
-  local width = WIDTH - 2 * PAD
+  local width = innerWidth()
+  w.List:SetWidth(width)
   for i, step in ipairs(entry.guide.steps) do
     local r = stepRow(i)
     r.step, r.current = i, n
@@ -364,7 +405,7 @@ local function paintFull(entry, n)
   for i = #entry.guide.steps + 1, #w.Rows do w.Rows[i]:Hide() end
   w.List:SetHeight(math.max(y, 1))
   w.listHeight = y
-  w:SetHeight(FULL_H)
+  if not w.sizing then w:SetHeight(db().fullH or FULL_H) end
 end
 
 -- Repaints the window for the guide being followed (hides it without one).

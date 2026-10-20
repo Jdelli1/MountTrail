@@ -305,4 +305,35 @@ describe("Following a guide", function()
     ok(not w.CopyMacro:IsShown(), "no macro: no buttons")
     ok(ns.UI.GuideCreditsText(g):find("Thanks to the Wowhead comments", 1, true))
   end)
+
+  it("the menu's Change appearance opens the pop-outs' appearance items, Back returns", function()
+    local ns = loadUI()
+    ns.UI.StartGuide("builtin:thundering-ruby-cloud-serpent")
+    local w = ns.UI.GuideWindow()
+    local styleOf, backTo
+    ns.UI.PopoutStyleMenu = function(win, back) styleOf, backTo = win, back return function() return {} end end
+    local items
+    ns.UI.ShowMenu = function(_, list) items = type(list) == "function" and list() or list end
+    w.Strip:RunScript("OnClick", "RightButton")
+    eq(items[2].text, "Change appearance")
+    ok(type(items[2].submenu) == "function", "a submenu")
+    eq(styleOf, w, "for the guide window")
+    eq(backTo()[2].text, "Change appearance", "Back comes home to the guide menu")
+  end)
+
+  it("stretches to any size: the width re-wraps the text, sizes are saved per view", function()
+    local ns = loadUI()
+    ns.UI.StartGuide("builtin:thundering-ruby-cloud-serpent")
+    local w = ns.UI.GuideWindow()
+    w:SetSize(480, 400)
+    w.sizing = true
+    w.Grip:RunScript("OnMouseUp", "LeftButton")
+    eq(ns.db.global.guideWindow.width, 480)
+    eq(ns.db.global.guideWindow.compactH, 400)
+    eq(w.StepText.width, 480 - 20, "the text takes the new width")
+    ok(w:GetHeight() >= 400, "the step view keeps the height asked for")
+    w.Grip:RunScript("OnClick", "RightButton")
+    eq(ns.db.global.guideWindow.width, nil, "right-click: the default size")
+    eq(w:GetWidth(), 300)
+  end)
 end)

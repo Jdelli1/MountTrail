@@ -1130,8 +1130,10 @@ end
 
 -- The appearance menu of a window (right-click its title): opacity and font
 -- size are sliders right in it; the colours and the font each open their own
--- flat menu of choices (the current one ticked; Back returns).
-function UI.ShowPopoutStyleMenu(w, owner)
+-- flat menu of choices (the current one ticked; Back returns). -> the menu's
+-- items function, for UI.ShowMenu or another menu's submenu; `back`
+-- (optional, items or a function of them) adds a Back to that menu.
+function UI.PopoutStyleMenu(w, back)
   local db = popoutsDB()
   local function current() return styleOf(w) end
   local main
@@ -1224,9 +1226,17 @@ function UI.ShowPopoutStyleMenu(w, owner)
     for _, it in ipairs(build()) do
       if not it.popoutOnly or windows[w.key] == w then out[#out + 1] = it end
     end
+    if back then
+      out[#out + 1] = { separator = true }
+      out[#out + 1] = { text = L["Back"], submenu = back }
+    end
     return out
   end
-  UI.ShowMenu(owner, main, "cursor")
+  return main
+end
+
+function UI.ShowPopoutStyleMenu(w, owner)
+  UI.ShowMenu(owner, UI.PopoutStyleMenu(w), "cursor")
 end
 
 -- The fonts offered: the game's own, then LibSharedMedia's when another
