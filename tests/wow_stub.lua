@@ -166,6 +166,7 @@ function Region:SetColorTexture(r, g, b, a) self.color = { r, g, b, a } end
 function Region:SetAtlas(atlas) self.atlas = atlas end
 -- Font strings: justification, wrapping and font objects are recorded.
 function Region:SetJustifyH(j) self.justifyH = j end
+function Region:SetTextColor(r, g, b, a) self.textColor = { r, g, b, a } end
 function Region:SetAlpha(a) self.alpha = a end
 function Region:GetAlpha() return self.alpha or 1 end
 function Region:SetWordWrap(on) self.wordWrap = on end
@@ -218,6 +219,8 @@ function Frame:GetLeft() return self.left end
 function Frame:GetTop() return self.top end
 function Frame:GetRight() return self.right end
 function Frame:GetBottom() return self.bottom end
+function Frame:SetEnabled(on) self.enabled = on end
+function Frame:IsEnabled() return self.enabled ~= false end
 function Frame:SetFrameLevel(level) self.level = level end
 function Frame:GetFrameLevel() return self.level or 1 end
 function Frame:SetNormalTexture(tex) self.normalTexture = tex end

@@ -183,6 +183,19 @@ local function playerWorld(api)
   return { continent = continent, x = wx, y = wy }
 end
 
+-- Yards from the player to map point (m, x, y in percent), or nil when either
+-- position is unknown (instances) or they are on different continents.
+-- World coordinates are in yards.
+function Map.YardsTo(m, x, y, api)
+  api = api or realApi()
+  local here = playerWorld(api)
+  if not here then return nil end
+  local continent, wx, wy = worldPos(api, m, x / 100, y / 100)
+  if not continent or continent ~= here.continent or not (wx and wy) then return nil end
+  local dx, dy = wx - here.x, wy - here.y
+  return math.sqrt(dx * dx + dy * dy)
+end
+
 -- The spot point a waypoint for the mount goes to -> spot, map, x, y or nil.
 local function spotTarget(api, mountID)
   local faction = type(api.Faction) == "function" and api.Faction() or nil
@@ -735,8 +748,8 @@ local function removePlotted(api)
   plotted = {}
 end
 
--- points: { { m, x, y (percent), title } }; label: what chat calls the plot.
--- -> how many points TomTom took (0 without TomTom).
+-- points: { { m, x, y (percent), title } }; label: what chat calls the plot
+-- (nil: say nothing). -> how many points TomTom took (0 without TomTom).
 function Map.PlotPoints(points, label, api)
   api = api or realApi()
   points = points or {}
@@ -758,8 +771,16 @@ function Map.PlotPoints(points, label, api)
     end
   end
   if type(tomtom.SetClosestWaypoint) == "function" then guarded(tomtom.SetClosestWaypoint, tomtom) end
-  say(api, string.format(L["Plotted %d points on TomTom: %s"], n, label or ""))
+  if label then say(api, string.format(L["Plotted %d points on TomTom: %s"], n, label)) end
   return n
+end
+
+-- Removes our plotted points and waypoint from TomTom (a guide's Back, or
+-- closing it).
+function Map.ClearPlot(api)
+  api = api or realApi()
+  removePlotted(api)
+  removeTomTom(api)
 end
 
 -- The points of a mount's waypoint spots (the vendors, else every spot;

@@ -35,11 +35,13 @@ Logic\QuickLists.lua
 Logic\Share.lua
 Logic\Search.lua
 Logic\Browse.lua
+Logic\Guide.lua
 Game\API.lua
 Integrations\Map.lua
 Integrations\Rarity.lua
 Integrations\AchievementScan.lua
 Integrations\MountsRarity.lua
+Guides\ThunderingRubyCloudSerpent.lua
 Integrations\Notes.lua
 Core\Init.lua
 UI\Frame.lua
@@ -58,6 +60,9 @@ UI\Popouts.lua
 UI\HereView.lua
 UI\BrowseView.lua
 UI\Share.lua
+UI\Guides.lua
+UI\GuideWindow.lua
+UI\GuideEditor.lua
 UI\ZonePanel.lua
 UI\MapTab.lua
 UI\Options.lua

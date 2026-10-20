@@ -5,7 +5,8 @@ move an item out when it ships.
 
 ## Planned
 
-- **Custom route planning.** Build a farming route from a list: the order to
+- **Custom route planning.** The guide framework (Guides in the README) is
+  the base: turn a list into a guide. Build a farming route from a list: the order to
   visit its mounts' bosses, rares and vendors (by continent, nearest first),
   with "next" moving the TomTom waypoint along. Routes would share like lists
   (`MountTrail: !MT1!...` lines, or a `!MR1!` route line), so guides and

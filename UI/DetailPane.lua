@@ -248,6 +248,14 @@ local function paint(pane)
   pane.Empty:SetShown(not has)
   pane.AddList:SetShown(has)
   pane.Wowhead:SetShown(has)
+  local guides = has and UI.GuidesForMount and UI.GuidesForMount(id) or {}
+  if #guides > 0 then
+    UI.FlatButtonSetText(pane.Guide, L["Guide"])
+    pane.Guide:Show()
+  else
+    pane.Guide:SetWidth(1)
+    pane.Guide:Hide()
+  end
   if not has then return end
   local content = UI.DetailContent(id, pane.routeBoss)
   pane.content = content
@@ -347,10 +355,29 @@ local function build(parent)
   end)
   wowhead:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   pane.Wowhead = wowhead
+  -- "Guide": follow a guide written for this mount (UI/Guides.lua); only
+  -- when one exists (narrowed to nothing otherwise, so the name keeps room).
+  local guide = UI.FlatButton(pane, L["Guide"], "gold", 18)
+  guide:SetPoint("RIGHT", wowhead, "LEFT", -4, 0)
+  guide:SetScript("OnClick", function(self)
+    local guides = pane.mountID and UI.GuidesForMount and UI.GuidesForMount(pane.mountID) or {}
+    if #guides == 1 then
+      UI.StartGuide(guides[1].id)
+    elseif #guides > 1 then
+      local items = { { title = L["Guides"] } }
+      for _, g in ipairs(guides) do
+        items[#items + 1] = { text = g.title, onClick = function() UI.StartGuide(g.id) end }
+      end
+      UI.ShowMenu(self, items, "cursor")
+    end
+  end)
+  guide:SetScript("OnEnter", function(self) UI.ShowHint(self, L["Guide"], L["Follow a step-by-step guide for this mount."]) end)
+  guide:SetScript("OnLeave", function(self) UI.HideHint(self) end)
+  pane.Guide = guide
 
   local name = pane:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalLarge"))
   name:SetPoint("LEFT", icon, "RIGHT", 8, 0)
-  name:SetPoint("RIGHT", wowhead, "LEFT", -22, 0)
+  name:SetPoint("RIGHT", guide, "LEFT", -22, 0)
   name:SetJustifyH("LEFT")
   name:SetWordWrap(true)
   if name.SetMaxLines then name:SetMaxLines(2) end

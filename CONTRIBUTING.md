@@ -157,6 +157,14 @@ the new file in `MountTrail.toc` next to its parent and, if specs load the
 parent, in `COMPANIONS` (`tests/harness.lua`). Remove dead code rather than
 leaving it switched off.
 
+### Adding a built-in guide
+
+Write the guide (README, "Guides", has the format), save it as
+`Guides/<Name>.lua` appending its text to `ns.GuideTexts` (copy
+`Guides/ThunderingRubyCloudSerpent.lua`), and list the file in `MountTrail.toc`
+under the other `Guides\` lines. `tests/guide_spec.lua` shows how to check it
+parses. Write guides yourself: don't copy another guide site's or addon's text.
+
 ## Commit messages
 
 Conventional-commit style, as in `git log --oneline`:

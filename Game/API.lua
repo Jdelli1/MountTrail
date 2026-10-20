@@ -745,3 +745,31 @@ end
 function Game.IsSecret(value)
   return type(issecretvalue) == "function" and issecretvalue(value) == true
 end
+
+-- Guides (UI/Guides.lua) ---------------------------------------------------------
+
+-- How many of an item are in the bags (bank and reagent bank not counted).
+function Game.ItemCount(itemID)
+  local item = C_Item
+  local fn = (item and item.GetItemCount) or GetItemCount
+  if type(fn) ~= "function" then return 0 end
+  local good, n = pcall(fn, itemID)
+  return good and type(n) == "number" and n or 0
+end
+
+-- An item's name, or nil while the client has not loaded it.
+function Game.ItemName(itemID)
+  local item = C_Item
+  local fn = (item and item.GetItemNameByID) or (GetItemInfo and function(id) return (GetItemInfo(id)) end)
+  if type(fn) ~= "function" then return nil end
+  local good, name = pcall(fn, itemID)
+  return good and type(name) == "string" and name or nil
+end
+
+-- A quest's title, or nil when the client does not know it yet.
+function Game.QuestName(questID)
+  local log = C_QuestLog
+  if not (log and log.GetTitleForQuestID) then return nil end
+  local good, name = pcall(log.GetTitleForQuestID, questID)
+  return good and type(name) == "string" and name ~= "" and name or nil
+end

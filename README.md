@@ -333,6 +333,59 @@ window's title bar has the same settings, plus `Reset text sizes` and
 | `Show minimap button` | Shows or hides the minimap button. |
 | Debug messages | The same as `/mtrail debug`. |
 
+## Guides
+
+Step-by-step directions for a mount, like a leveling guide: what to do, where
+to go (plotted on TomTom), and when a step is done.
+
+- The **Guides** section of the navigation column lists them. Click one to
+  follow it: a small window shows the current step (or every step: right-click
+  its title), with **Back** and **Next**. Next plots the next step's points;
+  Back takes them off and returns to the step before. Each character keeps its
+  own place in every guide, and the guide comes back after a /reload.
+- A step moves on by itself when its done lines hold (a quest turned in, items
+  in your bags, the mount learned, a spot reached), except right after Back.
+- A mount with a guide shows a **Guide** button in the detail pane.
+- `+` next to Guides: **New guide...** (a template to fill in) or **Import
+  guide...** (paste one). Right-click a guide to edit it (a built-in one as a
+  copy), export it (its text, ready to copy), go back to step 1 or delete it.
+
+A guide is plain text, one keyword per line, so it can be written anywhere and
+shared by copy and paste:
+
+```
+#guide Thundering Ruby Cloud Serpent
+#mount 517
+#author Adventurer
+#description Alani, a rare cloud serpent over the Vale of Eternal Blossoms
+-- lines starting with -- are comments
+step Travel to the Vale of Eternal Blossoms
+  goto 390 56.2 42.6 Vale of Eternal Blossoms
+  reach 200
+step Kill mobs in the Vale until you have ten Skyshards
+  note Skyshards are a rare drop from any mob in the Vale
+step Use the Sky Crystal near Alani, then kill her
+  goto 390 35.6 26 Alani
+  mount 517
+```
+
+| Line | Meaning |
+| --- | --- |
+| `#guide <title>` | The title (first line, required) |
+| `#mount <id>` | The mount it is for (puts the Guide button on that mount); any number |
+| `#author`, `#description` | Optional |
+| `step <directions>` | Starts a step; the lines after it belong to it |
+| `note <text>` | A grey line under the step |
+| `goto <map> <x> <y> [label]` | A point to plot: the map's ID, then x and y as on the map (0-100) |
+| `quest <id>` | Done when the quest is turned in |
+| `item <id> [count]` | Done with that many in your bags (default 1) |
+| `mount <id>` | Done when you have the mount |
+| `reach [yards]` | Done within that distance of the step's first goto (15 by default; not inside instances) |
+
+A step without a done line waits for Next. Midnight keeps kills and positions
+inside instances from addons, so steps there use Next. The editor checks the
+text as you type and names the line of any mistake.
+
 ## Sharing lists
 
 Shift-right-click one of your lists in the navigation column for:

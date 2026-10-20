@@ -56,6 +56,7 @@ unit-tested under plain Lua 5.1.
 | `Attempts.lua`, `Stats.lua`, `Odds.lua` | Attempt counting, kill statistics, drop-chance maths. |
 | `Achievements.lua` | Matching mounts to the achievements that reward them. |
 | `Lists.lua`, `QuickLists.lua` | Custom lists; the built-in quick lists and the example lists seeded once (Mythic Mounts). |
+| `Guide.lua` | The guide text format: parsing (with line-numbered errors), when a step is done. |
 | `Share.lua` | The `!MT1!` share string, addon-message chunks and chat links for sharing lists. |
 | `Search.lua` | The fuzzy search scoring engine (words, aliases, typos). |
 | `Browse.lua` | Browse-by-source categories. |
@@ -111,6 +112,9 @@ changed addon gives `nil`, never an error.
 | `HereView.lua` | The Current Zone view. |
 | `BrowseView.lua` | Browse-by-source pages. |
 | `Share.lua` | Sharing lists: export / import boxes, chat links (clicking asks the sharer's addon), Send to player, the `CHAT_MSG_ADDON` handler. |
+| `Guides.lua` | Following guides: the library (built-in + the player's), each character's step, Next / Back, plotting, auto-advance. |
+| `GuideWindow.lua` | The guide window (current step or every step) and a guide's menu. |
+| `GuideEditor.lua` | The editor for new / imported / edited / exported guides, checking the text as it is typed. |
 | `ZonePanel.lua` | The zone side panel docked to the window. |
 | `MapTab.lua` | The MountTrail tab in the world map's side tabs. |
 | `Options.lua` | Options > AddOns > MountTrail (Settings API). |
@@ -189,6 +193,8 @@ created on first use by their owner.
 | `global.window` | `UI/Frame.lua` | Current view (`tab`), position, `width` / `height`, `navWidth`, `paneWidth`, `browse` category. |
 | `global.navOrder`, `global.navFavorites` | `UI/Nav.lua` | Section order per section; favourite stars. |
 | `global.lists`, `global.seededLists` | `Logic/Lists.lua`, `Logic/QuickLists.lua` | Custom lists; which example lists were already seeded. |
+| `global.guides`, `global.guideWindow` | `UI/Guides.lua`, `UI/GuideWindow.lua` | The player's guides (`{ [id] = text }`); the guide window's position and mode. |
+| `char.guides` | `UI/Guides.lua` | `{ active =, steps = { [guide id] = step }, complete = }`: which guide this character follows and where. |
 | `global.popouts`, `global.popoutStyle` | `UI/Popouts.lua` | Open pop-outs (position, size, order, collapsed groups, style, `showDone`); the shared style. |
 | `global.zonePanel` | `UI/ZonePanel.lua` | `open`. |
 | `global.mapTab` | `UI/MapTab.lua` | Whether the map tab was left selected. |
