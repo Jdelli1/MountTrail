@@ -930,6 +930,75 @@ function UI.SelectTab(key)
   if UI.RefreshNav then UI.RefreshNav() end
 end
 
+-- Splitters --------------------------------------------------------------------------
+-- The window's three boxes (navigation, list, detail pane) share its width
+-- through drag handles: the navigation's right edge and the detail pane's
+-- left edge. Widths are saved in ns.db.global.window (navWidth, paneWidth);
+-- right-click a handle for the default.
+
+UI.NAV_MIN, UI.NAV_MAX = 120, 280
+UI.PANE_MIN, UI.PANE_MAX = 220, 460
+
+-- `w` held to min..max (whole pixels); junk -> `default`.
+function UI.ClampWidth(w, min, max, default)
+  w = tonumber(w)
+  if not w or w ~= w then return default end
+  return math.floor(math.max(min, math.min(max, w)) + 0.5)
+end
+
+-- The cursor's x in `region`'s coordinates, or nil.
+local function cursorX(region)
+  if type(GetCursorPosition) ~= "function" then return nil end
+  local x = GetCursorPosition()
+  local scale = region.GetEffectiveScale and region:GetEffectiveScale() or 1
+  if type(x) ~= "number" or not scale or scale == 0 then return nil end
+  return x / scale
+end
+UI.CursorX = cursorX
+
+-- A vertical drag handle on `parent`: while dragged, widthAt(cursorX) is the
+-- new width, apply(w) shows it; done(w) on release (saves); right-click:
+-- reset(). The caller anchors it. -> the handle.
+function UI.Splitter(parent, widthAt, apply, done, reset)
+  local h = CreateFrame("Button", nil, parent)
+  h:SetWidth(6)
+  h:SetFrameLevel((parent.GetFrameLevel and parent:GetFrameLevel() or 1) + 10)
+  if h.RegisterForClicks then h:RegisterForClicks("RightButtonUp") end
+  local line = h:CreateTexture(nil, "HIGHLIGHT")
+  line:SetPoint("TOP", h, "TOP", 0, 0)
+  line:SetPoint("BOTTOM", h, "BOTTOM", 0, 0)
+  line:SetWidth(2)
+  line:SetColorTexture(1, 0.82, 0, 0.6)
+  h:SetScript("OnMouseDown", function(self, button)
+    if button ~= "LeftButton" then return end
+    self.dragging = true
+    self:SetScript("OnUpdate", function()
+      local x = cursorX(self)
+      if not x then return end
+      self.width = widthAt(x)
+      apply(self.width)
+    end)
+  end)
+  local function stop(self)
+    if not self.dragging then return end
+    self.dragging = false
+    self:SetScript("OnUpdate", nil)
+    if self.width then done(self.width) end
+  end
+  h:SetScript("OnMouseUp", stop)
+  h:SetScript("OnHide", stop)
+  h:SetScript("OnClick", function(_, button) if button == "RightButton" and reset then reset() end end)
+  h:SetScript("OnEnter", function(self) UI.ShowHint(self, L["Drag to resize"], L["Right-click: default width"]) end)
+  h:SetScript("OnLeave", function(self) UI.HideHint(self) end)
+  return h
+end
+
+-- The navigation column's width (saved; UI.NAV_WIDTH by default).
+function UI.NavWidth()
+  local db = windowDB()
+  return UI.ClampWidth(db and db.navWidth, UI.NAV_MIN, UI.NAV_MAX, UI.NAV_WIDTH)
+end
+
 -- Navigation column -----------------------------------------------------------------
 
 local TITLE_HEIGHT = 24 -- title bar of the portrait frame
@@ -1175,7 +1244,7 @@ local function createNav(frame)
   local n = CreateFrame("Frame", nil, frame)
   n:SetPoint("TOPLEFT", frame, "TOPLEFT", 6, CONTENT_TOP)
   n:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 6, 6)
-  n:SetWidth(UI.NAV_WIDTH)
+  n:SetWidth(UI.NavWidth())
   local fill = n:CreateTexture(nil, "BACKGROUND")
   fill:SetAllPoints(n)
   fill:SetColorTexture(0, 0, 0, 0.35)
@@ -1185,7 +1254,7 @@ local function createNav(frame)
   scroll:SetPoint("TOPLEFT", n, "TOPLEFT", 1, -4)
   scroll:SetPoint("BOTTOMRIGHT", n, "BOTTOMRIGHT", -1, 4)
   local content = CreateFrame("Frame", nil, scroll)
-  content:SetSize(UI.NAV_WIDTH - 2, 1)
+  content:SetSize(UI.NavWidth() - 2, 1)
   scroll:SetScrollChild(content)
   if scroll.EnableMouseWheel then scroll:EnableMouseWheel(true) end
   scroll:SetScript("OnMouseWheel", function(self, delta)
@@ -1204,10 +1273,27 @@ local function createNav(frame)
 
   local empty = content:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
   empty:SetJustifyH("LEFT")
-  empty:SetWidth(UI.NAV_WIDTH - 24)
+  empty:SetWidth(UI.NavWidth() - 24)
   empty:SetText(L["No lists yet: + here, or + List on any mount."])
   n.Empty = empty
   return n
+end
+
+-- Sets the navigation column's width (clamped) and moves the views beside
+-- it; `save`: keep it (ns.db.global.window.navWidth).
+function UI.SetNavWidth(w, save)
+  w = UI.ClampWidth(w, UI.NAV_MIN, UI.NAV_MAX, UI.NAV_WIDTH)
+  local frame = UI.frame
+  if not (frame and nav) then return w end
+  nav:SetWidth(w)
+  nav.Content:SetWidth(w - 2)
+  nav.Empty:SetWidth(w - 24)
+  if frame.Inset then frame.Inset:SetPoint("TOPLEFT", frame, "TOPLEFT", 6 + w + 4, VIEW_TOP) end
+  if save then
+    local db = windowDB()
+    if db then db.navWidth = w end
+  end
+  return w
 end
 
 -- Repaints the column: the fixed entries, then My lists (and the quick
@@ -1369,9 +1455,19 @@ local function createWindow()
   -- The navigation column on the left, the views right of it.
   nav = createNav(frame)
   frame.Nav = nav
-  inset:SetPoint("TOPLEFT", frame, "TOPLEFT", 6 + UI.NAV_WIDTH + 4, VIEW_TOP)
+  inset:SetPoint("TOPLEFT", frame, "TOPLEFT", 6 + UI.NavWidth() + 4, VIEW_TOP)
   inset:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -6, 6)
   frame.Inset = inset
+
+  -- The navigation's right edge: drag to share the width with the views.
+  local split = UI.Splitter(frame, function(x)
+    return x - (nav:GetLeft() or 0)
+  end, function(w) UI.SetNavWidth(w) end, function(w) UI.SetNavWidth(w, true) end, function()
+    UI.SetNavWidth(UI.NAV_WIDTH, true)
+  end)
+  split:SetPoint("TOPLEFT", nav, "TOPRIGHT", -1, 0)
+  split:SetPoint("BOTTOMLEFT", nav, "BOTTOMRIGHT", -1, 0)
+  frame.NavSplitter = split
 
   frame.Contents = contents
   for _, tab in ipairs(TABS) do

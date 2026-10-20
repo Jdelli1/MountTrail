@@ -16,13 +16,38 @@ local ADDON, ns = ...
 --   pane:Refresh()                        -- same mount, fresh numbers
 -- The model is reloaded only when the mount changes. Clients without the
 -- model scene template show the large icon instead.
+-- Its width is shared by every pane and saved (ns.db.global.window.
+-- paneWidth, UI.PANE_MIN..UI.PANE_MAX): drag its left edge (UI.Splitter),
+-- right-click there for the default.
 
 local L = ns.L
 
 local UI = ns.UI or {}
 ns.UI = UI
 
-UI.DETAIL_WIDTH = 300
+UI.DETAIL_WIDTH = 300 -- the default width
+
+local panes = {} -- every pane built, so a new width reaches them all
+
+-- The panes' width: the saved one, else UI.DETAIL_WIDTH.
+function UI.PaneWidth()
+  local global = ns.db and ns.db.global
+  local window = global and type(global.window) == "table" and global.window or nil
+  local clamp = UI.ClampWidth or function(w) return w end
+  return clamp(window and window.paneWidth, UI.PANE_MIN or 220, UI.PANE_MAX or 460, UI.DETAIL_WIDTH)
+end
+
+-- Sets every pane's width (clamped); `save`: keep it.
+function UI.SetPaneWidth(w, save)
+  local clamp = UI.ClampWidth or function(v) return v end
+  w = clamp(w, UI.PANE_MIN or 220, UI.PANE_MAX or 460, UI.DETAIL_WIDTH)
+  if save and ns.db and ns.db.global then
+    if type(ns.db.global.window) ~= "table" then ns.db.global.window = {} end
+    ns.db.global.window.paneWidth = w
+  end
+  for _, pane in ipairs(panes) do pane:SetPaneWidth(w) end
+  return w
+end
 local MODEL_HEIGHT = 230
 local HEADER_HEIGHT = 44
 local BUTTON_HEIGHT = 22
@@ -153,7 +178,7 @@ local function lineString(pane, i)
 end
 
 local function layoutInfo(pane, content)
-  local width = UI.DETAIL_WIDTH - 2 * PAD - 12
+  local width = (pane.paneWidth or UI.DETAIL_WIDTH) - 2 * PAD - 12
   local y = 0
   local n = 0
   local function place(text, r, g, b, rightText, rr, rg, rb)
@@ -241,7 +266,8 @@ end
 
 local function build(parent)
   local pane = CreateFrame("Frame", nil, parent)
-  pane:SetWidth(UI.DETAIL_WIDTH)
+  pane.paneWidth = UI.PaneWidth()
+  pane:SetWidth(pane.paneWidth)
   pane.lineStrings, pane.rightStrings = {}, {}
 
   local fill = pane:CreateTexture(nil, "BACKGROUND")
@@ -339,11 +365,14 @@ local function build(parent)
   local waypoint = flatButton(pane, L["Waypoint"])
   local mapButton = flatButton(pane, L["Map"])
   local achievement = flatButton(pane, L["Achievement"])
-  local bw = math.floor((UI.DETAIL_WIDTH - 2 * PAD - 8) / 3)
-  for i, b in ipairs({ waypoint, mapButton, achievement }) do
-    b:SetWidth(bw)
-    b:SetPoint("BOTTOMLEFT", pane, "BOTTOMLEFT", PAD + (i - 1) * (bw + 4), 6)
+  local function layoutButtons(width)
+    local bw = math.floor((width - 2 * PAD - 8) / 3)
+    for i, b in ipairs({ waypoint, mapButton, achievement }) do
+      b:SetWidth(bw)
+      b:SetPoint("BOTTOMLEFT", pane, "BOTTOMLEFT", PAD + (i - 1) * (bw + 4), 6)
+    end
   end
+  layoutButtons(pane.paneWidth)
   waypoint:SetScript("OnClick", function()
     if pane.mountID then UI.GoTo(pane.mountID, pane.routeBoss) end
   end)
@@ -365,7 +394,7 @@ local function build(parent)
   scroll:SetPoint("BOTTOMRIGHT", pane, "BOTTOMRIGHT", -PAD, BUTTON_HEIGHT + 14)
   if scroll.EnableMouseWheel then scroll:EnableMouseWheel(true) end
   local info = CreateFrame("Frame", nil, scroll)
-  info:SetSize(UI.DETAIL_WIDTH - 2 * PAD, 1)
+  info:SetSize(pane.paneWidth - 2 * PAD, 1)
   scroll:SetScrollChild(info)
   scroll:SetScript("OnMouseWheel", function(self, delta)
     local max = math.max(0, (pane.infoHeight or 0) - (self:GetHeight() or 0))
@@ -396,6 +425,28 @@ local function build(parent)
     paint(self)
   end
 
+  -- A new width (UI.SetPaneWidth): the pane, its buttons and its lines.
+  function pane:SetPaneWidth(w)
+    self.paneWidth = w
+    self:SetWidth(w)
+    layoutButtons(w)
+    self.Info:SetWidth(w - 2 * PAD)
+    paint(self)
+  end
+
+  -- Its left edge: drag to share the width with the list.
+  if UI.Splitter then
+    local split = UI.Splitter(pane, function(x)
+      return (pane:GetRight() or 0) - x
+    end, function(w) UI.SetPaneWidth(w) end, function(w) UI.SetPaneWidth(w, true) end, function()
+      UI.SetPaneWidth(UI.DETAIL_WIDTH, true)
+    end)
+    split:SetPoint("TOPRIGHT", pane, "TOPLEFT", 3, 0)
+    split:SetPoint("BOTTOMRIGHT", pane, "BOTTOMLEFT", 3, 0)
+    pane.Splitter = split
+  end
+
+  panes[#panes + 1] = pane
   pane:SetMount(nil)
   return pane
 end

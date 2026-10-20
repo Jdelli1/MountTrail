@@ -181,6 +181,36 @@ describe("ui", function()
     mt.SetFont, mt.GetFont = savedSet, savedGet
   end)
 
+  it("drag the navigation's right edge to resize it (saved, clamped); right-click: the default", function()
+    local ns = loadUI()
+    ns.ToggleWindow()
+    local f = ns.UI.frame
+    local nav, split = f.Nav, f.NavSplitter
+    ok(split, "a drag handle on the navigation's edge")
+    nav.left = 100
+    STUB_CURSOR[1] = 300
+    split:RunScript("OnMouseDown", "LeftButton")
+    split:GetScript("OnUpdate")(split, 0.01)
+    eq(nav.width, 200, "follows the cursor")
+    local function insetLeft()
+      for i = 1, f.Inset:GetNumPoints() do
+        local p, _, _, x = f.Inset:GetPoint(i)
+        if p == "TOPLEFT" then return x end
+      end
+    end
+    eq(insetLeft(), 6 + 200 + 4, "the views move beside it")
+    split:RunScript("OnMouseUp", "LeftButton")
+    eq(ns.db.global.window.navWidth, 200, "saved on release")
+    STUB_CURSOR[1] = 1000
+    split:RunScript("OnMouseDown", "LeftButton")
+    split:GetScript("OnUpdate")(split, 0.01)
+    split:RunScript("OnMouseUp", "LeftButton")
+    eq(ns.db.global.window.navWidth, ns.UI.NAV_MAX, "no wider than the maximum")
+    split:RunScript("OnClick", "RightButton")
+    eq(ns.db.global.window.navWidth, ns.UI.NAV_WIDTH, "right-click: the default")
+    eq(nav.width, ns.UI.NAV_WIDTH)
+  end)
+
   it("UI.NavSelected / UI.NavListEntries: a list page marks its list; lists then quick lists", function()
     local ns = loadUI()
     eq(ns.UI.NavSelected("checklist", nil), "checklist")
