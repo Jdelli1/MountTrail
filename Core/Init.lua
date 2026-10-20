@@ -111,7 +111,26 @@ function ns.UpdateAttempts(freshInstances)
     ns.Attempts.AddForChar(global.attemptsByChar, charKey, mountID)
   end
   char.last = curr
+  ns.RecordSeen(char, ns.Game.Now())
   return newly
+end
+
+-- Stamps `char` (this character's AceDB section) with who it is and when its
+-- stored observation (char.last) stops being true: the daily / weekly reset
+-- after `now`. The alt lockout matrix (Logic\Alts.lua) reads every
+-- character's section and treats a lockout as fresh once its reset has passed.
+function ns.RecordSeen(char, now)
+  local Game = ns.Game
+  char.seen = {
+    name = Game.PlayerName(),
+    realm = (GetNormalizedRealmName and GetNormalizedRealmName()) or (GetRealmName and GetRealmName()) or nil,
+    class = Game.ClassFile(),
+    level = Game.Level(),
+    faction = Game.Faction(),
+    at = now,
+    dailyReset = now + (Game.UntilDaily() or 0),
+    weeklyReset = now + (Game.UntilWeekly() or 0),
+  }
 end
 
 -- Kill statistics -------------------------------------------------------------

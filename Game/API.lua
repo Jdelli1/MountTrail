@@ -438,6 +438,18 @@ function Game.CharKey()
   return name .. "-" .. realm
 end
 
+-- This character's class file ("MAGE") and level, nil when unknown.
+function Game.ClassFile()
+  if not UnitClass then return nil end
+  local _, classFile = UnitClass("player")
+  return type(classFile) == "string" and classFile or nil
+end
+
+function Game.Level()
+  local level = UnitLevel and UnitLevel("player")
+  return type(level) == "number" and level or nil
+end
+
 -- This character's name (no realm), or nil when unknown.
 function Game.PlayerName()
   local name = UnitName and UnitName("player")
