@@ -707,6 +707,7 @@ end
 UI.NAV_WIDTH = 156
 -- The collapse keys of the My lists and Quick lists sections.
 UI.NAV_LISTS_KEY, UI.NAV_QUICK_KEY = "nav|lists", "nav|quick"
+UI.NAV_BROWSE_KEY = "nav|browse"
 -- The quick lists' mark: the Auction House's favourite star, inline.
 UI.NAV_STAR = "|A:auctionhouse-icon-favorite:12:12|a"
 local TAB_INDEX = {}
@@ -1246,8 +1247,9 @@ function UI.RefreshNav()
   end
   for _, e in ipairs(UI.NAV) do entry(e, false) end
   y = y + 4
-  heading(L["Browse"])
-  for _, e in ipairs(UI.NavBrowseEntries(ns.Browse and ns.Browse.CATEGORIES)) do entry(e, true) end
+  if not heading(L["Browse"], false, UI.NAV_BROWSE_KEY) then
+    for _, e in ipairs(UI.NavBrowseEntries(ns.Browse and ns.Browse.CATEGORIES)) do entry(e, true) end
+  end
   -- My lists (with +) and Quick lists: each its own collapsible section.
   y = y + 4
   local store = UI.ListsDB and UI.ListsDB()
