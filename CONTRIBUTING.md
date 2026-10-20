@@ -148,6 +148,15 @@ The rules below are what the existing code does; follow them in new code.
 the WoW globals the addon reads, `Libs/` excluded). Run `luacheck .` if you have
 it installed.
 
+### Keeping the structure
+
+Put new code in the file that already owns that job (see
+[ARCHITECTURE.md](ARCHITECTURE.md), "Where to find X"). Keep files under about
+1,000 lines where practical; when one grows past that, split it by job, list
+the new file in `MountTrail.toc` next to its parent and, if specs load the
+parent, in `COMPANIONS` (`tests/harness.lua`). Remove dead code rather than
+leaving it switched off.
+
 ## Commit messages
 
 Conventional-commit style, as in `git log --oneline`:
