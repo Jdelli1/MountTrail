@@ -9,10 +9,36 @@ which mounts you are missing and the daily / weekly lockouts this character
 has left to farm them, with step-by-step mount guides, your own shareable
 lists, and pop-out windows to keep on screen while you farm.
 
+## Features at a glance
+
+- **Every mount you're missing**, by expansion or by source (drops, vendors,
+  quests, achievements, professions, shop, Trading Post, PvP, Mythic+,
+  holidays, Timewalking), with a 3D preview, drop chance, your attempts and
+  where to find it.
+- **Lockouts**: this character's daily and weekly mount lockouts, ticked off
+  by themselves, plus long-respawn rares; an **Alts** matrix shows who is
+  still unsaved across your characters.
+- **Waypoints** (TomTom) to the vendor, the rare's spawn points or the
+  dungeon / raid entrance, from any list, pop-out or guide.
+- **Pop-outs**: small always-on-screen windows for any set, styled your way,
+  that follow your zone when you want.
+- **Your lists**: build them from any mount, and **share** them as a
+  clickable chat line, a whisper or a text you can paste anywhere.
+- **Guides**: step-by-step mount guides with waypoints, auto-advance, item
+  tooltips and macros; write your own in plain text and share them.
+- **Wrong-difficulty warning** when you zone into a raid on a difficulty
+  where your target mount doesn't drop (from the Encounter Journal).
+- **Search** everywhere, typo-tolerant, with short names (`tbc`, `icc`, `wod`).
+- **Your look**: window scale, text sizes, pop-out and guide colours, fonts
+  and sizes.
+
+## Contents
+
 - [Install and requirements](#install-and-requirements)
 - [The window](#the-window)
 - [Clicking a mount](#clicking-a-mount)
 - [Pop-outs](#pop-outs)
+- [Wrong-difficulty warning](#wrong-difficulty-warning)
 - [Zone panel and world map tab](#zone-panel-and-world-map-tab)
 - [Alt lockout matrix](#alt-lockout-matrix)
 - [Search](#search)
@@ -66,19 +92,21 @@ The left column:
   (every mount that drops in Mythic dungeons), yours to edit, rename or delete.
 - **Quick lists**: the built-in ones. Daily lockouts, Weekly lockouts and Rare
   Spawns each open Lockouts on that group, with what is left as the badge.
+- **Guides**: every [guide](#guides), with `+` to write or import one; a
+  guide you are following shows its step (`2/5`, green).
 
 Working with the column:
 
 - Click a list to open it as a page: its mounts by source, Collected and the
   detail pane as on any list, and a `Pop out` button.
 - Right-click a list to pop it out; Shift-right-click one of your own lists to
-  rename or delete it.
+  share, rename or delete it. Right-click a guide for its menu.
 - Click a list's star to make it a favourite, pinned to the top of its section
   (click again to unpin).
-- Alt-drag an entry of My lists, Quick lists or Browse to put the section in
-  your own order (saved; a list never moves above a favourite).
-- Click a heading (Browse, My lists, Quick lists) to collapse or expand it
-  (saved).
+- Alt-drag an entry of My lists, Quick lists, Browse or Guides to put the
+  section in your own order (saved; a list never moves above a favourite).
+- Click a heading (Browse, My lists, Quick lists, Guides) to collapse or
+  expand it (saved).
 - The settings can hide My lists or Quick lists (`Show My lists`,
   `Show Quick lists`). The column scrolls when your lists outgrow it.
 
@@ -101,11 +129,10 @@ Timewalking) groups its mounts under headers.
   all your characters (the game's kill statistics where it keeps them, else
   MountTrail's own per-character counter; Rarity's count when larger).
 - **Filters**: each list's Filter button offers its own categories as
-  `Show ...` checkboxes, plus Collected and Check all / Uncheck all. The
-  Journal has its sources (`Show dungeon drops`, `Show raid drops`, ...), Misc
-  its categories (`Show profession mounts`, `Show in-game shop mounts`, ...,
-  `Show unobtainable mounts`), Holidays each holiday, Achievements each
-  expansion and General; Timewalking has Collected only. Choices are saved
+  `Show ...` checkboxes, plus Collected and Check all / Uncheck all. An
+  expansion's list has its sources (`Show dungeon drops`, `Show raid drops`,
+  ...), Holidays each holiday, Achievements each expansion and General;
+  Browse pages and Timewalking have Collected only. Choices are saved
   account-wide per list (Collected is shared); the reset arrow next to the
   button restores that list's defaults.
 - **Collected**: owned and other-faction mounts are hidden unless Collected is
@@ -123,12 +150,11 @@ Browse pages:
 - **Achievements**: achievement-reward mounts, grouped by expansion. Hovering
   one shows the achievement that rewards it, with its criteria progress.
 - **Timewalking**: mounts from the Timewalking vendors.
-- The other categories are a page of their mounts grouped by expansion. What
-  used to be the Misc tab (Professions, In-game Shop, Trading Post, PvP,
-  Racial, Mythic+, Promotions, Class, Black Market, Collection rewards, Other)
-  is split among them. Unobtainable mounts: past limited-time offers you own
-  (seasons, Remix, Plunderstorm; with Collected on), plus every unobtainable
-  mount you do not own when `Show unobtainable mounts` is on.
+- The other categories are a page of their mounts grouped by expansion
+  (Other gathers Racial, Promotions, Class, Black Market and Collection
+  rewards). Unobtainable mounts: past limited-time offers you own (seasons,
+  Remix, Plunderstorm; with Collected on), plus every unobtainable mount you
+  do not own when `Show unobtainable mounts` is on.
 
 ### Detail pane
 
@@ -142,7 +168,11 @@ Every mount list has a pane on its right. Click a mount to see:
   name, its zones and how many spawn points.
 - With AllTheThings installed, its "How to get it" note (the Skyshards for the
   Thundering Ruby Cloud Serpent, ...).
+- `+ List` adds the mount to your lists (it reads `Lists (2)` once it is on
+  some; see [Your lists](#your-lists)).
+- `Guide`, when a guide exists for the mount: follow it.
 - `Wowhead`: the mount's Wowhead page (guides, comments) as a link to copy.
+- With Mount Journal Enhanced or MountsRarity, how many characters own it.
 
 ### Lockouts
 
@@ -234,13 +264,6 @@ Where a waypoint goes:
 
 ## Pop-outs
 
-**Wrong-difficulty warning**: with a pop-out open, zoning into a raid or
-dungeon (or changing its difficulty) checks the pop-out's mounts: one that
-drops in this instance but not on this difficulty gets a warning before you
-pull (Options: `Warn about the wrong difficulty`). The difficulties come from
-the game's Encounter Journal (the Adventure Guide's loot per difficulty, built
-into `Data/JournalDrops.lua`), else from MountTrail's lockout data.
-
 A pop-out is a small window that stays on screen without the main window. Open
 as many as you like; they come back after /reload.
 
@@ -274,10 +297,27 @@ In a pop-out:
   Windows snap to each other and to the main window, and a snapped stack moves
   together.
 - Right-click the title for the window's menu: `Show completed` (done rows
-  stay listed, dimmed; off by default, saved per window), then opacity and font size
-  sliders, background, header and text colour, font, `Apply to all pop-outs`,
-  `Reset appearance`.
+  stay listed, dimmed; off by default, saved per window), then opacity and
+  font size sliders, background, header and text colour (headers and body
+  text apart), font, `Apply to all pop-outs`, `Reset appearance`.
 - Ctrl-click a window's x to close every pop-out.
+
+## Wrong-difficulty warning
+
+With a pop-out open, zoning into a raid or dungeon (or changing its
+difficulty) checks the pop-out's mounts. One that drops in this instance but
+not on this difficulty gets a warning on screen (with the raid-warning sound)
+and in chat, before you pull:
+
+> Wrong difficulty for Invincible: you are on 25 Player, it drops on 25 Player
+> (Heroic).
+
+- Normal vs Heroic vs Mythic, and 10 vs 25 player on older raids.
+- The difficulties come from the game's Encounter Journal (the Adventure
+  Guide's loot per difficulty), else from MountTrail's lockout data.
+- Once per instance and difficulty. Mounts you own are left out, and so are
+  lockouts you have done (unless the pop-out shows completed ones).
+- Options: `Warn about the wrong difficulty` (on by default).
 
 ## Zone panel and world map tab
 
@@ -374,12 +414,20 @@ Step-by-step directions for a mount, like a leveling guide: what to do, where
 to go (plotted on TomTom), and when a step is done.
 
 - The **Guides** section of the navigation column lists them. Click one to
-  follow it: a small window shows the current step (or every step: right-click
-  its title), with **Back** and **Next**. Right-click the title for `Change
-  appearance` (the pop-outs' look options); drag its corner to any size. Next plots the next step's points;
-  Back takes them off and returns to the step before; on the last step Next
-  reads **Finish** and closes the guide. Each character keeps its
-  own place in every guide, and the guide comes back after a /reload.
+  follow it: a small window shows the guide's title and authors, the current
+  step (or every step), with **Back** and **Next**.
+- **Next** plots the next step's points on TomTom; **Back** takes them off and
+  returns to the step before; on the last step Next reads **Finish** and
+  closes the guide. Each character keeps its own place in every guide, and the
+  guide comes back after a /reload.
+- A step's places show as links, `Go to: [Alani (north)]`: click one for its
+  waypoint, Shift-click for the map, hover for the coordinates. Item, quest
+  and mount links show the game's tooltip (Shift-click puts them in chat).
+- A step with a macro has **Copy macro** and **Make macro** (puts a ready
+  macro on your cursor to drop on a bar).
+- Right-click the window's title: every step or the current one only,
+  `Change appearance` (the pop-outs' look options), edit, export, back to step
+  1, close. Drag its corner to any size.
 - A step moves on by itself when its done lines hold (a quest turned in, items
   in your bags, the mount learned, a spot reached), except right after Back.
 - A mount with a guide shows a **Guide** button in the detail pane.
@@ -399,12 +447,16 @@ IDs and coordinates, and what the editor's messages mean.
 ```
 #guide Thundering Ruby Cloud Serpent
 #mount 517
-step Travel to the Vale of Eternal Blossoms
+#author MountTrail
+step Travel to the **Vale of Eternal Blossoms**
   goto 390 56.2 42.6 Vale of Eternal Blossoms
   reach 200
-step Kill mobs in the Vale until you have **ten Skyshards**
-step Use the Sky Crystal near Alani, then kill her: [mount:517] can drop
-  goto 390 35.6 26 Alani
+step Kill mobs in the Vale until you have **ten** [item:86547]
+  item 86547 10
+step Find **Alani**, use the [item:86546] near her, then kill her
+  goto 390 35.6 26 Alani (north)
+  macro /tar Alani
+step Loot her: [mount:517] drops every time
   mount 517
 ```
 
@@ -491,9 +543,9 @@ MountTrail builds on the work of others. Thank you to everyone below.
 | [SimpleArmory](https://github.com/kevinclement/SimpleArmory) | MIT, copy at `Data/LICENSE-SimpleArmory.txt` | Route and mount data |
 | [Rarity](https://github.com/WowRarity/Rarity) | GPL-2.0 | Drop rates, quest IDs, coordinates |
 | [AllTheThings](https://github.com/ATTWoWAddon/AllTheThings) | MIT, copy at `Data/LICENSE-AllTheThings.txt` | Where the NPC behind a mount stands: rare spawn points, vendors, daily quests |
-| Blizzard game data (DB2 tables via [wago.tools](https://wago.tools)) | Blizzard | Mount source text, map tree, zone versions, verification |
+| Blizzard game data (DB2 tables via [wago.tools](https://wago.tools)) | Blizzard | Mount source text, map tree, zone versions, the Encounter Journal's loot per difficulty, verification |
 
-`Data/Mounts.lua` and `Data/Route.lua` are generated by `tools/build_data.py` from the commits pinned in `tools/sources.json`; each file's header names those commits. `Data/LICENSE-SimpleArmory.txt` reproduces SimpleArmory's MIT license verbatim and is refreshed by the same script. `Data/Spots.lua` is generated by `tools/build_spots.py` from the AllTheThings commit pinned there (NPC IDs, coordinates, daily quests, factions), with names and zones from the game's own mount source text; `Data/LICENSE-AllTheThings.txt` reproduces AllTheThings' MIT license verbatim. `Data/Zones.lua` is generated by `tools/build_zones.py` from the game's UiMap and ContentTuning tables.
+`Data/Mounts.lua` and `Data/Route.lua` are generated by `tools/build_data.py` from the commits pinned in `tools/sources.json`; each file's header names those commits. `Data/LICENSE-SimpleArmory.txt` reproduces SimpleArmory's MIT license verbatim and is refreshed by the same script. `Data/Spots.lua` is generated by `tools/build_spots.py` from the AllTheThings commit pinned there (NPC IDs, coordinates, daily quests, factions), with names and zones from the game's own mount source text; `Data/LICENSE-AllTheThings.txt` reproduces AllTheThings' MIT license verbatim. `Data/Zones.lua` is generated by `tools/build_zones.py` from the game's UiMap and ContentTuning tables, and `Data/JournalDrops.lua` by `tools/build_drops.py` from its Encounter Journal tables.
 
 ### Libraries
 
