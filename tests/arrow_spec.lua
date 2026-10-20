@@ -1,6 +1,6 @@
 -- Pure helpers of UI/Arrow.lua (Bearing, NextStep, route mode), the Frame.lua
 -- refresh hooks and UI.RouteNextStep. The arrow is parked (F16): routeMode is
--- forced to "list" on load and /azt arrow is gone. The arrow frame itself is
+-- forced to "list" on load and /mtrail arrow is gone. The arrow frame itself is
 -- compile-checked only.
 
 local UI_FILES = { "UI/Frame.lua", "UI/Tooltip.lua", "UI/List.lua", "UI/JournalHome.lua",
@@ -55,7 +55,7 @@ end
 
 describe("arrow", function()
   it("toc lists UI\\Arrow.lua right after UI\\LockoutHelpers.lua", function()
-    local fh = assert(io.open(ROOT .. "/AzerothTrail.toc", "r"))
+    local fh = assert(io.open(ROOT .. "/MountTrail.toc", "r"))
     local lines = {}
     for line in fh:lines() do
       line = line:gsub("\r$", ""):gsub("^%s+", ""):gsub("%s+$", "")
@@ -278,13 +278,13 @@ describe("arrow", function()
       eq(AzerothTrailArrow, nil)
     end)
 
-    it("/azt arrow is no longer a command: it prints the help, which no longer lists it", function()
+    it("/mtrail arrow is no longer a command: it prints the help, which no longer lists it", function()
       local ns = loadUI()
       run_slash(ns.addon, "azt", "arrow")
       eq(ns.db.char.routeMode, "list")
       local text = table.concat(ns.addon.printed, " | ")
       ok(text:find("Commands:", 1, true), "help printed")
-      ok(not text:find("/azt arrow", 1, true), "help does not mention /azt arrow")
+      ok(not text:find("/mtrail arrow", 1, true), "help does not mention /mtrail arrow")
     end)
   end)
 end)

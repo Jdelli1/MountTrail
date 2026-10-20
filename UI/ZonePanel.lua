@@ -5,7 +5,7 @@ local ADDON, ns = ...
 -- get whose location is the current zone (Zone.MountsFor: coords, source
 -- "Zone:", dungeon / raid entrances). Rows look and click like the mount
 -- lists (UI.InitMountRow: left-click waypoint, Shift map, Ctrl preview,
--- hover tooltip). Toggled by the title-bar pin button and `/azt zone`; the
+-- hover tooltip). Toggled by the title-bar pin button and `/mtrail zone`; the
 -- open state is saved in ns.db.global.zonePanel.open. The panel is a child
 -- of the main window, so it is shown only while the window is (v1: no
 -- detached mode). It recomputes on ZONE_CHANGED_NEW_AREA, ZONE_CHANGED,
@@ -296,7 +296,7 @@ function UI.SetZonePanelOpen(open)
   paintButton()
 end
 
--- `/azt zone`: with the window closed, opens it with the panel; else flips
+-- `/mtrail zone`: with the window closed, opens it with the panel; else flips
 -- the panel. -> the panel's new open state.
 function ns.ToggleZonePanel()
   local frame = UI.frame
@@ -318,7 +318,7 @@ function ns.ToggleZonePanel()
 end
 
 local function buildPanel(frame)
-  local p = CreateFrame("Frame", "AzerothTrailZonePanel", frame)
+  local p = CreateFrame("Frame", "MountTrailZonePanel", frame)
   p:SetWidth(PANEL_WIDTH)
   p:SetPoint("TOPLEFT", frame, "TOPRIGHT", PANEL_GAP, 0)
   p:SetPoint("BOTTOMLEFT", frame, "BOTTOMRIGHT", PANEL_GAP, 0)

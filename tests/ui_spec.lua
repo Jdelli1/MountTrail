@@ -20,7 +20,7 @@ end
 
 describe("ui", function()
   it("toc lists UI/Frame.lua right after Core/Init.lua", function()
-    local fh = assert(io.open(ROOT .. "/AzerothTrail.toc", "r"))
+    local fh = assert(io.open(ROOT .. "/MountTrail.toc", "r"))
     local lines = {}
     for line in fh:lines() do
       line = line:gsub("\r$", ""):gsub("^%s+", ""):gsub("%s+$", "")
@@ -41,10 +41,10 @@ describe("ui", function()
     ns.ToggleWindow()
     local f = ns.UI.frame
     ok(f and f:IsShown(), "window shown")
-    eq(f:GetName(), "AzerothTrailFrame")
+    eq(f:GetName(), "MountTrailFrame")
     eq(f.template, "PortraitFrameFlatTemplate", "modern flat window")
     eq({ f:GetSize() }, { 800, 560 })
-    eq(f.title, "AzerothTrail")
+    eq(f.title, "MountTrail")
     eq(f.portraitAsset, 132261)
     ok(f.movable and f.clamped, "movable and clamped")
     eq(f.numTabs, 6)
@@ -60,7 +60,7 @@ describe("ui", function()
     eq(#f.Inset.Edge.edges, 4, "faint 1 px edge")
     eq(next(ns.UI.TemplateFallbacks), nil, "no fallback used")
     eq(f.selectedTab, 1, "journal by default")
-    eq(UISpecialFrames, { "AzerothTrailFrame" })
+    eq(UISpecialFrames, { "MountTrailFrame" })
     ns.ToggleWindow()
     ok(not f:IsShown(), "second toggle hides")
   end)
@@ -238,7 +238,7 @@ describe("ui", function()
       eq(ns.UI.TemplateFallbacks, { NoSuchTemplate = "UIPanelButtonTemplate", AlsoMissing = false })
     end)
 
-    it("reports a fallback once through /azt debug's error handler", function()
+    it("reports a fallback once through /mtrail debug's error handler", function()
       local ns = loadUI({ debug = true })
       local got = {}
       local old = geterrorhandler
@@ -246,7 +246,7 @@ describe("ui", function()
       ns.UI.Template("NoSuchTemplate", "UIPanelButtonTemplate")
       ns.UI.Template("NoSuchTemplate", "UIPanelButtonTemplate")
       geterrorhandler = old
-      eq(got, { "AzerothTrail: template NoSuchTemplate missing, using UIPanelButtonTemplate" })
+      eq(got, { "MountTrail: template NoSuchTemplate missing, using UIPanelButtonTemplate" })
     end)
 
     it("falls back when C_XMLUtil is missing or errors", function()
@@ -259,7 +259,7 @@ describe("ui", function()
       C_XMLUtil = saved
     end)
 
-    it("/azt debug lists the fallbacks when turned on", function()
+    it("/mtrail debug lists the fallbacks when turned on", function()
       local ns = loadUI()
       ns.UI.Template("NoSuchTemplate", "UIPanelButtonTemplate")
       ns.UI.Template("AlsoMissing")
@@ -341,20 +341,20 @@ describe("ui", function()
 
     it("registers the launcher on PLAYER_LOGIN", function()
       local ns = loadUI()
-      eq(LDB.objects.AzerothTrail, nil, "nothing before login")
+      eq(LDB.objects.MountTrail, nil, "nothing before login")
       fire_frame_event("PLAYER_LOGIN")
-      local obj = LDB.objects.AzerothTrail
+      local obj = LDB.objects.MountTrail
       ok(obj, "launcher created")
       eq(obj.type, "launcher")
       eq(obj.icon, 132261)
-      eq(DBIcon.registered.AzerothTrail.db, ns.db.global.minimap)
+      eq(DBIcon.registered.MountTrail.db, ns.db.global.minimap)
       fire_frame_event("PLAYER_LOGIN") -- a second fire must not re-register
     end)
 
     it("left-click toggles the window", function()
       local ns = loadUI()
       fire_frame_event("PLAYER_LOGIN")
-      local obj = LDB.objects.AzerothTrail
+      local obj = LDB.objects.MountTrail
       obj.OnClick(nil, "LeftButton")
       ok(ns.UI.frame:IsShown())
       obj.OnClick(nil, "RightButton")
@@ -366,17 +366,17 @@ describe("ui", function()
     it("tooltip shows the title, the hint and the checklist's lockouts left when known", function()
       local ns = loadUI()
       fire_frame_event("PLAYER_LOGIN")
-      local obj = LDB.objects.AzerothTrail
+      local obj = LDB.objects.MountTrail
       local function lines()
         local out = {}
         obj.OnTooltipShow({ AddLine = function(_, text) out[#out + 1] = text end })
         return out
       end
-      eq(lines(), { "AzerothTrail", "Left-click: open/close" })
+      eq(lines(), { "MountTrail", "Left-click: open/close" })
       ns.UI.RouteRemaining = function() return 99 end -- retired: never read
-      eq(lines(), { "AzerothTrail", "Left-click: open/close" })
+      eq(lines(), { "MountTrail", "Left-click: open/close" })
       ns.UI.ChecklistRemaining = function() return 7 end
-      eq(lines(), { "AzerothTrail", "Left-click: open/close", "Checklist: 7 lockouts left" })
+      eq(lines(), { "MountTrail", "Left-click: open/close", "Checklist: 7 lockouts left" })
     end)
 
     it("sets up immediately when loaded after login", function()
@@ -386,8 +386,8 @@ describe("ui", function()
       local ns = load_addon(files)
       ns.addon:OnInitialize()
       local chunk = assert(loadfile(ROOT .. "/UI/Frame.lua"))
-      chunk("AzerothTrail", ns)
-      ok(LDB.objects.AzerothTrail, "launcher created without waiting for PLAYER_LOGIN")
+      chunk("MountTrail", ns)
+      ok(LDB.objects.MountTrail, "launcher created without waiting for PLAYER_LOGIN")
     end)
   end)
 end)

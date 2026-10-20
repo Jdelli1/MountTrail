@@ -10,7 +10,7 @@ local ADDON, ns = ...
 -- the WoW API directly, but always through an `api` table (the real globals by
 -- default) so the decision logic can be tested with stubs. Every call is
 -- guarded; nothing here raises a Lua error (caught errors are shown only with
--- /azt debug).
+-- /mtrail debug).
 local Map = {}
 ns.Map = Map
 
@@ -26,7 +26,7 @@ end
 
 local MODES = { game = true, tomtom = true, both = true }
 
--- The "Waypoints" setting (Options > AddOns > AzerothTrail, UI/Options.lua):
+-- The "Waypoints" setting (Options > AddOns > MountTrail, UI/Options.lua):
 -- "game" (the in-game map pin, default), "tomtom" (only TomTom; the in-game
 -- pin when TomTom is missing) or "both". Missing or unknown -> "game".
 function Map.WaypointMode()
@@ -61,7 +61,7 @@ local function realApi()
   }
 end
 
--- A caught error: dropped, or shown when /azt debug is on (Game.ReportError,
+-- A caught error: dropped, or shown when /mtrail debug is on (Game.ReportError,
 -- looked up at call time).
 local function swallowed(err)
   local game = ns.Game
@@ -552,7 +552,7 @@ local function placeLabel(api, mountID, target, routeBoss)
 end
 
 -- uid of the last TomTom waypoint this file added (TomTom:AddWaypoint's
--- return), removed before the next one is added so AzerothTrail keeps at most
+-- return), removed before the next one is added so MountTrail keeps at most
 -- one TomTom waypoint. The route arrow (UI/Arrow.lua) tracks its own. Both add
 -- non-persistent waypoints (persistent = false), so /reload clears them along
 -- with this session-only uid: nothing is left behind to remove.
@@ -624,7 +624,7 @@ end
 -- Left-click on a mount row: points the player at the mount without opening
 -- the world map. pin / entrance, by the waypoint mode (api.waypointMode, else
 -- Map.WaypointMode()): game -> the game's user waypoint (super-tracked) only;
--- tomtom -> a TomTom waypoint only (replacing the previous AzerothTrail one),
+-- tomtom -> a TomTom waypoint only (replacing the previous MountTrail one),
 -- the user waypoint instead when TomTom is missing or fails; both -> both.
 -- Chat "Waypoint: <place>"; when nothing could be set (the map takes no user
 -- waypoint and TomTom is not used) it falls back to opening the map.

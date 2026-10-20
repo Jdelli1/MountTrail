@@ -1,6 +1,6 @@
 # Credits
 
-AzerothTrail builds on the work of others. Thank you to everyone below.
+MountTrail builds on the work of others. Thank you to everyone below.
 
 ## Data sources
 
@@ -28,7 +28,7 @@ Notes:
 - LibDBIcon-1.0 states conflicting licenses (CurseForge page vs its own .toc) and ships no license file. It is a standard, widely embedded library; if the author objects it can be removed, since the minimap button is optional.
 - LibDataBroker-1.1 has no stated license upstream. Same caveat as above.
 - Ace3 libraries not listed above (AceGUI, AceConfig, and so on) are deliberately not included.
-- Ace3's license forbids stand-alone redistribution of its libraries. They are bundled here only as embedded libraries of AzerothTrail and are not offered separately.
+- Ace3's license forbids stand-alone redistribution of its libraries. They are bundled here only as embedded libraries of MountTrail and are not offered separately.
 
 ## Optional integrations
 

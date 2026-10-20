@@ -1,6 +1,6 @@
 local ADDON, ns = ...
 
--- Options > AddOns > AzerothTrail (F9), built with the modern Settings API: a
+-- Options > AddOns > MountTrail (F9), built with the modern Settings API: a
 -- vertical-layout category (Settings.RegisterVerticalLayoutCategory) with
 -- proxy settings over our own saved variables, registered with
 -- Settings.RegisterAddOnCategory on PLAYER_LOGIN (after AceDB's
@@ -13,8 +13,8 @@ local ADDON, ns = ...
 --                default; on lists not-owned unobtainable mounts on the Misc
 --                tab under "Unobtainable"; a change refreshes the window),
 --   "Show minimap button" (ns.db.global.minimap.hide, LibDBIcon Show / Hide),
---   "Debug messages" (ns.db.global.debug, the same flag as /azt debug).
--- `/azt options` opens it (Settings.OpenToCategory(category:GetID())). Every
+--   "Debug messages" (ns.db.global.debug, the same flag as /mtrail debug).
+-- `/mtrail options` opens it (Settings.OpenToCategory(category:GetID())). Every
 -- Settings call is guarded: a client without the API simply has no page.
 
 local L = ns.L or setmetatable({}, { __index = function(_, key) return key end })
@@ -23,10 +23,10 @@ local Options = {}
 ns.Options = Options
 
 -- Proxy setting variable names: global to the settings system, so prefixed.
-Options.WAYPOINTS = "AZEROTHTRAIL_WAYPOINTS"
-Options.UNOBTAINABLE = "AZEROTHTRAIL_UNOBTAINABLE"
-Options.MINIMAP = "AZEROTHTRAIL_MINIMAP"
-Options.DEBUG = "AZEROTHTRAIL_DEBUG"
+Options.WAYPOINTS = "MOUNTTRAIL_WAYPOINTS"
+Options.UNOBTAINABLE = "MOUNTTRAIL_UNOBTAINABLE"
+Options.MINIMAP = "MOUNTTRAIL_MINIMAP"
+Options.DEBUG = "MOUNTTRAIL_DEBUG"
 
 local MODES = { "game", "tomtom", "both" }
 local VALID = { game = true, tomtom = true, both = true }
@@ -121,7 +121,7 @@ local REQUIRED = { "RegisterVerticalLayoutCategory", "RegisterProxySetting", "Cr
 
 local function build(api)
   local VarType = type(api.VarType) == "table" and api.VarType or {}
-  local category = api.RegisterVerticalLayoutCategory(L["AzerothTrail"])
+  local category = api.RegisterVerticalLayoutCategory(L["MountTrail"])
 
   local waypoints = api.RegisterProxySetting(category, Options.WAYPOINTS, VarType.String or "string",
     L["Waypoints"], "game", getWaypoints, setWaypoints)
@@ -142,12 +142,12 @@ local function build(api)
 
   local minimap = api.RegisterProxySetting(category, Options.MINIMAP, VarType.Boolean or "boolean",
     L["Show minimap button"], true, getMinimap, setMinimap)
-  api.CreateCheckbox(category, minimap, L["Show the AzerothTrail button on the minimap."])
+  api.CreateCheckbox(category, minimap, L["Show the MountTrail button on the minimap."])
 
   local debug = api.RegisterProxySetting(category, Options.DEBUG, VarType.Boolean or "boolean",
     L["Debug messages"], false, getDebug, setDebug)
   api.CreateCheckbox(category, debug,
-    L["Show errors AzerothTrail catches around maps and waypoints (same as /azt debug)."])
+    L["Show errors MountTrail catches around maps and waypoints (same as /mtrail debug)."])
 
   api.RegisterAddOnCategory(category)
   return category
@@ -155,7 +155,7 @@ end
 
 -- Registers the page with `api` (the Settings table, default the global) ->
 -- the category, or nil when the API is missing, ns.db does not exist yet, or a
--- call failed (reported with /azt debug). Registers once.
+-- call failed (reported with /mtrail debug). Registers once.
 function Options.Register(api)
   if Options.category then return Options.category end
   if api == nil then api = Settings end
@@ -195,7 +195,7 @@ function Options.Open(api)
 end
 
 -- Tells an open settings page that `variable` changed elsewhere (e.g. the
--- debug flag via /azt debug), so its control shows the new value.
+-- debug flag via /mtrail debug), so its control shows the new value.
 function Options.Changed(variable, api)
   if api == nil then api = Settings end
   if not (Options.category and type(api) == "table" and type(api.NotifyUpdate) == "function") then return end

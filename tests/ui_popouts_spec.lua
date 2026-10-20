@@ -307,7 +307,7 @@ describe("pop-out windows", function()
     local row
     for _, c in ipairs(w.Content.children) do if c.data and c.data.id == 614 then row = c end end
     row:RunScript("OnClick", "RightButton")
-    local menu = _G.AzerothTrailMenu
+    local menu = _G.MountTrailMenu
     ok(menu and menu:IsShown(), "flat menu")
     local remove
     for _, it in ipairs(menu.items) do
@@ -517,7 +517,7 @@ describe("pop-out windows", function()
     local function pos() local p, _, rp, x, y = menu:GetPoint(1); return { p, rp, x, y } end
     STUB_CURSOR[1], STUB_CURSOR[2] = 600, 700
     a.Strip:RunScript("OnMouseUp", "RightButton")
-    menu = _G.AzerothTrailMenu
+    menu = _G.MountTrailMenu
     ok(menu:IsShown(), "the flat menu")
     local opened = pos()
     eq(opened, { "TOPLEFT", "BOTTOMLEFT", 604, 696 }, "opens at the pointer")
@@ -705,7 +705,7 @@ describe("flat widgets", function()
     ok(menu:IsShown(), "keepOpen")
     menu.items[4]:RunScript("OnClick", "LeftButton")
     eq(clicked, 1, "disabled does nothing")
-    _G.AzerothTrailMenuCatcher:RunScript("OnClick", "LeftButton")
+    _G.MountTrailMenuCatcher:RunScript("OnClick", "LeftButton")
     ok(not menu:IsShown(), "a click elsewhere closes")
   end)
 
@@ -847,7 +847,7 @@ describe("custom lists in the pane and the Checklist", function()
     local id = ns.Lists.Create(store, "Loop")
     local owner = CreateFrame("Button", nil, UIParent)
     ns.UI.ShowListMenu(owner, 614)
-    local menu = _G.AzerothTrailMenu
+    local menu = _G.MountTrailMenu
     eq(menu.items[2].data.text, "Loop")
     eq(menu.items[2].data.checked, false)
     menu.items[2]:RunScript("OnClick", "LeftButton")
@@ -857,7 +857,7 @@ describe("custom lists in the pane and the Checklist", function()
     local newItem
     for _, it in ipairs(menu.items) do if it:IsShown() and it.data.text == "New list..." then newItem = it end end
     newItem:RunScript("OnClick", "LeftButton")
-    local p = _G.AzerothTrailPrompt
+    local p = _G.MountTrailPrompt
     ok(p:IsShown(), "asks for a name")
     p.Edit:SetText("Tanaan")
     p.Edit:RunScript("OnEnterPressed")
@@ -898,7 +898,7 @@ describe("custom lists in the pane and the Checklist", function()
     local f = CreateFrame("Frame", nil, UIParent)
     header.Checklist.ScrollBox.view.factory(function(kind, init) init(f, rows[2]) end, rows[2])
     f:RunScript("OnMouseUp", "RightButton")
-    local menu = _G.AzerothTrailMenu
+    local menu = _G.MountTrailMenu
     local pop
     for _, it in ipairs(menu.items) do if it:IsShown() and it.data.text == "Pop out" then pop = it end end
     pop:RunScript("OnClick", "LeftButton")
@@ -923,11 +923,11 @@ describe("custom lists in the pane and the Checklist", function()
     local f = CreateFrame("Frame", nil, UIParent)
     header.Checklist.ScrollBox.view.factory(function(kind, init) init(f, listRow) end, listRow)
     f:RunScript("OnMouseUp", "RightButton")
-    local menu = _G.AzerothTrailMenu
+    local menu = _G.MountTrailMenu
     local del
     for _, it in ipairs(menu.items) do if it:IsShown() and it.data.text == "Delete..." then del = it end end
     del:RunScript("OnClick", "LeftButton")
-    local p = _G.AzerothTrailPrompt
+    local p = _G.MountTrailPrompt
     ok(p:IsShown(), "prompt")
     eq(p.Title:GetText(), "Delete WoD loop?")
     eq(p.Hint:GetText(), "Type WoD loop to confirm. This can't be undone.")

@@ -35,7 +35,23 @@ describe("load", function()
       ns.addon:OnInitialize()
       ns.addon:OnEnable()
       ok(ns.db and ns.db.global and ns.db.char, "ns.db exposes global and char")
-      ok(ns.addon.commands.azt and ns.addon.commands.azerothtrail, "slash commands registered")
+      ok(ns.addon.commands.mtrail and ns.addon.commands.mounttrail, "slash commands registered")
+      ok(ns.addon.commands.azt and ns.addon.commands.azerothtrail, "the old name's commands too")
+    end)
+
+    it("the old name's saved variable moves to MountTrailDB once", function()
+      local ns = load_addon(toc_lua_files())
+      local old = { global = { debug = true } }
+      MountTrailDB, AzerothTrailDB = nil, old
+      ns.MigrateOldName()
+      ok(MountTrailDB == old, "taken over")
+      eq(AzerothTrailDB, nil, "the old one cleared")
+      local mine = { global = {} }
+      MountTrailDB, AzerothTrailDB = mine, { global = { debug = true } }
+      ns.MigrateOldName()
+      ok(MountTrailDB == mine, "an existing MountTrailDB wins")
+      eq(AzerothTrailDB, nil)
+      MountTrailDB = nil
     end)
   end)
 end)

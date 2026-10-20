@@ -1,6 +1,6 @@
 local ADDON, ns = ...
 
--- Quick lists: ready-made checklists AzerothTrail ships (the Checklist's
+-- Quick lists: ready-made checklists MountTrail ships (the Checklist's
 -- "Quick lists" group, poppable like custom lists; not editable). Each is
 -- worked out from the data, so a new mount joins on its own:
 --   mythic  "Mythic Mounts": every dungeon mount that drops on Mythic

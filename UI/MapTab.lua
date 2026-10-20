@@ -1,6 +1,6 @@
 local ADDON, ns = ...
 
--- World map side tab: an AzerothTrail tab in the Map & Quest Log's column of
+-- World map side tab: an MountTrail tab in the Map & Quest Log's column of
 -- side tabs (with Quests, Events and Map Legend; LargeSideTabButtonTemplate,
 -- our icon in a round mask). Selecting it covers the quest log with
 -- "Mounts in <zone>" for the map being viewed (not the player's map): the
@@ -96,7 +96,7 @@ end
 function UI.MapTabContent(mapID, ctx)
   local info = mapID and ns.Game.MapInfo(mapID) or nil
   if not info then
-    return {}, L["AzerothTrail"], L["Open a zone on the map to see its mounts"]
+    return {}, L["MountTrail"], L["Open a zone on the map to see its mounts"]
   end
   if type(info.mapType) == "number" and info.mapType < ZONE_TYPE then
     return {}, string.format(L["Mounts in %s"], info.name or "?"), L["Open a zone on the map to see its mounts"]
@@ -113,7 +113,7 @@ local function refreshPanel()
   local good, rows, title, emptyText = pcall(UI.MapTabContent, viewedMap())
   if not good then
     report(rows)
-    rows, title, emptyText = {}, L["AzerothTrail"], ""
+    rows, title, emptyText = {}, L["MountTrail"], ""
   end
   panel.Title:SetText(title)
   panel.ScrollBox:SetDataProvider(CreateDataProvider(rows))
@@ -180,7 +180,7 @@ end
 
 local function buildPanel(qmf)
   local anchor = qmf.ContentsAnchor or qmf
-  local p = CreateFrame("Frame", "AzerothTrailMapPanel", qmf)
+  local p = CreateFrame("Frame", "MountTrailMapPanel", qmf)
   p:SetPoint("TOPLEFT", anchor, "TOPLEFT", 0, 0)
   p:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT", -22, 0)
   p:SetFrameLevel(qmf:GetFrameLevel() + 50)
@@ -235,8 +235,8 @@ local function buildPanel(qmf)
 end
 
 local function buildTab(qmf)
-  local t = CreateFrame("Frame", "AzerothTrailMapTab", qmf, "LargeSideTabButtonTemplate")
-  t.tooltipText = L["AzerothTrail: mounts on this map"]
+  local t = CreateFrame("Frame", "MountTrailMapTab", qmf, "LargeSideTabButtonTemplate")
+  t.tooltipText = L["MountTrail: mounts on this map"]
   local icon = t.Icon or t:CreateTexture(nil, "ARTWORK")
   t.Icon = icon
   icon:ClearAllPoints()

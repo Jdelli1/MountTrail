@@ -1,6 +1,6 @@
 local ADDON, ns = ...
 
--- The only place AzerothTrail calls the WoW API. Every global is looked up at
+-- The only place MountTrail calls the WoW API. Every global is looked up at
 -- call time and guarded: an API missing on this client gives a safe fallback
 -- (false / 0 / nil / {}), never a Lua error.
 local Game = {}
@@ -13,9 +13,9 @@ local function mountInfo(mountID)
 end
 
 -- Errors the addon catches on purpose (pcall around map, waypoint and arrow
--- calls) are dropped silently unless `/azt debug` is on
+-- calls) are dropped silently unless `/mtrail debug` is on
 -- (ns.db.global.debug): then they go to geterrorhandler(), prefixed
--- "AzerothTrail: ". -> true when the error was handed to the handler. Never
+-- "MountTrail: ". -> true when the error was handed to the handler. Never
 -- raises.
 function Game.ReportError(err)
   local db = ns.db
@@ -23,7 +23,7 @@ function Game.ReportError(err)
   if type(geterrorhandler) ~= "function" then return false end
   local good, handler = pcall(geterrorhandler)
   if not (good and type(handler) == "function") then return false end
-  return (pcall(handler, "AzerothTrail: " .. tostring(err)))
+  return (pcall(handler, "MountTrail: " .. tostring(err)))
 end
 
 -- C_MountJournal.GetMountInfoByID: name, spellID, icon, isActive, isUsable,
@@ -212,7 +212,7 @@ end
 -- { {name=, instance=<instanceId, return 14>, difficulty=<difficultyId>,
 --    bosses={ {name=, killed=bool} }} }. Unlocked (expired) rows are skipped.
 -- Rows with a nil instance or difficulty are left out (nothing to match them
--- against) unless includeIncomplete is true (/azt dump shows them).
+-- against) unless includeIncomplete is true (/mtrail dump shows them).
 function Game.SavedRows(includeIncomplete)
   local rows = {}
   if not (GetNumSavedInstances and GetSavedInstanceInfo) then return rows end

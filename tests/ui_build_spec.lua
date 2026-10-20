@@ -222,7 +222,7 @@ describe("ui build", function()
   it("UI.OwnedFont: a light green copy of GameFontNormal, GameFontGreen without CreateFont", function()
     local ns = loadUI()
     local name = ns.UI.OwnedFont()
-    eq(name, "AzerothTrailFontOwned")
+    eq(name, "MountTrailFontOwned")
     local font = _G[name]
     eq(font.base, GameFontNormal)
     eq(font.color, { 0.55, 0.95, 0.6 })
@@ -301,9 +301,9 @@ describe("ui build", function()
     local frames = render(list.ScrollBox)
     local row
     for _, f in ipairs(frames) do if f.Source then row = f; break end end
-    eq(row.Source.template, "AzerothTrailFontSource")
-    eq(AzerothTrailFontSource.base, GameFontHighlightSmall)
-    eq(AzerothTrailFontSource.color, { 0.7, 0.7, 0.7 })
+    eq(row.Source.template, "MountTrailFontSource")
+    eq(MountTrailFontSource.base, GameFontHighlightSmall)
+    eq(MountTrailFontSource.color, { 0.7, 0.7, 0.7 })
   end)
 
   it("falls back to the checkbox panel without the dropdown template", function()
@@ -372,7 +372,7 @@ describe("ui build", function()
     ok(good, tostring(list))
     eq(list.FilterDropdown, nil)
     ok(list.FilterPanel, "checkbox panel")
-    eq(ns.UI.TemplateFallbacks["DropdownButton:SetupMenu"], "checkbox panel", "listed by /azt debug")
+    eq(ns.UI.TemplateFallbacks["DropdownButton:SetupMenu"], "checkbox panel", "listed by /mtrail debug")
     eq(ns.UI.TemplateFallbacks.WowStyle1FilterDropdownTemplate, nil, "the template itself was there")
     run_slash(ns.addon, "azt", "debug")
     eq(ns.addon.printed[#ns.addon.printed], "Template DropdownButton:SetupMenu missing, using checkbox panel")
@@ -530,7 +530,7 @@ describe("ui build", function()
     eq(menu[1].isSelected(), true, "reset refreshes the states too")
     eq(calls, 3)
 
-    -- opts.fallbackName: what /azt debug says replaces the dropdown
+    -- opts.fallbackName: what /mtrail debug says replaces the dropdown
     -- (default "checkbox panel").
     local saved = STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate
     local function noSetup(name)
@@ -771,7 +771,7 @@ describe("ui build", function()
     end
     ok(rareHeader, "real data has a rare header")
     rareHeader:RunScript("OnEnter")
-    local hint = _G.AzerothTrailHint
+    local hint = _G.MountTrailHint
     ok(hint and hint:IsShown(), "the window-styled hint, not the game tooltip")
     eq(hint.Title:GetText(), "Right-click to pop out " .. ns.UI.PopoutTitle(rareHeader.data.popout))
     eq(hint.Fill.color, { 0.05, 0.05, 0.06, 0.85 }, "flat, slightly see-through")
@@ -1207,7 +1207,7 @@ describe("ui build", function()
     eq(panel.Title:GetText(), "Mounts in this zone  |cff9d9d9d(0)|r", "no map known")
   end)
 
-  it("/azt zone opens the window with the panel, then toggles the panel; help lists it", function()
+  it("/mtrail zone opens the window with the panel, then toggles the panel; help lists it", function()
     local ns, _, computed = loadZoneUI()
     run_slash(ns.addon, "azt", "zone")
     ok(ns.UI.frame:IsShown(), "window opened")
@@ -1226,8 +1226,8 @@ describe("ui build", function()
     ok(ns.UI.frame:IsShown() and ns.UI.zonePanel:IsShown(), "window closed: opens both")
     run_slash(ns.addon, "azt", "help")
     local found = false
-    for _, line in ipairs(ns.addon.printed) do if line:find("^/azt zone") then found = true end end
-    ok(found, "help lists /azt zone")
+    for _, line in ipairs(ns.addon.printed) do if line:find("^/mtrail zone") then found = true end end
+    ok(found, "help lists /mtrail zone")
   end)
 
   it("Checklist Filter dropdown: per-character category filters", function()
@@ -1279,7 +1279,7 @@ describe("ui build", function()
     eq(ns.db.char.checklistFilters, {}, "reset shows every category")
     eq(dd.resetShown, false)
 
-    -- Without the 11.x menu API /azt debug names what the checklist gets instead.
+    -- Without the 11.x menu API /mtrail debug names what the checklist gets instead.
     local saved = STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate
     ns.UI.TemplateFallbacks["DropdownButton:SetupMenu"] = nil
     STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate = nil

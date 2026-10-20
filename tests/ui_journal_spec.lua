@@ -49,7 +49,7 @@ local ROUTE = {
 
 describe("ui journal", function()
   it("toc lists Tooltip, List, DetailPane, JournalHome right after Frame", function()
-    local fh = assert(io.open(ROOT .. "/AzerothTrail.toc", "r"))
+    local fh = assert(io.open(ROOT .. "/MountTrail.toc", "r"))
     local lines = {}
     for line in fh:lines() do
       line = line:gsub("\r$", ""):gsub("^%s+", ""):gsub("%s+$", "")

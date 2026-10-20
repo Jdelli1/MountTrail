@@ -836,7 +836,7 @@ def _should_retry(code, headers):
 
 
 def _http_get(url, accept=None):
-    headers = {"User-Agent": "AzerothTrail-build-data"}
+    headers = {"User-Agent": "MountTrail-build-data"}
     if accept:
         headers["Accept"] = accept
     token = os.environ.get("GITHUB_TOKEN")

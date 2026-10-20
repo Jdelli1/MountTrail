@@ -54,7 +54,7 @@ REPORT_PATH = os.path.join(ROOT, "docs", "data-verification.md")
 
 WAGO = "https://wago.tools"
 PRODUCT = "wow"  # Retail
-USER_AGENT = "AzerothTrail-data-verifier/1.0 (Python urllib; WoW addon data check)"
+USER_AGENT = "MountTrail-data-verifier/1.0 (Python urllib; WoW addon data check)"
 TABLES = (
     "Mount",
     "JournalEncounterItem",
@@ -717,14 +717,14 @@ def check_lockouts(ours, game):
                                "%s: %r matches journal %r, whose linked DungeonEncounter %d is %r; if the "
                                "saved-instance list uses that name, the addon's substring test fails"
                                % (label, boss, enc["Name_lang"], _int(linked["ID"]), linked_name),
-                               "check with /azt dump; use a name contained in both %r and %r"
+                               "check with /mtrail dump; use a name contained in both %r and %r"
                                % (enc["Name_lang"], linked_name), key))
         elif dnames and not any(addon_match(boss, d) for d in dnames):
             out.append(finding("lockout", "dungeon-encounter-name-differs", "warn", mid, name,
                                "%s: %r matches journal %r, but DungeonEncounter calls it %s; if the "
                                "saved-instance list uses that name, the addon's substring test fails"
                                % (label, boss, enc["Name_lang"], " / ".join(repr(d) for d in dnames)),
-                               "check with /azt dump; consider boss = %r" % dnames[0], key))
+                               "check with /mtrail dump; consider boss = %r" % dnames[0], key))
         elif kind != "exact":
             out.append(finding("lockout", "loose-boss-match", "info", mid, name,
                                "%s: %r matched journal %r (%s)" % (label, boss, enc["Name_lang"], kind),

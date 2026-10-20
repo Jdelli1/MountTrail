@@ -51,7 +51,7 @@ describe("game adapter", function()
     end)
   end)
 
-  describe("ReportError (/azt debug)", function()
+  describe("ReportError (/mtrail debug)", function()
     local function capture()
       local got = {}
       geterrorhandler = function() return function(msg) got[#got + 1] = msg end end
@@ -75,7 +75,7 @@ describe("game adapter", function()
       ns.db = { global = { debug = true } }
       eq(ns.Game.ReportError("Map.lua:42: boom"), true)
       eq(ns.Game.ReportError(nil), true)
-      eq(got, { "AzerothTrail: Map.lua:42: boom", "AzerothTrail: nil" })
+      eq(got, { "MountTrail: Map.lua:42: boom", "MountTrail: nil" })
     end)
 
     it("never raises: missing geterrorhandler, nil handler or a failing handler", function()
@@ -1089,7 +1089,7 @@ describe("init", function()
       run_slash(ns.addon, "azt", "help")
       local out = table.concat(ns.addon.printed, "\n")
       ok(out:find("dump", 1, true), "help mentions dump")
-      ok(out:find("/azt debug", 1, true), "help mentions /azt debug")
+      ok(out:find("/mtrail debug", 1, true), "help mentions /mtrail debug")
     end)
     it("debug toggles ns.db.global.debug (default off) and says so", function()
       local ns = setup()

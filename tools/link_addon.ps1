@@ -4,8 +4,12 @@
 
 .DESCRIPTION
   Creates a directory junction
-    <WowPath>\_retail_\Interface\AddOns\AzerothTrail  ->  <repo root>
+    <WowPath>\_retail_\Interface\AddOns\MountTrail  ->  <repo root>
   so edits in the repository show up in game after /reload.
+  The add-on was called AzerothTrail: an old AddOns\AzerothTrail junction is
+  removed, and each account's SavedVariables\AzerothTrail.lua (settings,
+  lists, attempt counts) is copied to MountTrail.lua when that does not exist
+  yet; the add-on moves the data over at the next login.
   Creates the AddOns folder if it is missing, but exits 1 when <WowPath>\_retail_
   does not exist (e.g. the _retail_ folder itself was passed). Safe to run repeatedly: an existing
   junction is reported and left alone (exit 0). If the target exists and is not a
@@ -27,7 +31,7 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $retail   = Join-Path $WowPath '_retail_'
 $addOns   = Join-Path $retail 'Interface\AddOns'
-$target   = Join-Path $addOns 'AzerothTrail'
+$target   = Join-Path $addOns 'MountTrail'
 
 if (-not (Test-Path -LiteralPath $WowPath -PathType Container)) {
     Write-Host "WowPath does not exist: $WowPath"
@@ -39,6 +43,25 @@ if (-not (Test-Path -LiteralPath $WowPath -PathType Container)) {
 if (-not (Test-Path -LiteralPath $retail -PathType Container)) {
     Write-Host "No _retail_ folder in WowPath: $retail does not exist. Pass the World of Warcraft install folder that contains _retail_, not _retail_ itself."
     exit 1
+}
+
+# The old name: drop its junction (only a junction) and copy its saved variables.
+$oldLink = Get-Item -LiteralPath (Join-Path $addOns 'AzerothTrail') -Force -ErrorAction SilentlyContinue
+if ($null -ne $oldLink -and $oldLink.LinkType -eq 'Junction') {
+    [IO.Directory]::Delete($oldLink.FullName)
+    Write-Host "Removed the old junction $($oldLink.FullName)"
+}
+$accounts = Join-Path $retail 'WTF\Account'
+if (Test-Path -LiteralPath $accounts -PathType Container) {
+    Get-ChildItem -LiteralPath $accounts -Directory | ForEach-Object {
+        $sv  = Join-Path $_.FullName 'SavedVariables'
+        $old = Join-Path $sv 'AzerothTrail.lua'
+        $new = Join-Path $sv 'MountTrail.lua'
+        if ((Test-Path -LiteralPath $old -PathType Leaf) -and -not (Test-Path -LiteralPath $new)) {
+            Copy-Item -LiteralPath $old -Destination $new
+            Write-Host "Copied $old -> $new"
+        }
+    }
 }
 
 if (-not (Test-Path -LiteralPath $addOns -PathType Container)) {

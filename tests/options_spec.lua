@@ -1,4 +1,4 @@
--- UI/Options.lua (F9): the AzerothTrail page under Options > AddOns, built
+-- UI/Options.lua (F9): the MountTrail page under Options > AddOns, built
 -- with the modern Settings API (vertical layout + proxy settings). A fake
 -- `Settings` table records what the page registers; the getters / setters
 -- are then driven directly.
@@ -77,7 +77,7 @@ end
 
 describe("options", function()
   it("toc lists UI\\Options.lua last, after UI\\MapTab.lua (after UI\\ZonePanel.lua)", function()
-    local fh = assert(io.open(ROOT .. "/AzerothTrail.toc", "r"))
+    local fh = assert(io.open(ROOT .. "/MountTrail.toc", "r"))
     local lines = {}
     for line in fh:lines() do
       line = line:gsub("\r$", ""):gsub("^%s+", ""):gsub("%s+$", "")
@@ -103,20 +103,20 @@ describe("options", function()
       eq(category, S.category)
       eq(ns.Options.category, category)
       eq(S.log, {
-        { "Category", "AzerothTrail" },
-        { "Setting", "AZEROTHTRAIL_WAYPOINTS" },
-        { "Dropdown", "AZEROTHTRAIL_WAYPOINTS" },
-        { "Setting", "AZEROTHTRAIL_UNOBTAINABLE" },
-        { "Checkbox", "AZEROTHTRAIL_UNOBTAINABLE" },
-        { "Setting", "AZEROTHTRAIL_MINIMAP" },
-        { "Checkbox", "AZEROTHTRAIL_MINIMAP" },
-        { "Setting", "AZEROTHTRAIL_DEBUG" },
-        { "Checkbox", "AZEROTHTRAIL_DEBUG" },
+        { "Category", "MountTrail" },
+        { "Setting", "MOUNTTRAIL_WAYPOINTS" },
+        { "Dropdown", "MOUNTTRAIL_WAYPOINTS" },
+        { "Setting", "MOUNTTRAIL_UNOBTAINABLE" },
+        { "Checkbox", "MOUNTTRAIL_UNOBTAINABLE" },
+        { "Setting", "MOUNTTRAIL_MINIMAP" },
+        { "Checkbox", "MOUNTTRAIL_MINIMAP" },
+        { "Setting", "MOUNTTRAIL_DEBUG" },
+        { "Checkbox", "MOUNTTRAIL_DEBUG" },
         { "AddOnCategory", category },
       })
-      local wp, mm, dbg = S.settings.AZEROTHTRAIL_WAYPOINTS, S.settings.AZEROTHTRAIL_MINIMAP, S.settings.AZEROTHTRAIL_DEBUG
+      local wp, mm, dbg = S.settings.MOUNTTRAIL_WAYPOINTS, S.settings.MOUNTTRAIL_MINIMAP, S.settings.MOUNTTRAIL_DEBUG
       eq({ wp.varType, wp.name, wp.default }, { "string", "Waypoints", "game" })
-      local un = S.settings.AZEROTHTRAIL_UNOBTAINABLE
+      local un = S.settings.MOUNTTRAIL_UNOBTAINABLE
       eq({ un.varType, un.name, un.default }, { "boolean", "Show unobtainable mounts", false })
       eq({ mm.varType, mm.name, mm.default }, { "boolean", "Show minimap button", true })
       eq({ dbg.varType, dbg.name, dbg.default }, { "boolean", "Debug messages", false })
@@ -143,7 +143,7 @@ describe("options", function()
       eq(S.log, {})
     end)
 
-    it("a Settings call that errors is caught and reported (/azt debug)", function()
+    it("a Settings call that errors is caught and reported (/mtrail debug)", function()
       local ns = loadOptions()
       local reported = {}
       ns.Game.ReportError = function(err) reported[#reported + 1] = tostring(err) end
@@ -169,7 +169,7 @@ describe("options", function()
       local ns = loadOptions()
       local S = fakeSettings()
       ns.Options.Register(S)
-      local wp = S.settings.AZEROTHTRAIL_WAYPOINTS
+      local wp = S.settings.MOUNTTRAIL_WAYPOINTS
       eq(wp.get(), "game")
       wp.set("tomtom")
       eq(ns.db.global.settings.waypoints, "tomtom")
@@ -222,7 +222,7 @@ describe("options", function()
       ns.Refresh = function() refreshed = refreshed + 1 end
       local S = fakeSettings()
       ns.Options.Register(S)
-      local un = S.settings.AZEROTHTRAIL_UNOBTAINABLE
+      local un = S.settings.MOUNTTRAIL_UNOBTAINABLE
       eq(un.get(), false)
       un.set(true)
       eq(ns.db.global.settings.showUnobtainable, true)
@@ -267,14 +267,14 @@ describe("options", function()
       DBIcon.Hide = function(_, name) calls[#calls + 1] = { "Hide", name } end
       local S = fakeSettings()
       ns.Options.Register(S)
-      local mm = S.settings.AZEROTHTRAIL_MINIMAP
+      local mm = S.settings.MOUNTTRAIL_MINIMAP
       eq(mm.get(), true)
       mm.set(false)
       eq(ns.db.global.minimap.hide, true)
       eq(mm.get(), false)
       mm.set(true)
       eq(ns.db.global.minimap.hide, false)
-      eq(calls, { { "Hide", "AzerothTrail" }, { "Show", "AzerothTrail" } })
+      eq(calls, { { "Hide", "MountTrail" }, { "Show", "MountTrail" } })
       DBIcon.Show, DBIcon.Hide = nil, nil
       mm.set(false) -- a LibDBIcon without Show / Hide: the db still changes
       eq(ns.db.global.minimap.hide, true)
@@ -282,11 +282,11 @@ describe("options", function()
   end)
 
   describe("debug checkbox", function()
-    it("is the same flag as /azt debug", function()
+    it("is the same flag as /mtrail debug", function()
       local ns = loadOptions()
       local S = fakeSettings()
       ns.Options.Register(S)
-      local dbg = S.settings.AZEROTHTRAIL_DEBUG
+      local dbg = S.settings.MOUNTTRAIL_DEBUG
       eq(dbg.get(), false)
       dbg.set(true)
       eq(ns.db.global.debug, true)
@@ -294,7 +294,7 @@ describe("options", function()
       eq(dbg.get(), false)
     end)
 
-    it("/azt debug tells the open settings page (Settings.NotifyUpdate)", function()
+    it("/mtrail debug tells the open settings page (Settings.NotifyUpdate)", function()
       local ns = loadOptions()
       local S = fakeSettings()
       ns.Options.Register(S)
@@ -302,11 +302,11 @@ describe("options", function()
         run_slash(ns.addon, "azt", "debug")
       end)
       eq(ns.db.global.debug, true)
-      eq(logOf(S, "Notify"), { { "Notify", "AZEROTHTRAIL_DEBUG" } })
+      eq(logOf(S, "Notify"), { { "Notify", "MOUNTTRAIL_DEBUG" } })
     end)
   end)
 
-  describe("Open and /azt options", function()
+  describe("Open and /mtrail options", function()
     it("opens the settings panel at the category ID", function()
       local ns = loadOptions()
       local S = fakeSettings()
@@ -332,7 +332,7 @@ describe("options", function()
       ok(ns.addon.printed[#ns.addon.printed]:find("not available", 1, true), "prints why")
     end)
 
-    it("/azt options opens the page; help lists it", function()
+    it("/mtrail options opens the page; help lists it", function()
       local ns = loadOptions()
       local S = fakeSettings()
       withGlobals(S, nil, function()
@@ -342,7 +342,7 @@ describe("options", function()
       end)
       eq(logOf(S, "Open"), { { "Open", 77 }, { "Open", 77 } })
       run_slash(ns.addon, "azt", "help")
-      ok(table.concat(ns.addon.printed, "\n"):find("/azt options", 1, true), "help mentions /azt options")
+      ok(table.concat(ns.addon.printed, "\n"):find("/mtrail options", 1, true), "help mentions /mtrail options")
     end)
   end)
 

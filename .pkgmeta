@@ -1,4 +1,4 @@
-package-as: AzerothTrail
+package-as: MountTrail
 
 ignore:
   - tools

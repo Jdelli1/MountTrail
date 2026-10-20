@@ -67,14 +67,14 @@ function it(name, fn)
   end
 end
 
--- Runs each file (path relative to repo root) with ("AzerothTrail", ns)
+-- Runs each file (path relative to repo root) with ("MountTrail", ns)
 -- sharing one ns table; returns ns.
 function load_addon(files)
   local ns = {}
   for _, path in ipairs(files) do
     local chunk, err = loadfile(ROOT .. "/" .. path)
     if not chunk then error("cannot load " .. path .. ": " .. tostring(err), 2) end
-    chunk("AzerothTrail", ns)
+    chunk("MountTrail", ns)
   end
   return ns
 end

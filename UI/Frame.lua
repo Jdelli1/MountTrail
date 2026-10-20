@@ -19,7 +19,7 @@ local WIDTH, HEIGHT = 800, 560
 -- of a broken window.
 
 -- preferred -> fallback for each template the client did not define (shown
--- by `/azt debug`).
+-- by `/mtrail debug`).
 UI.TemplateFallbacks = UI.TemplateFallbacks or {}
 
 local function templateExists(name)
@@ -34,7 +34,7 @@ end
 -- `preferred` when the client defines that XML template
 -- (C_XMLUtil.GetTemplateInfo), else `fallback` (may be nil). A fallback is
 -- recorded in UI.TemplateFallbacks and reported once through
--- Game.ReportError (visible with /azt debug).
+-- Game.ReportError (visible with /mtrail debug).
 function UI.Template(preferred, fallback)
   if templateExists(preferred) then return preferred end
   UI.RecordFallback(preferred, fallback)
@@ -62,7 +62,7 @@ function UI.TemplateChain(...)
 end
 
 -- Records (once) that `missing` (a template, or a method a template lacks)
--- was replaced by `used` (nil: nothing), for /azt debug.
+-- was replaced by `used` (nil: nothing), for /mtrail debug.
 function UI.RecordFallback(missing, used)
   if UI.TemplateFallbacks[missing] ~= nil then return end
   UI.TemplateFallbacks[missing] = used or false
@@ -116,7 +116,7 @@ local HINT_WIDTH = 260
 local hintFrame
 
 local function buildHint()
-  local h = CreateFrame("Frame", "AzerothTrailHint", UIParent)
+  local h = CreateFrame("Frame", "MountTrailHint", UIParent)
   h:SetFrameStrata("TOOLTIP")
   h:Hide()
   local fill = h:CreateTexture(nil, "BACKGROUND")
@@ -279,13 +279,13 @@ local function sliderText(data, value)
 end
 
 local function buildMenu()
-  menuCatcher = CreateFrame("Button", "AzerothTrailMenuCatcher", UIParent)
+  menuCatcher = CreateFrame("Button", "MountTrailMenuCatcher", UIParent)
   menuCatcher:SetAllPoints(UIParent)
   menuCatcher:SetFrameStrata("FULLSCREEN_DIALOG")
   menuCatcher:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   menuCatcher:SetScript("OnClick", function() UI.HideMenu() end)
   menuCatcher:Hide()
-  menu = CreateFrame("Frame", "AzerothTrailMenu", UIParent)
+  menu = CreateFrame("Frame", "MountTrailMenu", UIParent)
   menu:SetFrameStrata("FULLSCREEN_DIALOG")
   if menu.SetFrameLevel and menuCatcher.GetFrameLevel then menu:SetFrameLevel(menuCatcher:GetFrameLevel() + 10) end
   menu:SetWidth(MENU_WIDTH)
@@ -294,7 +294,7 @@ local function buildMenu()
   flatPanel(menu)
   menu:Hide()
   menu.items = {}
-  tinsert(UISpecialFrames, "AzerothTrailMenu")
+  tinsert(UISpecialFrames, "MountTrailMenu")
   menu:SetScript("OnHide", function() if menuCatcher then menuCatcher:Hide() end end)
   return menu
 end
@@ -574,14 +574,14 @@ local function paintOK()
 end
 
 local function buildPrompt()
-  prompt = CreateFrame("Frame", "AzerothTrailPrompt", UIParent)
+  prompt = CreateFrame("Frame", "MountTrailPrompt", UIParent)
   prompt:SetSize(280, 104)
   prompt:SetFrameStrata("FULLSCREEN_DIALOG")
   prompt:SetPoint("CENTER", UIParent, "CENTER", 0, 120)
   prompt:EnableMouse(true)
   flatPanel(prompt, 0.97)
   prompt:Hide()
-  tinsert(UISpecialFrames, "AzerothTrailPrompt")
+  tinsert(UISpecialFrames, "MountTrailPrompt")
   local title = prompt:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   title:SetPoint("TOPLEFT", prompt, "TOPLEFT", 12, -12)
   title:SetPoint("TOPRIGHT", prompt, "TOPRIGHT", -12, -12)
@@ -719,8 +719,8 @@ end
 -- Registers a tab view. key: "journal", "holidays", "achievements",
 -- "timewalking", "misc" or "checklist".
 function UI.RegisterView(key, view)
-  assert(TAB_INDEX[key], "AzerothTrail: unknown view key " .. tostring(key))
-  assert(type(view) == "table", "AzerothTrail: view must be a table")
+  assert(TAB_INDEX[key], "MountTrail: unknown view key " .. tostring(key))
+  assert(type(view) == "table", "MountTrail: view must be a table")
   views[key] = view
   if UI.frame and key == current then showCurrent() end
 end
@@ -896,7 +896,7 @@ local function runWindowHook(fn, frame)
 end
 
 function UI.AddWindowHook(fn)
-  assert(type(fn) == "function", "AzerothTrail: window hook must be a function")
+  assert(type(fn) == "function", "MountTrail: window hook must be a function")
   windowHooks[#windowHooks + 1] = fn
   if UI.frame then runWindowHook(fn, UI.frame) end
 end
@@ -904,7 +904,7 @@ end
 local function createWindow()
   local frameTemplate = UI.Template("PortraitFrameFlatTemplate", "PortraitFrameTemplate")
   local flat = frameTemplate == "PortraitFrameFlatTemplate"
-  local frame = CreateFrame("Frame", "AzerothTrailFrame", UIParent, frameTemplate)
+  local frame = CreateFrame("Frame", "MountTrailFrame", UIParent, frameTemplate)
   UI.frame = frame
   frame.isFlat = flat
   frame:Hide()
@@ -913,7 +913,7 @@ local function createWindow()
   frame:EnableMouse(true)
   frame:SetMovable(true)
   frame:SetClampedToScreen(true)
-  setTitle(frame, L["AzerothTrail"])
+  setTitle(frame, L["MountTrail"])
   setPortrait(frame)
   restorePosition(frame)
 
@@ -975,7 +975,7 @@ local function createWindow()
     placeholders[tab.key] = placeholder
 
     -- PanelTemplates_* find tabs as <frameName>Tab<i> (or frame.Tabs[i]).
-    local button = CreateFrame("Button", "AzerothTrailFrameTab" .. i, frame, tabTemplate)
+    local button = CreateFrame("Button", "MountTrailFrameTab" .. i, frame, tabTemplate)
     button:SetID(i)
     button:SetText(L[tab.label])
     if i == 1 then
@@ -1030,7 +1030,7 @@ end
 local refreshHooks = {}
 
 function UI.AddRefreshHook(fn)
-  assert(type(fn) == "function", "AzerothTrail: refresh hook must be a function")
+  assert(type(fn) == "function", "MountTrail: refresh hook must be a function")
   refreshHooks[#refreshHooks + 1] = fn
 end
 
@@ -1056,13 +1056,13 @@ local function setupMinimap()
   if not LDB then return end
   local launcher = LDB:NewDataObject(ADDON, {
     type = "launcher",
-    text = L["AzerothTrail"],
+    text = L["MountTrail"],
     icon = ICON,
     OnClick = function(_, button)
       if button == "LeftButton" then ns.ToggleWindow() end
     end,
     OnTooltipShow = function(tooltip)
-      tooltip:AddLine(L["AzerothTrail"])
+      tooltip:AddLine(L["MountTrail"])
       tooltip:AddLine(L["Left-click: open/close"], 1, 1, 1)
       if type(UI.ChecklistRemaining) == "function" then
         local left = UI.ChecklistRemaining()

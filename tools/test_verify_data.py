@@ -487,7 +487,7 @@ class DownloadTest(unittest.TestCase):
             v.time.sleep = orig
         self.assertEqual(body, b"ID,Name\n1,x\n")
         self.assertEqual(sleeps, [1.0, 2.0])
-        self.assertTrue(calls[0].startswith("AzerothTrail"))
+        self.assertTrue(calls[0].startswith("MountTrail"))
 
     def test_offline_needs_cached_tables(self):
         with tempfile.TemporaryDirectory() as tmp:

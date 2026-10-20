@@ -63,7 +63,7 @@ end
 
 describe("ui route", function()
   it("toc lists Tabs and LockoutHelpers right after JournalHome", function()
-    local fh = assert(io.open(ROOT .. "/AzerothTrail.toc", "r"))
+    local fh = assert(io.open(ROOT .. "/MountTrail.toc", "r"))
     local lines = {}
     for line in fh:lines() do
       line = line:gsub("\r$", ""):gsub("^%s+", ""):gsub("%s+$", "")

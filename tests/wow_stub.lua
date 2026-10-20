@@ -78,9 +78,9 @@ function fire_event(addon, event, ...)
   return addon[handler](addon, event, ...)
 end
 
--- Lua files listed in AzerothTrail.toc, in order, minus XML and UI/ files.
+-- Lua files listed in MountTrail.toc, in order, minus XML and UI/ files.
 function toc_lua_files()
-  local fh = assert(io.open(ROOT .. "/AzerothTrail.toc", "r"))
+  local fh = assert(io.open(ROOT .. "/MountTrail.toc", "r"))
   local files = {}
   for line in fh:lines() do
     line = line:gsub("\r$", ""):gsub("^%s+", ""):gsub("%s+$", "")
@@ -333,6 +333,6 @@ function reset_ui_stub()
   loggedIn = false
   resetTemplates()
   wipe(STUB_ATLASES)
-  AzerothTrailFrame = nil
-  for i = 1, 8 do _G["AzerothTrailFrameTab" .. i] = nil end
+  MountTrailFrame = nil
+  for i = 1, 8 do _G["MountTrailFrameTab" .. i] = nil end
 end

@@ -1,9 +1,9 @@
 ## Interface: 120105
-## Title: AzerothTrail
+## Title: MountTrail
 ## Notes: A mount-collection guide: tracks the mounts you are missing and the daily / weekly lockouts left to farm them.
 ## Author: James
 ## Version: @project-version@
-## SavedVariables: AzerothTrailDB
+## SavedVariables: MountTrailDB, AzerothTrailDB
 ## OptionalDeps: TomTom, Rarity
 ## IconTexture: 132261
 

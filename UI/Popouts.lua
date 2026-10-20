@@ -9,7 +9,7 @@ local ADDON, ns = ...
 --   { kind = "list", list = id }             a custom list (Logic/Lists.lua)
 --   { kind = "quick", key = }                a quick list (Logic/QuickLists.lua)
 -- Opened by right-clicking a Checklist header (that set), a custom list's
--- header menu, and /azt rares (the zone's rares). Rows come from the
+-- header menu, and /mtrail rares (the zone's rares). Rows come from the
 -- Checklist (UI.ChecklistBuild), so they match it: a box (a lockout ticked
 -- and dimmed when the game says done; a rare spawn's "last checked" box,
 -- left-click marks, right-click clears), the name (the rare's for rare
@@ -1113,7 +1113,7 @@ function UI.CloseAllPopouts()
   end
 end
 
--- /azt rares: the zone's rares, opened or closed.
+-- /mtrail rares: the zone's rares, opened or closed.
 function UI.ToggleZonePopout()
   local w = windows.zone
   if w and w:IsShown() then

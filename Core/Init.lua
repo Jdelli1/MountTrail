@@ -154,11 +154,25 @@ function ns.RetireRoute(db)
   if type(window) == "table" and window.tab == "route" then window.tab = "checklist" end
 end
 
+-- The add-on was called AzerothTrail: its saved variable (AzerothTrailDB,
+-- still listed in the .toc) becomes MountTrailDB once, when there is no
+-- MountTrailDB yet; the old one is then cleared. WoW reads it from
+-- WTF\Account\<account>\SavedVariables\MountTrail.lua, so the old
+-- AzerothTrail.lua has to be copied to that name first
+-- (tools\link_addon.ps1 does it).
+function ns.MigrateOldName()
+  if type(MountTrailDB) ~= "table" and type(AzerothTrailDB) == "table" then
+    MountTrailDB = AzerothTrailDB
+  end
+  AzerothTrailDB = nil
+end
+
 function addon:OnInitialize()
-  -- One saved variable, AzerothTrailDB: AceDB keeps the per-character section
+  -- One saved variable, MountTrailDB: AceDB keeps the per-character section
   -- under .char ("Name - Realm"), so no SavedVariablesPerCharacter is needed.
   -- char.last (the last lockout observation) starts nil.
-  ns.db = LibStub("AceDB-3.0"):New("AzerothTrailDB", {
+  ns.MigrateOldName()
+  ns.db = LibStub("AceDB-3.0"):New("MountTrailDB", {
     global = {
       -- { collected = bool, [view] = { [section] = false } } (Logic\Journal.lua)
       filters = copyTable(ns.Journal.DefaultFilters),
@@ -172,10 +186,10 @@ function addon:OnInitialize()
       minimap = { hide = false },
       window = {},
       arrow = {}, -- route arrow frame position (UI\Arrow.lua)
-      debug = false, -- /azt debug: show caught map / waypoint errors
+      debug = false, -- /mtrail debug: show caught map / waypoint errors
       achievementMap = {}, -- { build=, ids={[mountID]=achievementID|false} } (Integrations\AchievementScan.lua)
       zonePanel = { open = false }, -- zone side panel shown with the window (UI\ZonePanel.lua)
-      -- Options > AddOns > AzerothTrail (UI\Options.lua): waypoints = "game" | "tomtom" | "both"
+      -- Options > AddOns > MountTrail (UI\Options.lua): waypoints = "game" | "tomtom" | "both"
       -- (Integrations\Map.lua); showUnobtainable: not-owned unobtainable mounts on Misc (UI\List.lua)
       settings = { waypoints = "game", showUnobtainable = false },
       collapsed = {}, -- list headers the player collapsed: { ["<view>|<exp>|<section>[|<sub-group>]"] = true } (UI\List.lua)
@@ -191,6 +205,9 @@ function addon:OnInitialize()
   -- Pre-F15 saved variables kept the Journal's source filters as flat keys.
   ns.Journal.MigrateFilters(ns.db.global.filters)
   ns.RetireRoute(ns.db)
+  self:RegisterChatCommand("mtrail", "OnSlash")
+  self:RegisterChatCommand("mounttrail", "OnSlash")
+  -- The add-on's old name (AzerothTrail): its commands still work.
   self:RegisterChatCommand("azt", "OnSlash")
   self:RegisterChatCommand("azerothtrail", "OnSlash")
 end
@@ -275,7 +292,7 @@ function addon:OnSlash(input)
     if ns.ToggleWindow then
       ns.ToggleWindow()
     else
-      self:Print(L["The window is not available yet. Type /azt help for commands."])
+      self:Print(L["The window is not available yet. Type /mtrail help for commands."])
     end
   elseif cmd == "dump" then
     ns.Dump()
@@ -283,13 +300,13 @@ function addon:OnSlash(input)
     if ns.ToggleZonePanel then
       ns.ToggleZonePanel()
     else
-      self:Print(L["The window is not available yet. Type /azt help for commands."])
+      self:Print(L["The window is not available yet. Type /mtrail help for commands."])
     end
   elseif cmd == "rares" then
     if ns.UI and ns.UI.ToggleZonePopout then
       ns.UI.ToggleZonePopout()
     else
-      self:Print(L["The window is not available yet. Type /azt help for commands."])
+      self:Print(L["The window is not available yet. Type /mtrail help for commands."])
     end
   elseif cmd == "options" then
     if ns.Options and ns.Options.Open then
@@ -315,12 +332,12 @@ function addon:OnSlash(input)
     end
   else
     self:Print(L["Commands:"])
-    self:Print(L["/azt - show or hide the window"])
-    self:Print(L["/azt dump - list saved instances (instance ID, difficulty ID, bosses)"])
-    self:Print(L["/azt zone - show or hide the zone panel (mounts in your current zone)"])
-    self:Print(L["/azt rares - show or hide the rare spawns of your zone"])
-    self:Print(L["/azt options - open the AzerothTrail options (Options > AddOns)"])
-    self:Print(L["/azt debug - show or hide caught map and waypoint errors"])
-    self:Print(L["/azt help - this list"])
+    self:Print(L["/mtrail - show or hide the window"])
+    self:Print(L["/mtrail dump - list saved instances (instance ID, difficulty ID, bosses)"])
+    self:Print(L["/mtrail zone - show or hide the zone panel (mounts in your current zone)"])
+    self:Print(L["/mtrail rares - show or hide the rare spawns of your zone"])
+    self:Print(L["/mtrail options - open the MountTrail options (Options > AddOns)"])
+    self:Print(L["/mtrail debug - show or hide caught map and waypoint errors"])
+    self:Print(L["/mtrail help - this list"])
   end
 end

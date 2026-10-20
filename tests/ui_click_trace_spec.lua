@@ -1,4 +1,4 @@
--- /azt debug click trace (UI.HandleRowClick): with debug on, every mount-row
+-- /mtrail debug click trace (UI.HandleRowClick): with debug on, every mount-row
 -- click prints what it saw and what happened straight to chat (not through
 -- the error handler, which BugSack-style addons capture silently).
 

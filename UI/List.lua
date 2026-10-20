@@ -1000,7 +1000,7 @@ function UI.OpenMountAchievement(mountID)
   return ns.Game.OpenAchievement(id) == true
 end
 
--- With /azt debug on, prints a "debug: ..." line straight to chat (not
+-- With /mtrail debug on, prints a "debug: ..." line straight to chat (not
 -- through the error handler, which BugSack-style addons capture silently),
 -- so a click that seems to do nothing shows where it stopped.
 local function trace(fmt, ...)
@@ -1013,8 +1013,8 @@ end
 UI.DebugTrace = trace
 
 -- Calls ns.Map[method](mountID, nil, routeBoss); an error goes to
--- Game.ReportError (/azt debug) instead of breaking the click. Traced with
--- /azt debug.
+-- Game.ReportError (/mtrail debug) instead of breaking the click. Traced with
+-- /mtrail debug.
 local function mapAction(method, mountID, routeBoss)
   local map = ns.Map
   if not (map and type(map[method]) == "function") then
@@ -1127,7 +1127,7 @@ local ICON_CROP = 0.08
 
 -- Source line font: GameFontHighlightSmall dimmed to 70 % grey (readable on
 -- the dark fill); GameFontDisableSmall when the client has no CreateFont.
-local SOURCE_FONT = "AzerothTrailFontSource"
+local SOURCE_FONT = "MountTrailFontSource"
 local sourceFont
 function UI.SourceFont()
   if sourceFont then return sourceFont end
@@ -1145,7 +1145,7 @@ end
 -- Name font of owned (collected) mount rows: GameFontNormal in a light green
 -- (readable on the dark fill and the green row tint); GameFontGreen when the
 -- client has no CreateFont.
-local OWNED_FONT = "AzerothTrailFontOwned"
+local OWNED_FONT = "MountTrailFontOwned"
 local ownedFont
 function UI.OwnedFont()
   if ownedFont then return ownedFont end
@@ -1567,7 +1567,7 @@ end
 --   isDefault = function() -> bool and reset = function() (optional, both
 --     needed): the reset arrow next to the button while not at the defaults,
 --   fallbackName = string (optional): what replaces the dropdown on clients
---     without it, for /azt debug (default "checkbox panel"),
+--     without it, for /mtrail debug (default "checkbox panel"),
 -- }
 function UI.CreateFilterDropdown(parent, opts)
   local fallbackName = opts.fallbackName or "checkbox panel"
