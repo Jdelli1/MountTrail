@@ -239,6 +239,15 @@ describe("rare tracker window", function()
     eq(ns.db.global.rareTracker.exp, "Classic")
   end)
 
+  it("OpenRareTracker shows the given expansion", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    ns.db.global.rareTracker = { exp = "Midnight" }
+    eq(ns.UI.OpenRareTracker("Warlords of Draenor"), true)
+    eq(ns.db.global.rareTracker.exp, "Warlords of Draenor")
+    ok(ns.UI.rareTracker.Title:GetText():find("^Warlords of Draenor"), ns.UI.rareTracker.Title:GetText())
+  end)
+
   it("comes back after /reload when it was open", function()
     local ns = loadUI()
     ns.UI.ChecklistBuild = function() return built() end

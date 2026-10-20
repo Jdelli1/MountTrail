@@ -33,8 +33,10 @@ local ADDON, ns = ...
 -- actions; no hover tooltip, no location icon). The header strip: the
 -- character's name, a summary line ("Daily: 6 left, resets in 9 hr" ...),
 -- the flavour line, then chips All / Daily / Weekly / Rare spawns (with
--- what is left) that show one group or all (ns.db.char.checklistShow), and
--- a "Pop out rares" button (UI.ToggleRareTracker) beside Filter.
+-- what is left) that show one group or all (ns.db.char.checklistShow).
+-- Right-clicking a rare header (an expansion or zone of the rare spawns, a
+-- "Rares" category) pops that expansion out in the rare tracker
+-- (UI.OpenRareTracker); hovering one says so.
 -- After Daily and Weekly, "Rare spawns (no lockout)" lists the camp specs
 -- (rares with no kill flag and no reset) by expansion and zone, headers
 -- counting the mounts left ("(12 left)"); each row's box records when the
@@ -581,9 +583,27 @@ local function toggleHeader(key)
   ns.Refresh()
 end
 
+-- Rare headers (an expansion or zone of the rare spawns, a "Rares"
+-- category): right-click pops that expansion out in the rare tracker.
+local function popOut(data)
+  if UI.OpenRareTracker and data.popout then UI.OpenRareTracker(data.popout) end
+end
+
 local function initHeader(f, data)
   f.onToggle = toggleHeader
+  -- Recycled frames: set (or clear) the right-click and its hint every time.
+  f.onRightClick = data.popout and popOut or nil
+  f.hint = data.hint
   UI.InitListHeader(f, data)
+end
+
+-- The expansion a header pops out in the rare tracker, or nil: rare-spawn
+-- expansion / zone headers and daily / weekly "Rares" categories.
+function UI.ChecklistPopout(row)
+  if not (row and row.header and row.exp) then return nil end
+  if row.camp and (row.depth or 1) >= 2 then return row.exp end
+  if row.category == "rares" then return row.exp end
+  return nil
 end
 
 -- The summary line: what is left per group and when it resets.
@@ -638,18 +658,6 @@ local function buildHeader(parent)
     filter:SetPoint("TOPRIGHT", top, "TOPRIGHT", -8, -4)
     top.ChecklistFilter = filter
   end
-
-  -- Pop out the rare tracker (UI/RareTracker.lua).
-  local pop = CreateFrame("Button", nil, top, "UIPanelButtonTemplate")
-  pop:SetSize(110, 22)
-  pop:SetText(L["Pop out rares"])
-  if filter then
-    pop:SetPoint("RIGHT", filter, "LEFT", -6, 0)
-  else
-    pop:SetPoint("TOPRIGHT", top, "TOPRIGHT", -8, -4)
-  end
-  pop:SetScript("OnClick", function() if UI.ToggleRareTracker then UI.ToggleRareTracker() end end)
-  top.PopOut = pop
 
   -- Chips: All / Daily / Weekly / Rare spawns.
   top.Chips = {}
@@ -793,6 +801,10 @@ function view.Refresh()
   for _, row in ipairs(rows) do
     if row.header then
       n = 0
+      row.popout = UI.ChecklistPopout(row)
+      if row.popout then
+        row.hint = string.format(L["Right-click to pop out %s rares"], L[row.popout])
+      end
     else
       n = n + 1
       local e = row.entry

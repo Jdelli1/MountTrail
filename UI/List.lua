@@ -1160,7 +1160,9 @@ end
 -- Section header (depth 1) and sub-header (depth 2, indented, smaller font,
 -- fainter band; depth 3 -- the checklist's categories -- looks the same, one
 -- DEPTH_STEP further in). A plain Frame (not a Button) so the ScrollBox pools it apart
--- from the mount rows; left-click (OnMouseUp) calls frame.onToggle(key).
+-- from the mount rows; left-click (OnMouseUp) calls frame.onToggle(key), a
+-- right-click frame.onRightClick(data) when the caller set one, and hovering
+-- shows frame.hint (a one-line tooltip) when set.
 local function initHeader(frame, data)
   if not frame.Label then
     frame:EnableMouse(true)
@@ -1189,19 +1191,36 @@ local function initHeader(frame, data)
     label:SetPoint("LEFT", indicator, "RIGHT", 6, 0)
     label:SetJustifyH("LEFT")
     frame.Label = label
-    frame:SetScript("OnEnter", function(self) self.Hover:Show() end)
-    frame:SetScript("OnLeave", function(self) self.Hover:Hide() end)
+    frame:SetScript("OnEnter", function(self)
+      self.Hover:Show()
+      if self.hint and GameTooltip then
+        GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
+        GameTooltip:SetText(self.hint, 0.5, 0.9, 0.5)
+        GameTooltip:Show()
+        self.hintShown = true
+      end
+    end)
+    frame:SetScript("OnLeave", function(self)
+      self.Hover:Hide()
+      if self.hintShown and GameTooltip then GameTooltip:Hide() end
+      self.hintShown = nil
+    end)
     frame:SetScript("OnMouseUp", function(self, button)
       -- Only a release over the header counts (pressing, then dragging off
       -- it cancels, as with buttons).
-      if button ~= "LeftButton" or not (self.key and self.onToggle) then return end
       if type(self.IsMouseOver) == "function" and not self:IsMouseOver() then return end
+      if button == "RightButton" and self.onRightClick and self.data then
+        self.onRightClick(self.data)
+        return
+      end
+      if button ~= "LeftButton" or not (self.key and self.onToggle) then return end
       self.onToggle(self.key)
     end)
   end
   local depth = data.depth or 1
   local sub = depth >= 2
   frame.key = data.key
+  frame.data = data
   -- Recycled frames: the hover band follows the mouse, not the last use.
   frame.Hover:SetShown(type(frame.IsMouseOver) == "function" and frame:IsMouseOver() == true)
   frame.Bg:SetColorTexture(1, 1, 1, sub and 0.025 or 0.05)

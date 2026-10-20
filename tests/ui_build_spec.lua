@@ -715,7 +715,7 @@ describe("ui build", function()
     eq(header.Flavour:GetText(), string.format("You have %d lockouts left. Saddle up?", ns.UI.ChecklistRemaining()))
     eq(header.height, 96)
     ok(header.ChecklistFilter and header.ChecklistFilter:IsShown(), "Filter button shown")
-    eq(header.PopOut:GetText(), "Pop out rares")
+    eq(header.PopOut, nil, "no pop-out button: rare headers pop out on right-click")
     -- Chips: All (shown, gold) / Daily (n) / Weekly (n) / Rare spawns (n).
     local chips = header.Chips
     eq(#chips, 4)
@@ -744,6 +744,44 @@ describe("ui build", function()
     ns.Refresh()
     eq(header.Flavour:GetText(), "Tester has reached Oregon. Nothing left to farm until reset.")
     ok(header.Checklist.Empty:IsShown(), "empty line")
+  end)
+
+  it("Checklist: right-clicking a rare header pops that expansion out; hovering says so", function()
+    local ns = loadUI()
+    ns.ToggleWindow()
+    ns.UI.SelectTab("checklist")
+    local root = content(ns, "checklist").children[2]
+    local header = root.children[1]
+    local popped = {}
+    ns.UI.OpenRareTracker = function(exp) popped[#popped + 1] = exp end
+    local tip = { lines = {} }
+    function tip:SetOwner() end
+    function tip:SetText(t) self.text = t end
+    function tip:Show() self.shown = true end
+    function tip:Hide() self.shown = false end
+    local oldTip = GameTooltip
+    GameTooltip = tip
+    local rareHeader, plainHeader
+    for _, f in ipairs(render(header.Checklist.ScrollBox)) do
+      if f.data and f.data.header then
+        if f.data.popout and not rareHeader then rareHeader = f end
+        if not f.data.popout and not plainHeader then plainHeader = f end
+      end
+    end
+    ok(rareHeader, "real data has a rare header")
+    rareHeader:RunScript("OnEnter")
+    eq(tip.text, string.format("Right-click to pop out %s rares", rareHeader.data.popout))
+    rareHeader:RunScript("OnLeave")
+    eq(tip.shown, false)
+    rareHeader:RunScript("OnMouseUp", "RightButton")
+    eq(popped, { rareHeader.data.popout })
+    plainHeader:RunScript("OnMouseUp", "RightButton")
+    eq(#popped, 1, "other headers do nothing on right-click")
+    GameTooltip = oldTip
+    eq(ns.UI.ChecklistPopout({ header = true, depth = 2, camp = true, exp = "Legion" }), "Legion")
+    eq(ns.UI.ChecklistPopout({ header = true, depth = 1, camp = true }), nil)
+    eq(ns.UI.ChecklistPopout({ header = true, depth = 3, category = "rares", exp = "Cataclysm" }), "Cataclysm")
+    eq(ns.UI.ChecklistPopout({ header = true, depth = 3, category = "raids", exp = "Cataclysm" }), nil)
   end)
 
   it("mount rows (lists and Checklist) take left and right clicks and dispatch through HandleRowClick", function()

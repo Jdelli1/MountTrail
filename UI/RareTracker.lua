@@ -13,7 +13,8 @@ local ADDON, ns = ...
 -- so owned mounts and the other faction's are already left out. The title
 -- opens a menu to pick the expansion or "Current zone"; the window's
 -- position, open state and choice are saved (ns.db.global.rareTracker).
--- Opened by the Checklist's "Pop out rares" button and /azt rares.
+-- Opened by right-clicking a rare header in the Checklist (that expansion,
+-- UI.OpenRareTracker) and /azt rares.
 
 local L = ns.L
 
@@ -351,6 +352,13 @@ local function build()
     savePosition()
   end)
   strip:SetScript("OnClick", function(self) openMenu(self) end)
+  strip:SetScript("OnEnter", function(self)
+    if not GameTooltip then return end
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:SetText(L["Click to choose the expansion; drag to move"], 0.5, 0.9, 0.5)
+    GameTooltip:Show()
+  end)
+  strip:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
   local stripBg = strip:CreateTexture(nil, "BACKGROUND")
   stripBg:SetAllPoints(strip)
   stripBg:SetColorTexture(1, 1, 1, 0.05)
@@ -367,9 +375,20 @@ local function build()
   close:SetScript("OnClick", function() UI.ToggleRareTracker(false) end)
   frame.Close = close
 
+  -- A small down arrow: the title opens a menu.
+  local arrow = strip:CreateTexture(nil, "ARTWORK")
+  arrow:SetSize(12, 12)
+  arrow:SetPoint("RIGHT", close, "LEFT", -2, 0)
+  if UI.AtlasExists("common-dropdown-icon-down") then
+    arrow:SetAtlas("common-dropdown-icon-down")
+  else
+    arrow:SetTexture("Interface\\ChatFrame\\ChatFrameExpandArrow")
+  end
+  frame.Arrow = arrow
+
   local titleText = strip:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   titleText:SetPoint("LEFT", strip, "LEFT", 8, 0)
-  titleText:SetPoint("RIGHT", close, "LEFT", -4, 0)
+  titleText:SetPoint("RIGHT", arrow, "LEFT", -4, 0)
   titleText:SetJustifyH("LEFT")
   titleText:SetWordWrap(false)
   frame.Title = titleText
@@ -416,6 +435,13 @@ function UI.ToggleRareTracker(show)
   frame:SetShown(show and true or false)
   if show then UI.RefreshRareTracker() end
   return show and true or false
+end
+
+-- Shows the tracker on `exp` (an expansion name, or "zone").
+function UI.OpenRareTracker(exp)
+  local db = stateDB()
+  if db and exp then db.exp = exp end
+  return UI.ToggleRareTracker(true)
 end
 
 UI.AddRefreshHook(function() UI.RefreshRareTracker() end)
