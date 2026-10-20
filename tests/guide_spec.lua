@@ -116,7 +116,23 @@ describe("Following a guide", function()
     eq(w.Count:GetText(), "1 / 5")
     eq(w.StepText:GetText(), "Travel to the |cffffd100Vale of Eternal Blossoms|r in Pandaria")
     eq(w.Done:GetText(), "Done when: reach the spot")
-    ok(w.Place:GetText():find("Vale of Eternal Blossoms: Vale of Eternal Blossoms 56.2, 42.6", 1, true), w.Place:GetText())
+    eq(w.Place:GetText(), "Go to: |cff71d5ff|Haddon:MountTrail:goto:1|h[Vale of Eternal Blossoms]|h|r",
+      "a link, no coordinates")
+    local waypoint, opened
+    ns.Map.SetWaypointAt = function(m, x, y, name) waypoint = { m, x, y, name } end
+    ns.Map.OpenZone = function(m) opened = m end
+    w.Body:GetScript("OnHyperlinkClick")(w.Body, "addon:MountTrail:goto:1", "[Vale of Eternal Blossoms]")
+    eq(waypoint, { 390, 56.2, 42.6, "Vale of Eternal Blossoms" }, "click: its waypoint")
+    IsShiftKeyDown = function() return true end
+    w.Body:GetScript("OnHyperlinkClick")(w.Body, "addon:MountTrail:goto:1", "[Vale of Eternal Blossoms]")
+    IsShiftKeyDown = nil
+    eq(opened, 390, "Shift-click: the map")
+    local lines = {}
+    GameTooltip = { SetOwner = function() end, Show = function() end,
+      SetText = function(_, t) lines[#lines + 1] = t end, AddLine = function(_, t) lines[#lines + 1] = t end }
+    w.Body:GetScript("OnHyperlinkEnter")(w.Body, "addon:MountTrail:goto:1")
+    GameTooltip = nil
+    eq(lines[2], "Vale of Eternal Blossoms 56.2, 42.6", "the coordinates are on hover")
     ns.UI.GuideGo(1)
     eq(plots[2], "clear", "step 2 has no points")
     ok(w.Done:GetText():find("^Done when: 10 x "), "ten Skyshards finish step 2")

@@ -54,6 +54,11 @@ local function enableLinks(frame)
   if not frame.SetHyperlinksEnabled then return end
   frame:SetHyperlinksEnabled(true)
   frame:SetScript("OnHyperlinkEnter", function(self, link)
+    local point = tonumber(string.match(link or "", "^addon:MountTrail:goto:(%d+)"))
+    if point then
+      UI.GuidePointTooltip(self, UI.GuideStepPoint(point))
+      return
+    end
     local mountID = tonumber(string.match(link or "", "^addon:MountTrail:mount:(%d+)"))
     if mountID and UI.ShowMountTooltip then
       UI.ShowMountTooltip(self, mountID)
@@ -66,7 +71,13 @@ local function enableLinks(frame)
   end)
   frame:SetScript("OnHyperlinkLeave", function() if GameTooltip then GameTooltip:Hide() end end)
   frame:SetScript("OnHyperlinkClick", function(_, link, text)
-    if not (type(IsShiftKeyDown) == "function" and IsShiftKeyDown() and ns.Game.InsertChatLink) then return end
+    local shift = type(IsShiftKeyDown) == "function" and IsShiftKeyDown() and true or false
+    local point = tonumber(string.match(link or "", "^addon:MountTrail:goto:(%d+)"))
+    if point then
+      UI.GuidePointClick(UI.GuideStepPoint(point), shift)
+      return
+    end
+    if not (shift and ns.Game.InsertChatLink) then return end
     -- A mount: its real link for chat (our own link means nothing there).
     local mountID = tonumber(string.match(link or "", "^addon:MountTrail:mount:(%d+)"))
     local m = mountID and ns.Data and ns.Data.Mounts and ns.Data.Mounts[mountID]
@@ -83,18 +94,51 @@ local function height(fs)
 end
 
 -- "Vale of Eternal Blossoms 35.6, 26.0" per point (two at most, then "+ n more").
+-- The step's points as links, no coordinates: "Go to: [Alani (north)]
+-- [Alani (south)]". Click one for its waypoint, Shift-click for the map;
+-- hovering shows the zone and coordinates (UI.GuidePointTooltip).
+local function pointName(p)
+  return p.label or (ns.Game.MapName and ns.Game.MapName(p.m)) or tostring(p.m)
+end
+
 function UI.GuidePlaceText(step)
-  local lines = {}
+  local links = {}
   for i, p in ipairs(step and step.gotos or {}) do
-    if i > 2 then
-      lines[#lines + 1] = string.format(L["+ %d more"], #step.gotos - 2)
-      break
-    end
-    local where = ns.Game.MapName and ns.Game.MapName(p.m) or tostring(p.m)
-    local label = p.label and (p.label .. ": ") or ""
-    lines[#lines + 1] = string.format("%s%s %.1f, %.1f", label, where or "", p.x, p.y)
+    links[#links + 1] = string.format("|cff71d5ff|Haddon:MountTrail:goto:%d|h[%s]|h|r", i,
+      (string.gsub(pointName(p), "[|%[%]]", "")))
   end
-  return table.concat(lines, "\n")
+  if #links == 0 then return "" end
+  return L["Go to: "] .. table.concat(links, " ")
+end
+
+-- The active step's point `i`, or nil.
+function UI.GuideStepPoint(i)
+  local entry, n = UI.ActiveGuide()
+  local step = entry and entry.guide.steps[n]
+  return step and step.gotos[i] or nil
+end
+
+-- A point link's tooltip: its name, zone and coordinates, what clicks do.
+function UI.GuidePointTooltip(owner, p)
+  local tip = GameTooltip
+  if not (tip and p) then return end
+  tip:SetOwner(owner, "ANCHOR_CURSOR")
+  tip:SetText(pointName(p), 1, 1, 1)
+  local where = ns.Game.MapName and ns.Game.MapName(p.m)
+  tip:AddLine(string.format("%s %.1f, %.1f", where or tostring(p.m), p.x, p.y), 0.7, 0.7, 0.7)
+  tip:AddLine(L["Click: set the waypoint. Shift-click: open the map."], 0.45, 0.8, 1)
+  tip:Show()
+end
+
+-- A point link's click: its waypoint (TomTom), or the map with Shift.
+function UI.GuidePointClick(p, shift)
+  local map = ns.Map
+  if not (p and map) then return end
+  if shift and map.OpenZone then
+    map.OpenZone(p.m)
+  elseif map.SetWaypointAt then
+    map.SetWaypointAt(p.m, p.x, p.y, pointName(p))
+  end
 end
 
 local function showMenu(owner)

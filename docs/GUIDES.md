@@ -96,7 +96,7 @@ These go under a `step`:
 | Line | Meaning |
 | --- | --- |
 | `note <text>` | An extra grey line under the directions: a tip, a warning, a detail. Use as many as you like. |
-| `goto <map ID> <x> <y> [label]` | A point to go to. Several `goto` lines put several points on TomTom at once (TomTom's arrow picks the closest). The label is what TomTom calls the point. |
+| `goto <map ID> <x> <y> [label]` | A point to go to. Several `goto` lines put several points on TomTom at once (TomTom's arrow picks the closest). The window shows each as a link, `Go to: [label]` (the zone's name without a label): click it for its waypoint, Shift-click for the map, hover for the zone and coordinates. The label is also what TomTom calls the point. |
 | `quest <quest ID>` | Done when that quest is turned in. |
 | `item <item ID> [count]` | Done when that many are in your bags (1 if you leave the count out). |
 | `mount <mount ID>` | Done when you have the mount. |
