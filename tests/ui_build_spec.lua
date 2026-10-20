@@ -1095,6 +1095,8 @@ describe("ui build", function()
     ns.ToggleWindow()
     local frame, panel = ns.UI.frame, ns.UI.zonePanel
     ok(panel and frame.ZoneButton, "panel and toggle built with the window")
+    ok(frame.ZoneButton:GetFrameLevel() >= frame:GetFrameLevel() + 20, "above the window's border art")
+    ok(frame.SettingsButton:GetFrameLevel() >= frame:GetFrameLevel() + 20, "the cogwheel too")
     eq(panel:GetParent(), frame, "child of the window: shown only with it")
     eq({ panel:GetPoint(1) }, { "TOPLEFT", frame, "TOPRIGHT", 2, 0 })
     eq({ panel:GetPoint(2) }, { "BOTTOMLEFT", frame, "BOTTOMRIGHT", 2, 0 })

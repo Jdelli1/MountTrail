@@ -843,6 +843,42 @@ end
 
 local shownSections = {} -- section -> its entries' keys as last shown (the moves' baseline)
 
+-- `keys` with `key` moved to position `to` (1..#keys), held inside its own
+-- part (the favourites, or the rest; isFavorite nil: anywhere) -> the new
+-- keys, or nil when nothing changes.
+function UI.NavMoveTo(keys, key, to, isFavorite)
+  local from
+  for i, k in ipairs(keys) do if k == key then from = i end end
+  if not from then return nil end
+  local lo, hi = 1, #keys
+  if isFavorite then
+    local mine = isFavorite(key) == true
+    lo, hi = nil, nil
+    for i, k in ipairs(keys) do
+      if (isFavorite(k) == true) == mine then
+        lo = lo or i
+        hi = i
+      end
+    end
+  end
+  to = math.max(lo, math.min(hi, to))
+  if to == from then return nil end
+  local out = {}
+  for _, k in ipairs(keys) do if k ~= key then out[#out + 1] = k end end
+  table.insert(out, to, key)
+  return out
+end
+
+-- Where a dragged entry lands among a section's rows (`rects` = { { top =,
+-- bottom = } } top to bottom, screen coordinates) for the cursor at `y`: the
+-- first row whose middle is below the cursor, else the last -> index.
+function UI.NavDropIndex(rects, y)
+  for i, r in ipairs(rects) do
+    if y > (r.top + r.bottom) / 2 then return i end
+  end
+  return #rects
+end
+
 -- Moves an entry of `section` one place and saves the section's order.
 function UI.MoveNavEntry(section, key, delta)
   local keys = shownSections[section]
@@ -1099,7 +1135,19 @@ end
 -- and "All options..." for the AddOns page (UI/Options.lua). Each change
 -- applies at once.
 
+UI.COG_ATLAS = "QuestLog-icon-setting"
 UI.COG_TEXTURE = "Interface\\Buttons\\UI-OptionsButton"
+
+-- Title-bar buttons sit above the window template's border and title art
+-- (Retail draws its NineSlice on a high frame level): the close button's
+-- level, else a margin above the window's.
+function UI.RaiseTitleButton(button, frame)
+  if not (button.SetFrameLevel and frame.GetFrameLevel) then return end
+  local level = frame:GetFrameLevel() + 20
+  local close = frame.CloseButton
+  if close and close.GetFrameLevel and close:GetFrameLevel() > level then level = close:GetFrameLevel() end
+  button:SetFrameLevel(level)
+end
 
 -- The menu's items (rebuilt on each repaint) -> UI.ShowMenu items.
 function UI.SettingsMenuItems()
@@ -1386,14 +1434,29 @@ local function navButton(parent)
       end
       return
     end
+    if self.justDragged then
+      self.justDragged = nil
+      return
+    end
     if PlaySound and SOUNDKIT and SOUNDKIT.IG_CHARACTER_INFO_TAB then PlaySound(SOUNDKIT.IG_CHARACTER_INFO_TAB) end
     UI.NavClick(e)
   end)
+  -- Alt-drag: reorder the entry's section (a gold line shows where it lands).
+  b:RegisterForDrag("LeftButton")
+  b:SetScript("OnDragStart", function(self)
+    local e = self.entry
+    if not (e and e.section and type(IsAltKeyDown) == "function" and IsAltKeyDown()) then return end
+    UI.NavDragStart(self)
+  end)
+  b:SetScript("OnDragStop", function(self) UI.NavDragStop(self) end)
   b:SetScript("OnEnter", function(self)
     local e = self.entry
+    local reorder = e and e.section and ("\n" .. L["Alt-drag (or right-click: Move up / down) to reorder."]) or ""
     if e and e.source then
-      UI.ShowHint(self, e.label, e.source.kind == "list" and L["Click: open. Right-click: pop out, rename or delete"]
-        or L["Click: open. Right-click: pop out"])
+      UI.ShowHint(self, e.label, (e.source.kind == "list" and L["Click: open. Right-click: pop out, rename or delete"]
+        or L["Click: open. Right-click: pop out"]) .. reorder)
+    elseif e and e.section then
+      UI.ShowHint(self, L[e.label] or e.label, L["Alt-drag (or right-click: Move up / down) to reorder."])
     elseif e and e.action == "alts" then
       UI.ShowHint(self, L["Alt lockouts"], L["Opens its own window"])
     elseif e and e.key == "here" then
@@ -1404,6 +1467,59 @@ local function navButton(parent)
   end)
   b:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   return b
+end
+
+-- Alt-drag ------------------------------------------------------------------------
+
+local sectionButtons = {} -- section -> its rows (buttons) as last shown
+
+local function dragTarget(b)
+  local e = b.entry
+  local rows = e and sectionButtons[e.section] or {}
+  local rects = {}
+  for i, r in ipairs(rows) do
+    local top, bottom = r:GetTop(), r:GetBottom()
+    if not (top and bottom) then return nil, rows end
+    rects[i] = { top = top, bottom = bottom }
+  end
+  local x, y = GetCursorPosition and GetCursorPosition()
+  local scale = b.GetEffectiveScale and b:GetEffectiveScale() or 1
+  if type(y) ~= "number" or #rects == 0 then return nil, rows end
+  return UI.NavDropIndex(rects, y / scale), rows
+end
+
+-- Starts an Alt-drag of nav button `b`: the drop line follows the cursor.
+function UI.NavDragStart(b)
+  b.dragging = true
+  local line = nav and nav.DropLine
+  b:SetScript("OnUpdate", function(self)
+    local i, rows = dragTarget(self)
+    if not (line and i and rows[i]) then return end
+    line:ClearAllPoints()
+    local above = rows[i]
+    line:SetPoint("BOTTOMLEFT", above, "TOPLEFT", 4, -1)
+    line:SetPoint("BOTTOMRIGHT", above, "TOPRIGHT", -4, -1)
+    line:Show()
+  end)
+end
+
+-- Ends an Alt-drag: the entry moves where the line was (inside its part:
+-- favourites stay above the rest) and the section's order is saved.
+function UI.NavDragStop(b)
+  if not b.dragging then return end
+  b.dragging = nil
+  b.justDragged = true
+  b:SetScript("OnUpdate", nil)
+  if nav and nav.DropLine then nav.DropLine:Hide() end
+  local e = b.entry
+  local i = dragTarget(b)
+  if not (e and i) then return end
+  local fav = e.section ~= "browse" and UI.IsNavFavorite or nil
+  local moved = UI.NavMoveTo(shownSections[e.section] or {}, e.key, i, fav)
+  if moved then
+    navOrders()[e.section] = moved
+    UI.RefreshNav()
+  end
 end
 
 -- Move up / Move down for an entry of a reorderable section (lists, quick
@@ -1548,6 +1664,12 @@ local function createNav(frame)
   end)
   n.Scroll, n.Content = scroll, content
   n.Buttons, n.Headings = {}, {}
+  -- Where an Alt-dragged entry lands.
+  local dropLine = content:CreateTexture(nil, "OVERLAY")
+  dropLine:SetHeight(2)
+  dropLine:SetColorTexture(1, 0.82, 0, 0.9)
+  dropLine:Hide()
+  n.DropLine = dropLine
 
   local add = UI.FlatButton(content, "+", "gold", 16)
   add:SetWidth(20)
@@ -1595,6 +1717,7 @@ function UI.RefreshNav()
     return cache
   end
   local y, nb, nh = 0, 0, 0
+  for k in pairs(sectionButtons) do sectionButtons[k] = nil end
   -- -> whether the section is collapsed (only for a collapsible `key`).
   local function heading(text, withAdd, key)
     nh = nh + 1
@@ -1645,6 +1768,11 @@ function UI.RefreshNav()
     navFont(b.Text, on and UI.Font("GameFontNormal") or UI.Font("GameFontHighlight"))
     navFont(b.Badge, UI.Font("GameFontDisableSmall"))
     b.selected = on
+    if e.section then
+      sectionButtons[e.section] = sectionButtons[e.section] or {}
+      local list = sectionButtons[e.section]
+      list[#list + 1] = b
+    end
     local rowH = NAV_ROW + math.max(0, UI.NavFontBonus() - 2) + grow("body")
     b:SetHeight(rowH)
     b:Show()
@@ -1818,8 +1946,9 @@ local function createWindow()
   end
   local gear = cog:CreateTexture(nil, "ARTWORK")
   gear:SetAllPoints(cog)
-  gear:SetTexture(UI.COG_TEXTURE)
+  if UI.AtlasExists(UI.COG_ATLAS) then gear:SetAtlas(UI.COG_ATLAS) else gear:SetTexture(UI.COG_TEXTURE) end
   cog.Icon = gear
+  UI.RaiseTitleButton(cog, frame)
   local hl = cog:CreateTexture(nil, "HIGHLIGHT")
   hl:SetAllPoints(cog)
   hl:SetColorTexture(1, 1, 1, 0.15)

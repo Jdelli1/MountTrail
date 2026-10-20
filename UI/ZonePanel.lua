@@ -454,6 +454,7 @@ end
 local function buildButton(frame)
   local b = CreateFrame("Button", nil, frame)
   b:SetSize(BUTTON_SIZE, BUTTON_SIZE)
+  UI.RaiseTitleButton(b, frame)
   if frame.CloseButton then
     b:SetPoint("RIGHT", frame.CloseButton, "LEFT", -2, 0)
   else

@@ -227,6 +227,7 @@ describe("ui", function()
     ns.ToggleWindow()
     local cog = ns.UI.frame.SettingsButton
     ok(cog and cog.Icon.texture == ns.UI.COG_TEXTURE, "a cogwheel")
+    ok(cog:GetFrameLevel() >= ns.UI.frame:GetFrameLevel() + 20, "above the window's border art")
     local shown
     ns.UI.ShowMenu = function(owner, items) shown = type(items) == "function" and items() or items end
     cog:RunScript("OnClick", "LeftButton")
@@ -283,6 +284,20 @@ describe("ui", function()
     local function keys(list) local out = {} for i, e in ipairs(list) do out[i] = e.key end return out end
     eq(keys(ns.UI.ApplyNavOrder({ { key = "x" }, { key = "y" }, { key = "z" } }, { "z", "x" })), { "z", "x", "y" },
       "saved order first, the rest after")
+  end)
+
+  it("UI.NavMoveTo / UI.NavDropIndex: Alt-drag lands where dropped, inside its own part", function()
+    local ns = loadUI()
+    local isFav = function(k) return k == "a" end
+    eq(ns.UI.NavMoveTo({ "a", "b", "c", "d" }, "d", 2, isFav), { "a", "d", "b", "c" })
+    eq(ns.UI.NavMoveTo({ "a", "b", "c", "d" }, "d", 1, isFav), { "a", "d", "b", "c" }, "clamped below the favourite")
+    eq(ns.UI.NavMoveTo({ "a", "b", "c" }, "a", 3, isFav), nil, "a favourite stays among favourites")
+    eq(ns.UI.NavMoveTo({ "a", "b", "c" }, "a", 3), { "b", "c", "a" }, "no favourites: anywhere")
+    eq(ns.UI.NavMoveTo({ "a", "b" }, "x", 1), nil, "unknown key")
+    local rects = { { top = 100, bottom = 80 }, { top = 80, bottom = 60 }, { top = 60, bottom = 40 } }
+    eq(ns.UI.NavDropIndex(rects, 95), 1)
+    eq(ns.UI.NavDropIndex(rects, 75), 2)
+    eq(ns.UI.NavDropIndex(rects, 10), 3, "below the last: the end")
   end)
 
   it("UI.NavSelected / UI.NavListEntries: a list page marks its list; lists then quick lists", function()
