@@ -7,6 +7,7 @@ local ADDON, ns = ...
 --                                            of an expansion (one category, e.g. "rares")
 --   { kind = "zone" }                        the rares of the zone the player is in
 --   { kind = "list", list = id }             a custom list (Logic/Lists.lua)
+--   { kind = "quick", key = }                a quick list (Logic/QuickLists.lua)
 -- Opened by right-clicking a Checklist header (that set), a custom list's
 -- header menu, and /azt rares (the zone's rares). Rows come from the
 -- Checklist (UI.ChecklistBuild), so they match it: a box (a lockout ticked
@@ -53,6 +54,7 @@ UI.ListsDB = listsDB
 function UI.PopoutKey(source)
   if type(source) ~= "table" or not source.kind then return nil end
   if source.kind == "list" then return "list|" .. tostring(source.list) end
+  if source.kind == "quick" then return "quick|" .. tostring(source.key) end
   if source.kind == "zone" then return "zone" end
   local key = source.kind .. "|" .. tostring(source.exp)
   if source.category then key = key .. "|" .. source.category end
@@ -67,6 +69,10 @@ function UI.PopoutTitle(source, store)
     return l and l.name or L["List"]
   end
   if source.kind == "zone" then return L["Rare spawns here"] end
+  if source.kind == "quick" then
+    local q = ns.QuickLists and ns.QuickLists.Get(source.key)
+    return q and L[q.name] or L["List"]
+  end
   local exp = L[source.exp or ""] or tostring(source.exp)
   local title
   if source.kind == "camp" then
@@ -134,8 +140,14 @@ function UI.PopoutRows(source, built, ctx)
         if ids[e.id] and rareLike(e) then add(e) end
       end
     end
-  elseif kind == "list" then
-    local l = ctx.store and ns.Lists.Get(ctx.store, source.list)
+  elseif kind == "list" or kind == "quick" then
+    local ids
+    if kind == "quick" then
+      ids = ns.QuickLists and ns.QuickLists.Mounts(source.key) or {}
+    else
+      local l = ctx.store and ns.Lists.Get(ctx.store, source.list)
+      ids = (l and l.mounts) or {}
+    end
     -- A mount the Checklist tracks shows its lockout; any other mount of
     -- the list is a plain row (done when collected).
     local byMount = {}
@@ -147,7 +159,7 @@ function UI.PopoutRows(source, built, ctx)
       end
     end
     local mounts = (ns.Data and ns.Data.Mounts) or {}
-    for _, id in ipairs((l and l.mounts) or {}) do
+    for _, id in ipairs(ids) do
       local m = mounts[id]
       local mountName = (ns.Game.MountInfo and ns.Game.MountInfo(id)) or (m and m.name) or tostring(id)
       local e = byMount[id]

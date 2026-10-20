@@ -627,3 +627,12 @@ Custom lists (account-wide): the pane's "+ List" opens a flat menu of your lists
 - [ ] Pane > + List > New list... > "WoD loop" > OK: the list exists with the mount; + List again: WoD loop ticked; click it: unticked (menu stays open).
 - [ ] Checklist > My lists: WoD loop with its mounts; right-click it: Pop out / Rename... / Delete... work. Delete... opens a prompt "Delete WoD loop?" with "Type WoD loop to confirm. This can't be undone." and a red Delete button, greyed out until the box holds the list's name (spaces and case don't matter); then the list is deleted and its pop-out closes. Cancel / Escape keeps it.
 - [ ] Menus, the name prompt and the pop-outs' buttons are in the window's flat style (no Blizzard dropdown or dialog art).
+
+## Quick lists
+
+Ready-made lists AzerothTrail works out from its data (Logic/QuickLists.lua), shown in the Checklist above My lists, poppable like a custom list (right-click), not editable. The chip formerly "My lists" is now "Lists" (quick lists, then My lists); under All the quick lists show too unless the Filter's "Show quick lists" is off.
+
+- Mythic Mounts: every dungeon mount that drops on Mythic difficulty (a lockout on difficulty 23): Midnight, Smoldering Ember Wyrm (Return to Karazhan), Sharkbait (Freehold), Tomb Stalker (Kings' Rest), Underrot Crawg, Mechagon Peacekeeper, Aerial Unit R-21/X (Operation: Mechagon), Marrowfang (Necrotic Wake), Cartel Master's Gearglider (Tazavesh), Wick (Darkflame Cleft), Lucent Hawkstrider (Magisters' Terrace), Spectral Hawkstrider (Windrunner Spire), The Writhing Brood (Altar of Fangs). The Encounter Journal's own drop table (JournalItemXDifficulty) lists Mythic for ten of them; the other three come from their lockout data.
+
+- [ ] Checklist > Lists: "Quick lists" with "Mythic Mounts (n left)" and its mounts (the Checklist's weekly lockout rows: ticked when this character is saved); owned mounts ticked. Right-click Mythic Mounts: its pop-out.
+- [ ] Filter > Show quick lists off: they leave All (still on the Lists chip).

@@ -226,6 +226,10 @@ L["/azt options - open the AzerothTrail options (Options > AddOns)"] = "/azt opt
 -- Journal home (front page)
 L["Mount Collection"] = "Mount Collection"
 L["Current zone"] = "Current zone"
+L["Show quick lists"] = "Show quick lists"
+L["Lists"] = "Lists"
+L["Mythic Mounts"] = "Mythic Mounts"
+L["Quick lists"] = "Quick lists"
 L["Type %s to confirm. This can't be undone."] = "Type %s to confirm. This can't be undone."
 L["Plot every open row on TomTom"] = "Plot every open row on TomTom"
 L["Plot all"] = "Plot all"

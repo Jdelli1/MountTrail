@@ -30,6 +30,7 @@ Logic\Achievements.lua
 Logic\Stats.lua
 Logic\Odds.lua
 Logic\Lists.lua
+Logic\QuickLists.lua
 Logic\Search.lua
 Game\API.lua
 Integrations\Map.lua

@@ -375,7 +375,14 @@ describe("custom lists in the pane and the Checklist", function()
     for _, c in ipairs(ns.UI.frame.Contents.checklist.children) do if c.Detail then root = c end end
     local header
     for _, c in ipairs(root.children) do if c.Chips then header = c end end
-    local rows = header.Checklist.ScrollBox.provider.rows
+    local all = header.Checklist.ScrollBox.provider.rows
+    eq(all[1].text, "Quick lists", "quick lists first")
+    eq(all[2].text, "Mythic Mounts")
+    eq(all[2].popout, { kind = "quick", key = "mythic" }, "right-click pops it out")
+    local rows
+    for i, r in ipairs(all) do
+      if r.listsRoot then rows = { unpack(all, i) } end
+    end
     eq(rows[1].text, "My lists")
     eq(rows[2].text, "Loop")
     eq(rows[2].listID, id)
@@ -405,9 +412,10 @@ describe("custom lists in the pane and the Checklist", function()
     for _, c in ipairs(ns.UI.frame.Contents.checklist.children) do if c.Detail then root = c end end
     local header
     for _, c in ipairs(root.children) do if c.Chips then header = c end end
-    local rows = header.Checklist.ScrollBox.provider.rows
+    local listRow
+    for _, r in ipairs(header.Checklist.ScrollBox.provider.rows) do if r.listID == id then listRow = r end end
     local f = CreateFrame("Frame", nil, UIParent)
-    header.Checklist.ScrollBox.view.factory(function(kind, init) init(f, rows[2]) end, rows[2])
+    header.Checklist.ScrollBox.view.factory(function(kind, init) init(f, listRow) end, listRow)
     f:RunScript("OnMouseUp", "RightButton")
     local menu = _G.AzerothTrailMenu
     local del

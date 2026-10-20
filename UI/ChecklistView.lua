@@ -303,6 +303,7 @@ local FILTER_LABELS = {
   raids = "Show raids", dungeons = "Show dungeons", worldbosses = "Show world bosses",
   rares = "Show rares", holidays = "Show holidays", other = "Show other",
   camp = "Show rare spawns (no lockout)",
+  quick = "Show quick lists",
 }
 
 -- UI.CreateFilterDropdown items: a "Show <category>" checkbox per filter key
@@ -450,7 +451,7 @@ local selectedKey -- the selected row's entry key (the detail pane's mount)
 
 -- Chips: which group the list shows.
 local SHOWS = { "all", "daily", "weekly", "camp", "lists" }
-local SHOW_LABELS = { all = "All", daily = "Daily", weekly = "Weekly", camp = "Rare spawns", lists = "My lists" }
+local SHOW_LABELS = { all = "All", daily = "Daily", weekly = "Weekly", camp = "Rare spawns", lists = "Lists" }
 
 -- The group shown (ns.db.char.checklistShow), "all" by default.
 function view.Show()
@@ -475,7 +476,7 @@ function UI.ChecklistLeft(built, filters)
     daily = C.Remaining({ daily = built.daily or {} }, filters),
     weekly = C.Remaining({ weekly = built.weekly or {} }, filters),
     camp = C.CampLeft(built, filters),
-    lists = store and #ns.Lists.Sorted(store) or 0,
+    lists = (store and #ns.Lists.Sorted(store) or 0) + (ns.QuickLists and #ns.QuickLists.LISTS or 0),
   }
 end
 
@@ -662,6 +663,7 @@ end
 -- of the expansion; a category under them -> just that category.
 function UI.ChecklistPopout(row)
   if not (row and row.header) then return nil end
+  if row.quickKey then return { kind = "quick", key = row.quickKey } end
   if row.camp then
     if (row.depth or 1) <= 1 then return { kind = "zone" } end
     if row.exp then return { kind = "camp", exp = row.exp } end
@@ -672,6 +674,34 @@ function UI.ChecklistPopout(row)
     return { kind = row.reset, exp = row.exp }
   end
   return nil
+end
+
+-- The "Quick lists" group (Logic/QuickLists.lua): a header, then per quick
+-- list a sub-header (its mounts left; right-click pops it out) and its
+-- mounts, as a custom list's.
+local function quickRows(built, collapsed)
+  local Q = ns.QuickLists
+  if not (Q and UI.PopoutRows) then return {} end
+  local rootKey = "checklist|quick"
+  local rootCollapsed = collapsed[rootKey] == true
+  local out = { { header = true, depth = 1, key = rootKey, text = L["Quick lists"], collapsed = rootCollapsed } }
+  if rootCollapsed then return out end
+  local char = ns.db and ns.db.char
+  for _, q in ipairs(Q.LISTS) do
+    local rows, left = UI.PopoutRows({ kind = "quick", key = q.key }, built, {
+      campStore = char and char.campChecked, isOwned = ns.Game.IsOwned,
+    })
+    local key = rootKey .. "|" .. q.key
+    local isCollapsed = collapsed[key] == true
+    out[#out + 1] = { header = true, depth = 2, key = key, text = L[q.name], left = left, collapsed = isCollapsed,
+      quickKey = q.key }
+    if not isCollapsed then
+      for _, r in ipairs(rows) do
+        out[#out + 1] = { id = r.id, m = r.entry.m, entry = r.entry, done = r.done, camp = r.camp, depth = 2 }
+      end
+    end
+  end
+  return out
 end
 
 -- The "My lists" group: a header, then per custom list a sub-header (its
@@ -882,10 +912,14 @@ function view.Refresh()
     label = function(reset) return UI.ChecklistHeaderLabel(reset, untilDaily, untilWeekly) end,
     status = UI.ChecklistStatusOf(statusTexts),
   })
-  -- My lists: always on its own chip (its header starts a list); under
-  -- All once there is a list.
+  -- Lists: the quick lists, then My lists - always on the Lists chip (My
+  -- lists' header starts a list); under All the quick lists, and My lists
+  -- once there is one.
   local store = UI.ListsDB and UI.ListsDB()
   local hasLists = store ~= nil and #ns.Lists.Sorted(store) > 0
+  if show == "lists" or (show == "all" and ns.Checklist.Shown(filters, "quick")) then
+    for _, row in ipairs(quickRows(built, collapsedDB() or {})) do rows[#rows + 1] = row end
+  end
   if show == "lists" or (show == "all" and hasLists) then
     for _, row in ipairs(listRows(built, collapsedDB() or {})) do rows[#rows + 1] = row end
   end
