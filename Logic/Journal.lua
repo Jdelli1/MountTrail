@@ -311,7 +311,9 @@ function Journal.Select(mounts, query)
       local owned = gate(id, m, isOwned, exists, query.faction, showUnobtainable)
       if owned ~= nil and (showCollected or not owned) then
         local keep = true
-        if needle then
+        if query.match then
+          keep = query.match[id] == true
+        elseif needle then
           keep = (m.name or ""):lower():find(needle, 1, true) ~= nil
             or (m.group or ""):lower():find(needle, 1, true) ~= nil
         end

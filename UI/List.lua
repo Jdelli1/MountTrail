@@ -495,7 +495,11 @@ end
 -- any list's search box: the mounts of `ids` (a list of mount IDs) that
 -- match `search` -> { [mountID] = true }, or nil when the search is empty
 -- (everything matches). `cache` (optional): prepared fields by mount ID.
-function UI.SearchMatches(ids, search, sourceText, cache)
+-- When none of `ids` match but the search names a place (icc, a boss, a
+-- zone) whose mounts are mostly of one expansion, the mounts of `ids` of that
+-- expansion match instead (icc on Vendors: the Wrath vendors); the second
+-- result is then that expansion (m.exp).
+function UI.SearchMatches(ids, search, sourceText, cache, noFallback)
   if type(search) ~= "string" or not string.find(search, "%S") or not ns.Search then return nil end
   local mounts = (ns.Data and ns.Data.Mounts) or {}
   local subset = {}
@@ -511,7 +515,38 @@ function UI.SearchMatches(ids, search, sourceText, cache)
   })) do
     found[r.id] = true
   end
+  if noFallback or next(found) or not ids or #ids == 0 then return found end
+  local exp = UI.SearchExpansion(search, sourceText, cache)
+  if exp then return UI.SearchMatches(ids, L[exp] or exp, sourceText, cache, true), exp end
   return found
+end
+
+-- The expansion a search points at over every mount: the m.exp of at least
+-- half its outright place matches (boss, instance, zone, achievement) ->
+-- m.exp, or nil.
+function UI.SearchExpansion(search, sourceText, cache)
+  if not ns.Search then return nil end
+  local mounts = (ns.Data and ns.Data.Mounts) or {}
+  local ctx = { sourceText = sourceText, mapName = ns.Game and ns.Game.MapName }
+  local counts, total = {}, 0
+  for _, r in ipairs(ns.Search.Select(mounts, {
+    search = search, cache = cache,
+    gate = function() return false end,
+    fields = function(id, m) return UI.SearchFields(id, m, ctx) end,
+  })) do
+    -- Only where a place matched outright (a word or abbreviation, no typos).
+    if r.field ~= "name" and r.field ~= "expansion" and r.score >= 3 * r.matched then
+      local exp = mounts[r.id] and mounts[r.id].exp
+      total = total + 1
+      if exp then counts[exp] = (counts[exp] or 0) + 1 end
+    end
+  end
+  local best, n = nil, 0
+  for exp, c in pairs(counts) do
+    if c > n or (c == n and best and exp < best) then best, n = exp, c end
+  end
+  if best and n * 2 >= total then return best end
+  return nil
 end
 
 -- Searchable text of a mount for Search.Select -> { name =, boss =,
@@ -1968,6 +2003,13 @@ function UI.List(parent, getQuery, opts)
     end
 
     local select = (opts and opts.select) or ns.Journal.Select
+    if not (opts and opts.select) and UI.SearchMatches then
+      -- The home page's fuzzy search on the views' own pages too.
+      self.searchCache = self.searchCache or {}
+      local ids = {}
+      for id in pairs((ns.Data and ns.Data.Mounts) or {}) do ids[#ids + 1] = id end
+      query.match = UI.SearchMatches(ids, query.search, query.sourceText, self.searchCache)
+    end
     local selected = select((ns.Data and ns.Data.Mounts) or {}, query)
     local rows = UI.ListRows(selected, query.isOwned, {
       headerSuffix = opts and opts.headerSuffix,

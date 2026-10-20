@@ -1345,7 +1345,7 @@ describe("lists in the navigation column", function()
     menuOf("Mythic Mounts")["Move up"].onClick()
     eq(order({ "Rare spawns", "Mythic Mounts" }), { "Mythic Mounts", "Rare spawns" }, "quick lists")
     menuOf("PvP")["Move up"].onClick()
-    eq(order({ "Shop & Trading Post", "PvP" }), { "PvP", "Shop & Trading Post" }, "Browse")
+    eq(order({ "Trading Post", "PvP" }), { "PvP", "Trading Post" }, "Browse")
     ok(ns.db.global.navOrder.browse and ns.db.global.navOrder.lists, "saved")
   end)
 
