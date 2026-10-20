@@ -172,7 +172,10 @@ local function build()
   local nextButton = UI.FlatButton(w, L["Next"], "gold", 22)
   nextButton:SetWidth(80)
   nextButton:SetPoint("BOTTOMRIGHT", w, "BOTTOMRIGHT", -PAD, 6)
-  nextButton:SetScript("OnClick", function() UI.GuideGo(1) end)
+  -- On the last step it reads Finish and closes the guide.
+  nextButton:SetScript("OnClick", function(self)
+    if self.finish then UI.FinishGuide() else UI.GuideGo(1) end
+  end)
   w.Next = nextButton
   w:Hide()
   return w
@@ -267,9 +270,10 @@ function UI.RefreshGuideWindow()
   w.Title:SetText(entry.title)
   w.Count:SetText(string.format(L["%d / %d"], n, #steps))
   w.Back:SetEnabled(n > 1)
-  w.Next:SetEnabled(n < #steps)
   if w.Back.SetAlpha then w.Back:SetAlpha(n > 1 and 1 or 0.4) end
-  if w.Next.SetAlpha then w.Next:SetAlpha(n < #steps and 1 or 0.4) end
+  w.Next.finish = n >= #steps
+  UI.FlatButtonSetText(w.Next, w.Next.finish and L["Finish"] or L["Next"])
+  w.Next:SetWidth(80)
   if UI.GuideWindowCompact() then paintCompact(entry, n, step) else paintFull(entry, n) end
 end
 

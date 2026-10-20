@@ -210,6 +210,17 @@ function UI.StopGuide()
   changed()
 end
 
+-- Finish (the last step's button): closes the guide; the next time it starts
+-- from step 1 again.
+function UI.FinishGuide()
+  local entry = UI.ActiveGuide()
+  local state = charState()
+  if not (entry and state) then return end
+  say(string.format(L["Guide finished: %s"], entry.title))
+  state.steps[entry.id] = nil
+  UI.StopGuide()
+end
+
 -- Back to step 1 (and plots it when it is the active guide).
 function UI.ResetGuide(id)
   local state = charState()

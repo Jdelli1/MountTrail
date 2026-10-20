@@ -351,7 +351,8 @@ to go (plotted on TomTom), and when a step is done.
 - The **Guides** section of the navigation column lists them. Click one to
   follow it: a small window shows the current step (or every step: right-click
   its title), with **Back** and **Next**. Next plots the next step's points;
-  Back takes them off and returns to the step before. Each character keeps its
+  Back takes them off and returns to the step before; on the last step Next
+  reads **Finish** and closes the guide. Each character keeps its
   own place in every guide, and the guide comes back after a /reload.
 - A step moves on by itself when its done lines hold (a quest turned in, items
   in your bags, the mount learned, a spot reached), except right after Back.
