@@ -9,7 +9,7 @@ local ADDON, ns = ...
 -- attempts, lockout, achievement) and "Where to find it": each NPC behind
 -- the mount (Map.Spots: the vendor, a rare) by name, its zones and how
 -- many spawn points - all in a scrolling area. No buttons: the list's rows
--- do it (UI.PaneRowClick: left-click plot, Shift map, Ctrl achievement).
+-- do it (UI.PaneRowClick: right-click plots, Shift map, Ctrl achievement).
 --   local pane = UI.CreateDetailPane(parent)
 --   pane:SetMount(mountID[, routeBoss])   -- nil: empty
 --   pane:Refresh()                        -- same mount, fresh numbers
@@ -205,7 +205,7 @@ local function layoutInfo(pane, content)
     end
   end
   -- Where to find it: each NPC, its zones and how many spawn points (a
-  -- left-click on the row plots them all).
+  -- right-click on the row plots them all).
   if content.spots and #content.spots > 0 then
     y = y + 6
     place(L["Where to find it"], 1, 0.82, 0)

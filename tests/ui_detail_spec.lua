@@ -187,12 +187,12 @@ describe("detail pane", function()
     ns.UI.ShowMountTooltip = old
     eq(shown, false, "the pane replaces the hover tooltip")
     local hint = ns.UI.PaneRowHint(3)
-    ok(not hint:find("Left-click", 1, true), "no location, no achievement: no plain click line")
+    ok(hint:find("Left-click", 1, true) and not hint:find("Right-click", 1, true), "no location, no achievement: just view")
     ok(not hint:find("Shift-click", 1, true), "nor the map")
     ok(hint:find("Ctrl-click", 1, true) and hint:find("preview", 1, true), hint)
   end)
 
-  it("a plain left-click on an achievement mount selects it and opens its achievement", function()
+  it("a plain left-click on an achievement mount only selects it; right-click with nowhere to go opens the achievement", function()
     local ns = loadUI()
     local list = makeList(ns)
     local opened
@@ -200,8 +200,11 @@ describe("detail pane", function()
     ns.AchievementScan.Lookup = function(id) if id == 2 then return 77, "ready" end return nil, "none" end
     local row = CreateFrame("Button")
     ns.UI.InitMountRow(row, mountRows(list)[2])
+    ns.Map.HasLocation = function() return false end
     row:RunScript("OnClick", "LeftButton")
     eq(list.selectedID, 2)
+    eq(opened, nil, "left-click: view only")
+    row:RunScript("OnClick", "RightButton")
     eq(opened, 77)
     opened = nil
     ns.UI.InitMountRow(row, mountRows(list)[1])
@@ -261,7 +264,7 @@ describe("detail pane", function()
     ok(list2.Detail.BigIcon:IsShown())
   end)
 
-  it("row clicks: plain plots, Shift opens the map, Ctrl the achievement; the hover lists them", function()
+  it("row clicks: plain views, right-click plots, Shift opens the map, Ctrl the achievement; the hover lists them", function()
     local ns = loadUI()
     local list = makeList(ns)
     local calls = {}
@@ -273,6 +276,8 @@ describe("detail pane", function()
     local row = CreateFrame("Button")
     ns.UI.InitMountRow(row, mountRows(list)[1])
     row:RunScript("OnClick", "LeftButton")
+    eq(calls, {}, "a plain click only views")
+    row:RunScript("OnClick", "RightButton")
     IsShiftKeyDown = function() return true end
     row:RunScript("OnClick", "LeftButton")
     IsShiftKeyDown = nil
@@ -328,8 +333,8 @@ describe("detail pane", function()
     ns.UI.GoTo = function(id) went = id end
     local row = CreateFrame("Button")
     ns.UI.InitMountRow(row, mountRows(list)[1])
-    row:RunScript("OnClick", "LeftButton")
-    eq(went, 1, "a row's left-click is the one go-to")
+    row:RunScript("OnClick", "RightButton")
+    eq(went, 1, "a row's right-click is the one go-to")
   end)
 
   it("a row click plots every spawn point when the rare has several (map tab, zone panel)", function()

@@ -1217,21 +1217,23 @@ local function hasAchievement(mountID)
   return scan and scan.Lookup and scan.Lookup(mountID) ~= nil or false
 end
 
--- What the modifiers do on such a row: "waypoint" (plain; the zone map for
--- an unknown event, the achievement when there is nowhere to go), "map"
--- (Shift) or "achievement" (Ctrl; the preview when it has none) -> action.
-function UI.PaneRowAction(mountID, ctrl, shift, routeBoss, eventMap)
+-- What a click does on such a row (it also selects it): a plain left-click
+-- only selects (nil); right-click "waypoint" (the zone map for an unknown
+-- event, the achievement when there is nowhere to go); Shift "map"; Ctrl
+-- "achievement" (the preview when it has none) -> action.
+function UI.PaneRowAction(mountID, button, ctrl, shift, routeBoss, eventMap)
   if ctrl then return hasAchievement(mountID) and "achievement" or "preview" end
   if shift then return "map" end
+  if button ~= "RightButton" then return nil end
   if eventMap or UI.HasLocation(mountID, routeBoss) then return "waypoint" end
   return hasAchievement(mountID) and "achievement" or nil
 end
 
--- A left-click on a row of a list with the detail pane (after selecting it).
-function UI.PaneRowClick(mountID, routeBoss, eventMap)
+-- A click on a row of a list with the detail pane (after selecting it).
+function UI.PaneRowClick(mountID, routeBoss, eventMap, button)
   local ctrl = type(IsControlKeyDown) == "function" and IsControlKeyDown() and true or false
   local shift = type(IsShiftKeyDown) == "function" and IsShiftKeyDown() and true or false
-  local action = UI.PaneRowAction(mountID, ctrl, shift, routeBoss, eventMap)
+  local action = UI.PaneRowAction(mountID, button or "LeftButton", ctrl, shift, routeBoss, eventMap)
   trace("pane click on mount %s -> %s", tostring(mountID), tostring(action))
   if action == "waypoint" and eventMap and UI.OpenEventMap then
     UI.OpenEventMap(eventMap)
@@ -1257,14 +1259,15 @@ function UI.PaneRowHint(mountID, routeBoss, eventMap)
   local achievement = hasAchievement(mountID)
   local map = ns.Map
   local n = located and map and map.PlotCount and map.PlotCount(mountID, routeBoss) or 0
+  add(L["Left-click"], L["view"])
   if eventMap then
-    add(L["Left-click"], L["open the zone map"])
+    add(L["Right-click"], L["open the zone map"])
   elseif n > 1 then
-    add(L["Left-click"], string.format(L["plot all %d spawn points"], n))
+    add(L["Right-click"], string.format(L["plot all %d spawn points"], n))
   elseif located then
-    add(L["Left-click"], L["plot the coordinates"])
+    add(L["Right-click"], L["plot the coordinates"])
   elseif achievement then
-    add(L["Left-click"], L["view the achievement"])
+    add(L["Right-click"], L["view the achievement"])
   end
   if located then add(L["Shift-click"], L["show on the map"]) end
   if achievement then
@@ -1594,13 +1597,13 @@ local function setupRow(row)
     UI.HideHint(self)
   end)
   row:SetScript("OnClick", function(self, button)
-    -- In a list with the detail pane a left-click also selects the row
-    -- (UI.PaneRowClick). Otherwise: left-click waypoint (or the
+    -- In a list with the detail pane any click selects the row, then
+    -- UI.PaneRowClick (right-click plots, Shift map, Ctrl achievement). Otherwise: left-click waypoint (or the
     -- achievement), Shift+left-click world map, Ctrl+left-click preview,
     -- Shift+right-click achievement (UI.RowClickAction).
-    if self.onSelect and button == "LeftButton" and self.mountID then
+    if self.onSelect and self.mountID and (button == "LeftButton" or button == "RightButton") then
       self.onSelect(self.mountID, self)
-      UI.PaneRowClick(self.mountID, self.routeBoss, self.eventMap)
+      UI.PaneRowClick(self.mountID, self.routeBoss, self.eventMap, button)
       return
     end
     UI.HandleRowClick(self.mountID, button, self.routeBoss, self.eventMap)
