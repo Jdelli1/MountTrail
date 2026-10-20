@@ -19,7 +19,7 @@ step Travel to the **Vale of Eternal Blossoms** in Pandaria
   goto 390 56.2 42.6 Vale of Eternal Blossoms
   reach 200
 
--- 2. The shards: no done line the game can check, so press Next.
+-- 2. The shards: moves on once ten Skyshards are in your bags.
 step Kill mobs in the Vale until you have **ten** [item:86547]
   note Skyshards are a **rare** drop from any mob in the Vale
   note Ten of them combine into a [item:86546]

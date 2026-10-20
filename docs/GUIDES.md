@@ -288,7 +288,7 @@ Midnight keeps some things away from addons, so guides work around them:
 The built-in Thundering Ruby Cloud Serpent guide
 (`Guides/ThunderingRubyCloudSerpent.lua`) uses every feature: authors and
 credits, comments, highlighting, links, several points in one step, a macro,
-and done lines (`reach`, `mount`) next to steps that wait for Next.
+and done lines (`reach`, `item`, `mount`) next to steps that wait for Next.
 
 ```
 #guide Thundering Ruby Cloud Serpent
@@ -304,7 +304,7 @@ step Travel to the **Vale of Eternal Blossoms** in Pandaria
   goto 390 56.2 42.6 Vale of Eternal Blossoms
   reach 200
 
--- 2. The shards: no done line the game can check, so press Next.
+-- 2. The shards: moves on once ten Skyshards are in your bags.
 step Kill mobs in the Vale until you have **ten** [item:86547]
   note Skyshards are a **rare** drop from any mob in the Vale
   note Ten of them combine into a [item:86546]
