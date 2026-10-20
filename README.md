@@ -220,6 +220,11 @@ Where a waypoint goes:
 
 ## Pop-outs
 
+**Wrong-difficulty warning**: with a pop-out open, zoning into a raid or
+dungeon (or changing its difficulty) checks the pop-out's mounts: one that
+drops in this instance but not on this difficulty gets a warning before you
+pull (Options: `Warn about the wrong difficulty`).
+
 A pop-out is a small window that stays on screen without the main window. Open
 as many as you like; they come back after /reload.
 
@@ -330,6 +335,7 @@ window's title bar has the same settings, plus `Reset text sizes` and
 | `Navigation text size` | The navigation column's text, +0 to +6. |
 | `Show My lists`, `Show Quick lists` | Show or hide those navigation sections. |
 | `Colour pop-out names by rarity` | Off by default; needs Mount Journal Enhanced or MountsRarity. |
+| `Warn about the wrong difficulty` | On by default: entering an instance on a difficulty where a mount in your open pop-outs does not drop (Normal instead of Heroic, Heroic instead of Mythic, 10 instead of 25...) shows a warning on screen and in chat, e.g. "Wrong difficulty for Invincible: you are on 25 Player, it drops on 25 Player (Heroic)." Once per instance and difficulty; mounts you own are left out. |
 | `Show minimap button` | Shows or hides the minimap button. |
 | Debug messages | The same as `/mtrail debug`. |
 

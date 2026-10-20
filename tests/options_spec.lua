@@ -119,6 +119,8 @@ describe("options", function()
         { "Checkbox", "MOUNTTRAIL_UNOBTAINABLE" },
         { "Setting", "MOUNTTRAIL_RARITY_COLORS" },
         { "Checkbox", "MOUNTTRAIL_RARITY_COLORS" },
+        { "Setting", "MOUNTTRAIL_DIFFICULTY_WARNING" },
+        { "Checkbox", "MOUNTTRAIL_DIFFICULTY_WARNING" },
         { "Setting", "MOUNTTRAIL_WINDOW_SCALE" },
         { "Slider", "MOUNTTRAIL_WINDOW_SCALE" },
         { "Setting", "MOUNTTRAIL_TEXT_HEADER" },

@@ -830,3 +830,33 @@ function Game.MakeMacro(name, body)
   if type(PickupMacro) == "function" then pcall(PickupMacro, name) end
   return true
 end
+
+-- Where the player is: instance ID (GetInstanceInfo's 8th return, the saved
+-- instance's ID), difficulty ID; nil outside instances.
+function Game.CurrentInstance()
+  if type(GetInstanceInfo) ~= "function" then return nil end
+  local good, _, instanceType, difficultyID, _, _, _, _, instanceID = pcall(GetInstanceInfo)
+  if not good or instanceType == "none" or not instanceID or not difficultyID or difficultyID == 0 then return nil end
+  return instanceID, difficultyID
+end
+
+-- A difficulty's name ("25 Player (Heroic)"), or nil.
+function Game.DifficultyName(difficultyID)
+  if type(GetDifficultyInfo) ~= "function" then return nil end
+  local good, name = pcall(GetDifficultyInfo, difficultyID)
+  return good and type(name) == "string" and name ~= "" and name or nil
+end
+
+-- A big warning in the middle of the screen (the raid warning frame) and its
+-- sound; false when the client has neither.
+function Game.ScreenWarning(text)
+  local shown = false
+  if type(RaidNotice_AddMessage) == "function" and RaidWarningFrame then
+    local info = type(ChatTypeInfo) == "table" and ChatTypeInfo.RAID_WARNING or { r = 1, g = 0.3, b = 0.1 }
+    shown = pcall(RaidNotice_AddMessage, RaidWarningFrame, text, info)
+  end
+  if type(PlaySound) == "function" and type(SOUNDKIT) == "table" and SOUNDKIT.RAID_WARNING then
+    pcall(PlaySound, SOUNDKIT.RAID_WARNING)
+  end
+  return shown
+end

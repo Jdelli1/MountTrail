@@ -424,6 +424,8 @@ function UI.SettingsMenuItems()
     function() O.Set("showUnobtainable", not (saved.showUnobtainable == true)) end)
   items[#items + 1] = check(L["Colour pop-out names by rarity"], saved.rarityColors == true,
     function() O.Set("rarityColors", not (saved.rarityColors == true)) end)
+  items[#items + 1] = check(L["Warn about the wrong difficulty"], saved.difficultyWarnOff ~= true,
+    function() O.Set("difficultyWarning", saved.difficultyWarnOff == true) end)
   items[#items + 1] = check(L["Show My lists"], saved.navHideLists ~= true,
     function() O.Set("showLists", saved.navHideLists == true) end)
   items[#items + 1] = check(L["Show Quick lists"], saved.navHideQuick ~= true,

@@ -160,3 +160,40 @@ function Lockouts.State(spec, snap, isQuestDone, isLfgDone)
   end
   return "open"
 end
+
+-- Wrong-difficulty check (UI/DifficultyCheck.lua) ------------------------------
+
+-- The difficulty IDs a spec's mount drops on (its groups flattened) -> set.
+function Lockouts.DropDifficulties(spec)
+  local set = {}
+  for _, group in ipairs(type(spec) == "table" and spec.difficulties or {}) do
+    if type(group) == "table" then
+      for _, d in ipairs(group) do set[d] = true end
+    else
+      set[group] = true
+    end
+  end
+  return set
+end
+
+-- The mounts of `mountIDs` that drop in instance `instanceID` but not on
+-- `difficultyID` -> { { id =, spec =, wanted = { difficulty IDs, sorted } } }.
+-- specFor(mountID) -> spec (Lockouts.SpecFor); a mount without an instance
+-- spec, or one that drops on this difficulty, is left out.
+function Lockouts.WrongDifficulty(mountIDs, instanceID, difficultyID, specFor)
+  local out = {}
+  if not (instanceID and difficultyID) then return out end
+  for _, id in ipairs(mountIDs or {}) do
+    local spec = specFor(id)
+    if type(spec) == "table" and spec.instance == instanceID and type(spec.difficulties) == "table" then
+      local set = Lockouts.DropDifficulties(spec)
+      if next(set) and not set[difficultyID] then
+        local wanted = {}
+        for d in pairs(set) do wanted[#wanted + 1] = d end
+        table.sort(wanted)
+        out[#out + 1] = { id = id, spec = spec, wanted = wanted }
+      end
+    end
+  end
+  return out
+end

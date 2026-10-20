@@ -57,6 +57,7 @@ UI\LockoutHelpers.lua
 UI\ChecklistView.lua
 UI\AltsWindow.lua
 UI\Popouts.lua
+UI\DifficultyCheck.lua
 UI\HereView.lua
 UI\BrowseView.lua
 UI\Share.lua

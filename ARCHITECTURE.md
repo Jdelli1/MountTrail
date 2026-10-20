@@ -111,6 +111,7 @@ changed addon gives `nil`, never an error.
 | `Popouts.lua` | Pop-out windows, their styles, snapping and order. |
 | `HereView.lua` | The Current Zone view. |
 | `BrowseView.lua` | Browse-by-source pages. |
+| `DifficultyCheck.lua` | The wrong-difficulty warning: on entering an instance, the open pop-outs' mounts that drop here but not on this difficulty (`Lockouts.WrongDifficulty`). |
 | `Share.lua` | Sharing lists: export / import boxes, chat links (clicking asks the sharer's addon), Send to player, the `CHAT_MSG_ADDON` handler. |
 | `Guides.lua` | Following guides: the library (built-in + the player's), each character's step, Next / Back, plotting, auto-advance. |
 | `GuideWindow.lua` | The guide window (current step or every step) and a guide's menu. |
@@ -189,7 +190,7 @@ created on first use by their owner.
 | --- | --- | --- |
 | `global.filters` | `Logic/Journal.lua`, `UI/List.lua` | `collected` plus hidden sections per view. |
 | `global.collapsed` | `UI/List.lua` and every collapsible list | Collapsed headers, `"<view>|<exp>|<section>"`, `"checklist|..."`, `"alts|..."`, `"nav|..."`. |
-| `global.settings` | `UI/Options.lua` | `showUnobtainable`, `rarityColors`, `windowScale`, `navTextSize`, `textHeader` / `textBody` / `textDetail`, `navHideLists`, `navHideQuick`; `checklistShowDone` (Lockouts' Show completed, `UI/ChecklistView.lua`). |
+| `global.settings` | `UI/Options.lua` | `showUnobtainable`, `rarityColors`, `windowScale`, `navTextSize`, `textHeader` / `textBody` / `textDetail`, `navHideLists`, `navHideQuick`; `checklistShowDone` (Lockouts' Show completed, `UI/ChecklistView.lua`); `difficultyWarnOff` (the wrong-difficulty warning switched off, `UI/DifficultyCheck.lua`). |
 | `global.window` | `UI/Frame.lua` | Current view (`tab`), position, `width` / `height`, `navWidth`, `paneWidth`, `browse` category. |
 | `global.navOrder`, `global.navFavorites` | `UI/Nav.lua` | Section order per section; favourite stars. |
 | `global.lists`, `global.seededLists` | `Logic/Lists.lua`, `Logic/QuickLists.lua` | Custom lists; which example lists were already seeded. |

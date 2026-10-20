@@ -327,6 +327,13 @@ L["reach needs a goto in the same step"] = "reach needs a goto in the same step"
 L["goto needs a map ID, then x and y"] = "goto needs a map ID, then x and y"
 L["goto's x and y go from 0 to 100"] = "goto's x and y go from 0 to 100"
 
+-- Wrong-difficulty warning (UI\DifficultyCheck.lua)
+L[" or "] = " or "
+L["Wrong difficulty for %s: you are on %s, it drops on %s."] = "Wrong difficulty for %s: you are on %s, it drops on %s."
+L["Wrong difficulty for %d mounts in your pop-outs: see chat."] = "Wrong difficulty for %d mounts in your pop-outs: see chat."
+L["Warn about the wrong difficulty"] = "Warn about the wrong difficulty"
+L["Entering an instance on a difficulty where a mount in your open pop-outs does not drop (Normal instead of Heroic, Heroic instead of Mythic...) shows a warning."] = "Entering an instance on a difficulty where a mount in your open pop-outs does not drop (Normal instead of Heroic, Heroic instead of Mythic...) shows a warning."
+
 -- Options page (UI\Options.lua)
 L["Show minimap button"] = "Show minimap button"
 L["Show the MountTrail button on the minimap."] = "Show the MountTrail button on the minimap."

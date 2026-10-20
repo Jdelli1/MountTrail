@@ -35,6 +35,7 @@ Options.WINDOW_SCALE = "MOUNTTRAIL_WINDOW_SCALE"
 Options.SHOW_LISTS = "MOUNTTRAIL_SHOW_LISTS"
 Options.SHOW_QUICK = "MOUNTTRAIL_SHOW_QUICK"
 Options.NAV_TEXT = "MOUNTTRAIL_NAV_TEXT"
+Options.DIFFICULTY_WARNING = "MOUNTTRAIL_DIFFICULTY_WARNING"
 
 -- Slider ranges (whole percent for the scale).
 Options.SCALE_RANGE = { min = 80, max = 150, step = 5 }
@@ -126,6 +127,18 @@ local function setRarityColors(on)
   ns.Refresh()
 end
 
+-- Whether the wrong-difficulty warning is on (UI/DifficultyCheck.lua; on by
+-- default: stored as settings.difficultyWarnOff).
+function Options.DifficultyWarning()
+  local global = ns.db and ns.db.global
+  local saved = global and global.settings
+  return not (type(saved) == "table" and saved.difficultyWarnOff == true)
+end
+
+local function setDifficultyWarning(on)
+  settings().difficultyWarnOff = (not on) or nil
+end
+
 local function setWindowScale(pct)
   settings().windowScale = clamp(pct, Options.SCALE_RANGE, 100)
   if ns.UI and ns.UI.ApplyWindowScale then ns.UI.ApplyWindowScale() end
@@ -156,6 +169,7 @@ function Options.Set(name, value)
   elseif name == "navTextSize" then setNavTextSize(value)
   elseif name == "showUnobtainable" then setUnobtainable(value)
   elseif name == "rarityColors" then setRarityColors(value)
+  elseif name == "difficultyWarning" then setDifficultyWarning(value)
   elseif name == "minimap" then Options.SetMinimap(value)
   elseif name == "showLists" or name == "showQuick" then
     -- Stored as "hide" flags, so a missing value (the default) shows them.
@@ -163,7 +177,7 @@ function Options.Set(name, value)
     if ns.UI and ns.UI.RefreshNav then ns.UI.RefreshNav() end
   end
   for _, var in pairs({ Options.WINDOW_SCALE, Options.NAV_TEXT, Options.UNOBTAINABLE, Options.RARITY_COLORS,
-    Options.MINIMAP, Options.SHOW_LISTS, Options.SHOW_QUICK }) do
+    Options.MINIMAP, Options.SHOW_LISTS, Options.SHOW_QUICK, Options.DIFFICULTY_WARNING }) do
     Options.Changed(var)
   end
 end
@@ -226,6 +240,11 @@ local function build(api)
     L["Colour pop-out names by rarity"], false, Options.RarityColors, setRarityColors)
   api.CreateCheckbox(category, rarity,
     L["Colour each pop-out row by how many characters own the mount (legendary under 2 %, epic under 10 %, rare under 20 %, uncommon under 50 %). Needs Mount Journal Enhanced or the MountsRarity add-on."])
+
+  local difficulty = api.RegisterProxySetting(category, Options.DIFFICULTY_WARNING, VarType.Boolean or "boolean",
+    L["Warn about the wrong difficulty"], true, Options.DifficultyWarning, setDifficultyWarning)
+  api.CreateCheckbox(category, difficulty,
+    L["Entering an instance on a difficulty where a mount in your open pop-outs does not drop (Normal instead of Heroic, Heroic instead of Mythic...) shows a warning."])
 
   -- The sliders, on clients that have them.
   if type(api.CreateSlider) == "function" and type(api.CreateSliderOptions) == "function" then
