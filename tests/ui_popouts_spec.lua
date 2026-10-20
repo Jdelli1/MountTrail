@@ -1634,3 +1634,24 @@ describe("header and text colours stay apart", function()
     ok(same(fs.textColor, BLUE))
   end)
 end)
+
+describe("menus fit their text", function()
+  it("a long line widens the menu; one past the cap wraps onto more rows", function()
+    local ns = loadUI()
+    local oldW, oldH = RegionMT.GetStringWidth, RegionMT.GetStringHeight
+    RegionMT.GetStringWidth = function(self) return #(self.text or "") * 6 end
+    RegionMT.GetStringHeight = function(self)
+      local w = self.width and self.width > 0 and self.width or math.huge
+      return math.ceil((#(self.text or "") * 6) / w) * 12
+    end
+    local owner = CreateFrame("Button", nil, UIParent)
+    local menu = ns.UI.ShowMenu(owner, { { title = "Short" }, { text = "Go" } })
+    eq(menu.width, 190, "short items: the usual width")
+    menu = ns.UI.ShowMenu(owner, { { title = "T" }, { text = string.rep("x", 40), disabled = true } })
+    eq(menu.width, 240 + 9 + 22, "fits the longest line")
+    menu = ns.UI.ShowMenu(owner, { { title = "T" }, { text = string.rep("x", 100), disabled = true } })
+    eq(menu.width, 340, "no wider than the cap")
+    ok(menu.items[2].height > 18, "the long line wraps onto more rows")
+    RegionMT.GetStringWidth, RegionMT.GetStringHeight = oldW, oldH
+  end)
+end)

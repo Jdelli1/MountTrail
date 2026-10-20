@@ -163,7 +163,9 @@ end
 -- the rest of the menu repaints, so ticks follow. anchor: "cursor" or below
 -- the owner (default). The menu is placed once, when it opens: a keepOpen
 -- click or a sub-menu repaints it where it stands.
-local MENU_WIDTH = 190
+local MENU_WIDTH = 190 -- the narrowest a menu gets
+local MENU_MAX_WIDTH = 340 -- wider lines wrap
+local MENU_TEXT_LEFT, MENU_TEXT_LEFT_BOXED, MENU_TEXT_RIGHT = 9, 24, 22
 local MENU_ITEM = 18
 local MENU_SLIDER = 36
 local menu, menuCatcher
@@ -315,6 +317,23 @@ function showMenu(owner, items, anchor, inPlace)
   -- items may be a function that builds the list (a keepOpen click
   -- repaints from it, so ticks follow the click).
   if type(items) == "function" then items = items() end
+  -- The menu fits its longest line (MENU_WIDTH .. MENU_MAX_WIDTH); longer
+  -- lines wrap onto more rows instead of running past the edge.
+  local width = MENU_WIDTH
+  for i, data in ipairs(items or {}) do
+    local label = data.title or data.text
+    if label and label ~= "" and not data.separator then
+      local it = menuItem(i)
+      it.Label:SetFontObject(data.title and UI.Font("GameFontNormalSmall") or UI.Font("GameFontHighlightSmall"))
+      it.Label:SetWidth(0)
+      it.Label:SetText(label)
+      local w = tonumber(it.Label.GetStringWidth and it.Label:GetStringWidth()) or 0
+      local left = data.checked ~= nil and MENU_TEXT_LEFT_BOXED or MENU_TEXT_LEFT
+      width = math.max(width, math.ceil(w) + left + MENU_TEXT_RIGHT)
+    end
+  end
+  width = math.min(width, MENU_MAX_WIDTH)
+  menu:SetWidth(width)
   local y = 6
   for i, data in ipairs(items or {}) do
     local it = menuItem(i)
@@ -357,6 +376,7 @@ function showMenu(owner, items, anchor, inPlace)
       if s:GetValue() ~= v then s:SetValue(v) end
       s.data = data
       it:SetHeight(MENU_SLIDER)
+      it.Label:SetWidth(0)
       it.Label:SetText(data.text or "")
       it.Label:SetFontObject("GameFontHighlightSmall")
       it.Value:SetText(sliderText(data, v))
@@ -366,11 +386,16 @@ function showMenu(owner, items, anchor, inPlace)
       it.Label:SetText("")
       y = y + 7
     else
-      it:SetHeight(MENU_ITEM)
-      it.Label:SetText(data.title or data.text or "")
       it.Label:SetFontObject(data.title and UI.Font("GameFontNormalSmall")
         or (data.disabled and UI.Font("GameFontDisableSmall") or UI.Font("GameFontHighlightSmall")))
-      y = y + MENU_ITEM
+      local left = boxed and MENU_TEXT_LEFT_BOXED or MENU_TEXT_LEFT
+      it.Label:SetWidth(width - left - MENU_TEXT_RIGHT)
+      if it.Label.SetWordWrap then it.Label:SetWordWrap(true) end
+      it.Label:SetText(data.title or data.text or "")
+      local h = tonumber(it.Label.GetStringHeight and it.Label:GetStringHeight()) or 0
+      local rowH = math.max(MENU_ITEM, math.ceil(h) + 6)
+      it:SetHeight(rowH)
+      y = y + rowH
     end
     it:Show()
   end
