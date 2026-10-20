@@ -494,12 +494,16 @@ end
 local function myListSelect(mounts, query)
   local ids = currentList and listMounts(currentList) or {}
   local needle = query.search and string.lower(query.search) or ""
+  -- The home page's fuzzy search (tbc, a boss, a zone...).
+  local match = UI.SearchMatches and UI.SearchMatches(ids, query.search, query.sourceText, searchCache) or nil
   local out = {}
   for _, id in ipairs(ids) do
     local m = mounts[id]
     if m and ns.Journal.Gate(id, m, query.isOwned, query.exists, query.faction, true) ~= nil then
       local name = (ns.Game.MountInfo and ns.Game.MountInfo(id)) or m.name or ""
-      if needle == "" or string.find(string.lower(name), needle, 1, true) then
+      local hit
+      if match then hit = match[id] == true else hit = needle == "" or string.find(string.lower(name), needle, 1, true) end
+      if hit then
         out[#out + 1] = { id = id, m = m, section = m.section or "other", name = string.lower(name) }
       end
     end

@@ -23,11 +23,20 @@ local shownMap -- the map the list was built for
 -- narrows by name. -> entries { id =, m =, section = }, the zone.
 function UI.HereSelect(zoneList, query)
   local needle = query and query.search and string.lower(query.search) or ""
+  -- The home page's fuzzy search (UI.SearchMatches) when it is loaded.
+  local match
+  if UI.SearchMatches and query and query.search then
+    local ids = {}
+    for i, e in ipairs(zoneList or {}) do ids[i] = e.id end
+    match = UI.SearchMatches(ids, query.search, query.sourceText)
+  end
   local out = {}
   for _, e in ipairs(zoneList or {}) do
     local m = e.m or {}
     local name = (ns.Game.MountInfo and ns.Game.MountInfo(e.id)) or m.name or ""
-    if needle == "" or string.find(string.lower(name), needle, 1, true) then
+    local hit
+    if match then hit = match[e.id] == true else hit = needle == "" or string.find(string.lower(name), needle, 1, true) end
+    if hit then
       out[#out + 1] = { id = e.id, m = m, section = m.section or "other", name = string.lower(name) }
     end
   end

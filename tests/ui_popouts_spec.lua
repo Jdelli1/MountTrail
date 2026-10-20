@@ -1345,6 +1345,17 @@ describe("Browse in the navigation column", function()
     local rows = page.List.ScrollBox.provider.rows
     ok(#rows > 0 and rows[1].header, "headers")
     ok(button("Drops").selected, "Drops marked")
+    -- The home page's fuzzy search: "tbc" keeps the Burning Crusade's drops.
+    page.List.searchText = "tbc"
+    page.List:Refresh()
+    local exps, mounts = {}, 0
+    for _, r in ipairs(page.List.ScrollBox.provider.rows) do
+      if r.header and (r.depth or 1) == 1 then exps[#exps + 1] = r.text end
+      if not r.header then mounts = mounts + 1 end
+    end
+    eq(exps, { "The Burning Crusade" }, "tbc: only TBC drops")
+    page.List.searchText = ""
+    page.List:Refresh()
     button("Professions"):RunScript("OnClick", "LeftButton")
     eq(page.Title:GetText(), "Professions")
     eq(ns.db.global.window.browse, "professions")

@@ -37,6 +37,15 @@ function Browse.Get(key)
   return byKey[key]
 end
 
+-- The IDs of every mount in category `key` (for the search).
+function Browse.Ids(key, mounts, sourceText)
+  local ids = {}
+  for id, m in pairs(mounts or {}) do
+    if Browse.CategoryOf(id, m, sourceText) == key then ids[#ids + 1] = id end
+  end
+  return ids
+end
+
 -- The browse category a mount belongs to (nil for the ones another view
 -- shows: holidays, achievements, Timewalking). sourceText as Journal.SectionOf.
 function Browse.CategoryOf(id, m, sourceText)
@@ -49,8 +58,10 @@ end
 -- A browse page's mounts (UI.List's select): every mount of category `key`
 -- the gate keeps (owned ones too: Collected decides), grouped by expansion
 -- (section = the expansion's name, Journal.GENERAL without one) in
--- `expansions` order, then by name; query.search narrows by name.
--- query: { isOwned, exists, faction, showUnobtainable, sourceText, search }.
+-- `expansions` order, then by name. query.match ({ [id] = true }, the
+-- home page's search: UI.SearchMatches) narrows them, else query.search by
+-- name.
+-- query: { isOwned, exists, faction, showUnobtainable, sourceText, search, match }.
 function Browse.Select(key, mounts, query, expansions)
   local rank = {}
   for i, e in ipairs(expansions or {}) do rank[e] = i end
@@ -60,7 +71,9 @@ function Browse.Select(key, mounts, query, expansions)
     if Browse.CategoryOf(id, m, query.sourceText) == key
       and ns.Journal.Gate(id, m, query.isOwned, query.exists, query.faction, query.showUnobtainable) ~= nil then
       local name = string.lower(m.name or "")
-      if needle == "" or string.find(name, needle, 1, true) then
+      local hit
+      if query.match then hit = query.match[id] == true else hit = needle == "" or string.find(name, needle, 1, true) end
+      if hit then
         out[#out + 1] = { id = id, m = m, section = m.exp or ns.Journal.GENERAL, name = name,
           rank = rank[m.exp] or (#(expansions or {}) + 1) }
       end

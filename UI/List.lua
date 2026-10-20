@@ -490,6 +490,30 @@ function UI.RowDescription(mountID, sourceText)
   return UI.SourceLine(mountID)
 end
 
+-- The home page's search (Search.Select over UI.SearchFields: typos, short
+-- names such as tbc / icc, bosses, zones, achievements, expansions) for
+-- any list's search box: the mounts of `ids` (a list of mount IDs) that
+-- match `search` -> { [mountID] = true }, or nil when the search is empty
+-- (everything matches). `cache` (optional): prepared fields by mount ID.
+function UI.SearchMatches(ids, search, sourceText, cache)
+  if type(search) ~= "string" or not string.find(search, "%S") or not ns.Search then return nil end
+  local mounts = (ns.Data and ns.Data.Mounts) or {}
+  local subset = {}
+  for _, id in ipairs(ids or {}) do
+    if mounts[id] then subset[id] = mounts[id] end
+  end
+  local ctx = { sourceText = sourceText, mapName = ns.Game and ns.Game.MapName }
+  local found = {}
+  for _, r in ipairs(ns.Search.Select(subset, {
+    search = search, cache = cache,
+    gate = function() return false end,
+    fields = function(id, m) return UI.SearchFields(id, m, ctx) end,
+  })) do
+    found[r.id] = true
+  end
+  return found
+end
+
 -- Searchable text of a mount for Search.Select -> { name =, boss =,
 -- instance =, zone =, achievement =, expansion =, other = } (lists of
 -- strings): the client's source text by label kind (Drop -> boss, Zone /
