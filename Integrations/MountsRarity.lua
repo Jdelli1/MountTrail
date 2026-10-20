@@ -14,8 +14,10 @@ ns.Owners = Owners
 -- The library, or nil. Owners.lib (tests) overrides the LibStub lookup.
 local function library()
   if Owners.lib ~= nil then return Owners.lib or nil end
-  if type(LibStub) ~= "function" then return nil end
-  local good, lib = pcall(LibStub, "MountsRarity-2.0", true)
+  -- LibStub is a callable table in the game (a function in the tests).
+  local stub = LibStub
+  if type(stub) ~= "table" and type(stub) ~= "function" then return nil end
+  local good, lib = pcall(stub, "MountsRarity-2.0", true)
   if good and type(lib) == "table" then return lib end
   return nil
 end

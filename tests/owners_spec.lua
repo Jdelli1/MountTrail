@@ -22,6 +22,18 @@ describe("ns.Owners", function()
     eq(O.Percent(1), nil, "an error is nil")
   end)
 
+  it("finds the library through the game's LibStub, a callable table", function()
+    local O = load().Owners
+    local saved = LibStub
+    LibStub = setmetatable({ libs = { ["MountsRarity-2.0"] = LIB } }, {
+      __call = function(self, major, silent) return self.libs[major] end,
+    })
+    local good, pct = pcall(O.Percent, 1)
+    LibStub = saved
+    ok(good, tostring(pct))
+    eq(pct, 0.28)
+  end)
+
   it("tiers like Mount Journal Enhanced: <2 legendary, <10 epic, <20 rare, <50 uncommon, else common", function()
     local O = load().Owners
     eq({ O.Quality(0.28), O.Quality(5), O.Quality(15), O.Quality(42), O.Quality(80) }, { 5, 4, 3, 2, 1 })
