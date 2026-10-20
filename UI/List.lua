@@ -1797,7 +1797,9 @@ function UI.List(parent, getQuery, opts)
         n = n + 1
         row.alt = n % 2 == 0
         row.desc = describe(row.id)
-        row.pin = UI.LocationIcon(row.id)
+        -- With the detail pane its Waypoint / Map buttons stand for the
+        -- row's location icon.
+        if not pane then row.pin = UI.LocationIcon(row.id) end
         if pane then
           row.selected = row.id == selectedID
           row.onSelect = self.selectHandler

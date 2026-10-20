@@ -146,6 +146,7 @@ describe("detail pane", function()
     eq(rows[1].id, 1)
     eq(rows[1].selected, true)
     eq(rows[2].selected, false)
+    eq(rows[1].pin, nil, "no location icon: the pane's buttons stand for it")
     local pane = list.Detail
     eq(pane.mountID, 1)
     eq(pane.Name:GetText(), "Alpha")

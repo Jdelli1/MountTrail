@@ -556,7 +556,7 @@ Every mount list (Journal expansion lists, Holidays, Achievements, Timewalking, 
 - [ ] A mount without a model (rare): its large icon instead.
 - [ ] Waypoint / Map buttons do what a row click used to; Achievement opens the achievement for achievement mounts, greyed out otherwise.
 - [ ] Long achievement criteria scroll inside the pane with the mouse wheel.
-- [ ] Shift-click / Ctrl-click / Shift-right-click on rows still work; hovering a row shows no tooltip.
+- [ ] Shift-click / Ctrl-click / Shift-right-click on rows still work; hovering a row shows no tooltip; rows have no map / pin icon on their right (the pane's buttons replace it).
 - [ ] Journal: open an expansion, collapse the selected row's header: the pane keeps showing it. Back and into another expansion: the first mount there is selected.
 - [ ] Checklist and zone panel rows: unchanged (left-click waypoint, hover tooltip).
 
