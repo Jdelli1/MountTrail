@@ -187,7 +187,7 @@ describe("detail pane", function()
     ns.UI.ShowMountTooltip = old
     eq(shown, false, "the pane replaces the hover tooltip")
     local hint = ns.UI.PaneRowHint(3)
-    ok(hint:find("Left-click", 1, true) and not hint:find("Right-click", 1, true), "no location, no achievement: just view")
+    ok(not hint:find("Left-click", 1, true) and not hint:find("Right-click", 1, true), "no location, no achievement: no right-click line")
     ok(not hint:find("Shift-click", 1, true), "nor the map")
     ok(hint:find("Ctrl-click", 1, true) and hint:find("preview", 1, true), hint)
   end)
@@ -264,7 +264,7 @@ describe("detail pane", function()
     ok(list2.Detail.BigIcon:IsShown())
   end)
 
-  it("row clicks: plain views, right-click plots, Shift opens the map, Ctrl the achievement; the hover lists them", function()
+  it("row clicks: plain views, right-click plots (an achievement mount: its achievement), Shift map, Ctrl preview", function()
     local ns = loadUI()
     local list = makeList(ns)
     local calls = {}
@@ -272,7 +272,9 @@ describe("detail pane", function()
       OpenMap = function(id) calls[#calls + 1] = "map" .. id end,
       HasLocation = function() return true end, HasSpot = function() return true end }
     ns.UI.OpenMountAchievement = function(id) calls[#calls + 1] = "ach" .. id end
-    ns.AchievementScan.Lookup = function() return 77, "ready" end
+    ns.UI.PreviewMount = function(id) calls[#calls + 1] = "preview" .. id end
+    local achievement = false
+    ns.AchievementScan.Lookup = function() if achievement then return 77, "ready" end return nil, "none" end
     local row = CreateFrame("Button")
     ns.UI.InitMountRow(row, mountRows(list)[1])
     row:RunScript("OnClick", "LeftButton")
@@ -284,12 +286,16 @@ describe("detail pane", function()
     IsControlKeyDown = function() return true end
     row:RunScript("OnClick", "LeftButton")
     IsControlKeyDown = nil
-    eq(calls, { "wp1", "map1", "ach1" })
+    achievement = true
+    row:RunScript("OnClick", "RightButton")
+    eq(calls, { "wp1", "map1", "preview1", "ach1" })
     eq(list.selectedID, 1, "each click also selects")
     local hint = ns.UI.PaneRowHint(1)
-    ok(hint:find("plot the coordinates", 1, true), hint)
-    ok(hint:find("show on the map", 1, true), hint)
-    ok(hint:find("view the achievement", 1, true), hint)
+    ok(hint:find("view the achievement", 1, true) and not hint:find("plot", 1, true), hint)
+    ok(hint:find("show on the map", 1, true) and hint:find("preview", 1, true), hint)
+    ok(not hint:find("Left-click", 1, true), "no line for the plain click")
+    achievement = false
+    ok(ns.UI.PaneRowHint(1):find("plot the coordinates", 1, true))
   end)
 
   it("opts.detail = false keeps the old full-width list and click", function()

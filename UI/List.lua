@@ -1218,15 +1218,16 @@ local function hasAchievement(mountID)
 end
 
 -- What a click does on such a row (it also selects it): a plain left-click
--- only selects (nil); right-click "waypoint" (the zone map for an unknown
--- event, the achievement when there is nowhere to go); Shift "map"; Ctrl
--- "achievement" (the preview when it has none) -> action.
+-- only selects (nil); right-click "achievement" for an achievement mount,
+-- else "waypoint" (the zone map for an unknown event); Shift "map"; Ctrl
+-- "preview" -> action.
 function UI.PaneRowAction(mountID, button, ctrl, shift, routeBoss, eventMap)
-  if ctrl then return hasAchievement(mountID) and "achievement" or "preview" end
+  if ctrl then return "preview" end
   if shift then return "map" end
   if button ~= "RightButton" then return nil end
+  if hasAchievement(mountID) then return "achievement" end
   if eventMap or UI.HasLocation(mountID, routeBoss) then return "waypoint" end
-  return hasAchievement(mountID) and "achievement" or nil
+  return nil
 end
 
 -- A click on a row of a list with the detail pane (after selecting it).
@@ -1259,22 +1260,17 @@ function UI.PaneRowHint(mountID, routeBoss, eventMap)
   local achievement = hasAchievement(mountID)
   local map = ns.Map
   local n = located and map and map.PlotCount and map.PlotCount(mountID, routeBoss) or 0
-  add(L["Left-click"], L["view"])
-  if eventMap then
+  if achievement then
+    add(L["Right-click"], L["view the achievement"])
+  elseif eventMap then
     add(L["Right-click"], L["open the zone map"])
   elseif n > 1 then
     add(L["Right-click"], string.format(L["plot all %d spawn points"], n))
   elseif located then
     add(L["Right-click"], L["plot the coordinates"])
-  elseif achievement then
-    add(L["Right-click"], L["view the achievement"])
   end
   if located then add(L["Shift-click"], L["show on the map"]) end
-  if achievement then
-    add(L["Ctrl-click"], L["view the achievement"])
-  else
-    add(L["Ctrl-click"], L["preview in the dressing room"])
-  end
+  add(L["Ctrl-click"], L["preview in the dressing room"])
   return table.concat(lines, "\n")
 end
 
