@@ -172,9 +172,23 @@ local function rowFrame(i)
   local goHl = go:CreateTexture(nil, "HIGHLIGHT")
   goHl:SetAllPoints(go)
   goHl:SetColorTexture(1, 1, 1, 0.15)
-  go:SetScript("OnClick", function()
-    if r.data and ns.Map then ns.Map.SetWaypoint(r.data.id) end
+  if go.RegisterForClicks then go:RegisterForClicks("LeftButtonUp", "RightButtonUp") end
+  go:SetScript("OnClick", function(_, button)
+    if not (r.data and ns.Map) then return end
+    if button == "RightButton" and ns.Map.PlotMounts then
+      ns.Map.PlotMounts({ r.data.id }, r.data.name)
+    else
+      ns.Map.SetWaypoint(r.data.id)
+    end
   end)
+  go:SetScript("OnEnter", function(self)
+    if not GameTooltip then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText(L["Click: waypoint to the nearest spawn"], 1, 1, 1)
+    GameTooltip:AddLine(L["Right-click: plot every spawn on TomTom"], 0.5, 0.9, 0.5)
+    GameTooltip:Show()
+  end)
+  go:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
   r.Go = go
   local zone = r:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
   zone:SetPoint("RIGHT", go, "LEFT", -4, 0)
@@ -375,10 +389,40 @@ local function build()
   close:SetScript("OnClick", function() UI.ToggleRareTracker(false) end)
   frame.Close = close
 
+  -- "Plot all": every open rare's spawn points on TomTom (Map.PlotMounts).
+  local plot = CreateFrame("Button", nil, strip)
+  plot:SetSize(48, 16)
+  plot:SetPoint("RIGHT", close, "LEFT", -2, 0)
+  local plotText = plot:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  plotText:SetPoint("CENTER", plot, "CENTER", 0, 0)
+  plotText:SetText(L["Plot all"])
+  plot.Text = plotText
+  local plotBg = plot:CreateTexture(nil, "BACKGROUND")
+  plotBg:SetAllPoints(plot)
+  plotBg:SetColorTexture(0.25, 0.78, 0.35, 0.25)
+  local plotHl = plot:CreateTexture(nil, "HIGHLIGHT")
+  plotHl:SetAllPoints(plot)
+  plotHl:SetColorTexture(1, 1, 1, 0.12)
+  plot:SetScript("OnClick", function()
+    local ids = {}
+    for _, row in ipairs(frame.rows or {}) do
+      if not row.done then ids[#ids + 1] = row.id end
+    end
+    if ns.Map and ns.Map.PlotMounts then ns.Map.PlotMounts(ids, frame.Title:GetText()) end
+  end)
+  plot:SetScript("OnEnter", function(self)
+    if not GameTooltip then return end
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:SetText(L["Plot every open rare's spawn points on TomTom"])
+    GameTooltip:Show()
+  end)
+  plot:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  frame.PlotAll = plot
+
   -- A small down arrow: the title opens a menu.
   local arrow = strip:CreateTexture(nil, "ARTWORK")
   arrow:SetSize(12, 12)
-  arrow:SetPoint("RIGHT", close, "LEFT", -2, 0)
+  arrow:SetPoint("RIGHT", plot, "LEFT", -4, 0)
   if UI.AtlasExists("common-dropdown-icon-down") then
     arrow:SetAtlas("common-dropdown-icon-down")
   else

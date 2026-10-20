@@ -714,3 +714,85 @@ function Map.SetWaypointAt(m, x, y, name, api)
   if openWorldMap(api, m) then say(api, string.format(L["Opened map: %s"], label)) end
   return false
 end
+
+-- Plotting many points ------------------------------------------------------------
+-- The game's map holds one user waypoint, so plotting every spawn point (or
+-- every rare of a list) takes TomTom: each point becomes a TomTom waypoint
+-- (non-persistent, titled after its NPC), the previous plot of ours is
+-- removed first, and TomTom's arrow goes to the closest one
+-- (TomTom:SetClosestWaypoint). The game pin goes to the nearest point too
+-- unless the Waypoints setting is TomTom only. Without TomTom only that
+-- nearest point is pinned and chat says TomTom is needed.
+local plotted = {} -- uids of our last plot
+
+local function removePlotted(api)
+  local tomtom = api.TomTom
+  if type(tomtom) == "table" and type(tomtom.RemoveWaypoint) == "function" then
+    for _, uid in ipairs(plotted) do guarded(tomtom.RemoveWaypoint, tomtom, uid) end
+  end
+  plotted = {}
+end
+
+-- points: { { m, x, y (percent), title } }; label: what chat calls the plot.
+-- -> how many points TomTom took (0 without TomTom).
+function Map.PlotPoints(points, label, api)
+  api = api or realApi()
+  points = points or {}
+  if #points == 0 then return 0 end
+  -- The nearest point, for the game pin (and the fallback).
+  local spots = {}
+  for i, p in ipairs(points) do spots[i] = { name = p[4], pts = { p[1], p[2], p[3] } } end
+  local here = playerWorld(api)
+  local nearest, nm, nx, ny = Map.NearestPoint(spots, here, function(m, x, y) return worldPos(api, m, x, y) end)
+  local tomtom = api.TomTom
+  if type(tomtom) ~= "table" or type(tomtom.AddWaypoint) ~= "function" then
+    Map.SetWaypointAt(nm, nx, ny, nearest and nearest.name, api)
+    say(api, string.format(L["Install TomTom to plot all %d points at once; pinned the nearest."], #points))
+    return 0
+  end
+  removePlotted(api)
+  removeTomTom(api)
+  local n = 0
+  for _, p in ipairs(points) do
+    local good, uid = guarded(tomtom.AddWaypoint, tomtom, p[1], p[2] / 100, p[3] / 100,
+      { title = p[4], persistent = false })
+    if good then
+      plotted[#plotted + 1] = uid
+      n = n + 1
+    end
+  end
+  if type(tomtom.SetClosestWaypoint) == "function" then guarded(tomtom.SetClosestWaypoint, tomtom) end
+  local mode = MODES[api.waypointMode] and api.waypointMode or Map.WaypointMode()
+  if mode ~= "tomtom" and nm then setUserWaypoint(api, { map = nm, x = nx, y = ny }) end
+  say(api, string.format(L["Plotted %d points on TomTom: %s"], n, label or ""))
+  return n
+end
+
+-- The points of a mount's waypoint spots (the vendors, else every spot;
+-- the player's faction) -> { { m, x, y, title } }.
+function Map.MountPoints(mountID, api)
+  api = api or realApi()
+  local faction = type(api.Faction) == "function" and api.Faction() or nil
+  local out = {}
+  for _, spot in ipairs(Map.WaypointSpots(Map.Spots(mountID, faction))) do
+    local pts = spot.pts
+    for i = 1, #pts - 2, 3 do
+      out[#out + 1] = { pts[i], pts[i + 1], pts[i + 2], spot.name or mountName(mountID) }
+    end
+  end
+  return out
+end
+
+-- Plots every point of each mount in `mountIDs` (Map.MountPoints). -> count.
+function Map.PlotMounts(mountIDs, label, api)
+  api = api or realApi()
+  local points = {}
+  for _, id in ipairs(mountIDs or {}) do
+    for _, p in ipairs(Map.MountPoints(id, api)) do points[#points + 1] = p end
+  end
+  if #points == 0 then
+    say(api, L["No spawn points known for these mounts."])
+    return 0
+  end
+  return Map.PlotPoints(points, label, api)
+end

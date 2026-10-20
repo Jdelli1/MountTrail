@@ -213,6 +213,21 @@ describe("rare tracker window", function()
     eq(calls, { "wp614", "550 72.8 53.4 Luk'hok" })
   end)
 
+  it("right-click the pin plots the rare's spawns; Plot all plots every open rare", function()
+    local ns = loadUI()
+    local f = open(ns)
+    local plots = {}
+    ns.Map.PlotMounts = function(ids, label) plots[#plots + 1] = { table.concat(ids, ","), label } end
+    local luk
+    for _, c in ipairs(f.Content.children) do
+      if c.data and c.data.id == 614 then luk = c end
+    end
+    luk.Go:RunScript("OnClick", "RightButton")
+    eq(plots[1], { "614", "Luk'hok" })
+    f.PlotAll:RunScript("OnClick", "LeftButton")
+    eq(plots[2][1], "614,657", "open rows only, in list order")
+  end)
+
   it("a rare spawn's box marks it checked; the done daily is ticked and dimmed", function()
     local ns = loadUI()
     local f = open(ns)

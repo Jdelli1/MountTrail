@@ -225,10 +225,23 @@ local function layoutInfo(pane, content)
       place(l.left, l.r, l.g, l.b)
     end
   end
-  -- Where to find it: each NPC, then its coordinates as buttons, wrapped.
+  -- Where to find it: each NPC, then its coordinates as buttons, wrapped;
+  -- "Plot all" on the heading's line puts every point on TomTom at once.
   local used = 0
+  local total = 0
+  for _, spot in ipairs(content.spots or {}) do
+    for _, group in ipairs(spot.maps) do total = total + #group.points end
+  end
+  pane.PlotAll:Hide()
   if content.spots and #content.spots > 0 then
     y = y + 6
+    if total > 1 then
+      pane.PlotAll:ClearAllPoints()
+      pane.PlotAll:SetPoint("TOPRIGHT", pane.Info, "TOPLEFT", width, -y)
+      pane.PlotAll.Text:SetText(string.format("%s (%d)", L["Plot all"], total))
+      pane.PlotAll:SetWidth((pane.PlotAll.Text.GetStringWidth and pane.PlotAll.Text:GetStringWidth() or 60) + 10)
+      pane.PlotAll:Show()
+    end
     place(L["Where to find it"], 1, 0.82, 0)
     for _, spot in ipairs(content.spots) do
       local label = spot.name or (spot.kind == "vendor" and L["Vendor"]) or L["Spawn points"]
@@ -409,6 +422,33 @@ local function build(parent)
     self:SetVerticalScroll(v)
   end)
   pane.Scroll, pane.Info = scroll, info
+
+  -- "Plot all (n)": every point of the mount on TomTom (Map.PlotMounts).
+  local plotAll = CreateFrame("Button", nil, info)
+  plotAll:SetHeight(16)
+  local plotText = plotAll:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  plotText:SetPoint("CENTER", plotAll, "CENTER", 0, 0)
+  plotAll.Text = plotText
+  local plotBg = plotAll:CreateTexture(nil, "BACKGROUND")
+  plotBg:SetAllPoints(plotAll)
+  plotBg:SetColorTexture(0.25, 0.78, 0.35, 0.25)
+  local plotHl = plotAll:CreateTexture(nil, "HIGHLIGHT")
+  plotHl:SetAllPoints(plotAll)
+  plotHl:SetColorTexture(1, 1, 1, 0.12)
+  plotAll:SetScript("OnClick", function()
+    if pane.mountID and ns.Map and ns.Map.PlotMounts then
+      ns.Map.PlotMounts({ pane.mountID }, pane.content and pane.content.name)
+    end
+  end)
+  plotAll:SetScript("OnEnter", function(self)
+    if not GameTooltip then return end
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:SetText(L["Plot every point on TomTom"])
+    GameTooltip:Show()
+  end)
+  plotAll:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  plotAll:Hide()
+  pane.PlotAll = plotAll
 
   local empty = pane:CreateFontString(nil, "OVERLAY", "GameFontDisable")
   empty:SetPoint("TOPLEFT", modelArea, "BOTTOMLEFT", PAD, -20)

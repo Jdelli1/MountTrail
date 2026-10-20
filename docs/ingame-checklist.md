@@ -609,3 +609,11 @@ A slim movable window (`/azt rares`, or right-click a rare header in the Checkli
 - [ ] A daily rare killed today: ticked and dimmed, at the bottom, no pin button.
 - [ ] Current zone: shows only the zone's rares and follows you as you fly to another zone.
 - [ ] Close the main window: the tracker stays. Drag it somewhere, /reload: same place, still open. Close button hides it (and stays hidden after /reload).
+
+## Plot every spawn point on TomTom
+
+The game's map holds one pin, so plotting many points uses TomTom (when installed): each point becomes a TomTom waypoint titled after its NPC, AzerothTrail's previous plot is removed first, TomTom's arrow goes to the closest one, and the game pin goes to the nearest point too (unless Waypoints is TomTom only). Without TomTom only the nearest point is pinned and chat says TomTom is needed.
+
+- [ ] Detail pane of a rare with several spawn points: "Plot all (n)" (green) on the "Where to find it" line; click: n TomTom waypoints named after the rare, chat "Plotted n points on TomTom: <mount>".
+- [ ] Rare tracker: right-click a row's pin: that rare's spawn points plotted (hover the pin for the hint). "Plot all" in the title: every open rare's spawn points of the list at once; plotting again replaces the previous plot (no pile-up).
+- [ ] Without TomTom: the nearest point is pinned and chat says to install TomTom.

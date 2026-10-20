@@ -765,3 +765,57 @@ describe("Map.SetWaypointAt", function()
     eq(Map.SetWaypointAt(nil, 5, 5, "X", api), false)
   end)
 end)
+
+describe("Map plotting many points (TomTom)", function()
+  local function tomtomLog(api)
+    local adds, removes, closest = {}, {}, 0
+    for _, l in ipairs(api.log) do
+      if l[1] == "TomTom" then adds[#adds + 1] = l end
+      if l[1] == "TomTomRemove" then removes[#removes + 1] = l[2] end
+      if l[1] == "Closest" then closest = closest + 1 end
+    end
+    return adds, removes, closest
+  end
+
+  it("PlotMounts puts every point on TomTom, titled after the NPC, and clears our last plot first", function()
+    local Map, ns = loadMap({ [614] = { name = "Mottled Meadowstomper" }, [636] = { name = "Swift Breezestrider" } })
+    ns.Data.Spots = {
+      [614] = { { npc = 1, name = "Luk'hok", kind = "drop", pts = { 550, 67.6, 42.6, 550, 72.8, 53.4 } } },
+      [636] = { { npc = 2, name = "Pathrunner", kind = "drop", pts = { 539, 39.6, 36.8 } } },
+    }
+    local api = fakeApi({ mode = "tomtom" })
+    api.TomTom.SetClosestWaypoint = function() api.log[#api.log + 1] = { "Closest" } end
+    eq(Map.PlotMounts({ 614, 636 }, "WoD rares", api), 3)
+    local adds, removes, closest = tomtomLog(api)
+    eq(#adds, 3)
+    eq({ adds[1][2], adds[1][5].title }, { 550, "Luk'hok" })
+    ok(near(adds[1][3], 0.676), "x in 0-1")
+    eq(adds[3][5].title, "Pathrunner")
+    eq(adds[3][5].persistent, false)
+    eq(closest, 1, "TomTom's arrow to the closest")
+    eq(#removes, 0)
+    eq(api.log[#api.log][2], "Plotted 3 points on TomTom: WoD rares")
+    Map.PlotMounts({ 636 }, "again", api)
+    _, removes = tomtomLog(api)
+    eq(removes, { "uid1", "uid2", "uid3" }, "the last plot removed first")
+  end)
+
+  it("without TomTom: pins the nearest point and says TomTom is needed", function()
+    local Map, ns = loadMap({ [614] = { name = "Mottled Meadowstomper" } })
+    ns.Data.Spots = { [614] = { { npc = 1, name = "Luk'hok", kind = "drop", pts = { 550, 67.6, 42.6, 550, 72.8, 53.4 } } } }
+    local api = fakeApi({ tomtom = false, canSet = { [550] = true }, mode = "game" })
+    eq(Map.PlotMounts({ 614 }, "x", api), 0)
+    local set
+    for _, l in ipairs(api.log) do if l[1] == "SetUserWaypoint" then set = l[2] end end
+    eq(set.uiMapID, 550)
+    eq(api.log[#api.log][2], "Install TomTom to plot all 2 points at once; pinned the nearest.")
+  end)
+
+  it("no points: says so", function()
+    local Map, ns = loadMap({ [1] = { name = "X" } })
+    ns.Data.Spots = {}
+    local api = fakeApi({})
+    eq(Map.PlotMounts({ 1 }, "x", api), 0)
+    eq(api.log[#api.log][2], "No spawn points known for these mounts.")
+  end)
+end)

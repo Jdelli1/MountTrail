@@ -283,7 +283,14 @@ describe("detail pane", function()
     ns.Map.SetWaypointAt = function(m, x, y, name) set = { m, x, y, name } end
     pane.pointButtons[2]:RunScript("OnClick", "LeftButton")
     eq(set, { 550, 72.8, 53.4, "Luk'hok" })
+    ok(pane.PlotAll:IsShown(), "Plot all for several points")
+    eq(pane.PlotAll.Text:GetText(), "Plot all (3)")
+    local plotted
+    ns.Map.PlotMounts = function(ids, label) plotted = { ids[1], label } end
+    pane.PlotAll:RunScript("OnClick", "LeftButton")
+    eq(plotted, { 1, "Alpha" })
     list:Select(2)
     for _, b in ipairs(pane.pointButtons) do ok(not b:IsShown(), "no spots: buttons hidden") end
+    ok(not pane.PlotAll:IsShown(), "no Plot all without spots")
   end)
 end)
