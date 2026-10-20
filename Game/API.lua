@@ -730,3 +730,18 @@ function Game.InsertChatLink(link)
   end
   return false
 end
+
+-- Runs `fn(self, event, msg, ...)` on each `event` chat message before it shows
+-- (it may return false, msg, ... to change the text) -> true when added.
+function Game.AddChatFilter(event, fn)
+  local util = ChatFrameUtil
+  local add = (util and util.AddMessageEventFilter) or ChatFrame_AddMessageEventFilter
+  if type(add) ~= "function" then return false end
+  return pcall(add, event, fn)
+end
+
+-- Whether `value` is a Midnight secret value (unreadable chat text in an
+-- encounter): addons must not touch those.
+function Game.IsSecret(value)
+  return type(issecretvalue) == "function" and issecretvalue(value) == true
+end

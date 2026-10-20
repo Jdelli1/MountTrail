@@ -211,6 +211,7 @@ L["%d mounts"] = "%d mounts"
 L["Can drop:"] = "Can drop:"
 
 -- Shared lists (UI\Share.lua)
+L["That list link is too old: ask for it again."] = "That list link is too old: ask for it again."
 L["Imported %s (%d mounts)."] = "Imported %s (%d mounts)."
 L["That is not a MountTrail list."] = "That is not a MountTrail list."
 L["That list is cut off or changed: copy the whole line again."] = "That list is cut off or changed: copy the whole line again."

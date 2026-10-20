@@ -168,3 +168,36 @@ function Share.ParseLink(link)
   if not sender then return nil end
   return sender, tonumber(id)
 end
+
+-- Share strings in chat --------------------------------------------------------
+-- A !MT1! line posted in chat turns into a clickable link on screens with
+-- MountTrail (UI/Share.lua's chat filter); others just see the text.
+
+Share.CHAT_MAX = 255 -- a chat message's length limit
+local FIND = "!MT1![^!]*![%w%.]*![%w]+"
+
+-- Every share string in a chat message -> { { first =, last =, text = } } in order.
+function Share.Find(msg)
+  local out = {}
+  if type(msg) ~= "string" then return out end
+  local from = 1
+  while true do
+    local first, last = string.find(msg, FIND, from)
+    if not first then break end
+    out[#out + 1] = { first = first, last = last, text = string.sub(msg, first, last) }
+    from = last + 1
+  end
+  return out
+end
+
+-- The link that stands for share string number `n` (kept by the caller).
+function Share.ImportLink(n, name, count)
+  return string.format("|cff3fc7eb|Haddon:MountTrail:import:%d|h[MountTrail: %s (%d)]|h|r",
+    n, (string.gsub(name, "[|%[%]]", "")), count)
+end
+
+-- A clicked import link's text -> its number, or nil.
+function Share.ParseImportLink(link)
+  local n = type(link) == "string" and string.match(link, "^addon:MountTrail:import:(%d+)")
+  return n and tonumber(n) or nil
+end

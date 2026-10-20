@@ -90,6 +90,10 @@ describe("Share flow", function()
     local linked
     ns.Game.InsertChatLink = function(link) linked = link return true end
     ok(ns.UI.ShareListInChat(id))
+    eq(linked, ns.Share.Encode("Loop", { 1, 3 }), "a short list goes as its line")
+    -- Too long for one chat message: the link that asks for it.
+    for m = 1000, 1100 do ns.Lists.Add(store, id, m) end
+    ok(ns.UI.ShareListInChat(id))
     ok(linked:find("mounttrail:Alice-Realm:" .. id, 1, true), linked)
 
     -- Bob clicked it: his request arrives; only a shared list answers.
@@ -154,5 +158,32 @@ describe("Share flow", function()
     ok(ns.UI.SendList(id, "Bob", "O"))
     eq(sent[1].target, "Bob")
     ok(sent[1].msg:find("^O1/1:!MT1!"), sent[1].msg)
+  end)
+
+  it("a !MT1! line in chat becomes a link; clicking it offers the import", function()
+    local ns, store, sent, prompts = loadUI()
+    local line = ns.Share.Encode("Mythic Mounts", { 1, 2, 99 })
+    local msg = ns.UI.LinkShareStrings("try this " .. line .. " :)")
+    ok(msg:find("^try this |cff3fc7eb|Haddon:MountTrail:import:%d+|h%[MountTrail: Mythic Mounts %(2%)%]|h|r :%)$"), msg)
+    eq(ns.UI.LinkShareStrings("no list here"), nil)
+    eq(ns.UI.LinkShareStrings("!MT1!broken!1!zz"), nil, "a damaged line stays text")
+    local n = msg:match("import:(%d+)")
+    ok(ns.UI.OnShareLink("addon:MountTrail:import:" .. n))
+    eq(#prompts, 1)
+    eq(prompts[1].default, "Mythic Mounts")
+    prompts[1].accept("Mythic Mounts")
+    eq(ns.Lists.Get(store, 1).mounts, { 1, 2 }, "known mounts only")
+    eq(ns.UI.OnShareLink("item:123"), false, "other links are not ours")
+  end)
+
+  it("the real Mythic Mounts line from chat decodes", function()
+    local ns = load_addon({ "Core/Locale.lua", "Data/Mounts.lua", "Logic/Lists.lua", "Logic/Share.lua" })
+    local line = "!MT1!Mythic Mounts!ob.oj.y3.ys.rn.sw.t9.155.132.1p8.269.25x.2cy!9bhq"
+    local found = ns.Share.Find("[Adventurer]: " .. line)
+    eq(#found, 1)
+    local decoded = ns.Share.Decode(found[1].text, ns.Data.Mounts)
+    ok(decoded, "decodes")
+    eq(decoded.name, "Mythic Mounts")
+    eq(#decoded.mounts, 13)
   end)
 end)

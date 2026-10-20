@@ -125,14 +125,17 @@ function UI.SendListPrompt(id)
     { okLabel = L["Send"], hint = L["A player's name (Name-Realm from another realm)."] })
 end
 
--- Share in chat: the list's link into the chat box.
+-- Share in chat: the list's !MT1! line into the chat box (MountTrail users
+-- see it as a link to click). A list too long for one message goes as a
+-- link that asks this character's MountTrail for it instead.
 function UI.ShareListInChat(id)
-  local s = store()
-  local l = s and ns.Lists.Get(s, id)
-  if not l then return false end
+  local text, l = UI.ListShareString(id)
+  if not text then return false end
   shared[id] = true
   local name = string.gsub(l.name, "[|%[%]]", "")
-  if not ns.Game.InsertChatLink(ns.Share.Link(ns.Game.CharKey(), id, name)) then
+  local line = text
+  if #line > ns.Share.CHAT_MAX then line = ns.Share.Link(ns.Game.CharKey(), id, name) end
+  if not ns.Game.InsertChatLink(line) then
     say(L["Open a chat box first, then Share in chat."])
     return false
   end
@@ -197,10 +200,84 @@ events:SetScript("OnEvent", function(_, _, prefix, msg, _, sender)
   if prefix == PREFIX then UI.OnShareMessage(msg, sender) end
 end)
 
--- Clicks on our chat links (the game's SetItemRef runs first).
+-- Share strings in chat -> links ------------------------------------------------
+-- The chat filter swaps each !MT1! line for a link on this screen only; the
+-- link's number points into chatLines. Clicking it offers the import.
+
+local chatLines, chatCount = {}, 0
+local KEEP = 200 -- links older than this many lines are forgotten
+
+-- A chat message with its share strings as links -> the new text, or nil
+-- when it has none (or none that decode).
+function UI.LinkShareStrings(msg)
+  if ns.Game.IsSecret(msg) or type(msg) ~= "string" or not string.find(msg, "!MT1!", 1, true) then return nil end
+  local found = ns.Share.Find(msg)
+  if #found == 0 then return nil end
+  local out, from, changed = {}, 1, false
+  for _, f in ipairs(found) do
+    local decoded = ns.Share.Decode(f.text, ns.Data and ns.Data.Mounts)
+    if decoded then
+      chatCount = chatCount + 1
+      chatLines[chatCount] = f.text
+      chatLines[chatCount - KEEP] = nil
+      out[#out + 1] = string.sub(msg, from, f.first - 1)
+      out[#out + 1] = ns.Share.ImportLink(chatCount, decoded.name, #decoded.mounts)
+      from = f.last + 1
+      changed = true
+    end
+  end
+  if not changed then return nil end
+  out[#out + 1] = string.sub(msg, from)
+  return table.concat(out)
+end
+
+-- A clicked link of ours (either kind) -> true when it was ours.
+function UI.OnShareLink(link)
+  local n = ns.Share.ParseImportLink(link)
+  if n then
+    local decoded = chatLines[n] and UI.DecodeShare(chatLines[n])
+    if decoded then
+      UI.OfferImport(decoded)
+    else
+      say(L["That list link is too old: ask for it again."])
+    end
+    return true
+  end
+  local sender, id = ns.Share.ParseLink(link)
+  if sender then
+    UI.RequestSharedList(sender, id)
+    return true
+  end
+  return false
+end
+
+local function chatFilter(_, _, msg, ...)
+  local good, linked = pcall(UI.LinkShareStrings, msg)
+  if good and linked then return false, linked, ... end
+  return false
+end
+
+for _, event in ipairs({ "CHAT_MSG_SAY", "CHAT_MSG_YELL", "CHAT_MSG_WHISPER", "CHAT_MSG_WHISPER_INFORM",
+  "CHAT_MSG_BN_WHISPER", "CHAT_MSG_BN_WHISPER_INFORM", "CHAT_MSG_PARTY", "CHAT_MSG_PARTY_LEADER",
+  "CHAT_MSG_RAID", "CHAT_MSG_RAID_LEADER", "CHAT_MSG_RAID_WARNING", "CHAT_MSG_INSTANCE_CHAT",
+  "CHAT_MSG_INSTANCE_CHAT_LEADER", "CHAT_MSG_GUILD", "CHAT_MSG_OFFICER", "CHAT_MSG_CHANNEL",
+  "CHAT_MSG_COMMUNITIES_CHANNEL" }) do
+  ns.Game.AddChatFilter(event, chatFilter)
+end
+
+-- Clicks: the "addon" link type is handed to addons (EventRegistry's
+-- SetItemRef); older clients only let a hook on SetItemRef see it. Either
+-- way one click is handled once.
+local lastClick
+local function onClick(link)
+  local now = type(GetTime) == "function" and GetTime() or nil
+  if now and lastClick and lastClick.link == link and lastClick.at == now then return end
+  lastClick = { link = link, at = now }
+  UI.OnShareLink(link)
+end
+if type(EventRegistry) == "table" and type(EventRegistry.RegisterCallback) == "function" then
+  pcall(EventRegistry.RegisterCallback, EventRegistry, "SetItemRef", function(_, link) onClick(link) end, UI)
+end
 if type(hooksecurefunc) == "function" and type(SetItemRef) == "function" then
-  hooksecurefunc("SetItemRef", function(link)
-    local sender, id = ns.Share.ParseLink(link)
-    if sender then UI.RequestSharedList(sender, id) end
-  end)
+  hooksecurefunc("SetItemRef", function(link) onClick(link) end)
 end
