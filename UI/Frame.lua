@@ -385,10 +385,27 @@ function UI.HideMenu()
   if menuCatcher then menuCatcher:Hide() end
 end
 
--- Name prompt: UI.AskText(title, default, onAccept) - a small flat dialog
--- with a text box, OK and Cancel; Enter accepts, Escape cancels. onAccept
--- gets the trimmed text (not called for an empty one).
+-- Name prompt: UI.AskText(title, default, onAccept[, opts]) - a small flat
+-- dialog with a text box, OK and Cancel; Enter accepts, Escape cancels.
+-- onAccept gets the trimmed text (not called for an empty one). opts:
+--   match = text the box must hold (trimmed, any case) before OK works
+--           (OK greyed out until then; the typed-name check before a delete),
+--   okLabel = the OK button's text, danger = true for a red OK button,
+--   hint = a small grey line under the title.
 local prompt
+
+-- Whether the box's text is what opts.match asks for (trimmed, any case).
+function UI.PromptMatches(text, match)
+  if match == nil then return true end
+  local t = string.lower(string.match(text or "", "^%s*(.-)%s*$"))
+  return t ~= "" and t == string.lower(string.match(match, "^%s*(.-)%s*$"))
+end
+
+local function paintOK()
+  local good = UI.PromptMatches(prompt.Edit:GetText(), prompt.match)
+  prompt.OK:SetEnabled(good)
+  if prompt.OK.SetAlpha then prompt.OK:SetAlpha(good and 1 or 0.4) end
+end
 
 local function buildPrompt()
   prompt = CreateFrame("Frame", "AzerothTrailPrompt", UIParent)
@@ -404,9 +421,16 @@ local function buildPrompt()
   title:SetPoint("TOPRIGHT", prompt, "TOPRIGHT", -12, -12)
   title:SetJustifyH("LEFT")
   prompt.Title = title
+  local hint = prompt:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  hint:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -4)
+  hint:SetPoint("TOPRIGHT", title, "BOTTOMRIGHT", 0, -4)
+  hint:SetJustifyH("LEFT")
+  hint:Hide()
+  prompt.Hint = hint
   local boxFrame = CreateFrame("Frame", nil, prompt)
   boxFrame:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -10)
   boxFrame:SetPoint("TOPRIGHT", title, "BOTTOMRIGHT", 0, -10)
+  prompt.Box = boxFrame
   boxFrame:SetHeight(24)
   local boxFill = boxFrame:CreateTexture(nil, "BACKGROUND")
   boxFill:SetAllPoints(boxFrame)
@@ -421,11 +445,13 @@ local function buildPrompt()
   prompt.Edit = edit
   local function accept()
     local text = string.match(edit:GetText() or "", "^%s*(.-)%s*$")
+    if not UI.PromptMatches(text, prompt.match) then return end
     local fn = prompt.onAccept
     prompt:Hide()
     if fn and text ~= "" then fn(text) end
   end
   edit:SetScript("OnEnterPressed", accept)
+  edit:SetScript("OnTextChanged", function() paintOK() end)
   edit:SetScript("OnEscapePressed", function() prompt:Hide() end)
   local ok = UI.FlatButton(prompt, L["OK"], "gold", 20)
   ok:SetWidth(70)
@@ -440,12 +466,26 @@ local function buildPrompt()
   return prompt
 end
 
-function UI.AskText(title, default, onAccept)
+function UI.AskText(title, default, onAccept, opts)
   if not prompt then buildPrompt() end
+  opts = opts or {}
   UI.HideMenu()
   prompt.Title:SetText(title or "")
   prompt.onAccept = onAccept
+  prompt.match = opts.match
+  prompt.Hint:SetText(opts.hint or "")
+  prompt.Hint:SetShown(opts.hint ~= nil)
+  -- The box sits under the hint when there is one.
+  prompt.Box:ClearAllPoints()
+  local above = opts.hint and prompt.Hint or prompt.Title
+  prompt.Box:SetPoint("TOPLEFT", above, "BOTTOMLEFT", 0, opts.hint and -6 or -10)
+  prompt.Box:SetPoint("TOPRIGHT", above, "BOTTOMRIGHT", 0, opts.hint and -6 or -10)
+  prompt:SetHeight(opts.hint and 120 or 104)
+  UI.FlatButtonSetText(prompt.OK, opts.okLabel or L["OK"])
+  prompt.OK:SetWidth(70)
+  prompt.OK.Fill:SetColorTexture(unpack(opts.danger and { 0.85, 0.2, 0.15, 0.45 } or { 1, 0.82, 0, 0.18 }))
   prompt.Edit:SetText(default or "")
+  paintOK()
   prompt:Show()
   if prompt.Edit.SetFocus then prompt.Edit:SetFocus() end
   if prompt.Edit.HighlightText then prompt.Edit:HighlightText() end

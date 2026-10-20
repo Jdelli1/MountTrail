@@ -391,4 +391,53 @@ describe("custom lists in the pane and the Checklist", function()
     pop:RunScript("OnClick", "LeftButton")
     eq(opened, { kind = "list", list = id })
   end)
+
+  it("deleting a list asks for its name; Delete only works once it is typed", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    local store = ns.UI.ListsDB()
+    local id = ns.Lists.Create(store, "WoD loop")
+    ns.ToggleWindow()
+    ns.UI.SelectTab("checklist")
+    ns.db.char.checklistShow = "lists"
+    ns.Refresh()
+    local root
+    for _, c in ipairs(ns.UI.frame.Contents.checklist.children) do if c.Detail then root = c end end
+    local header
+    for _, c in ipairs(root.children) do if c.Chips then header = c end end
+    local rows = header.Checklist.ScrollBox.provider.rows
+    local f = CreateFrame("Frame", nil, UIParent)
+    header.Checklist.ScrollBox.view.factory(function(kind, init) init(f, rows[2]) end, rows[2])
+    f:RunScript("OnMouseUp", "RightButton")
+    local menu = _G.AzerothTrailMenu
+    local del
+    for _, it in ipairs(menu.items) do if it:IsShown() and it.data.text == "Delete..." then del = it end end
+    del:RunScript("OnClick", "LeftButton")
+    local p = _G.AzerothTrailPrompt
+    ok(p:IsShown(), "prompt")
+    eq(p.Title:GetText(), "Delete WoD loop?")
+    eq(p.Hint:GetText(), "Type WoD loop to confirm. This can't be undone.")
+    eq(p.OK.Text:GetText(), "Delete")
+    eq(p.OK.enabled, false, "greyed out while empty")
+    p.Edit:SetText("WoD")
+    p.Edit:RunScript("OnTextChanged")
+    eq(p.OK.enabled, false)
+    p.Edit:RunScript("OnEnterPressed")
+    ok(p:IsShown(), "Enter does nothing until it matches")
+    ok(ns.Lists.Get(store, id), "still there")
+    p.Edit:SetText("  wod LOOP ")
+    p.Edit:RunScript("OnTextChanged")
+    eq(p.OK.enabled, true, "trimmed, any case")
+    p.OK:RunScript("OnClick", "LeftButton")
+    eq(ns.Lists.Get(store, id), nil, "deleted")
+    ok(not p:IsShown())
+    -- A plain prompt (no match) works as before.
+    local got
+    ns.UI.AskText("Name", "x", function(t) got = t end)
+    eq(p.OK.enabled, true)
+    eq(p.OK.Text:GetText(), "OK")
+    ok(not p.Hint:IsShown())
+    p.OK:RunScript("OnClick", "LeftButton")
+    eq(got, "x")
+  end)
 end)

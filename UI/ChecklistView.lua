@@ -629,15 +629,15 @@ local function listsMenu(data, owner)
     end },
     { separator = true },
     { text = L["Delete..."], onClick = function()
-      UI.ShowMenu(owner, {
-        { title = string.format(L["Delete %s?"], l.name) },
-        { text = L["Delete"], onClick = function()
-          ns.Lists.Delete(store, id)
-          if UI.ClosePopout then UI.ClosePopout(UI.PopoutKey({ kind = "list", list = id })) end
-          ns.Refresh()
-        end },
-        { text = L["Keep"], onClick = function() end },
-      }, "cursor")
+      -- Type the list's name to delete it (UI.AskText's match).
+      UI.AskText(string.format(L["Delete %s?"], l.name), "", function()
+        ns.Lists.Delete(store, id)
+        if UI.ClosePopout then UI.ClosePopout(UI.PopoutKey({ kind = "list", list = id })) end
+        ns.Refresh()
+      end, {
+        match = l.name, okLabel = L["Delete"], danger = true,
+        hint = string.format(L["Type %s to confirm. This can't be undone."], l.name),
+      })
     end },
   }, "cursor")
 end
