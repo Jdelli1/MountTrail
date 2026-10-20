@@ -32,6 +32,8 @@ Options.UNOBTAINABLE = "MOUNTTRAIL_UNOBTAINABLE"
 Options.MINIMAP = "MOUNTTRAIL_MINIMAP"
 Options.RARITY_COLORS = "MOUNTTRAIL_RARITY_COLORS"
 Options.WINDOW_SCALE = "MOUNTTRAIL_WINDOW_SCALE"
+Options.SHOW_LISTS = "MOUNTTRAIL_SHOW_LISTS"
+Options.SHOW_QUICK = "MOUNTTRAIL_SHOW_QUICK"
 Options.NAV_TEXT = "MOUNTTRAIL_NAV_TEXT"
 
 -- Slider ranges (whole percent for the scale).
@@ -155,9 +157,13 @@ function Options.Set(name, value)
   elseif name == "showUnobtainable" then setUnobtainable(value)
   elseif name == "rarityColors" then setRarityColors(value)
   elseif name == "minimap" then Options.SetMinimap(value)
+  elseif name == "showLists" or name == "showQuick" then
+    -- Stored as "hide" flags, so a missing value (the default) shows them.
+    settings()[name == "showLists" and "navHideLists" or "navHideQuick"] = (not value) or nil
+    if ns.UI and ns.UI.RefreshNav then ns.UI.RefreshNav() end
   end
   for _, var in pairs({ Options.WINDOW_SCALE, Options.NAV_TEXT, Options.UNOBTAINABLE, Options.RARITY_COLORS,
-    Options.MINIMAP }) do
+    Options.MINIMAP, Options.SHOW_LISTS, Options.SHOW_QUICK }) do
     Options.Changed(var)
   end
 end
@@ -238,6 +244,18 @@ local function build(api)
       L["Navigation text size"], 2, Options.NavTextSize, setNavTextSize)
     slider(api, category, navText, Options.NAV_TEXT_RANGE, function(v) return string.format("+%d", v) end,
       L["Points added to the text of the window's left column."])
+  end
+
+  -- The navigation's list sections.
+  for _, s in ipairs({
+    { var = Options.SHOW_LISTS, name = "showLists", hide = "navHideLists", label = "Show My lists",
+      tip = "Your own lists in the window's left column." },
+    { var = Options.SHOW_QUICK, name = "showQuick", hide = "navHideQuick", label = "Show Quick lists",
+      tip = "The built-in lists (Daily / Weekly lockouts, Rare spawns, Mythic Mounts) in the window's left column." },
+  }) do
+    local setting = api.RegisterProxySetting(category, s.var, VarType.Boolean or "boolean", L[s.label], true,
+      function() return settings()[s.hide] ~= true end, function(on) Options.Set(s.name, on) end)
+    api.CreateCheckbox(category, setting, L[s.tip])
   end
 
   local minimap = api.RegisterProxySetting(category, Options.MINIMAP, VarType.Boolean or "boolean",

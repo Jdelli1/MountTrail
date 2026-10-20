@@ -271,6 +271,20 @@ describe("ui", function()
       "MountTrailGameFontNormal", "MountTrailGameFontDisableSmall" }) do _G[name] = nil end
   end)
 
+  it("UI.NavMove / UI.ApplyNavOrder: one place up or down, never across the favourites' line", function()
+    local ns = loadUI()
+    local fav = { a = true }
+    local isFav = function(k) return fav[k] == true end
+    eq(ns.UI.NavMove({ "a", "b", "c" }, "c", -1, isFav), { "a", "c", "b" })
+    eq(ns.UI.NavMove({ "a", "b", "c" }, "b", -1, isFav), nil, "a list never goes above a favourite")
+    eq(ns.UI.NavMove({ "a", "b", "c" }, "a", 1, isFav), nil, "nor a favourite below the rest")
+    eq(ns.UI.NavMove({ "a", "b", "c" }, "c", 1), nil, "at the end")
+    eq(ns.UI.NavMove({ "a", "b", "c" }, "a", 1), { "b", "a", "c" }, "no favourites: anywhere")
+    local function keys(list) local out = {} for i, e in ipairs(list) do out[i] = e.key end return out end
+    eq(keys(ns.UI.ApplyNavOrder({ { key = "x" }, { key = "y" }, { key = "z" } }, { "z", "x" })), { "z", "x", "y" },
+      "saved order first, the rest after")
+  end)
+
   it("UI.NavSelected / UI.NavListEntries: a list page marks its list; lists then quick lists", function()
     local ns = loadUI()
     eq(ns.UI.NavSelected("checklist", nil), "checklist")

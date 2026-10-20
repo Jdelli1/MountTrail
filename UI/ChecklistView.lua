@@ -613,12 +613,20 @@ local function listsMenu(data, owner)
     }, "cursor")
     return
   end
-  local id = data.listID
+  local items = UI.CustomListMenuItems(data.listID, data.extra)
+  if items then UI.ShowMenu(owner, items, "cursor") end
+end
+
+-- A custom list's menu items: its name, `extra` items (the navigation's Move
+-- up / Move down), pop out, rename, delete (typing the name to confirm).
+-- nil for an unknown list.
+function UI.CustomListMenuItems(id, extra)
   local store = UI.ListsDB and UI.ListsDB()
   local l = store and ns.Lists.Get(store, id)
-  if not l then return end
-  UI.ShowMenu(owner, {
-    { title = l.name },
+  if not l then return nil end
+  local items = { { title = l.name } }
+  for _, it in ipairs(extra or {}) do items[#items + 1] = it end
+  for _, it in ipairs({
     { text = L["Pop out"], onClick = function() UI.OpenPopout({ kind = "list", list = id }) end },
     { text = L["Rename..."], onClick = function()
       UI.AskText(L["Rename list"], l.name, function(name)
@@ -638,7 +646,8 @@ local function listsMenu(data, owner)
         hint = string.format(L["Type %s to confirm. This can't be undone."], l.name),
       })
     end },
-  }, "cursor")
+  }) do items[#items + 1] = it end
+  return items
 end
 
 -- Shift-click on a header: every header of the checklist at once.
@@ -651,8 +660,8 @@ end
 
 -- A custom list's menu (pop out / rename / delete) at the cursor, for other
 -- views (the home page's list cards).
-function UI.ShowCustomListMenu(listID, owner)
-  listsMenu({ listID = listID }, owner)
+function UI.ShowCustomListMenu(listID, owner, extra)
+  listsMenu({ listID = listID, extra = extra }, owner)
 end
 
 local function initHeader(f, data)

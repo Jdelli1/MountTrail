@@ -801,6 +801,69 @@ function UI.ToggleNavFavorite(key)
   if UI.RefreshNav then UI.RefreshNav() end
 end
 
+-- The player's order of each section (ns.db.global.navOrder[section] =
+-- { entry keys }): "lists", "quick", "browse".
+local function navOrders()
+  local global = ns.db and ns.db.global
+  if not global then return {} end
+  if type(global.navOrder) ~= "table" then global.navOrder = {} end
+  return global.navOrder
+end
+
+-- `entries` in the saved `order` (keys it names first, in that order; the
+-- rest after in their own order, e.g. a new list at the end).
+function UI.ApplyNavOrder(entries, order)
+  if type(order) ~= "table" or #order == 0 then return entries end
+  local rank = {}
+  for i, key in ipairs(order) do rank[key] = i end
+  local named, rest = {}, {}
+  for _, e in ipairs(entries) do
+    if rank[e.key] then named[#named + 1] = e else rest[#rest + 1] = e end
+  end
+  table.sort(named, function(a, b) return rank[a.key] < rank[b.key] end)
+  for _, e in ipairs(rest) do named[#named + 1] = e end
+  return named
+end
+
+-- `keys` (a section as shown) with `key` moved one place (`delta` -1 up,
+-- +1 down) -> the new keys, or nil when it cannot move: at an end, or past
+-- the line between the favourites and the rest (isFavorite(key); nil:
+-- none are).
+function UI.NavMove(keys, key, delta, isFavorite)
+  local i
+  for j, k in ipairs(keys) do if k == key then i = j end end
+  local t = i and i + delta
+  if not (t and t >= 1 and t <= #keys) then return nil end
+  if isFavorite and (isFavorite(keys[i]) == true) ~= (isFavorite(keys[t]) == true) then return nil end
+  local out = {}
+  for j, k in ipairs(keys) do out[j] = k end
+  out[i], out[t] = out[t], out[i]
+  return out
+end
+
+local shownSections = {} -- section -> its entries' keys as last shown (the moves' baseline)
+
+-- Moves an entry of `section` one place and saves the section's order.
+function UI.MoveNavEntry(section, key, delta)
+  local keys = shownSections[section]
+  if not keys then return false end
+  local fav = section ~= "browse" and UI.IsNavFavorite or nil
+  local moved = UI.NavMove(keys, key, delta, fav)
+  if not moved then return false end
+  navOrders()[section] = moved
+  UI.RefreshNav()
+  return true
+end
+
+-- Whether a section is shown (Options: "Show My lists" / "Show Quick lists").
+function UI.NavSectionShown(section)
+  local global = ns.db and ns.db.global
+  local saved = global and type(global.settings) == "table" and global.settings or {}
+  if section == "lists" then return saved.navHideLists ~= true end
+  if section == "quick" then return saved.navHideQuick ~= true end
+  return true
+end
+
 -- `entries` with the favourites first (each part keeps its order).
 function UI.FavoritesFirst(entries, isFavorite)
   local fav, rest = {}, {}
@@ -1066,6 +1129,10 @@ function UI.SettingsMenuItems()
     function() O.Set("showUnobtainable", not (saved.showUnobtainable == true)) end)
   items[#items + 1] = check(L["Colour pop-out names by rarity"], saved.rarityColors == true,
     function() O.Set("rarityColors", not (saved.rarityColors == true)) end)
+  items[#items + 1] = check(L["Show My lists"], saved.navHideLists ~= true,
+    function() O.Set("showLists", saved.navHideLists == true) end)
+  items[#items + 1] = check(L["Show Quick lists"], saved.navHideQuick ~= true,
+    function() O.Set("showQuick", saved.navHideQuick == true) end)
   items[#items + 1] = check(L["Show minimap button"], not (global and global.minimap and global.minimap.hide),
     function() O.Set("minimap", global and global.minimap and global.minimap.hide == true) end)
   items[#items + 1] = { separator = true }
@@ -1306,11 +1373,16 @@ local function navButton(parent)
         if UI.ToggleZoneMountsPopout then UI.ToggleZoneMountsPopout() end
         return
       end
+      local moves = UI.NavMoveItems(e)
       if e.source and e.source.kind == "list" and UI.ShowCustomListMenu then
-        UI.ShowCustomListMenu(e.source.list, self)
-      elseif e.source and UI.ShowMenu then
-        UI.ShowMenu(self, { { title = e.label },
-          { text = L["Pop out"], onClick = function() UI.OpenPopout(e.source) end } }, "cursor")
+        UI.ShowCustomListMenu(e.source.list, self, moves)
+      elseif UI.ShowMenu and (e.source or e.section) then
+        local items = { { title = L[e.label] or e.label } }
+        for _, it in ipairs(moves) do items[#items + 1] = it end
+        if e.source then
+          items[#items + 1] = { text = L["Pop out"], onClick = function() UI.OpenPopout(e.source) end }
+        end
+        UI.ShowMenu(self, items, "cursor")
       end
       return
     end
@@ -1332,6 +1404,21 @@ local function navButton(parent)
   end)
   b:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   return b
+end
+
+-- Move up / Move down for an entry of a reorderable section (lists, quick
+-- lists, Browse); greyed where it cannot move (an end, or the favourites'
+-- line). {} for other entries.
+function UI.NavMoveItems(e)
+  if not e.section then return {} end
+  local keys = shownSections[e.section] or {}
+  local fav = e.section ~= "browse" and UI.IsNavFavorite or nil
+  local up, down = UI.NavMove(keys, e.key, -1, fav), UI.NavMove(keys, e.key, 1, fav)
+  return {
+    { text = L["Move up"], disabled = up == nil, onClick = function() UI.MoveNavEntry(e.section, e.key, -1) end },
+    { text = L["Move down"], disabled = down == nil, onClick = function() UI.MoveNavEntry(e.section, e.key, 1) end },
+    { separator = true },
+  }
 end
 
 -- An entry's click: a view (Home also leaves a list or expansion page), the
@@ -1565,8 +1652,18 @@ function UI.RefreshNav()
   end
   for _, e in ipairs(UI.NAV) do entry(e, false) end
   y = y + 4
+  local browse = UI.ApplyNavOrder(UI.NavBrowseEntries(ns.Browse and ns.Browse.CATEGORIES), navOrders().browse)
+  local function record(section, list)
+    local keys = {}
+    for i, e in ipairs(list) do
+      keys[i] = e.key
+      e.section = section
+    end
+    shownSections[section] = keys
+  end
+  record("browse", browse)
   if not heading(L["Browse"], false, UI.NAV_BROWSE_KEY) then
-    for _, e in ipairs(UI.NavBrowseEntries(ns.Browse and ns.Browse.CATEGORIES)) do entry(e, true) end
+    for _, e in ipairs(browse) do entry(e, true) end
   end
   -- My lists (with +) and Quick lists: each its own collapsible section.
   y = y + 4
@@ -1576,11 +1673,15 @@ function UI.RefreshNav()
   for _, e in ipairs(lists) do
     if e.builtIn then quick[#quick + 1] = e else mine[#mine + 1] = e end
   end
-  mine = UI.FavoritesFirst(mine, UI.IsNavFavorite)
-  quick = UI.FavoritesFirst(quick, UI.IsNavFavorite)
-  local mineCollapsed = heading(L["My lists"], true, UI.NAV_LISTS_KEY)
-  nav.Empty:SetShown(#mine == 0 and not mineCollapsed)
-  if not mineCollapsed then
+  mine = UI.FavoritesFirst(UI.ApplyNavOrder(mine, navOrders().lists), UI.IsNavFavorite)
+  quick = UI.FavoritesFirst(UI.ApplyNavOrder(quick, navOrders().quick), UI.IsNavFavorite)
+  record("lists", mine)
+  record("quick", quick)
+  local showMine = UI.NavSectionShown("lists")
+  local mineCollapsed = showMine and heading(L["My lists"], true, UI.NAV_LISTS_KEY)
+  if not showMine then nav.AddList:Hide() end
+  nav.Empty:SetShown(showMine and #mine == 0 and not mineCollapsed)
+  if showMine and not mineCollapsed then
     if #mine == 0 then
       nav.Empty:ClearAllPoints()
       nav.Empty:SetPoint("TOPLEFT", nav.Content, "TOPLEFT", 12, -(y + 2))
@@ -1588,7 +1689,7 @@ function UI.RefreshNav()
     end
     for _, e in ipairs(mine) do entry(e, true) end
   end
-  if #quick > 0 then
+  if #quick > 0 and UI.NavSectionShown("quick") then
     y = y + 4
     if not heading(L["Quick lists"], false, UI.NAV_QUICK_KEY) then
       for _, e in ipairs(quick) do entry(e, true) end

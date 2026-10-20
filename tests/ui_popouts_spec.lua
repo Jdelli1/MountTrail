@@ -1309,6 +1309,62 @@ describe("lists in the navigation column", function()
     ok(not navButton(ns, "Lockouts").Star:IsShown(), "views have no star")
   end)
 
+  it("Move up / Move down from the right-click menu: lists, quick lists and Browse; favourites stay on top", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    local store = ns.UI.ListsDB()
+    ns.Lists.Create(store, "Alpha")
+    ns.Lists.Create(store, "Beta")
+    ns.Lists.Create(store, "Gamma")
+    home(ns)
+    local nav = ns.UI.frame.Nav
+    local function order(names)
+      local out = {}
+      for i = 1, nav.shown do
+        local t = nav.Buttons[i].Text:GetText()
+        for _, n in ipairs(names) do if t == n then out[#out + 1] = t end end
+      end
+      return out
+    end
+    local function menuOf(label)
+      local items
+      ns.UI.ShowMenu = function(_, list) items = type(list) == "function" and list() or list end
+      navButton(ns, label):RunScript("OnClick", "RightButton")
+      local by = {}
+      for _, it in ipairs(items or {}) do if it.text then by[it.text] = it end end
+      return by
+    end
+    menuOf("Gamma")["Move up"].onClick()
+    eq(order({ "Alpha", "Beta", "Gamma" }), { "Alpha", "Gamma", "Beta" })
+    ok(menuOf("Gamma")["Rename..."], "a custom list keeps rename / delete")
+    navButton(ns, "Alpha").Star:RunScript("OnClick", "LeftButton")
+    eq(menuOf("Gamma")["Move up"].disabled, true, "cannot pass the favourite")
+    eq(menuOf("Alpha")["Move down"].disabled, true, "a favourite stays above the rest")
+    menuOf("Beta")["Move up"].onClick()
+    eq(order({ "Alpha", "Beta", "Gamma" }), { "Alpha", "Beta", "Gamma" })
+    menuOf("Mythic Mounts")["Move up"].onClick()
+    eq(order({ "Rare spawns", "Mythic Mounts" }), { "Mythic Mounts", "Rare spawns" }, "quick lists")
+    menuOf("PvP")["Move up"].onClick()
+    eq(order({ "Shop & Trading Post", "PvP" }), { "PvP", "Shop & Trading Post" }, "Browse")
+    ok(ns.db.global.navOrder.browse and ns.db.global.navOrder.lists, "saved")
+  end)
+
+  it("Options can hide My lists and Quick lists from the navigation", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    ns.Lists.Create(ns.UI.ListsDB(), "Loop")
+    home(ns)
+    ns.db.global.settings.navHideLists = true
+    ns.UI.RefreshNav()
+    eq(navButton(ns, "Loop"), nil, "My lists hidden")
+    ok(not ns.UI.frame.Nav.AddList:IsShown(), "and its +")
+    ok(navButton(ns, "Mythic Mounts"), "Quick lists still there")
+    ns.db.global.settings.navHideQuick = true
+    ns.UI.RefreshNav()
+    eq(navButton(ns, "Mythic Mounts"), nil, "Quick lists hidden")
+    ok(navButton(ns, "Drops"), "Browse stays")
+  end)
+
   it("right-click a list entry opens its menu; + starts a list", function()
     local ns = loadUI()
     ns.UI.ChecklistBuild = function() return built() end
