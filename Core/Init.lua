@@ -168,7 +168,11 @@ function ns.RetireRoute(db)
     char.routeMode = "list"
     char.routeView = nil
     char.showCompleted = nil
+    -- The farming run (removed): its saved run and window state.
+    char.run = nil
+    char.runShown = nil
   end
+  if type(global) == "table" then global.runWindow = nil end
   local window = type(global) == "table" and global.window or nil
   if type(window) == "table" and window.tab == "route" then window.tab = "checklist" end
 end
@@ -211,7 +215,6 @@ function addon:OnInitialize()
       -- Options > AddOns > MountTrail (UI\Options.lua): waypoints = "game" | "tomtom" | "both"
       -- (Integrations\Map.lua); showUnobtainable: not-owned unobtainable mounts on Misc (UI\List.lua)
       settings = { waypoints = "game", showUnobtainable = false },
-      runWindow = {}, -- tonight's run window position (UI\RunWindow.lua)
       collapsed = {}, -- list headers the player collapsed: { ["<view>|<exp>|<section>[|<sub-group>]"] = true } (UI\List.lua)
       altsHidden = {}, -- alt lockout matrix: characters hidden from it, { ["Name - Realm"] = true } (UI\AltsWindow.lua)
       altsWindow = {}, -- alt lockout matrix window position (UI\AltsWindow.lua)
@@ -221,8 +224,6 @@ function addon:OnInitialize()
       routeMode = "list", -- the parked route arrow (UI\Arrow.lua): always "list" (ns.RetireRoute)
       checklistHideDone = false, -- Checklist: hide done lockouts
       checklistFilters = {}, -- Checklist Filter menu: { [category] = false } for hidden ones (Logic\Checklist.lua)
-      -- Tonight's run (Logic\Run.lua, UI\RunWindow.lua): { stops =, skipped =, started =, expires = } or nil;
-      -- runShown: its window is open.
       campChecked = {}, -- Checklist rare spawns with no lockout: { [tick key] = time the player last checked the spawn }
     },
   }, true)
@@ -332,12 +333,6 @@ function addon:OnSlash(input)
     else
       self:Print(L["The window is not available yet. Type /mtrail help for commands."])
     end
-  elseif cmd == "run" then
-    if ns.UI and ns.UI.ToggleRun then
-      ns.UI.ToggleRun()
-    else
-      self:Print(L["The window is not available yet. Type /mtrail help for commands."])
-    end
   elseif cmd == "alts" then
     if ns.UI and ns.UI.ToggleAltsWindow then
       ns.UI.ToggleAltsWindow()
@@ -372,7 +367,6 @@ function addon:OnSlash(input)
     self:Print(L["/mtrail dump - list saved instances (instance ID, difficulty ID, bosses)"])
     self:Print(L["/mtrail zone - show or hide the zone panel (mounts in your current zone)"])
     self:Print(L["/mtrail rares - show or hide the rare spawns of your zone"])
-    self:Print(L["/mtrail run - start tonight's farming run (or show / hide the one in progress)"])
     self:Print(L["/mtrail options - open the MountTrail options (Options > AddOns)"])
     self:Print(L["/mtrail alts - show or hide the alt lockout matrix (who is still unsaved)"])
     self:Print(L["/mtrail debug - show or hide caught map and waypoint errors"])
