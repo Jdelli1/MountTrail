@@ -1313,7 +1313,7 @@ local NAV_GOLD = { 1, 0.82, 0 }
 UI.NAV_LOCKOUT_GROUPS = {
   { show = "daily", label = "Daily lockouts" },
   { show = "weekly", label = "Weekly lockouts" },
-  { show = "camp", label = "Rare spawns" },
+  { show = "camp", label = "Rare Spawns" },
 }
 
 function UI.NavListEntries(store, quick)
@@ -1543,7 +1543,7 @@ function UI.NavClick(e)
     return
   end
   -- Lockouts (all) or one of its groups (the quick lists' Daily / Weekly /
-  -- Rare spawns).
+  -- Rare Spawns).
   if e.show or e.key == "checklist" then
     local char = ns.db and ns.db.char
     if char then char.checklistShow = e.show or "all" end

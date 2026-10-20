@@ -24,7 +24,7 @@ local function hasDifficulty(list, id)
 end
 
 -- Shown under Quick lists in the navigation (none at the moment: Daily,
--- Weekly and Rare spawns are the Checklist's groups).
+-- Weekly and Rare Spawns are the Checklist's groups).
 QuickLists.LISTS = {}
 
 -- Examples: worked out the same way, but given to the player once as a

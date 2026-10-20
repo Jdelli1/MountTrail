@@ -500,7 +500,7 @@ describe("checklist event status", function()
   end)
 end)
 
--- Rare spawns with no lockout (camp specs): their own checklist group, with a
+-- Rare Spawns with no lockout (camp specs): their own checklist group, with a
 -- "last checked" box per row (ns.db.char.campChecked).
 describe("checklist rare spawns (no lockout)", function()
   it("UI.ChecklistBuild lists camp mounts in their own group", function()
@@ -565,7 +565,7 @@ describe("checklist rare spawns (no lockout)", function()
       "Drop: Nok-Karosh · Frostfire Ridge \194\183 Last checked 3 hr ago")
     eq(UI.ChecklistCampDesc("Drop: X", nil), "Drop: X")
     eq(UI.ChecklistCampDesc("", "Last checked 1 min ago"), "Last checked 1 min ago")
-    eq(UI.ChecklistHeaderLabel("camp", 3600, 86400), "Rare spawns (no lockout)")
+    eq(UI.ChecklistHeaderLabel("camp", 3600, 86400), "Rare Spawns (no lockout)")
     eq(UI.HeaderText({ text = "Gorgrond", left = 3 }), "Gorgrond  |cff9d9d9d(3 left)|r")
   end)
 

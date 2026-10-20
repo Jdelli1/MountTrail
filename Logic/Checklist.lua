@@ -97,7 +97,7 @@ local CATEGORY_LABELS = {
 local CATEGORY_RANK = rankOf(CATEGORIES)
 Checklist.CATEGORIES = CATEGORIES
 
--- Rare spawns with no lockout (camp specs, Lockouts.IsCamp): their own
+-- Rare Spawns with no lockout (camp specs, Lockouts.IsCamp): their own
 -- top-level group after Daily and Weekly, and their own filter key.
 local CAMP = "camp"
 Checklist.CAMP = CAMP
@@ -432,9 +432,9 @@ local function zoneGroups(entries)
   return groups
 end
 
--- The "Rare spawns (no lockout)" group (camp specs) after Daily and Weekly:
+-- The "Rare Spawns (no lockout)" group (camp specs) after Daily and Weekly:
 -- a header { header = true, depth = 1, key = "checklist|camp", camp = true,
--- text = opts.label("camp") or "Rare spawns (no lockout)", left = mounts
+-- text = opts.label("camp") or "Rare Spawns (no lockout)", left = mounts
 -- left, collapsed = }, then per expansion { depth = 2, key =
 -- "checklist|camp|<exp or Other>", exp =, left = } and per zone (the source
 -- text's Zone, none = "Other") { depth = 3, key = "checklist|camp|<exp>|<zone>",
@@ -448,7 +448,7 @@ local function addCamp(rows, built, collapsed, filters, opts)
   local isCollapsed = collapsed[key] == true
   rows[#rows + 1] = {
     header = true, depth = 1, key = key, reset = CAMP, camp = true,
-    text = opts.label and opts.label(CAMP) or L["Rare spawns (no lockout)"],
+    text = opts.label and opts.label(CAMP) or L["Rare Spawns (no lockout)"],
     left = #list, collapsed = isCollapsed,
   }
   if isCollapsed then return end

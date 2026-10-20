@@ -99,7 +99,7 @@ function UI.PopoutTitle(source, store)
     local l = store and ns.Lists.Get(store, source.list)
     return l and l.name or L["List"]
   end
-  if source.kind == "zone" then return L["Rare spawns here"] end
+  if source.kind == "zone" then return L["Rare Spawns here"] end
   if source.kind == "zonemounts" then
     return string.format(L["Mounts in %s"], source.zoneName or L["this zone"])
   end
@@ -108,7 +108,7 @@ function UI.PopoutTitle(source, store)
     return q and L[q.name] or L["List"]
   end
   if source.all then
-    return L[({ camp = "Rare spawns", weekly = "Weeklies" })[source.kind] or "Dailies"]
+    return L[({ camp = "Rare Spawns", weekly = "Weeklies" })[source.kind] or "Dailies"]
   end
   local exp = L[source.exp or ""] or tostring(source.exp)
   local title

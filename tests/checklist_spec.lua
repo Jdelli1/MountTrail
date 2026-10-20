@@ -988,7 +988,7 @@ describe("Checklist rare spawns with no lockout (camp specs)", function()
     local rows = load().Rows(build())
     local top
     for _, r in ipairs(rows) do if r.key == "checklist|camp" then top = r end end
-    eq(top.text, "Rare spawns (no lockout)")
+    eq(top.text, "Rare Spawns (no lockout)")
     eq(top.camp, true)
     eq(top.owned, nil, "no done/total: nothing here is ever done")
     eq(top.total, nil)

@@ -32,14 +32,14 @@ local ADDON, ns = ...
 -- left-click selects; modifier clicks and the tick boxes keep their
 -- actions; no hover tooltip, no location icon). The header strip: the
 -- character's name, the reset timers ("Daily reset in 9 hr ..."),
--- the flavour line, then chips All / Daily / Weekly / Rare spawns (with
+-- the flavour line, then chips All / Daily / Weekly / Rare Spawns (with
 -- what is left) that show one group or all (ns.db.char.checklistShow).
 -- Right-clicking a header pops that set out as its own window
 -- (UI.ChecklistPopout / UI.OpenPopout, UI/Popouts.lua); hovering says so.
 -- A "My lists" chip and group show the custom lists (Logic/Lists.lua): its
 -- header's right-click starts a list; a list's opens pop out / rename /
 -- delete (flat menus, UI.ShowMenu / UI.AskText).
--- After Daily and Weekly, "Rare spawns (no lockout)" lists the camp specs
+-- After Daily and Weekly, "Rare Spawns (no lockout)" lists the camp specs
 -- (rares with no kill flag and no reset) by expansion and zone, headers
 -- counting the mounts left ("(12 left)"); each row's box records when the
 -- player last checked the spawn (UI.ChecklistCampClick, right-click clears),
@@ -250,9 +250,9 @@ end
 local LABELS = { daily = "Daily", weekly = "Weekly" }
 
 -- Header label of a reset group: "Daily · resets in 1 Hr"; the rare spawns
--- with no lockout ("camp") have no reset: "Rare spawns (no lockout)".
+-- with no lockout ("camp") have no reset: "Rare Spawns (no lockout)".
 function UI.ChecklistHeaderLabel(reset, untilDaily, untilWeekly)
-  if reset == "camp" then return L["Rare spawns (no lockout)"] end
+  if reset == "camp" then return L["Rare Spawns (no lockout)"] end
   local seconds = reset == "weekly" and untilWeekly or untilDaily
   return string.format(L["%s · resets in %s"], L[LABELS[reset] or reset], UI.FormatDuration(seconds))
 end
@@ -367,7 +367,7 @@ local function tickRow(entry)
   }
 end
 
--- Rare spawns with no lockout (camp entries) -------------------------------------
+-- Rare Spawns with no lockout (camp entries) -------------------------------------
 -- Their box is not a lockout tick: a click records when the player last
 -- checked the spawn (ns.db.char.campChecked = { [tick key] = Game.Now() }),
 -- shown on the row as "Last checked 3 hr ago". The row is never done; it
@@ -461,7 +461,7 @@ local selectedKey -- the selected row's entry key (the detail pane's mount)
 -- Chips: which group the list shows.
 -- (The lists live in the navigation column; a saved "lists" shows All.)
 local SHOWS = { "all", "daily", "weekly", "camp" }
-local SHOW_LABELS = { all = "All", daily = "Daily", weekly = "Weekly", camp = "Rare spawns" }
+local SHOW_LABELS = { all = "All", daily = "Daily", weekly = "Weekly", camp = "Rare Spawns" }
 
 -- The group shown (ns.db.char.checklistShow), "all" by default.
 function view.Show()
@@ -688,7 +688,7 @@ local function initHeader(f, data)
   UI.InitListHeader(f, data)
 end
 
--- The set a header pops out (UI.OpenPopout), or nil: "Rare spawns" itself
+-- The set a header pops out (UI.OpenPopout), or nil: "Rare Spawns" itself
 -- -> the zone's rares; under it an expansion or zone -> that expansion's
 -- rare spawns; Daily / Weekly expansion headers -> that reset's lockouts
 -- of the expansion; a category under them -> just that category.
@@ -759,7 +759,7 @@ local function buildHeader(parent)
     top.ChecklistFilter = filter
   end
 
-  -- Chips: All / Daily / Weekly / Rare spawns.
+  -- Chips: All / Daily / Weekly / Rare Spawns.
   top.Chips = {}
   local prev
   for i, key in ipairs(SHOWS) do
