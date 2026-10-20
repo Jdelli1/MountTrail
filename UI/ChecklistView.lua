@@ -651,6 +651,12 @@ local function toggleAllHeaders(data)
   ns.Refresh()
 end
 
+-- A custom list's menu (pop out / rename / delete) at the cursor, for other
+-- views (the home page's list cards).
+function UI.ShowCustomListMenu(listID, owner)
+  listsMenu({ listID = listID }, owner)
+end
+
 local function initHeader(f, data)
   f.onToggle = toggleHeader
   f.onToggleAll = toggleAllHeaders

@@ -64,6 +64,11 @@ end
 Journal.SOURCE_ORDER = SOURCE_ORDER
 local SOURCE_RANK = rankOf(SOURCE_ORDER)
 
+-- A section's place in SOURCE_ORDER (unknown sections after it).
+function Journal.SourceRank(section)
+  return SOURCE_RANK[section or "other"] or (#SOURCE_ORDER + 1)
+end
+
 -- `items` grouped by their source section (sectionOf(item), nil counting as
 -- "other") -> { { key = section, items = { ... } } } in SOURCE_ORDER, unknown
 -- sections after it by name; each group keeps the items' order.

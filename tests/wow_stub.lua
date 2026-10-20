@@ -178,6 +178,10 @@ function Frame:RegisterEvent(event) self.events[event] = true end
 function Frame:UnregisterEvent(event) self.events[event] = nil end
 function Frame:EnableMouse(on) self.mouse = on end
 function Frame:SetMovable(on) self.movable = on end
+-- ScrollFrame: the scroll child and the vertical offset are recorded.
+function Frame:SetScrollChild(child) self.scrollChild = child end
+function Frame:SetVerticalScroll(v) self.vscroll = v end
+function Frame:GetVerticalScroll() return self.vscroll or 0 end
 function Frame:IsMovable() return self.movable end
 function Frame:SetClampedToScreen(on) self.clamped = on end
 function Frame:SetToplevel(on) self.toplevel = on end

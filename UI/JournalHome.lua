@@ -11,6 +11,13 @@ local ADDON, ns = ...
 -- A search box in the strip searches every mount (Logic/Search.lua): typing
 -- opens the search page, a list of results grouped by what matched, whose
 -- own box takes over the typing; Back returns home.
+-- The lists (Logic/Lists.lua, Logic/QuickLists.lua) have the right-hand
+-- column: "My lists" with + New, then "Quick lists", one card each (name,
+-- a 3 px bar, owned / total, the lockouts open today; UI.ListCardStats).
+-- A card's click opens the list as a page like an expansion's (its mounts
+-- by source, Collected and the detail pane as usual), its corner button
+-- pops it out, and a custom list's right-click opens its menu (pop out /
+-- rename / delete). The expansion tiles take the rest: a 3-column grid.
 
 local L = ns.L
 
@@ -20,20 +27,23 @@ ns.UI = UI
 -- Layout. The content area of the 800 x 560 window is 780 x 486 (inset 6 px
 -- in and 60 px down for the portrait and top tabs, content 4 px inside it).
 -- Strip: title and totals in the top 32 px, the bar at 32-36 px, the tab
--- chips at 42-58 px. Grid from 68 px down: 12 + 4 x 180 + 3 x 12 = 768 wide
--- (12 px right margin) and 68 + 3 x 128 + 2 x 12 = 476 tall (10 px bottom
--- margin).
+-- chips at 42-58 px. From 68 px down: the lists column on the right (236 px,
+-- 12 px from the edge) and the expansion grid left of it, 12 px apart:
+-- 12 + 3 x 161 + 2 x 12 = 519 wide, then 12 + 236 + 12 = 780; 68 + 4 x 93 +
+-- 3 x 12 = 476 tall (10 px bottom margin).
 local G = {
-  cols = 4,
-  tileW = 180, tileH = 128,
+  cols = 3,
+  tileW = 161, tileH = 93,
   gap = 12,
   left = 12, top = -68,
   stripH = 36,
   chipsY = -42, chipsH = 16, chipGap = 18,
+  sideW = 236, -- the lists column
 }
 UI.HomeLayout = G
 
 local LOGO_W, LOGO_H = 150, 75 -- 2:1, the shape of the client's expansion logos
+local LOGO_BASE = math.min(161 / 180, 93 / 128) -- the default tile's logo scale
 local LOGO_Y = 15 -- centre of the area above the bar: (30 + 128) / 2 - 128 / 2
 local TILE_BAR_H, SUMMARY_BAR_H = 3, 4
 local BAR_TEXTURE = "Interface\\Buttons\\WHITE8X8" -- flat fill, tinted below
@@ -123,6 +133,8 @@ local function paintTile(card, have, total)
   card.Check:SetShown(complete)
 end
 
+local refreshSidebar -- the lists column's repaint (defined with the column below)
+
 local function refreshHome()
   local mounts = (ns.Data and ns.Data.Mounts) or {}
   local Game = ns.Game
@@ -155,6 +167,8 @@ local function refreshHome()
     end
   end
 
+  refreshSidebar(isOwned)
+
   local counts = UI.HomeTabCounts(mounts, isOwned, exists, faction)
   local sumHave, sumTotal = counts.all.have, counts.all.total
   local s = home.Summary
@@ -171,10 +185,15 @@ local function refreshHome()
   end
 end
 
+local myListPage, myList, myListTitle
+local currentList -- the list page's source: { kind = "list", list = id } | { kind = "quick", key = }
+
 local function showHome()
   currentExp = nil
+  currentList = nil
   listPage:Hide()
   searchPage:Hide()
+  myListPage:Hide()
   home:Show()
   refreshHome()
 end
@@ -199,6 +218,7 @@ local function showSearch(text)
   searchCache = {}
   home:Hide()
   listPage:Hide()
+  myListPage:Hide()
   searchPage:Show()
   local box = searchList.SearchBox
   box:SetText(text)
@@ -371,17 +391,18 @@ local function createSummary()
 end
 
 -- Tile sizes for a home of `width` x `height` (the window can be resized):
--- the grid keeps G.cols columns and fills the space below the strip with
--- the same margins and gaps; never smaller than the defaults' 80%. Unknown
--- size (0) -> the defaults. -> tileW, tileH, logo scale.
+-- the grid keeps G.cols columns and fills the space below the strip left of
+-- the lists column with the same margins and gaps; never smaller than the
+-- defaults' 80%. Unknown size (0) -> the defaults. -> tileW, tileH, logo
+-- scale (against the 180 x 128 tile the logo size was drawn for).
 function UI.HomeTileSize(width, height, count)
   local rows = math.max(1, math.ceil((count or 12) / G.cols))
-  if not (width and width > 0 and height and height > 0) then return G.tileW, G.tileH, 1 end
-  local w = math.floor((width - 2 * G.left - (G.cols - 1) * G.gap) / G.cols)
+  if not (width and width > 0 and height and height > 0) then return G.tileW, G.tileH, LOGO_BASE end
+  local w = math.floor((width - 2 * G.left - G.gap - G.sideW - (G.cols - 1) * G.gap) / G.cols)
   local h = math.floor((height + G.top - 10 - (rows - 1) * G.gap) / rows)
   w = math.max(w, math.floor(G.tileW * 0.8))
   h = math.max(h, math.floor(G.tileH * 0.8))
-  return w, h, math.min(w / G.tileW, h / G.tileH)
+  return w, h, math.min(w / 180, h / 128)
 end
 
 -- Re-lays the tiles for the home's current size.
@@ -404,6 +425,286 @@ local function layoutTiles()
 end
 UI.HomeLayoutTiles = layoutTiles
 
+-- Lists column ----------------------------------------------------------------------
+
+local CARD_H, CARD_GAP, SECTION_H = 50, 6, 22
+local OPEN_GREEN = "|cff40c040"
+
+-- A list's card numbers: `ids` its mounts; isOwned(id); built a
+-- Checklist.Build output -> { have = owned, total = #ids, open = the daily /
+-- weekly lockouts of its mounts still to get that are not done yet (a
+-- lockout shared by several of its mounts counts once) }.
+function UI.ListCardStats(ids, isOwned, built)
+  local byMount = {}
+  for _, reset in ipairs({ "daily", "weekly" }) do
+    for _, e in ipairs((built and built[reset]) or {}) do
+      for _, id in ipairs(e.mounts or { e.id }) do
+        if byMount[id] == nil then byMount[id] = e end
+      end
+    end
+  end
+  local have, open, seen = 0, 0, {}
+  for _, id in ipairs(ids or {}) do
+    if isOwned(id) then
+      have = have + 1
+    else
+      local e = byMount[id]
+      if e and not e.done and not seen[e] then
+        seen[e] = true
+        open = open + 1
+      end
+    end
+  end
+  return { have = have, total = #(ids or {}), open = open }
+end
+
+-- The mounts of a list source ({ kind = "list", list = id } or
+-- { kind = "quick", key = }) -> ids, name.
+local function listMounts(source)
+  if source.kind == "quick" then
+    local q = ns.QuickLists and ns.QuickLists.Get(source.key)
+    return ns.QuickLists and ns.QuickLists.Mounts(source.key) or {}, q and L[q.name] or L["List"]
+  end
+  local store = UI.ListsDB and UI.ListsDB()
+  local l = store and ns.Lists.Get(store, source.list)
+  return (l and l.mounts) or {}, l and l.name or L["List"]
+end
+
+local sidebar
+
+local function showMyList(source)
+  currentList = source
+  local _, name = listMounts(source)
+  myListTitle:SetText(name)
+  home:Hide()
+  listPage:Hide()
+  searchPage:Hide()
+  myListPage:Show()
+  myList:Refresh(true)
+end
+
+local function createListCard(parent)
+  local card = CreateFrame("Button", nil, parent)
+  card:SetHeight(CARD_H)
+  card:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+  local bg = card:CreateTexture(nil, "BACKGROUND")
+  bg:SetAllPoints(card)
+  bg:SetColorTexture(unpack(FILL))
+  local edge = UI.FlatBorder(card, unpack(EDGE))
+  card.Edge = edge
+
+  local pop = UI.FlatButton(card, "\226\135\177", "plain", 16) -- ⇱
+  pop:SetWidth(18)
+  pop:SetPoint("TOPRIGHT", card, "TOPRIGHT", -4, -4)
+  pop:SetScript("OnClick", function() if card.source and UI.OpenPopout then UI.OpenPopout(card.source) end end)
+  pop:SetScript("OnEnter", function(self) UI.ShowHint(self, L["Pop out"]) end)
+  pop:SetScript("OnLeave", function(self) UI.HideHint(self) end)
+  card.PopOut = pop
+
+  local name = card:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  name:SetPoint("TOPLEFT", card, "TOPLEFT", 8, -7)
+  name:SetPoint("RIGHT", pop, "LEFT", -4, 0)
+  name:SetJustifyH("LEFT")
+  name:SetWordWrap(false)
+  card.Name = name
+
+  local bar = flatBar(card, TILE_BAR_H)
+  bar:SetPoint("BOTTOMLEFT", card, "BOTTOMLEFT", 8, 20)
+  bar:SetPoint("BOTTOMRIGHT", card, "BOTTOMRIGHT", -8, 20)
+  card.Bar = bar
+
+  local count = card:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  count:SetPoint("BOTTOMLEFT", card, "BOTTOMLEFT", 8, 6)
+  card.Count = count
+  local open = card:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  open:SetPoint("BOTTOMRIGHT", card, "BOTTOMRIGHT", -8, 6)
+  card.Open = open
+
+  card:SetScript("OnEnter", function(self)
+    bg:SetColorTexture(unpack(FILL_HOVER))
+    edge:SetColor(unpack(EDGE_HOVER))
+    UI.ShowHint(self, self.Name:GetText(), self.source and self.source.kind == "list"
+      and L["Click: open. Right-click: pop out, rename or delete"] or L["Click: open"])
+  end)
+  function card:ResetLook()
+    bg:SetColorTexture(unpack(FILL))
+    edge:SetColor(unpack(EDGE))
+  end
+  card:SetScript("OnLeave", function(self)
+    self:ResetLook()
+    UI.HideHint(self)
+  end)
+  card:SetScript("OnHide", card.ResetLook)
+  card:SetScript("OnClick", function(self, button)
+    if not self.source then return end
+    if button == "RightButton" then
+      if self.source.kind == "list" and UI.ShowCustomListMenu then
+        UI.ShowCustomListMenu(self.source.list, self)
+      elseif UI.ShowMenu then
+        UI.ShowMenu(self, { { title = self.Name:GetText() },
+          { text = L["Pop out"], onClick = function() UI.OpenPopout(self.source) end } }, "cursor")
+      end
+      return
+    end
+    showMyList(self.source)
+  end)
+  return card
+end
+
+local function paintListCard(card, source, name, stats, builtIn)
+  card.source = source
+  card:ResetLook()
+  card.Name:SetText(builtIn and (name .. "  |cff808080" .. L["built-in"] .. "|r") or name)
+  card.Count:SetText(string.format(L["%d / %d"], stats.have, stats.total))
+  card.Bar:SetMinMaxValues(0, math.max(stats.total, 1))
+  card.Bar:SetValue(stats.have)
+  local complete = stats.total > 0 and stats.have >= stats.total
+  card.Bar:SetStatusBarColor(unpack(complete and GREEN or GOLD))
+  card.Open:SetText(stats.open > 0 and (OPEN_GREEN .. string.format(L["%d open today"], stats.open) .. "|r") or "")
+end
+
+local function sectionLabel(parent, text)
+  local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  fs:SetText(text)
+  fs:SetJustifyH("LEFT")
+  return fs
+end
+
+-- The lists column: "My lists" with + New and its cards (or a hint when
+-- there is none), then "Quick lists"; it scrolls when they do not fit.
+local function createSidebar()
+  local s = CreateFrame("Frame", nil, home)
+  s:SetPoint("TOPRIGHT", home, "TOPRIGHT", -G.left, G.top)
+  s:SetPoint("BOTTOMRIGHT", home, "BOTTOMRIGHT", -G.left, 10)
+  s:SetWidth(G.sideW)
+
+  local newList = UI.FlatButton(s, L["+ New"], "gold", 18)
+  newList:SetPoint("TOPRIGHT", s, "TOPRIGHT", 0, 0)
+  newList:SetScript("OnClick", function() if UI.NewListPrompt then UI.NewListPrompt() end end)
+  newList:SetScript("OnEnter", function(self)
+    UI.ShowHint(self, L["New list"], L["Or + List on any mount to start one with it"])
+  end)
+  newList:SetScript("OnLeave", function(self) UI.HideHint(self) end)
+  s.NewList = newList
+
+  local scroll = CreateFrame("ScrollFrame", nil, s)
+  scroll:SetPoint("TOPLEFT", s, "TOPLEFT", 0, 0)
+  scroll:SetPoint("BOTTOMRIGHT", s, "BOTTOMRIGHT", 0, 0)
+  local content = CreateFrame("Frame", nil, scroll)
+  content:SetSize(G.sideW, 1)
+  scroll:SetScrollChild(content)
+  if scroll.EnableMouseWheel then scroll:EnableMouseWheel(true) end
+  scroll:SetScript("OnMouseWheel", function(self, delta)
+    local max = math.max(0, (s.contentHeight or 0) - (self:GetHeight() or 0))
+    self:SetVerticalScroll(math.min(max, math.max(0, (self:GetVerticalScroll() or 0) - delta * 30)))
+  end)
+  s.Scroll, s.Content = scroll, content
+  -- + New sits over the scroll area's top line, beside "My lists".
+  newList:SetFrameLevel((content:GetFrameLevel() or 1) + 5)
+
+  s.MyTitle = sectionLabel(content, L["MY LISTS"])
+  s.QuickTitle = sectionLabel(content, L["QUICK LISTS"])
+  local empty = content:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  empty:SetJustifyH("LEFT")
+  empty:SetWidth(G.sideW - 8)
+  empty:SetText(L["No lists yet. Click + New, or + List on any mount."])
+  s.Empty = empty
+  s.Cards = {}
+  return s
+end
+
+-- Repaints the lists column (one Checklist build for every card).
+function refreshSidebar(isOwned)
+  local s = sidebar
+  if not s then return end
+  local built = UI.ChecklistBuild and UI.ChecklistBuild(ns.Game.Now()) or {}
+  local store = UI.ListsDB and UI.ListsDB()
+  local mine = store and ns.Lists.Sorted(store) or {}
+  local y, n = 0, 0
+  local function place(region, height)
+    region:ClearAllPoints()
+    region:SetPoint("TOPLEFT", s.Content, "TOPLEFT", 0, -y)
+    region:SetPoint("RIGHT", s.Content, "RIGHT", 0, 0)
+    y = y + height
+  end
+  local function card(source, builtIn)
+    n = n + 1
+    local c = s.Cards[n] or createListCard(s.Content)
+    s.Cards[n] = c
+    local ids, name = listMounts(source)
+    paintListCard(c, source, name, UI.ListCardStats(ids, isOwned, built), builtIn)
+    place(c, CARD_H)
+    y = y + CARD_GAP
+    c:Show()
+  end
+  place(s.MyTitle, SECTION_H)
+  s.MyTitle:SetPoint("TOPLEFT", s.Content, "TOPLEFT", 2, -(y - SECTION_H) - 4)
+  s.Empty:SetShown(#mine == 0)
+  if #mine == 0 then
+    place(s.Empty, 34)
+  end
+  for _, l in ipairs(mine) do card({ kind = "list", list = l.id }, false) end
+  y = y + 6
+  local quick = (ns.QuickLists and ns.QuickLists.LISTS) or {}
+  s.QuickTitle:SetShown(#quick > 0)
+  if #quick > 0 then
+    place(s.QuickTitle, SECTION_H)
+    s.QuickTitle:SetPoint("TOPLEFT", s.Content, "TOPLEFT", 2, -(y - SECTION_H) - 4)
+  end
+  for _, q in ipairs(quick) do card({ kind = "quick", key = q.key }, true) end
+  for i = n + 1, #s.Cards do s.Cards[i]:Hide() end
+  s.contentHeight = y
+  s.Content:SetHeight(math.max(y, 1))
+  s.shown = n
+end
+
+-- The list page's mounts (UI.List's select): the list's mounts the list gate
+-- keeps (owned ones too: Collected decides), grouped by source in
+-- Journal.SOURCE_ORDER, then by name; the search box narrows by name.
+local function myListSelect(mounts, query)
+  local ids = currentList and listMounts(currentList) or {}
+  local needle = query.search and string.lower(query.search) or ""
+  local out = {}
+  for _, id in ipairs(ids) do
+    local m = mounts[id]
+    if m and ns.Journal.Gate(id, m, query.isOwned, query.exists, query.faction, true) ~= nil then
+      local name = (ns.Game.MountInfo and ns.Game.MountInfo(id)) or m.name or ""
+      if needle == "" or string.find(string.lower(name), needle, 1, true) then
+        out[#out + 1] = { id = id, m = m, section = m.section or "other", name = string.lower(name) }
+      end
+    end
+  end
+  table.sort(out, function(a, b)
+    local ra, rb = ns.Journal.SourceRank(a.section), ns.Journal.SourceRank(b.section)
+    if ra ~= rb then return ra < rb end
+    if a.name ~= b.name then return a.name < b.name end
+    return a.id < b.id
+  end)
+  return out
+end
+
+-- A page under a flat strip with Back and a title -> page, holder, back, title.
+local function pageWithStrip(parent)
+  local page = CreateFrame("Frame", nil, parent)
+  page:SetAllPoints(parent)
+  page:Hide()
+  local strip = page:CreateTexture(nil, "BACKGROUND")
+  strip:SetPoint("TOPLEFT", page, "TOPLEFT", 0, 0)
+  strip:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, 0)
+  strip:SetHeight(30)
+  strip:SetColorTexture(1, 1, 1, 0.04)
+  local back = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
+  back:SetSize(80, 22)
+  back:SetPoint("TOPLEFT", page, "TOPLEFT", 4, -4)
+  back:SetText(L["Back"])
+  local t = page:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+  t:SetPoint("LEFT", back, "RIGHT", 12, 0)
+  local holder = CreateFrame("Frame", nil, page)
+  holder:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -36)
+  holder:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", 0, 0)
+  return page, holder, back, t
+end
+
 local function build(parent)
   home = CreateFrame("Frame", nil, parent)
   home:SetAllPoints(parent)
@@ -412,6 +713,8 @@ local function build(parent)
     cards[i] = createCard(i, name)
   end
   home.Summary = createSummary()
+  sidebar = createSidebar()
+  home.Lists = sidebar
   layoutTiles()
   home:SetScript("OnSizeChanged", layoutTiles)
 
@@ -474,11 +777,41 @@ local function build(parent)
     searchList.SearchBox:SetText("")
     showHome()
   end)
+
+  -- A list's page (a home card's click): its mounts as a list by source.
+  local mHolder, mBack
+  myListPage, mHolder, mBack, myListTitle = pageWithStrip(parent)
+  mBack:SetScript("OnClick", showHome)
+  local pop = CreateFrame("Button", nil, myListPage, "UIPanelButtonTemplate")
+  pop:SetSize(90, 22)
+  pop:SetPoint("TOPRIGHT", myListPage, "TOPRIGHT", -4, -4)
+  pop:SetText(L["Pop out"])
+  pop:SetScript("OnClick", function() if currentList and UI.OpenPopout then UI.OpenPopout(currentList) end end)
+  myListPage.PopOut = pop
+  myList = UI.List(mHolder, function()
+    local key = currentList and (currentList.kind == "quick" and ("q" .. tostring(currentList.key))
+      or tostring(currentList.list)) or ""
+    return { view = "mylist", exp = key, sourceText = ns.Game.MountSourceText }
+  end, { select = myListSelect })
+  myListPage.List = myList
+  myListPage.Title = myListTitle
 end
 
 local function refresh()
   if not home then return end
-  if searchPage:IsShown() then
+  if myListPage:IsShown() then
+    -- A deleted list: back home.
+    if currentList and currentList.kind == "list" then
+      local store = UI.ListsDB and UI.ListsDB()
+      if not (store and ns.Lists.Get(store, currentList.list)) then
+        showHome()
+        return
+      end
+    end
+    local _, name = listMounts(currentList)
+    myListTitle:SetText(name)
+    myList:Refresh()
+  elseif searchPage:IsShown() then
     searchList:Refresh()
   elseif listPage:IsShown() then
     list:Refresh()

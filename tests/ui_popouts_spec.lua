@@ -1205,3 +1205,94 @@ describe("pop-out group headers", function()
     eq(ns.db.global.popouts["camp|all"].collapsed, {})
   end)
 end)
+
+describe("the home page's lists column", function()
+  -- The journal home too, from here on.
+  UI_FILES[#UI_FILES + 1] = "UI/JournalHome.lua"
+
+  local function home(ns)
+    ns.ToggleWindow()
+    ns.UI.SelectTab("journal")
+    return ns.UI.frame.Contents.journal.children[2], ns.UI.frame.Contents.journal
+  end
+
+  it("UI.ListCardStats: owned / total, and the open lockouts of its mounts still to get (each once)", function()
+    local ns = loadUI()
+    local e = { id = 614, mounts = { 614, 615 }, done = false }
+    local built = { daily = { e, { id = 636, done = true } }, weekly = {} }
+    local stats = ns.UI.ListCardStats({ 614, 615, 636, 7 }, function(id) return id == 7 end, built)
+    eq(stats, { have = 1, total = 4, open = 1 })
+  end)
+
+  it("a card per list and quick list; a click opens the list page, Back returns; empty hint without lists", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    local h = home(ns)
+    local side = h.Lists
+    ok(side.Empty:IsShown(), "no lists yet: the hint")
+    eq(side.shown, 1, "the quick list's card")
+    local store = ns.UI.ListsDB()
+    local id = ns.Lists.Create(store, "Loop")
+    ns.Lists.Add(store, id, 614)
+    ns.Lists.Add(store, id, 7) -- owned (loadUI's IsOwned)
+    ns.Data.Mounts[614].section = "world"
+    ns.Data.Mounts[7] = { name = "Owned One", exp = WOD, tab = "journal", section = "vendor" }
+    ns.Refresh()
+    ok(not side.Empty:IsShown())
+    eq(side.shown, 2)
+    local card = side.Cards[1]
+    eq(card.Name:GetText(), "Loop")
+    eq(card.Count:GetText(), "1 / 2")
+    ok(card.Open:GetText():find("1 open today", 1, true), card.Open:GetText())
+    ok(side.Cards[2].Name:GetText():find("Mythic Mounts", 1, true))
+    ok(side.Cards[2].Name:GetText():find("built-in", 1, true))
+    -- Click: the list's page.
+    card:RunScript("OnClick", "LeftButton")
+    local journal = ns.UI.frame.Contents.journal
+    local page
+    for _, c in ipairs(journal.children) do if c.List and c.PopOut then page = c end end
+    ok(page and page:IsShown() and not h:IsShown(), "the list page")
+    eq(page.Title:GetText(), "Loop")
+    -- Collected on: the owned mount's source shows too.
+    ns.db.global.filters.collected = true
+    page.List:Refresh()
+    local rows = page.List.ScrollBox.provider.rows
+    local have, total, texts = 0, 0, {}
+    for _, r in ipairs(rows) do
+      if r.header and (r.depth or 1) == 1 then
+        have, total = have + (r.owned or 0), total + (r.total or 0)
+        texts[#texts + 1] = r.text
+      end
+    end
+    eq(rows[1].header, true)
+    ok(table.concat(texts, ","):find("World drops / rares", 1, true), "by source: " .. table.concat(texts, ","))
+    eq({ have, total }, { 1, 2 }, "the owned mount counts")
+    ns.db.global.filters.collected = false
+    -- Pop out from the page.
+    page.PopOut:RunScript("OnClick", "LeftButton")
+    ok(ns.UI.PopoutWindows["list|" .. id]:IsShown())
+    -- Deleted while open: back home.
+    ns.Lists.Delete(store, id)
+    ns.Refresh()
+    ok(h:IsShown() and not page:IsShown(), "home again")
+  end)
+
+  it("a card's corner pops it out; right-click opens the list menu; + New starts a list", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    local store = ns.UI.ListsDB()
+    local id = ns.Lists.Create(store, "Loop")
+    local h = home(ns)
+    local card = h.Lists.Cards[1]
+    card.PopOut:RunScript("OnClick", "LeftButton")
+    ok(ns.UI.PopoutWindows["list|" .. id]:IsShown())
+    local menuFor
+    ns.UI.ShowCustomListMenu = function(listID) menuFor = listID end
+    card:RunScript("OnClick", "RightButton")
+    eq(menuFor, id)
+    local asked = 0
+    ns.UI.NewListPrompt = function() asked = asked + 1 end
+    h.Lists.NewList:RunScript("OnClick", "LeftButton")
+    eq(asked, 1)
+  end)
+end)
