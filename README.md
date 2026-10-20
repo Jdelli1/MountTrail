@@ -365,10 +365,6 @@ None of these are required; MountTrail uses them when they are loaded.
 - **In-game verification is still pending.** The addon is built and
   unit-tested; see [docs/ingame-checklist.md](docs/ingame-checklist.md) for
   the open checks, starting with attempt counting under Midnight restrictions.
-- **The farming route is retired.** The old Route tab and its arrow are gone;
-  the Lockouts view replaced the Route tab (a saved Route tab opens Lockouts).
-  The route data stays: the checklist and the search read its bosses and
-  instances.
 - **Event rares** never show as "up": the game's data cannot tell which
   assault or warfront phase spawns them (see [Lockouts](#lockouts)).
 - **Name availability**: check pending. On 2026-10-16 the CurseForge search

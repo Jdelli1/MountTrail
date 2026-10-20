@@ -201,7 +201,6 @@ created on first use by their owner.
 | `char.ticks` | `Logic/Resets.lua`, `UI/LockoutHelpers.lua` | Hand ticks with their expiry. |
 | `char.checklistFilters`, `char.checklistShow` | `UI/ChecklistView.lua`, `UI/Nav.lua` | The Lockouts view's Filter menu; which group it shows (`all`, `daily`, `weekly`, `camp`). |
 | `char.campChecked` | `UI/ChecklistView.lua`, `UI/Popouts.lua` | When a no-lockout rare spawn was last checked. |
-| `char.routeMode`, `char.checklistHideDone` | `Core/Init.lua` | Legacy defaults no code reads any more (`routeMode` is forced to `"list"` by `ns.RetireRoute`). |
 
 ## Where to find X
 

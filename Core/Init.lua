@@ -228,7 +228,6 @@ function addon:OnInitialize()
     },
     char = {
       ticks = {},
-      checklistHideDone = false, -- Checklist: hide done lockouts
       checklistFilters = {}, -- Checklist Filter menu: { [category] = false } for hidden ones (Logic\Checklist.lua)
       campChecked = {}, -- Checklist rare spawns with no lockout: { [tick key] = time the player last checked the spawn }
     },
