@@ -237,6 +237,9 @@ function addon:OnInitialize()
   -- Pre-F15 saved variables kept the Journal's source filters as flat keys.
   ns.Journal.MigrateFilters(ns.db.global.filters)
   ns.RetireRoute(ns.db)
+  -- Mythic Mounts, once, as an example custom list (My lists).
+  if type(ns.db.global.lists) ~= "table" then ns.db.global.lists = {} end
+  ns.QuickLists.SeedExamples(ns.db.global, ns.db.global.lists)
   -- Waypoints are TomTom's now: the old Waypoints setting goes.
   if type(ns.db.global.settings) == "table" then ns.db.global.settings.waypoints = nil end
   self:RegisterChatCommand("mtrail", "OnSlash")

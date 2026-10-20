@@ -23,7 +23,14 @@ local function hasDifficulty(list, id)
   return false
 end
 
-QuickLists.LISTS = {
+-- Shown under Quick lists in the navigation (none at the moment: Daily,
+-- Weekly and Rare spawns are the Checklist's groups).
+QuickLists.LISTS = {}
+
+-- Examples: worked out the same way, but given to the player once as a
+-- custom list of their own (My lists: QuickLists.SeedExamples) to edit,
+-- rename or delete. Still found by key (a pop-out saved before the move).
+QuickLists.EXAMPLES = {
   {
     key = "mythic", name = "Mythic Mounts",
     test = function(id, m, spec)
@@ -34,6 +41,7 @@ QuickLists.LISTS = {
 
 local byKey = {}
 for _, l in ipairs(QuickLists.LISTS) do byKey[l.key] = l end
+for _, l in ipairs(QuickLists.EXAMPLES) do byKey[l.key] = l end
 
 function QuickLists.Get(key)
   return byKey[key]
@@ -61,4 +69,27 @@ function QuickLists.Mounts(key, data)
     return a < b
   end)
   return out
+end
+
+-- Gives the account each example once (global.seededLists[key]) as a custom
+-- list in `store` (Logic/Lists.lua), unless one by that name is already
+-- there. Deleting it later does not bring it back. -> ids created.
+function QuickLists.SeedExamples(global, store, data)
+  if type(global.seededLists) ~= "table" then global.seededLists = {} end
+  local made = {}
+  for _, l in ipairs(QuickLists.EXAMPLES) do
+    if not global.seededLists[l.key] then
+      global.seededLists[l.key] = true
+      local taken = false
+      for _, existing in pairs(type(store.lists) == "table" and store.lists or {}) do
+        if type(existing) == "table" and existing.name == l.name then taken = true end
+      end
+      if not taken then
+        local id = ns.Lists.Create(store, l.name)
+        for _, mountID in ipairs(QuickLists.Mounts(l.key, data)) do ns.Lists.Add(store, id, mountID) end
+        made[#made + 1] = id
+      end
+    end
+  end
+  return made
 end
