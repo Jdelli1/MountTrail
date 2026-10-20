@@ -203,13 +203,14 @@ end
 -- "zonepanel|<section>", text = UI.SectionLabel, owned =, total =,
 -- collapsed = } over its rows (striped afresh per group); one source: the
 -- rows alone. collapsed = { [key] = true } (ns.db.global.collapsed).
-function UI.ZoneGroupedRows(list, collapsed)
+function UI.ZoneGroupedRows(list, collapsed, prefix)
   collapsed = collapsed or {}
+  prefix = prefix or "zonepanel" -- the headers' collapse keys (the map tab has its own)
   local groups = ns.Journal.GroupBySource(list or {}, function(entry) return entry.m and entry.m.section end)
   if #groups <= 1 then return UI.ZoneRows(list) end
   local out = {}
   for _, g in ipairs(groups) do
-    local key = "zonepanel|" .. tostring(g.key)
+    local key = prefix .. "|" .. tostring(g.key)
     local owned = 0
     for _, entry in ipairs(g.items) do if entry.owned then owned = owned + 1 end end
     out[#out + 1] = { header = true, depth = 2, key = key, text = UI.SectionLabel(g.key),

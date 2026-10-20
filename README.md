@@ -283,7 +283,10 @@ mount you can still get whose location is your current zone.
 
 **World map tab.** A MountTrail tab in the Map & Quest Log's side tabs (under
 Quests, Events and Map Legend). Select it to see "Mounts in <zone>" for the map
-you are looking at, with the same rows as the zone panel.
+you are looking at, with the same rows as the zone panel, grouped by source
+(Vendors, Drops, Achievements, ...) under headers: click one to collapse it,
+Shift-click to collapse or expand them all (remembered, apart from the zone
+panel's).
 
 - It follows the map as you browse; a world or continent map asks you to open
   a zone.
