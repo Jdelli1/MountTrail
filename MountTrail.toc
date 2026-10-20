@@ -51,6 +51,7 @@ UI\Arrow.lua
 UI\ChecklistView.lua
 UI\AltsWindow.lua
 UI\Popouts.lua
+UI\HereView.lua
 UI\ZonePanel.lua
 UI\MapTab.lua
 UI\Options.lua

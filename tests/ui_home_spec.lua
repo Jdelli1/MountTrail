@@ -98,10 +98,9 @@ describe("journal home", function()
   it("builds a summary strip and one tile per expansion under the stub", function()
     local ns = loadUI()
     local home = openHome(ns)
-    eq(#home.children, #ns.Data.Expansions + 2, "the tiles, then the summary strip, then the lists column")
+    eq(#home.children, #ns.Data.Expansions + 1, "the tiles, then the summary strip")
     local summary = home.Summary
-    ok(summary and home.children[#home.children - 1] == summary, "summary strip on the home")
-    ok(home.Lists and home.children[#home.children] == home.Lists, "the lists column last")
+    ok(summary and home.children[#home.children] == summary, "summary strip on the home")
     eq(summary.Title:GetText(), "Mount Collection")
     eq(summary.Title.template, "GameFontNormalLarge")
     eq(summary.Totals.template, "GameFontHighlight")
@@ -307,16 +306,18 @@ describe("journal home", function()
     eq(list.SearchBox:GetText(), "", "search cleared")
   end)
 
-  it("the 3 x 4 grid, the lists column and the strip fit the content area of the 800 x 560 window", function()
+  it("the 4 x 3 grid and the strip fit the view area of the 900 x 560 window beside the navigation", function()
     local ns = loadUI()
     local G = ns.UI.HomeLayout
-    eq(G.cols, 3)
+    eq(G.cols, 4)
     ok(G.gap >= 10 and G.gap <= 12, "10-12 px gaps")
-    -- Window 800 x 560: inset 6 px in, 60 px down (tabs); content 4 px inside.
-    local contentW, contentH = 800 - 12 - 8, 560 - 60 - 6 - 8
+    -- Window 900 x 560: the navigation column (6 + NAV_WIDTH + 4) on the left,
+    -- 6 px right; views from 28 px down to 6 px from the bottom; 4 px inside.
+    local contentW = 900 - (6 + ns.UI.NAV_WIDTH + 4) - 6 - 8
+    local contentH = 560 - 28 - 6 - 8
     local rows = math.ceil(#ns.Data.Expansions / G.cols)
-    eq(rows, 4)
-    local right = G.left + G.cols * G.tileW + (G.cols - 1) * G.gap + G.gap + G.sideW
+    eq(rows, 3)
+    local right = G.left + G.cols * G.tileW + (G.cols - 1) * G.gap
     local bottom = -G.top + rows * G.tileH + (rows - 1) * G.gap
     ok(right <= contentW - G.left, "fits the width with an even right margin: " .. right)
     ok(bottom <= contentH - 8, "fits the height: " .. bottom)
@@ -324,7 +325,7 @@ describe("journal home", function()
     -- Tile positions follow the layout.
     local home = openHome(ns)
     local p, rel, relP, x, y = tiles(ns, home)[6]:GetPoint(1)
-    eq({ p, relP, x, y }, { "TOPLEFT", "TOPLEFT", G.left + 2 * (G.tileW + G.gap), G.top - G.tileH - G.gap })
+    eq({ p, relP, x, y }, { "TOPLEFT", "TOPLEFT", G.left + G.tileW + G.gap, G.top - G.tileH - G.gap })
   end)
 
   it("tiles fill a resized window (same margins and gaps); never under 80%; unknown size: defaults", function()
@@ -332,10 +333,10 @@ describe("journal home", function()
     local G = ns.UI.HomeLayout
     local dw, dh, ds = ns.UI.HomeTileSize(0, 0, 12)
     eq({ dw, dh }, { G.tileW, G.tileH })
-    ok(ds > 0.7 and ds < 0.75, "the default tile's logo scale: " .. ds)
+    ok(ds > 0.9 and ds <= 1, "the default tile's logo scale: " .. ds)
     local w, h, s = ns.UI.HomeTileSize(1200, 800, 12)
-    eq(w, math.floor((1200 - 2 * G.left - G.gap - G.sideW - 2 * G.gap) / 3))
-    eq(h, math.floor((800 + G.top - 10 - 3 * G.gap) / 4))
+    eq(w, math.floor((1200 - 2 * G.left - 3 * G.gap) / 4))
+    eq(h, math.floor((800 + G.top - 10 - 2 * G.gap) / 3))
     ok(s > 1, "bigger logos")
     local sw, sh = ns.UI.HomeTileSize(300, 200, 12)
     eq({ sw, sh }, { math.floor(G.tileW * 0.8), math.floor(G.tileH * 0.8) })
@@ -345,6 +346,6 @@ describe("journal home", function()
     local tile = tiles(ns, home)[6]
     eq({ tile.width, tile.height }, { w, h })
     local p, _, relP, x, y = tile:GetPoint(1)
-    eq({ p, relP, x, y }, { "TOPLEFT", "TOPLEFT", G.left + 2 * (w + G.gap), G.top - h - G.gap })
+    eq({ p, relP, x, y }, { "TOPLEFT", "TOPLEFT", G.left + w + G.gap, G.top - h - G.gap })
   end)
 end)

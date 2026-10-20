@@ -164,6 +164,10 @@ function Region:GetText() return self.text end
 function Region:SetTexture(tex) self.texture = tex end
 function Region:SetColorTexture(r, g, b, a) self.color = { r, g, b, a } end
 function Region:SetAtlas(atlas) self.atlas = atlas end
+-- Font strings: justification, wrapping and font objects are recorded.
+function Region:SetJustifyH(j) self.justifyH = j end
+function Region:SetWordWrap(on) self.wordWrap = on end
+function Region:SetFontObject(font) self.font = font end
 
 local Frame = setmetatable({}, { __index = Region })
 Frame.__index = Frame

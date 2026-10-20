@@ -154,7 +154,7 @@ describe("ui build", function()
     local ns = loadUI()
     ns.ToggleWindow()
     local home = content(ns, "journal").children[2]
-    eq(#home.children, #ns.Data.Expansions + 2, "the cards, the summary strip, the lists column")
+    eq(#home.children, #ns.Data.Expansions + 1, "the cards, then the summary strip")
     local card = home.children[1]
     ok(card.Edge and #card.Edge.edges == 4, "flat 1 px edge")
     eq(card.Logo.texture, 123, "logo from the client")

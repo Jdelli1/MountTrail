@@ -1,6 +1,6 @@
 local ADDON, ns = ...
 
--- Main window, tabs and minimap button. Loads after Core\Init.lua, so ns.db
+-- Main window, its navigation column and minimap button. Loads after Core\Init.lua, so ns.db
 -- does not exist yet: the window is built on the first ToggleWindow and the
 -- minimap button on PLAYER_LOGIN (after AceDB's OnInitialize).
 
@@ -10,7 +10,7 @@ local UI = ns.UI or {}
 ns.UI = UI
 
 local ICON = 132261 -- same as ## IconTexture in the .toc
-local WIDTH, HEIGHT = 800, 560
+local WIDTH, HEIGHT = 900, 560
 
 -- Style helpers ------------------------------------------------------------------
 -- The window follows Blizzard's current flat panel style (Professions, Delves,
@@ -658,26 +658,41 @@ function UI.AskText(title, default, onAccept, opts)
   return prompt
 end
 
--- Tab order is fixed; views plug in by key. A saved key of an older
+-- The views, by key (each a content frame; views plug in with
+-- UI.RegisterView). The navigation column on the left (UI.NAV) selects them:
+-- Home (the journal's front page), Today (the checklist), Here (the zone's
+-- mounts), the Alts window, Browse (Holidays, Achievements, Timewalking,
+-- Misc), then My lists and the quick lists, one entry each (a list opens as
+-- a page of the journal view, UI.ShowListPage). A saved key of an older
 -- version's tab maps to its successor (UI.LEGACY_TABS: the retired Route tab
--- -> Checklist); any other unknown key falls back to the first tab.
+-- -> Checklist); any other unknown key falls back to the first view.
 local TABS = {
-  { key = "journal", label = "Journal" },
+  { key = "journal", label = "Home" },
   { key = "holidays", label = "Holidays" },
   { key = "achievements", label = "Achievements" },
   { key = "timewalking", label = "Timewalking" },
   { key = "misc", label = "Misc" },
-  { key = "checklist", label = "Checklist" },
+  { key = "checklist", label = "Today" },
+  { key = "here", label = "Here" },
 }
 
 UI.LEGACY_TABS = { route = "checklist" }
 
--- Tab widths for PanelTemplates_TabResize: each tab fits its text plus 10 px
--- of extra padding (on top of the template's 20 px sides), at least 70 px so
--- Misc is not stubby, at most 116 px so a long translation
--- truncates instead of pushing the row past the window: 6 x 116 + gaps
--- stays inside the 800 px window from the 60 px portrait offset.
-UI.TabSize = { padding = 10, min = 70, max = 116 }
+-- The navigation column's fixed entries, top to bottom: views (key), an
+-- action (Alts: its own window), section headings. Badges come from
+-- UI.NavBadge. The lists follow under "My lists" (UI.NavListEntries).
+UI.NAV = {
+  { key = "journal", label = "Home" },
+  { key = "checklist", label = "Today" },
+  { key = "here", label = "Here" },
+  { action = "alts", label = "Alts" },
+  { heading = "Browse" },
+  { key = "holidays", label = "Holidays" },
+  { key = "achievements", label = "Achievements" },
+  { key = "timewalking", label = "Timewalking" },
+  { key = "misc", label = "Misc" },
+}
+UI.NAV_WIDTH = 156
 local TAB_INDEX = {}
 for i, tab in ipairs(TABS) do TAB_INDEX[tab.key] = i end
 
@@ -716,8 +731,8 @@ local function showCurrent()
   if view.Refresh then view.Refresh() end
 end
 
--- Registers a tab view. key: "journal", "holidays", "achievements",
--- "timewalking", "misc" or "checklist".
+-- Registers a view. key: "journal", "holidays", "achievements",
+-- "timewalking", "misc", "checklist" or "here".
 function UI.RegisterView(key, view)
   assert(TAB_INDEX[key], "MountTrail: unknown view key " .. tostring(key))
   assert(type(view) == "table", "MountTrail: view must be a table")
@@ -739,7 +754,7 @@ end
 -- Saved in ns.db.global.window.width / height. (The old scale setting of
 -- earlier versions is dropped: the window is drawn at 100%.)
 UI.WINDOW_SIZE = { WIDTH, HEIGHT }
-UI.MIN_SIZE = { 700, 480 }
+UI.MIN_SIZE = { 820, 480 }
 
 -- A saved size clamped to UI.MIN_SIZE and `maxW` x `maxH` (the screen);
 -- junk -> the default size.
@@ -866,6 +881,11 @@ local function setTitle(frame, text)
   end
 end
 
+-- The view on screen (its key).
+function UI.CurrentTab()
+  return current
+end
+
 function UI.SelectTab(key)
   key = validKey(key)
   current = key
@@ -876,14 +896,268 @@ function UI.SelectTab(key)
   for _, tab in ipairs(TABS) do
     contents[tab.key]:SetShown(tab.key == key)
   end
-  PanelTemplates_SetTab(frame, TAB_INDEX[key])
   showCurrent()
+  if UI.RefreshNav then UI.RefreshNav() end
 end
+
+-- Navigation column -----------------------------------------------------------------
 
 local TITLE_HEIGHT = 24 -- title bar of the portrait frame
 local PORTRAIT_RIGHT = 60 -- the portrait covers the top-left corner up to here
-local CONTENT_TOP = -60 -- content starts below the portrait
+local CONTENT_TOP = -60 -- the navigation column starts below the portrait
+local VIEW_TOP = -28 -- the view area starts under the title bar (right of the portrait)
 local TITLE_BUTTONS_RIGHT = 52 -- close button + one 20 px title-bar button
+
+local NAV_ROW, NAV_HEADING = 22, 24
+local NAV_GOLD = { 1, 0.82, 0 }
+
+-- The entries under "My lists": each custom list ({ list = id }), then each
+-- quick list ({ quick = key, builtIn = true }) -> { { key = "list:<id>" |
+-- "quick:<key>", label =, source = (UI.OpenPopout / UI.ShowListPage source),
+-- builtIn = } }.
+function UI.NavListEntries(store, quick)
+  local out = {}
+  for _, l in ipairs(store and ns.Lists.Sorted(store) or {}) do
+    out[#out + 1] = { key = "list:" .. tostring(l.id), label = l.name, source = { kind = "list", list = l.id } }
+  end
+  for _, q in ipairs(quick or {}) do
+    out[#out + 1] = { key = "quick:" .. tostring(q.key), label = L[q.name],
+      source = { kind = "quick", key = q.key }, builtIn = true }
+  end
+  return out
+end
+
+-- The entry that shows as selected: the list page's list when the journal
+-- view shows one (UI.CurrentListPage), else the view's key.
+function UI.NavSelected(view, listSource)
+  if view == "journal" and listSource then
+    if listSource.kind == "quick" then return "quick:" .. tostring(listSource.key) end
+    return "list:" .. tostring(listSource.list)
+  end
+  return view
+end
+
+-- A badge for an entry (right-aligned, grey or green): Today -> the
+-- lockouts left, a list -> its lockouts open today (green). (Here has none:
+-- working out the zone's mounts on every refresh costs too much.) nil: none. Errors are swallowed (nil).
+-- built() -> the Checklist.Build output to count from (one per repaint).
+function UI.NavBadge(entry, built)
+  local good, text, green = pcall(function()
+    if entry.key == "checklist" and built then
+      local char = ns.db and ns.db.char
+      local filters = char and type(char.checklistFilters) == "table" and char.checklistFilters or nil
+      local n = ns.Checklist.Remaining(built(), filters)
+      return n > 0 and tostring(n) or nil
+    end
+    if entry.source and UI.ListCardStatsFor and built then
+      local stats = UI.ListCardStatsFor(entry.source, built())
+      if stats and stats.open > 0 then return tostring(stats.open), true end
+    end
+    return nil
+  end)
+  if good then return text, green end
+  return nil
+end
+
+local nav
+
+local function navButton(parent)
+  local b = CreateFrame("Button", nil, parent)
+  b:SetHeight(NAV_ROW)
+  b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+  local sel = b:CreateTexture(nil, "BACKGROUND")
+  sel:SetAllPoints(b)
+  sel:SetColorTexture(1, 0.82, 0, 0.12)
+  sel:Hide()
+  b.Selected = sel
+  local bar = b:CreateTexture(nil, "ARTWORK")
+  bar:SetWidth(3)
+  bar:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
+  bar:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 0)
+  bar:SetColorTexture(NAV_GOLD[1], NAV_GOLD[2], NAV_GOLD[3], 1)
+  bar:Hide()
+  b.Bar = bar
+  local hl = b:CreateTexture(nil, "HIGHLIGHT")
+  hl:SetAllPoints(b)
+  hl:SetColorTexture(1, 1, 1, 0.06)
+  local badge = b:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  badge:SetPoint("RIGHT", b, "RIGHT", -8, 0)
+  b.Badge = badge
+  local text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+  text:SetPoint("LEFT", b, "LEFT", 12, 0)
+  text:SetPoint("RIGHT", badge, "LEFT", -4, 0)
+  text:SetJustifyH("LEFT")
+  text:SetWordWrap(false)
+  b.Text = text
+  b:SetScript("OnClick", function(self, button)
+    local e = self.entry
+    if not e then return end
+    if button == "RightButton" then
+      if e.source and e.source.kind == "list" and UI.ShowCustomListMenu then
+        UI.ShowCustomListMenu(e.source.list, self)
+      elseif e.source and UI.ShowMenu then
+        UI.ShowMenu(self, { { title = e.label },
+          { text = L["Pop out"], onClick = function() UI.OpenPopout(e.source) end } }, "cursor")
+      end
+      return
+    end
+    if PlaySound and SOUNDKIT and SOUNDKIT.IG_CHARACTER_INFO_TAB then PlaySound(SOUNDKIT.IG_CHARACTER_INFO_TAB) end
+    UI.NavClick(e)
+  end)
+  b:SetScript("OnEnter", function(self)
+    local e = self.entry
+    if e and e.source then
+      UI.ShowHint(self, e.label, e.source.kind == "list" and L["Click: open. Right-click: pop out, rename or delete"]
+        or L["Click: open. Right-click: pop out"])
+    elseif e and e.action == "alts" then
+      UI.ShowHint(self, L["Alt lockouts"], L["Opens its own window"])
+    end
+  end)
+  b:SetScript("OnLeave", function(self) UI.HideHint(self) end)
+  return b
+end
+
+-- An entry's click: a view (Home also leaves a list or expansion page), the
+-- Alts window, or a list's page.
+function UI.NavClick(e)
+  if e.action == "alts" then
+    if UI.ToggleAltsWindow then UI.ToggleAltsWindow() end
+    return
+  end
+  if e.source then
+    UI.SelectTab("journal")
+    if UI.ShowListPage then UI.ShowListPage(e.source) end
+    if UI.RefreshNav then UI.RefreshNav() end
+    return
+  end
+  if e.key == "journal" and current == "journal" and UI.ShowJournalHome then UI.ShowJournalHome() end
+  UI.SelectTab(e.key)
+end
+
+local function navHeading(parent)
+  local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  fs:SetJustifyH("LEFT")
+  return fs
+end
+
+-- Builds the column on the window's left, under the portrait.
+local function createNav(frame)
+  local n = CreateFrame("Frame", nil, frame)
+  n:SetPoint("TOPLEFT", frame, "TOPLEFT", 6, CONTENT_TOP)
+  n:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 6, 6)
+  n:SetWidth(UI.NAV_WIDTH)
+  local fill = n:CreateTexture(nil, "BACKGROUND")
+  fill:SetAllPoints(n)
+  fill:SetColorTexture(0, 0, 0, 0.35)
+  n.Edge = UI.FlatBorder(n, 1, 1, 1, 0.08)
+
+  local scroll = CreateFrame("ScrollFrame", nil, n)
+  scroll:SetPoint("TOPLEFT", n, "TOPLEFT", 1, -4)
+  scroll:SetPoint("BOTTOMRIGHT", n, "BOTTOMRIGHT", -1, 4)
+  local content = CreateFrame("Frame", nil, scroll)
+  content:SetSize(UI.NAV_WIDTH - 2, 1)
+  scroll:SetScrollChild(content)
+  if scroll.EnableMouseWheel then scroll:EnableMouseWheel(true) end
+  scroll:SetScript("OnMouseWheel", function(self, delta)
+    local max = math.max(0, (n.contentHeight or 0) - (self:GetHeight() or 0))
+    self:SetVerticalScroll(math.min(max, math.max(0, (self:GetVerticalScroll() or 0) - delta * 30)))
+  end)
+  n.Scroll, n.Content = scroll, content
+  n.Buttons, n.Headings = {}, {}
+
+  local add = UI.FlatButton(content, "+", "gold", 16)
+  add:SetWidth(20)
+  add:SetScript("OnClick", function() if UI.NewListPrompt then UI.NewListPrompt() end end)
+  add:SetScript("OnEnter", function(self) UI.ShowHint(self, L["New list"], L["Or + List on any mount to start one with it"]) end)
+  add:SetScript("OnLeave", function(self) UI.HideHint(self) end)
+  n.AddList = add
+
+  local empty = content:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  empty:SetJustifyH("LEFT")
+  empty:SetWidth(UI.NAV_WIDTH - 24)
+  empty:SetText(L["No lists yet: + here, or + List on any mount."])
+  n.Empty = empty
+  return n
+end
+
+-- Repaints the column: the fixed entries, then My lists (and the quick
+-- lists), each with its badge; the selected entry gets a gold bar.
+function UI.RefreshNav()
+  if not nav then return end
+  local listPage = UI.CurrentListPage and UI.CurrentListPage() or nil
+  local selected = UI.NavSelected(current, listPage)
+  local cache
+  local function built()
+    cache = cache or (UI.ChecklistBuild and UI.ChecklistBuild(ns.Game.Now())) or {}
+    return cache
+  end
+  local y, nb, nh = 0, 0, 0
+  local function heading(text, withAdd)
+    nh = nh + 1
+    local fs = nav.Headings[nh] or navHeading(nav.Content)
+    nav.Headings[nh] = fs
+    fs:SetText(text)
+    fs:ClearAllPoints()
+    fs:SetPoint("TOPLEFT", nav.Content, "TOPLEFT", 10, -(y + 8))
+    fs:Show()
+    if withAdd then
+      nav.AddList:ClearAllPoints()
+      nav.AddList:SetPoint("TOPRIGHT", nav.Content, "TOPRIGHT", -6, -(y + 4))
+      nav.AddList:Show()
+    end
+    y = y + NAV_HEADING
+  end
+  local function entry(e, indent)
+    nb = nb + 1
+    local b = nav.Buttons[nb] or navButton(nav.Content)
+    nav.Buttons[nb] = b
+    b.entry = e
+    b:ClearAllPoints()
+    b:SetPoint("TOPLEFT", nav.Content, "TOPLEFT", 0, -y)
+    b:SetPoint("RIGHT", nav.Content, "RIGHT", 0, 0)
+    b.Text:SetPoint("LEFT", b, "LEFT", indent and 18 or 12, 0)
+    local label = L[e.label] or e.label
+    if e.builtIn then label = label .. " |cff808080\226\152\133|r" end -- ★
+    if e.action == "alts" then label = label .. " |cff808080\226\135\177|r" end -- ⇱
+    b.Text:SetText(label)
+    local badge, green = UI.NavBadge(e, built)
+    b.Badge:SetText(badge and ((green and "|cff40c040" or "") .. badge .. (green and "|r" or "")) or "")
+    local on = (e.key ~= nil and e.key == selected)
+    b.Selected:SetShown(on)
+    b.Bar:SetShown(on)
+    b.Text:SetFontObject(on and "GameFontNormal" or "GameFontHighlight")
+    b.selected = on
+    b:Show()
+    y = y + NAV_ROW
+  end
+  local under = false -- entries under a heading are indented
+  for _, e in ipairs(UI.NAV) do
+    if e.heading then
+      heading(L[e.heading])
+      under = true
+    else
+      entry(e, under)
+    end
+  end
+  y = y + 4
+  heading(L["My lists"], true)
+  local store = UI.ListsDB and UI.ListsDB()
+  local lists = UI.NavListEntries(store, ns.QuickLists and ns.QuickLists.LISTS)
+  local custom = store and #ns.Lists.Sorted(store) or 0
+  nav.Empty:SetShown(custom == 0)
+  if custom == 0 then
+    nav.Empty:ClearAllPoints()
+    nav.Empty:SetPoint("TOPLEFT", nav.Content, "TOPLEFT", 12, -(y + 2))
+    y = y + 30
+  end
+  for _, e in ipairs(lists) do entry(e, true) end
+  for i = nb + 1, #nav.Buttons do nav.Buttons[i]:Hide() end
+  for i = nh + 1, #nav.Headings do nav.Headings[i]:Hide() end
+  nav.contentHeight = y
+  nav.Content:SetHeight(math.max(y, 1))
+  nav.shown = nb
+end
+
 
 -- Window hooks: fn(frame) runs once the main window is built (right away
 -- when it already is), for UI that docks to it (UI/ZonePanel.lua). A hook
@@ -950,19 +1224,15 @@ local function createWindow()
   else
     inset = CreateFrame("Frame", nil, frame, "InsetFrameTemplate")
   end
-  inset:SetPoint("TOPLEFT", frame, "TOPLEFT", 6, CONTENT_TOP)
+  -- The navigation column on the left, the views right of it.
+  nav = createNav(frame)
+  frame.Nav = nav
+  inset:SetPoint("TOPLEFT", frame, "TOPLEFT", 6 + UI.NAV_WIDTH + 4, VIEW_TOP)
   inset:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -6, 6)
   frame.Inset = inset
 
-  -- Tabs: modern top tabs between the title bar and the content (right of
-  -- the portrait); classic bottom tabs when the client lacks the template.
-  local tabTemplate = UI.Template("PanelTopTabButtonTemplate", "PanelTabButtonTemplate")
-  local topTabs = tabTemplate == "PanelTopTabButtonTemplate"
-  frame.topTabs = topTabs
-
-  frame.Tabs = {}
   frame.Contents = contents
-  for i, tab in ipairs(TABS) do
+  for _, tab in ipairs(TABS) do
     local content = CreateFrame("Frame", nil, inset)
     content:SetPoint("TOPLEFT", inset, "TOPLEFT", 4, -4)
     content:SetPoint("BOTTOMRIGHT", inset, "BOTTOMRIGHT", -4, 4)
@@ -973,35 +1243,7 @@ local function createWindow()
     placeholder:SetPoint("CENTER", content, "CENTER", 0, 0)
     placeholder:SetText(L["Coming soon"])
     placeholders[tab.key] = placeholder
-
-    -- PanelTemplates_* find tabs as <frameName>Tab<i> (or frame.Tabs[i]).
-    local button = CreateFrame("Button", "MountTrailFrameTab" .. i, frame, tabTemplate)
-    button:SetID(i)
-    button:SetText(L[tab.label])
-    if i == 1 then
-      if topTabs then
-        button:SetPoint("BOTTOMLEFT", inset, "TOPLEFT", PORTRAIT_RIGHT, 0)
-      else
-        button:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", 11, 2)
-      end
-    elseif topTabs then
-      button:SetPoint("LEFT", frame.Tabs[i - 1], "RIGHT", 2, 0)
-    else
-      button:SetPoint("TOPLEFT", frame.Tabs[i - 1], "TOPRIGHT", 3, 0)
-    end
-    if PanelTemplates_TabResize then
-      local size = UI.TabSize
-      PanelTemplates_TabResize(button, size.padding, nil, size.min, size.max)
-    end
-    button:SetScript("OnClick", function()
-      if PlaySound and SOUNDKIT and SOUNDKIT.IG_CHARACTER_INFO_TAB then
-        PlaySound(SOUNDKIT.IG_CHARACTER_INFO_TAB)
-      end
-      UI.SelectTab(tab.key)
-    end)
-    frame.Tabs[i] = button
   end
-  PanelTemplates_SetNumTabs(frame, #TABS)
 
   frame:HookScript("OnShow", showCurrent)
 
@@ -1042,6 +1284,7 @@ ns.Refresh = function()
   if not (frame and frame:IsShown()) then return end
   local view = views[current]
   if view and built[current] and view.Refresh then view.Refresh() end
+  UI.RefreshNav()
 end
 
 -- Minimap button ----------------------------------------------------------------

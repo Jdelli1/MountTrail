@@ -410,3 +410,12 @@ L["built-in"] = "built-in"
 L["%d open today"] = "%d open today"
 L["Click: open"] = "Click: open"
 L["Click: open. Right-click: pop out, rename or delete"] = "Click: open. Right-click: pop out, rename or delete"
+
+-- The navigation column (UI/Frame.lua)
+L["Home"] = "Home"
+L["Today"] = "Today"
+L["Here"] = "Here"
+L["Browse"] = "Browse"
+L["Opens its own window"] = "Opens its own window"
+L["Click: open. Right-click: pop out"] = "Click: open. Right-click: pop out"
+L["No lists yet: + here, or + List on any mount."] = "No lists yet: + here, or + List on any mount."
