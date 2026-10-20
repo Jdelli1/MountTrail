@@ -598,3 +598,14 @@ The Checklist follows the other tabs: its list on the left, the detail pane on t
 - [ ] Tick boxes (manual lockouts, rare spawn "last checked") still tick without changing the selection; Shift-click still opens the map.
 - [ ] Chips: Daily shows only the daily group, Weekly only weekly, Rare spawns only the camp group; All everything. Counts match the headers. /reload keeps the chip.
 - [ ] "Pop out rares" opens the rare tracker.
+
+## Pop-out rare tracker
+
+A slim movable window (`/azt rares`, or the Checklist's "Pop out rares") that stays on screen without the main window. Title: "<Expansion> rare spawns (n left)"; click it for a menu: Current zone, or any expansion with rare-spawn mounts left. Rows come from the Checklist (daily / weekly rares and rare spawns with no lockout; owned and other-faction mounts left out): a box (daily kill: ticked and dimmed when the game says done; rare spawns: the Checklist's last-checked box, left-click marks, right-click clears), the rare's name, its zone (or "checked 3 hr ago"), and a pin button for a waypoint to its nearest spawn point. A rare with several spawn points lists each as a small gold coordinate button underneath. Clicking a row sets the waypoint too; hovering shows the mount tooltip. Drag the title to move; position, open state and choice are saved and it comes back after /reload. Scroll with the mouse wheel when long.
+
+- [ ] Checklist > Pop out rares: the tracker opens on the newest expansion; pick Warlords of Draenor from the title menu: Nok-Karosh, Luk'hok, Pathrunner, Gorok, Poundfist, Silthide, Nakk the Thunderer... (those whose mounts you don't own).
+- [ ] Luk'hok shows several coordinate buttons; each sets a waypoint there ("Waypoint: Luk'hok (Nagrand)"). The pin button goes to the nearest one.
+- [ ] Tick Nok-Karosh's box: "checked 1 min ago"; the Checklist's Rare spawns row shows the same; right-click clears.
+- [ ] A daily rare killed today: ticked and dimmed, at the bottom, no pin button.
+- [ ] Current zone: shows only the zone's rares and follows you as you fly to another zone.
+- [ ] Close the main window: the tracker stays. Drag it somewhere, /reload: same place, still open. Close button hides it (and stays hidden after /reload).

@@ -224,6 +224,13 @@ L["/azt options - open the AzerothTrail options (Options > AddOns)"] = "/azt opt
 
 -- Journal home (front page)
 L["Mount Collection"] = "Mount Collection"
+L["Current zone"] = "Current zone"
+L["%s rare spawns"] = "%s rare spawns"
+L["%d left"] = "%d left"
+L["checked %s ago"] = "checked %s ago"
+L["Show rare spawns of"] = "Show rare spawns of"
+L["No rare-spawn mounts left here."] = "No rare-spawn mounts left here."
+L["/azt rares - show or hide the rare spawn tracker"] = "/azt rares - show or hide the rare spawn tracker"
 L["Daily: %d left, reset in %s"] = "Daily: %d left, reset in %s"
 L["Weekly: %d left, reset in %s"] = "Weekly: %d left, reset in %s"
 L["Rare spawns: %d"] = "Rare spawns: %d"
@@ -276,7 +283,6 @@ L["Show other"] = "Show other"
 -- Checklist rare spawns with no lockout (camp specs)
 L["Rare spawns (no lockout)"] = "Rare spawns (no lockout)"
 L["Show rare spawns (no lockout)"] = "Show rare spawns (no lockout)"
-L["%d left"] = "%d left"
 L["Last checked %s ago"] = "Last checked %s ago"
 L["%d min"] = "%d min"
 L["%d hr"] = "%d hr"

@@ -44,6 +44,7 @@ UI\Tabs.lua
 UI\LockoutHelpers.lua
 UI\Arrow.lua
 UI\ChecklistView.lua
+UI\RareTracker.lua
 UI\ZonePanel.lua
 UI\MapTab.lua
 UI\Options.lua

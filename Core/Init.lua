@@ -285,6 +285,12 @@ function addon:OnSlash(input)
     else
       self:Print(L["The window is not available yet. Type /azt help for commands."])
     end
+  elseif cmd == "rares" then
+    if ns.UI and ns.UI.ToggleRareTracker then
+      ns.UI.ToggleRareTracker()
+    else
+      self:Print(L["The window is not available yet. Type /azt help for commands."])
+    end
   elseif cmd == "options" then
     if ns.Options and ns.Options.Open then
       ns.Options.Open()
@@ -312,6 +318,7 @@ function addon:OnSlash(input)
     self:Print(L["/azt - show or hide the window"])
     self:Print(L["/azt dump - list saved instances (instance ID, difficulty ID, bosses)"])
     self:Print(L["/azt zone - show or hide the zone panel (mounts in your current zone)"])
+    self:Print(L["/azt rares - show or hide the rare spawn tracker"])
     self:Print(L["/azt options - open the AzerothTrail options (Options > AddOns)"])
     self:Print(L["/azt debug - show or hide caught map and waypoint errors"])
     self:Print(L["/azt help - this list"])
