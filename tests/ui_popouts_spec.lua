@@ -326,6 +326,64 @@ describe("pop-out windows", function()
     ok(w.height ~= 300, "fitted again")
   end)
 
+  it("saved order: named rows first in that order, done rows last; MoveKey", function()
+    local ns = loadUI()
+    local U = ns.UI
+    local rows = { { key = "a" }, { key = "b" }, { key = "c", done = true }, { key = "d" } }
+    U.ApplyOrder(rows, { "d", "c", "a" })
+    local keys = {}
+    for i, r in ipairs(rows) do keys[i] = r.key end
+    eq(keys, { "d", "a", "b", "c" })
+    eq(U.MoveKey({ "a", "b", "c" }, "c", 1), { "c", "a", "b" })
+    eq(U.MoveKey({ "a", "b", "c" }, "a", 3), { "b", "c", "a" })
+    eq(U.MoveKey({ "a", "b", "c" }, "a", 99), { "b", "c", "a" })
+  end)
+
+  it("Alt-drag a row to a new place: saved per window; a plain drag does nothing", function()
+    local ns = loadUI()
+    setup(ns)
+    local w = ns.UI.OpenPopout({ kind = "daily", exp = WOD })
+    local function order()
+      local keys = {}
+      for _, r in ipairs(w.rows) do if not r.done then keys[#keys + 1] = r.key end end
+      return keys
+    end
+    eq(order(), { "9", "614" })
+    local rowLuk
+    for _, c in ipairs(w.Content.children) do if c.data and c.data.key == "614" then rowLuk = c end end
+    rowLuk:RunScript("OnDragStart")
+    eq(w.dragKey, nil, "no Alt: no drag")
+    IsAltKeyDown = function() return true end
+    rowLuk:RunScript("OnDragStart")
+    eq(w.dragKey, "614")
+    ok(w.DropLine:IsShown(), "drop line")
+    w.Content.top = 500
+    STUB_CURSOR[1], STUB_CURSOR[2] = 50, 498 -- over the first slot
+    w:RunScript("OnUpdate")
+    eq(w.dropAt, 1)
+    rowLuk:RunScript("OnDragStop")
+    IsAltKeyDown = nil
+    STUB_CURSOR[1], STUB_CURSOR[2] = 0, 0
+    eq(ns.db.global.popouts["daily|" .. WOD].order, { "614", "9" })
+    eq(order(), { "614", "9" }, "the window follows the saved order")
+    ok(not w.DropLine:IsShown())
+    local went
+    ns.UI.GoTo = function(id) went = id end
+    rowLuk:RunScript("OnClick", "LeftButton")
+    eq(went, nil, "the click that ends a drag is not a waypoint")
+  end)
+
+  it("each row shows its expansion's tag", function()
+    local ns = loadUI()
+    setup(ns)
+    local w = ns.UI.OpenPopout({ kind = "camp", exp = WOD })
+    local row
+    for _, c in ipairs(w.Content.children) do if c.data and c.data.id == 657 then row = c end end
+    ok(row.Badge:IsShown())
+    eq(row.Badge.Text:GetText(), "WOD")
+    eq(row.Badge.exp, WOD)
+  end)
+
   it("open windows come back after /reload", function()
     local ns = loadUI()
     setup(ns)

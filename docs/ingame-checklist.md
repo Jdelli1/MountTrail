@@ -642,3 +642,5 @@ Ready-made lists AzerothTrail works out from its data (Logic/QuickLists.lua), sh
 - [ ] Each pop-out has a corner grip: drag to any size (rows widen; the list scrolls when taller than the window); it keeps that size after /reload. Right-click the grip: back to fitting its rows.
 - [ ] Drag a pop-out near another (or near the main window) and let go: it snaps edge to edge - under / above it with left edges lined up when close, or beside it with tops lined up. Far away: it stays where dropped.
 - [ ] Custom lists, quick lists and their pop-outs don't show mounts you already have.
+- [ ] Hold Alt and drag a pop-out row up or down: a gold line shows where it lands; let go: it moves there and stays there after /reload (per window). Rows you finish (done) still drop to the bottom. Without Alt, dragging a row does nothing.
+- [ ] Each pop-out row has a small coloured expansion tag before its name (WOD, SL, MID ...); hover it for the expansion's full name.

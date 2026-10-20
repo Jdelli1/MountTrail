@@ -20,7 +20,9 @@ local ADDON, ns = ...
 -- pop-out. A custom list's rows are its mounts (ones already known left out);
 -- right-click one to take it off the list. Each window can be resized with
 -- its corner grip (right-click: fit to its rows again) and snaps to another
--- pop-out or the main window when dropped near one (UI.SnapRect). Each
+-- pop-out or the main window when dropped near one (UI.SnapRect). Alt-drag
+-- a row to move it: the order is saved per window (done rows stay last).
+-- Each row carries a small expansion tag (UI.ExpansionBadge). Each
 -- window's position and open
 -- state are saved by its set (ns.db.global.popouts) and come back after
 -- /reload.
@@ -235,6 +237,37 @@ local function rectOf(f)
   return { left = l, top = t, right = r, bottom = b }
 end
 
+-- Rows in a saved order (Alt-drag): `order` = row keys in the player's order;
+-- rows it names come first in that order, the rest after in their own
+-- order; done rows stay last either way. -> the rows, re-sorted in place.
+function UI.ApplyOrder(rows, order)
+  if type(order) ~= "table" or #order == 0 then return rows end
+  local rank = {}
+  for i, key in ipairs(order) do rank[key] = i end
+  local base = {}
+  for i, row in ipairs(rows) do base[row] = i end
+  table.sort(rows, function(a, b)
+    if a.done ~= b.done then return not a.done end
+    local ra, rb = rank[a.key], rank[b.key]
+    if ra and rb then return ra < rb end
+    if ra or rb then return ra ~= nil end
+    return base[a] < base[b]
+  end)
+  return rows
+end
+
+-- The order after moving `key` to position `to` among `keys` (the rows as
+-- shown) -> new list of keys.
+function UI.MoveKey(keys, key, to)
+  local out = {}
+  for _, k in ipairs(keys) do
+    if k ~= key then out[#out + 1] = k end
+  end
+  to = math.max(1, math.min(to, #out + 1))
+  table.insert(out, to, key)
+  return out
+end
+
 -- A row's click (the row or its pin): UI.GoTo for its mount and boss.
 function UI.PopoutGo(row)
   if row then UI.GoTo(row.id, row.entry and row.entry.boss) end
@@ -291,14 +324,34 @@ local function rowFrame(w, i)
   zone:SetJustifyH("RIGHT")
   zone:SetWordWrap(false)
   r.Zone = zone
+  -- The mount's expansion: a small coloured tag.
+  r.Badge = UI.ExpansionBadge(r)
+  r.Badge:SetPoint("LEFT", check, "RIGHT", 2, 0)
   local name = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  name:SetPoint("LEFT", check, "RIGHT", 2, 0)
+  name:SetPoint("LEFT", r.Badge, "RIGHT", 5, 0)
   name:SetPoint("RIGHT", zone, "LEFT", -6, 0)
   name:SetJustifyH("LEFT")
   name:SetWordWrap(false)
   r.Name = name
   -- The row: left-click as the pin; a custom list's row: right-click menu.
+  -- Alt-drag: move the row (the drop line shows where it lands).
+  r:RegisterForDrag("LeftButton")
+  r:SetScript("OnDragStart", function(self)
+    if not (type(IsAltKeyDown) == "function" and IsAltKeyDown()) or not self.data then return end
+    w.dragKey = self.data.key
+    w.DropLine:Show()
+    w:SetScript("OnUpdate", function() UI.PopoutDragUpdate(w) end)
+  end)
+  r:SetScript("OnDragStop", function()
+    if not w.dragKey then return end
+    w.justDragged = true
+    UI.PopoutDragDrop(w)
+  end)
   r:SetScript("OnClick", function(self, button)
+    if w.justDragged then
+      w.justDragged = nil
+      return
+    end
     if button == "LeftButton" then
       UI.PopoutGo(self.data)
     elseif button == "RightButton" and w.source.kind == "list" and self.data then
@@ -319,6 +372,46 @@ local function rowFrame(w, i)
   r:SetScript("OnLeave", function() if UI.HideMountTooltip then UI.HideMountTooltip() end end)
   w.rowFrames[i] = r
   return r
+end
+
+-- Where a dragged row would land: the row slot under the cursor.
+local function dropIndex(w)
+  local top = w.Content:GetTop()
+  if not (top and type(GetCursorPosition) == "function") then return nil end
+  local _, y = GetCursorPosition()
+  local eff = w.Content.GetEffectiveScale and w.Content:GetEffectiveScale() or 1
+  local offset = top - y / eff
+  local n = 0
+  for _, row in ipairs(w.rows or {}) do if not row.done then n = n + 1 end end
+  return math.max(1, math.min(n + 1, math.floor(offset / ROW_HEIGHT + 0.5) + 1))
+end
+
+function UI.PopoutDragUpdate(w)
+  local i = dropIndex(w)
+  if not i then return end
+  w.DropLine:ClearAllPoints()
+  w.DropLine:SetPoint("TOPLEFT", w.Content, "TOPLEFT", 0, -(i - 1) * ROW_HEIGHT)
+  w.DropLine:SetPoint("TOPRIGHT", w.Content, "TOPRIGHT", 0, -(i - 1) * ROW_HEIGHT)
+  w.dropAt = i
+end
+
+-- Ends an Alt-drag: the row moves to the drop slot; the order is saved.
+function UI.PopoutDragDrop(w)
+  local key, to = w.dragKey, w.dropAt or dropIndex(w)
+  w.dragKey, w.dropAt = nil, nil
+  w:SetScript("OnUpdate", nil)
+  w.DropLine:Hide()
+  if not (key and to) then return end
+  local keys = {}
+  for _, row in ipairs(w.rows or {}) do
+    if not row.done then keys[#keys + 1] = row.key end
+  end
+  local db = popoutsDB()
+  if db then
+    db[w.key] = db[w.key] or {}
+    db[w.key].order = UI.MoveKey(keys, key, to)
+  end
+  UI.RefreshPopouts()
 end
 
 -- Rows follow the window's width (it can be resized).
@@ -342,6 +435,8 @@ local function refreshWindow(w, built)
     store = store,
     isOwned = ns.Game.IsOwned,
   })
+  local db = popoutsDB()
+  UI.ApplyOrder(rows, db and db[w.key] and db[w.key].order)
   w.rows = rows
   w.Title:SetText(UI.PopoutTitle(w.source, store) .. "  |cff9d9d9d(" .. string.format(L["%d left"], left) .. ")|r")
   local width = math.max(MIN_W, w:GetWidth() or WIDTH) - 24
@@ -355,6 +450,7 @@ local function refreshWindow(w, built)
     r:SetWidth(width)
     r:Show()
     r.Name:SetText(row.name)
+    UI.SetExpansionBadge(r.Badge, row.entry and (row.entry.exp or (row.entry.m and row.entry.m.exp)))
     r.Name:SetFontObject(row.done and "GameFontDisableSmall" or "GameFontHighlightSmall")
     local zoneText = row.zone or ""
     if row.camp and row.checked then
@@ -539,6 +635,12 @@ local function build(key, source)
     self:SetVerticalScroll(math.min(max, math.max(0, (self:GetVerticalScroll() or 0) - delta * 30)))
   end)
   w.Scroll, w.Content = scroll, content
+  -- Where an Alt-dragged row lands.
+  local dropLine = content:CreateTexture(nil, "OVERLAY")
+  dropLine:SetHeight(2)
+  dropLine:SetColorTexture(1, 0.82, 0, 0.9)
+  dropLine:Hide()
+  w.DropLine = dropLine
 
   local empty = content:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
   empty:SetPoint("TOPLEFT", content, "TOPLEFT", 4, -6)

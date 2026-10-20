@@ -385,6 +385,54 @@ function UI.HideMenu()
   if menuCatcher then menuCatcher:Hide() end
 end
 
+-- Expansion badge: a small coloured tag with the expansion's short name
+-- (UI.ExpansionTag: "WOD", "SL" ...), hidden for mounts without one.
+local EXPANSION_COLORS = {
+  ["Classic"] = { 0.85, 0.7, 0.35 }, ["The Burning Crusade"] = { 0.4, 0.8, 0.25 },
+  ["Wrath of the Lich King"] = { 0.45, 0.75, 1 }, ["Cataclysm"] = { 0.95, 0.45, 0.15 },
+  ["Mists of Pandaria"] = { 0.2, 0.8, 0.6 }, ["Warlords of Draenor"] = { 0.75, 0.35, 0.2 },
+  ["Legion"] = { 0.45, 0.95, 0.2 }, ["Battle for Azeroth"] = { 0.3, 0.5, 0.95 },
+  ["Shadowlands"] = { 0.6, 0.65, 0.8 }, ["Dragonflight"] = { 0.95, 0.3, 0.3 },
+  ["The War Within"] = { 0.9, 0.65, 0.3 }, ["Midnight"] = { 0.7, 0.45, 0.95 },
+}
+UI.EXPANSION_COLORS = EXPANSION_COLORS
+
+function UI.ExpansionBadge(parent)
+  local b = CreateFrame("Frame", nil, parent)
+  b:SetSize(30, 12)
+  local fill = b:CreateTexture(nil, "ARTWORK")
+  fill:SetAllPoints(b)
+  b.Fill = fill
+  local text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  text:SetPoint("CENTER", b, "CENTER", 0, 0)
+  if text.SetFont and text.GetFont then
+    local font, _, flags = text:GetFont()
+    if font then text:SetFont(font, 8, flags) end
+  end
+  b.Text = text
+  return b
+end
+
+-- Paints a badge for `exp` (hidden when it has no tag).
+function UI.SetExpansionBadge(b, exp)
+  local tag = UI.ExpansionTag and UI.ExpansionTag(exp) or nil
+  if not tag then
+    b:Hide()
+    b:SetWidth(1)
+    return
+  end
+  local c = EXPANSION_COLORS[exp] or { 0.6, 0.6, 0.6 }
+  b.Fill:SetColorTexture(c[1], c[2], c[3], 0.35)
+  b.Text:SetText(tag)
+  b.Text:SetTextColor(math.min(1, c[1] + 0.35), math.min(1, c[2] + 0.35), math.min(1, c[3] + 0.35))
+  b:SetWidth((b.Text.GetStringWidth and b.Text:GetStringWidth() or 24) + 6)
+  b.exp = exp
+  b:SetScript("OnEnter", function(self) UI.ShowHint(self, L[exp]) end)
+  b:SetScript("OnLeave", function(self) UI.HideHint(self) end)
+  if b.EnableMouse then b:EnableMouse(true) end
+  b:Show()
+end
+
 -- Name prompt: UI.AskText(title, default, onAccept[, opts]) - a small flat
 -- dialog with a text box, OK and Cancel; Enter accepts, Escape cancels.
 -- onAccept gets the trimmed text (not called for an empty one). opts:
