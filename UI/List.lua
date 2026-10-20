@@ -1353,7 +1353,7 @@ local function setupRow(row)
     if self.onSelect and button == "LeftButton" and self.mountID
       and not (type(IsShiftKeyDown) == "function" and IsShiftKeyDown())
       and not (type(IsControlKeyDown) == "function" and IsControlKeyDown()) then
-      self.onSelect(self.mountID)
+      self.onSelect(self.mountID, self)
       return
     end
     UI.HandleRowClick(self.mountID, button, self.routeBoss, self.eventMap)

@@ -589,3 +589,12 @@ Every Holidays header shows dates read from the in-game calendar (`C_Calendar`; 
 - [ ] A raid mount (Invincible) still goes to the raid entrance; a holiday mount to its holiday place.
 - [ ] Map tab on a zone with a mount vendor (e.g. Iskaara's Tatto in the Azure Span): the vendor's mounts are listed.
 - [ ] Detail pane, a rare with several spawn points (Mottled Meadowstomper / Luk'hok): "Where to find it" lists Luk'hok (daily if it has a kill quest), the map name, and each spawn point as a small gold button; clicking one sets a waypoint there and chat says "Waypoint: Luk'hok (Nagrand)". A vendor mount lists the vendor ("vendor" after the name); the other faction's vendors are not listed.
+
+## Checklist: list + detail pane, summary and chips
+
+The Checklist follows the other tabs: its list on the left, the detail pane on the right showing the selected entry's mount (a plain left-click selects; Shift / Ctrl / Shift-right-click and the tick boxes keep their actions; no hover tooltip, no location icon on rows). The header: your name with Filter and a "Pop out rares" button on the right, the summary line ("Daily: 6 left, reset in 9h 0m    Weekly: 11 left, reset in 3d 0h    Rare spawns: 37"), the Oregon line, then chips All / Daily (n) / Weekly (n) / Rare spawns (n): a chip shows that group only (gold while chosen), All shows everything; the choice is saved per character.
+
+- [ ] Checklist: the pane shows the first entry; click another row: it turns gold and the pane follows (model, lockout line, spawn points / vendor).
+- [ ] Tick boxes (manual lockouts, rare spawn "last checked") still tick without changing the selection; Shift-click still opens the map.
+- [ ] Chips: Daily shows only the daily group, Weekly only weekly, Rare spawns only the camp group; All everything. Counts match the headers. /reload keeps the chip.
+- [ ] "Pop out rares" opens the rare tracker.

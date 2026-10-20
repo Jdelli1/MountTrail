@@ -708,11 +708,28 @@ describe("ui build", function()
     local root = content(ns, "checklist").children[2]
     local header = root.children[1]
     eq(header.Name:GetText(), "Tester")
-    ok(header.Resets:GetText():find("Weekly reset in", 1, true), header.Resets:GetText())
-    ok(header.Resets:GetText():find("Daily reset in", 1, true))
+    local summary = header.Resets:GetText()
+    ok(summary:find("^Daily: %d+ left, reset in "), summary)
+    ok(summary:find("Weekly: %d+ left, reset in ", 1, false), summary)
+    ok(summary:find("Rare spawns: %d+$"), summary)
     eq(header.Flavour:GetText(), string.format("You have %d lockouts left. Saddle up?", ns.UI.ChecklistRemaining()))
-    eq(header.height, 78)
+    eq(header.height, 96)
     ok(header.ChecklistFilter and header.ChecklistFilter:IsShown(), "Filter button shown")
+    eq(header.PopOut:GetText(), "Pop out rares")
+    -- Chips: All (shown, gold) / Daily (n) / Weekly (n) / Rare spawns (n).
+    local chips = header.Chips
+    eq(#chips, 4)
+    eq(chips[1].Text:GetText(), "All")
+    eq(chips[1].selected, true)
+    ok(chips[2].Text:GetText():find("^Daily %(%d+%)$"), chips[2].Text:GetText())
+    ok(chips[4].Text:GetText():find("^Rare spawns %(%d+%)$"), chips[4].Text:GetText())
+    chips[4]:RunScript("OnClick", "LeftButton")
+    eq(ns.db.char.checklistShow, "camp")
+    eq(chips[4].selected, true)
+    for _, row in ipairs(header.Checklist.ScrollBox.provider.rows) do
+      ok(row.camp, "only the rare spawns group")
+    end
+    chips[1]:RunScript("OnClick", "LeftButton")
     ok(header.Checklist and header.Checklist:IsShown(), "the checklist list is shown")
     for _, gone in ipairs({ "ShowCompleted", "ModeControl", "ListMode", "ArrowMode", "ViewControl",
       "RouteViewButton", "ChecklistViewButton" }) do

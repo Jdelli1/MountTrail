@@ -224,6 +224,12 @@ L["/azt options - open the AzerothTrail options (Options > AddOns)"] = "/azt opt
 
 -- Journal home (front page)
 L["Mount Collection"] = "Mount Collection"
+L["Daily: %d left, reset in %s"] = "Daily: %d left, reset in %s"
+L["Weekly: %d left, reset in %s"] = "Weekly: %d left, reset in %s"
+L["Rare spawns: %d"] = "Rare spawns: %d"
+L["Pop out rares"] = "Pop out rares"
+L["All"] = "All"
+L["Rare spawns"] = "Rare spawns"
 L["Where to find it"] = "Where to find it"
 L["Spawn points"] = "Spawn points"
 L["Vendor"] = "Vendor"

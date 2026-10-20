@@ -27,6 +27,14 @@ local ADDON, ns = ...
 -- UI.EventStatusTexts over Logic/Events.lua), and a header whose open entries
 -- all share one shows it too. Also defines UI.ChecklistRemaining for the
 -- minimap tooltip.
+-- Layout as the other tabs: the list on the left, the detail pane
+-- (UI/DetailPane.lua) on the right showing the selected row's mount (a plain
+-- left-click selects; modifier clicks and the tick boxes keep their
+-- actions; no hover tooltip, no location icon). The header strip: the
+-- character's name, a summary line ("Daily: 6 left, resets in 9 hr" ...),
+-- the flavour line, then chips All / Daily / Weekly / Rare spawns (with
+-- what is left) that show one group or all (ns.db.char.checklistShow), and
+-- a "Pop out rares" button (UI.ToggleRareTracker) beside Filter.
 -- After Daily and Weekly, "Rare spawns (no lockout)" lists the camp specs
 -- (rares with no kill flag and no reset) by expansion and zone, headers
 -- counting the mounts left ("(12 left)"); each row's box records when the
@@ -424,14 +432,44 @@ local CHECK_SIZE = 22
 local CHECK_LEFT = 6
 local ICON_LEFT = CHECK_LEFT + CHECK_SIZE + 4
 local SUB_OFFSET = 16 -- per header level under the reset header (UI/List.lua: sub-header indicator 22 vs 6, +16 per level)
-local TOP_HEIGHT = 78 -- the tab's own header: name, reset timers, flavour line
+local TOP_HEIGHT = 96 -- the tab's own header: name, summary, flavour line, chips
 local HEADER_HEIGHT = 24 -- UI/List.lua section headers
 local SUB_HEADER_HEIGHT = 20 -- UI/List.lua sub-headers
 
 local view = {}
 UI.ChecklistView = view
 
-local root, header, frame, scrollBox, empty
+local root, header, frame, scrollBox, empty, pane
+local selectedKey -- the selected row's entry key (the detail pane's mount)
+
+-- Chips: which group the list shows.
+local SHOWS = { "all", "daily", "weekly", "camp" }
+local SHOW_LABELS = { all = "All", daily = "Daily", weekly = "Weekly", camp = "Rare spawns" }
+
+-- The group shown (ns.db.char.checklistShow), "all" by default.
+function view.Show()
+  local char = ns.db and ns.db.char
+  local v = char and char.checklistShow
+  return SHOW_LABELS[v] and v or "all"
+end
+
+-- A Checklist.Build output limited to the chip's group.
+function UI.ChecklistOnly(built, show)
+  if show == "all" or not SHOW_LABELS[show] then return built end
+  local out = { daily = {}, weekly = {}, camp = {} }
+  out[show] = built[show] or {}
+  return out
+end
+
+-- What is left per group under `filters` -> { daily =, weekly =, camp = }.
+function UI.ChecklistLeft(built, filters)
+  local C = ns.Checklist
+  return {
+    daily = C.Remaining({ daily = built.daily or {} }, filters),
+    weekly = C.Remaining({ weekly = built.weekly or {} }, filters),
+    camp = C.CampLeft(built, filters),
+  }
+end
 
 local function charDB()
   return ns.db and ns.db.char or nil
@@ -548,9 +586,11 @@ local function initHeader(f, data)
   UI.InitListHeader(f, data)
 end
 
-local function resetsText(Game)
-  return string.format(L["Weekly reset in %s"], UI.FormatDuration(Game.UntilWeekly()))
-    .. "    " .. string.format(L["Daily reset in %s"], UI.FormatDuration(Game.UntilDaily()))
+-- The summary line: what is left per group and when it resets.
+function UI.ChecklistSummary(left, untilDaily, untilWeekly)
+  return string.format(L["Daily: %d left, reset in %s"], left.daily, UI.FormatDuration(untilDaily))
+    .. "    " .. string.format(L["Weekly: %d left, reset in %s"], left.weekly, UI.FormatDuration(untilWeekly))
+    .. "    " .. string.format(L["Rare spawns: %d"], left.camp)
 end
 
 -- The flat header strip: name, reset timers, flavour line, and the Filter
@@ -598,7 +638,64 @@ local function buildHeader(parent)
     filter:SetPoint("TOPRIGHT", top, "TOPRIGHT", -8, -4)
     top.ChecklistFilter = filter
   end
+
+  -- Pop out the rare tracker (UI/RareTracker.lua).
+  local pop = CreateFrame("Button", nil, top, "UIPanelButtonTemplate")
+  pop:SetSize(110, 22)
+  pop:SetText(L["Pop out rares"])
+  if filter then
+    pop:SetPoint("RIGHT", filter, "LEFT", -6, 0)
+  else
+    pop:SetPoint("TOPRIGHT", top, "TOPRIGHT", -8, -4)
+  end
+  pop:SetScript("OnClick", function() if UI.ToggleRareTracker then UI.ToggleRareTracker() end end)
+  top.PopOut = pop
+
+  -- Chips: All / Daily / Weekly / Rare spawns.
+  top.Chips = {}
+  local prev
+  for i, key in ipairs(SHOWS) do
+    local chip = CreateFrame("Button", nil, top)
+    chip:SetHeight(18)
+    if prev then
+      chip:SetPoint("LEFT", prev, "RIGHT", 6, 0)
+    else
+      chip:SetPoint("BOTTOMLEFT", top, "BOTTOMLEFT", 6, 6)
+    end
+    local bg = chip:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints(chip)
+    bg:SetColorTexture(1, 1, 1, 0.06)
+    chip.Bg = bg
+    local text = chip:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    text:SetPoint("CENTER", chip, "CENTER", 0, 0)
+    chip.Text = text
+    local hl = chip:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetAllPoints(chip)
+    hl:SetColorTexture(1, 1, 1, 0.08)
+    chip.key = key
+    chip:SetScript("OnClick", function()
+      local char = ns.db and ns.db.char
+      if char then char.checklistShow = key end
+      ns.Refresh()
+    end)
+    top.Chips[i] = chip
+    prev = chip
+  end
   return top
+end
+
+-- Paints the chips: label with what is left, the shown one gold.
+local function paintChips(left, show)
+  for _, chip in ipairs(header.Chips) do
+    local key = chip.key
+    local label = L[SHOW_LABELS[key]]
+    if key ~= "all" then label = string.format("%s (%d)", label, left[key] or 0) end
+    chip.Text:SetText(label)
+    chip:SetWidth((chip.Text.GetStringWidth and chip.Text:GetStringWidth() or 60) + 16)
+    local on = key == show
+    chip.Bg:SetColorTexture(1, on and 0.82 or 1, on and 0 or 1, on and 0.3 or 0.06)
+    chip.selected = on
+  end
 end
 
 -- Builds the tab inside `parent` (its content frame): the header, then the
@@ -606,11 +703,27 @@ end
 function view.Build(parent)
   root = CreateFrame("Frame", nil, parent)
   root:SetAllPoints(parent)
+  -- The detail pane on the right, full height; header and list to its left.
+  if UI.CreateDetailPane then
+    pane = UI.CreateDetailPane(root)
+    pane:SetPoint("TOPRIGHT", root, "TOPRIGHT", 0, 0)
+    pane:SetPoint("BOTTOMRIGHT", root, "BOTTOMRIGHT", 0, 0)
+    root.Detail = pane
+  end
   header = buildHeader(root)
+  if pane then
+    header:ClearAllPoints()
+    header:SetPoint("TOPLEFT", root, "TOPLEFT", 0, 0)
+    header:SetPoint("TOPRIGHT", pane, "TOPLEFT", 0, 0)
+  end
 
   frame = CreateFrame("Frame", nil, root)
   frame:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -2)
-  frame:SetPoint("BOTTOMRIGHT", root, "BOTTOMRIGHT", 0, 0)
+  if pane then
+    frame:SetPoint("BOTTOMRIGHT", pane, "BOTTOMLEFT", 0, 0)
+  else
+    frame:SetPoint("BOTTOMRIGHT", root, "BOTTOMRIGHT", 0, 0)
+  end
   header.Checklist = frame
   scrollBox = CreateFrame("Frame", nil, frame, "WowScrollBoxList")
   scrollBox:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
@@ -655,7 +768,8 @@ function view.Refresh()
   local untilDaily, untilWeekly = Game.UntilDaily(), Game.UntilWeekly()
   local filters = view.Filters()
   local statusTexts = UI.EventStatusTexts(Game.Now())
-  local rows = ns.Checklist.Rows(built, {
+  local show = view.Show()
+  local rows = ns.Checklist.Rows(UI.ChecklistOnly(built, show), {
     collapsed = collapsedDB() or {},
     filters = filters,
     label = function(reset) return UI.ChecklistHeaderLabel(reset, untilDaily, untilWeekly) end,
@@ -665,6 +779,16 @@ function view.Refresh()
   local char = charDB()
   local campStore = char and char.campChecked
   local now = Game.Now()
+  -- The selection stays while its entry is listed; else the first entry.
+  local selectedRow, firstRow
+  for _, row in ipairs(rows) do
+    if not row.header then
+      firstRow = firstRow or row
+      if row.entry and row.entry.key == selectedKey then selectedRow = row end
+    end
+  end
+  selectedRow = selectedRow or firstRow
+  selectedKey = selectedRow and selectedRow.entry and selectedRow.entry.key or nil
   local n = 0
   for _, row in ipairs(rows) do
     if row.header then
@@ -679,7 +803,12 @@ function view.Refresh()
         row.desc = UI.ChecklistCampDesc(row.desc, UI.CampCheckedText(campStore, e.key, now))
       end
       row.tag = e.auto and L["auto"] or nil
-      row.pin = UI.LocationIcon(e.id, e.boss)
+      if pane then
+        row.selected = row == selectedRow
+        row.onSelect = view.SelectHandler
+      else
+        row.pin = UI.LocationIcon(e.id, e.boss)
+      end
       -- The click goes to this lockout's boss (its instance's entrance) and
       -- the hover's lockout line is that boss's (UI.InitMountRow).
       row.routeBoss = e.boss
@@ -690,7 +819,14 @@ function view.Refresh()
         row.name = e.name
         row.tooltip = function(owner) UI.ShowChecklistGroupTooltip(owner, e) end
       end
+      if pane then
+        row.tooltip = function() end -- the pane shows what the tooltip would
+      end
     end
+  end
+  if pane then
+    local se = selectedRow and selectedRow.entry
+    pane:SetMount(se and se.id or nil, se and se.boss or nil)
   end
   if ScrollBoxConstants then
     scrollBox:SetDataProvider(CreateDataProvider(rows), ScrollBoxConstants.RetainScrollPosition)
@@ -701,12 +837,25 @@ function view.Refresh()
 
   local name = Game.PlayerName()
   header.Name:SetText(name or "")
-  header.Resets:SetText(resetsText(Game))
+  local left = UI.ChecklistLeft(built, filters)
+  header.Resets:SetText(UI.ChecklistSummary(left, untilDaily, untilWeekly))
+  paintChips(left, show)
   -- Lockouts left in the categories the Filter menu shows.
   header.Flavour:SetText(UI.RouteFlavour(ns.Checklist.Remaining(built, filters), name))
   local filter = header.ChecklistFilter
   if filter and type(filter.ValidateResetState) == "function" then filter:ValidateResetState() end
   return built
+end
+
+-- Selects a row's entry for the detail pane (a plain left-click).
+function view.Select(entryKey)
+  selectedKey = entryKey
+  ns.Refresh()
+end
+view.SelectHandler = function(mountID, row)
+  -- UI.InitMountRow passes the mount; the row frame carries its entry.
+  local e = row and row.entry
+  view.Select(e and e.key or selectedKey)
 end
 
 -- True while the tab is on screen.
