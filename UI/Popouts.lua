@@ -5,6 +5,8 @@ local ADDON, ns = ...
 --   { kind = "camp", exp = }                 rare spawns with no lockout of an expansion
 --   { kind = "daily" | "weekly", exp = [, category = ] }   that reset's lockouts
 --                                            of an expansion (one category, e.g. "rares")
+--   { kind = "daily" | "weekly" | "camp", all = true }   that whole group, every
+--                                            expansion (a Checklist chip's right-click)
 --   { kind = "zone" }                        the rares of the zone the player is in
 --   { kind = "list", list = id }             a custom list (Logic/Lists.lua)
 --   { kind = "quick", key = }                a quick list (Logic/QuickLists.lua)
@@ -67,12 +69,14 @@ UI.ListsDB = listsDB
 
 -- Pure helpers -------------------------------------------------------------------
 
--- The saved key of a set: "camp|Legion", "daily|Legion|rares", "zone", "list|3".
+-- The saved key of a set: "camp|Legion", "daily|Legion|rares", "daily|all",
+-- "zone", "list|3".
 function UI.PopoutKey(source)
   if type(source) ~= "table" or not source.kind then return nil end
   if source.kind == "list" then return "list|" .. tostring(source.list) end
   if source.kind == "quick" then return "quick|" .. tostring(source.key) end
   if source.kind == "zone" then return "zone" end
+  if source.all then return source.kind .. "|all" end
   local key = source.kind .. "|" .. tostring(source.exp)
   if source.category then key = key .. "|" .. source.category end
   return key
@@ -89,6 +93,9 @@ function UI.PopoutTitle(source, store)
   if source.kind == "quick" then
     local q = ns.QuickLists and ns.QuickLists.Get(source.key)
     return q and L[q.name] or L["List"]
+  end
+  if source.all then
+    return L[({ camp = "Rare spawns", weekly = "Weeklies" })[source.kind] or "Dailies"]
   end
   local exp = L[source.exp or ""] or tostring(source.exp)
   local title
@@ -144,11 +151,13 @@ function UI.PopoutRows(source, built, ctx)
   local kind = source.kind
   if kind == "daily" or kind == "weekly" then
     for _, e in ipairs(built[kind] or {}) do
-      if expOf(e) == source.exp and (not source.category or e.category == source.category) then add(e) end
+      if (source.all or expOf(e) == source.exp) and (not source.category or e.category == source.category) then
+        add(e)
+      end
     end
   elseif kind == "camp" then
     for _, e in ipairs(built.camp or {}) do
-      if expOf(e) == source.exp then add(e) end
+      if source.all or expOf(e) == source.exp then add(e) end
     end
   elseif kind == "zone" then
     local ids = ctx.zoneIDs or {}

@@ -868,6 +868,51 @@ describe("custom lists in the pane and the Checklist", function()
     eq(ns.Lists.Get(store, sorted[2].id).mounts, { 614 })
   end)
 
+  it("Checklist chips: right-click Daily / Weekly / Rare spawns pops the whole group out; Lists offers a menu", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    local store = ns.UI.ListsDB()
+    local id = ns.Lists.Create(store, "Loop")
+    ns.ToggleWindow()
+    ns.UI.SelectTab("checklist")
+    local root
+    for _, c in ipairs(ns.UI.frame.Contents.checklist.children) do if c.Detail then root = c end end
+    local header
+    for _, c in ipairs(root.children) do if c.Chips then header = c end end
+    local chip = {}
+    for _, c in ipairs(header.Chips) do chip[c.key] = c end
+    eq(chip.daily.clickButtons, { "LeftButtonUp", "RightButtonUp" })
+    chip.daily:RunScript("OnClick", "RightButton")
+    eq(ns.db.char.checklistShow, nil, "a right-click does not switch the list")
+    local W = ns.UI.PopoutWindows
+    local daily = W["daily|all"]
+    ok(daily and daily:IsShown(), "every daily, one window")
+    ok(daily.Title:GetText():find("^Dailies"), daily.Title:GetText())
+    eq(#daily.rows, 3, "every expansion's dailies")
+    chip.weekly:RunScript("OnClick", "RightButton")
+    ok(W["weekly|all"]:IsShown())
+    ok(W["weekly|all"].Title:GetText():find("^Weeklies"))
+    chip.camp:RunScript("OnClick", "RightButton")
+    local camp = W["camp|all"]
+    ok(camp.Title:GetText():find("^Rare spawns"), camp.Title:GetText())
+    eq(#camp.rows, 2, "rare spawns of every expansion")
+    eq(ns.db.global.popouts["camp|all"].source, { kind = "camp", all = true }, "saved: back after /reload")
+    -- Lists: a menu of the quick lists and the player's lists.
+    local menu
+    ns.UI.ShowMenu = function(_, items) menu = items end
+    chip.lists:RunScript("OnClick", "RightButton")
+    local texts = {}
+    for _, it in ipairs(menu) do if it.text then texts[#texts + 1] = it.text end end
+    eq(texts[1], "Mythic Mounts")
+    eq(texts[#texts - 1], "Loop")
+    eq(texts[#texts], "New list...")
+    for _, it in ipairs(menu) do if it.text == "Loop" then it.onClick() end end
+    ok(W["list|" .. id]:IsShown(), "the list pops out")
+    -- A left-click still switches the list.
+    chip.weekly:RunScript("OnClick", "LeftButton")
+    eq(ns.db.char.checklistShow, "weekly")
+  end)
+
   it("Checklist: My lists chip; a list's header right-click pops it out", function()
     local ns = loadUI()
     ns.UI.ChecklistBuild = function() return built() end

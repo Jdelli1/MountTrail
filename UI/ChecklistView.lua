@@ -822,15 +822,60 @@ local function buildHeader(parent)
     hl:SetAllPoints(chip)
     hl:SetColorTexture(1, 1, 1, 0.08)
     chip.key = key
-    chip:SetScript("OnClick", function()
+    if chip.RegisterForClicks then chip:RegisterForClicks("LeftButtonUp", "RightButtonUp") end
+    chip:SetScript("OnClick", function(self, button)
+      if button == "RightButton" then
+        UI.ChecklistChipRightClick(key, self)
+        return
+      end
       local char = ns.db and ns.db.char
       if char then char.checklistShow = key end
       ns.Refresh()
     end)
+    chip:SetScript("OnEnter", function(self)
+      local source = UI.ChecklistChipPopout(key)
+      if source and UI.PopoutTitle then
+        UI.ShowHint(self, string.format(L["Right-click to pop out %s"], UI.PopoutTitle(source)))
+      elseif key == "lists" then
+        UI.ShowHint(self, L["Right-click: pop out a list"])
+      end
+    end)
+    chip:SetScript("OnLeave", function(self) UI.HideHint(self) end)
     top.Chips[i] = chip
     prev = chip
   end
   return top
+end
+
+-- The set a chip's right-click pops out: the whole Daily / Weekly / Rare
+-- spawns group (every expansion); nil for All and Lists.
+function UI.ChecklistChipPopout(key)
+  if key == "daily" or key == "weekly" or key == "camp" then return { kind = key, all = true } end
+  return nil
+end
+
+-- A chip's right-click: pops its group out; on Lists, a menu of the quick
+-- lists and the player's lists to pop out, and New list...
+function UI.ChecklistChipRightClick(key, owner)
+  local source = UI.ChecklistChipPopout(key)
+  if source then
+    if UI.OpenPopout then UI.OpenPopout(source) end
+    return
+  end
+  if key ~= "lists" or not UI.ShowMenu then return end
+  local items = { { title = L["Pop out"] } }
+  for _, q in ipairs((ns.QuickLists and ns.QuickLists.LISTS) or {}) do
+    items[#items + 1] = { text = L[q.name], onClick = function() UI.OpenPopout({ kind = "quick", key = q.key }) end }
+  end
+  local store = UI.ListsDB and UI.ListsDB()
+  local mine = store and ns.Lists.Sorted(store) or {}
+  if #mine > 0 then items[#items + 1] = { separator = true } end
+  for _, l in ipairs(mine) do
+    items[#items + 1] = { text = l.name, onClick = function() UI.OpenPopout({ kind = "list", list = l.id }) end }
+  end
+  items[#items + 1] = { separator = true }
+  items[#items + 1] = { text = L["New list..."], onClick = function() newList() end }
+  UI.ShowMenu(owner, items, "cursor")
 end
 
 -- Paints the chips: label with what is left, the shown one gold.

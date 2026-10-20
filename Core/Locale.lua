@@ -384,3 +384,8 @@ L["%d more characters do not fit: hide some"] = "%d more characters do not fit: 
 L["No characters yet: log in on each one once."] = "No characters yet: log in on each one once."
 L["Nothing left to farm on any character."] = "Nothing left to farm on any character."
 L["Right-click: fit the columns"] = "Right-click: fit the columns"
+
+-- Checklist chips' right-click (UI/ChecklistView.lua, UI/Popouts.lua)
+L["Dailies"] = "Dailies"
+L["Weeklies"] = "Weeklies"
+L["Right-click: pop out a list"] = "Right-click: pop out a list"
