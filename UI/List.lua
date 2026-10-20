@@ -1049,6 +1049,11 @@ function UI.HandleRowClick(mountID, button, routeBoss, eventMap)
   trace("click %s on mount %s -> %s", tostring(button), tostring(mountID), tostring(action))
   if action == "waypoint" and eventMap and UI.OpenEventMap then
     UI.OpenEventMap(eventMap)
+  elseif action == "waypoint" and ns.Map and ns.Map.PlotCount and ns.Map.PlotCount(mountID, routeBoss) > 1 then
+    -- A rare with several spawn points (or several vendors): all of them
+    -- on TomTom, as the rare tracker does (Map.PlotMounts).
+    local good, err = pcall(ns.Map.PlotMounts, { mountID }, UI.MountName and UI.MountName(mountID) or nil)
+    if not good and ns.Game and ns.Game.ReportError then ns.Game.ReportError(err) end
   elseif action == "waypoint" then
     mapAction("SetWaypoint", mountID, routeBoss)
   elseif action == "map" then

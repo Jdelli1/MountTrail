@@ -161,6 +161,22 @@ function UI.IsTracked(mountID, m, routeBoss)
   return ns.Lockouts.SpecFor(mountID, routeBoss) ~= nil
 end
 
+-- The tooltip's bottom line: "Click to plot all 6 spawn points" when a row
+-- click plots several points (Map.PlotCount), else "Click to set waypoint".
+function UI.ClickHint(mountID, routeBoss)
+  local map = ns.Map
+  local n = map and map.PlotCount and map.PlotCount(mountID, routeBoss) or 0
+  if n > 1 then return string.format(L["Click to plot all %d spawn points"], n) end
+  return L["Click to set waypoint"]
+end
+
+-- The mount's display name (the client's, else the data's).
+function UI.MountName(mountID)
+  local m = ns.Data and ns.Data.Mounts and ns.Data.Mounts[mountID]
+  local name = ns.Game.MountInfo and ns.Game.MountInfo(mountID) or nil
+  return name or (m and m.name) or tostring(mountID)
+end
+
 -- -> the tooltip's lines after the item tooltip / name + flavor, in order,
 -- each { left =, r =, g =, b = [, wrap = true] } or, for the two Attempts
 -- lines and "Chance so far", { double = true, left =, right =, r, g, b (left colour),
@@ -202,7 +218,7 @@ function UI.TooltipLines(mountID, routeBoss, opts)
     lines[#lines + 1] = { left = a.text, r = a.r, g = a.g, b = a.b, wrap = a.wrap }
   end
   if opts and opts.hints == false then return lines end
-  lines[#lines + 1] = line(L["Click to set waypoint"], HINT)
+  lines[#lines + 1] = line(UI.ClickHint(mountID, routeBoss), HINT)
   return lines
 end
 

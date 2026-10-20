@@ -819,3 +819,22 @@ describe("Map plotting many points (TomTom)", function()
     eq(api.log[#api.log][2], "No spawn points known for these mounts.")
   end)
 end)
+
+describe("Map.PlotCount", function()
+  it("several points of a world rare or vendors: the count; one point, raids, holidays, route bosses: 0", function()
+    local Map, ns = loadMap({
+      [1] = { name = "Rare", tab = "journal", section = "world" },
+      [2] = { name = "One spot", tab = "journal", section = "world" },
+      [3] = { name = "Raid", tab = "journal", section = "raid" },
+      [4] = { name = "Holiday", tab = "holiday", section = "brewfest" },
+    }, { brewfest = { title = "Brewfest", coords = { m = 1, x = 1, y = 1 } } })
+    local six = { npc = 1, kind = "drop", pts = { 1, 1, 1, 1, 2, 2, 1, 3, 3 } }
+    ns.Data.Spots = { [1] = { six }, [2] = { { npc = 2, pts = { 1, 1, 1 } } }, [3] = { six }, [4] = { six } }
+    ns.Data.BossLockouts = { Boss = { instance = 1, boss = "Boss", reset = "weekly" } }
+    eq(Map.PlotCount(1), 3)
+    eq(Map.PlotCount(2), 0)
+    eq(Map.PlotCount(3), 0, "raid: the entrance")
+    eq(Map.PlotCount(4), 0, "holiday: its place")
+    eq(Map.PlotCount(1, "Boss"), 0, "a route boss's instance")
+  end)
+end)

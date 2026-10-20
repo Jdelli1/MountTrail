@@ -293,4 +293,19 @@ describe("detail pane", function()
     for _, b in ipairs(pane.pointButtons) do ok(not b:IsShown(), "no spots: buttons hidden") end
     ok(not pane.PlotAll:IsShown(), "no Plot all without spots")
   end)
+
+  it("a row click plots every spawn point when the rare has several (map tab, zone panel)", function()
+    local ns = loadUI()
+    local plotted, waypoint
+    ns.Map.PlotCount = function(id) return id == 1 and 3 or 0 end
+    ns.Map.PlotMounts = function(ids, label) plotted = { ids[1], label } end
+    ns.Map.SetWaypoint = function(id) waypoint = id end
+    ns.UI.HandleRowClick(1, "LeftButton")
+    eq(plotted, { 1, "Alpha" })
+    eq(waypoint, nil)
+    ns.UI.HandleRowClick(2, "LeftButton")
+    eq(waypoint, 2)
+    eq(ns.UI.ClickHint(1), "Click to plot all 3 spawn points")
+    eq(ns.UI.ClickHint(2), "Click to set waypoint")
+  end)
 end)

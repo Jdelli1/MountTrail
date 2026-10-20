@@ -796,3 +796,22 @@ function Map.PlotMounts(mountIDs, label, api)
   end
   return Map.PlotPoints(points, label, api)
 end
+
+-- How many points a row click plots for the mount: its spot points when it
+-- has several and a waypoint would otherwise go to one of them (not a raid
+-- / dungeon mount's entrance, a route boss's instance or a holiday's own
+-- place); 0 otherwise (the click sets one waypoint). No API call.
+function Map.PlotCount(mountID, routeBoss)
+  if bossSpec(routeBoss) or holidayPlace(mountID) then return 0 end
+  local mount = ns.Data and ns.Data.Mounts and ns.Data.Mounts[mountID]
+  if type(mount) == "table" and mount.tab == "journal" and (mount.section == "dungeon" or mount.section == "raid") then
+    return 0
+  end
+  local game = ns.Game
+  local faction = game and type(game.Faction) == "function" and game.Faction() or nil
+  local n = 0
+  for _, spot in ipairs(Map.WaypointSpots(Map.Spots(mountID, faction))) do
+    n = n + math.floor(#spot.pts / 3)
+  end
+  return n > 1 and n or 0
+end

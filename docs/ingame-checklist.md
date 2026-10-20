@@ -625,3 +625,4 @@ Short hints (a rare header's right-click, the tracker's title / pin / Plot all, 
 - [ ] Hover a rare header in the Checklist: the hint appears beside the cursor in the window's style (not the big game tooltip), and goes away when the mouse leaves.
 - [ ] Scale the window up (size grip): hints grow with it.
 - [ ] The Checklist's reset line fits on one line.
+- [ ] World map tab / zone panel: clicking a mount whose rare has several spawn points (e.g. Bastion's Ascended Skymane) plots all of them on TomTom; its tooltip's last line reads "Click to plot all 6 spawn points". One-spot mounts, raid / dungeon mounts (entrance) and holiday mounts still set one waypoint.

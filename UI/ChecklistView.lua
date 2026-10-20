@@ -274,7 +274,7 @@ function UI.ChecklistGroupLines(entry)
     local name = names[i] or (ns.Game.MountInfo and ns.Game.MountInfo(id)) or tostring(id)
     lines[#lines + 1] = tipLine(name, WHITE)
   end
-  lines[#lines + 1] = tipLine(L["Click to set waypoint"], HINT)
+  lines[#lines + 1] = tipLine(UI.ClickHint(entry.id, entry.boss), HINT)
   return lines
 end
 
