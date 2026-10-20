@@ -773,3 +773,39 @@ function Game.QuestName(questID)
   local good, name = pcall(log.GetTitleForQuestID, questID)
   return good and type(name) == "string" and name ~= "" and name or nil
 end
+
+-- An item's link (quality colour and all), or nil while it is not loaded.
+function Game.ItemLink(itemID)
+  local item = C_Item
+  local fn = (item and item.GetItemInfo) or GetItemInfo
+  if type(fn) ~= "function" then return nil end
+  local good, _, link = pcall(fn, itemID)
+  return good and type(link) == "string" and link or nil
+end
+
+-- Asks the client to load an item / a quest (GET_ITEM_INFO_RECEIVED /
+-- QUEST_DATA_LOAD_RESULT follow).
+function Game.RequestItem(itemID)
+  local item = C_Item
+  if item and item.RequestLoadItemDataByID then pcall(item.RequestLoadItemDataByID, itemID) end
+end
+
+function Game.RequestQuest(questID)
+  local log = C_QuestLog
+  if log and log.RequestLoadQuestByID then pcall(log.RequestLoadQuestByID, questID) end
+end
+
+function Game.SpellName(spellID)
+  local spell = C_Spell
+  local fn = (spell and spell.GetSpellName) or (GetSpellInfo and function(id) return (GetSpellInfo(id)) end)
+  if type(fn) ~= "function" then return nil end
+  local good, name = pcall(fn, spellID)
+  return good and type(name) == "string" and name or nil
+end
+
+-- An achievement's link, or nil.
+function Game.AchievementLink(achievementID)
+  if type(GetAchievementLink) ~= "function" then return nil end
+  local good, link = pcall(GetAchievementLink, achievementID)
+  return good and type(link) == "string" and link ~= "" and link or nil
+end

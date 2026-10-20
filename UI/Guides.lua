@@ -272,14 +272,37 @@ function UI.CheckGuideStep()
   end
 end
 
--- The names a step's done lines show (Guide.DoneText).
-function UI.GuideNames()
+-- The game's link for a markup token (Guide.Markup): its name in brackets,
+-- the game's tooltip on hover. A name the client has not loaded yet shows as
+-- "item 86547" and is asked for (the window repaints when it arrives).
+function UI.GuideLink(kind, id)
   local Game = ns.Game
-  return {
-    quest = Game.QuestName,
-    item = Game.ItemName,
-    mount = function(id) return Game.MountInfo(id) or (ns.Data and ns.Data.Mounts and ns.Data.Mounts[id] and ns.Data.Mounts[id].name) end,
-  }
+  if kind == "item" then
+    local link = Game.ItemLink(id)
+    if link then return link end
+    Game.RequestItem(id)
+    return string.format("|cffffffff|Hitem:%d|h[%s %d]|h|r", id, L["item"], id)
+  elseif kind == "quest" then
+    local name = Game.QuestName(id)
+    if not name then Game.RequestQuest(id) end
+    return string.format("|cffffff00|Hquest:%d:-1|h[%s]|h|r", id, name or (L["quest"] .. " " .. id))
+  elseif kind == "mount" then
+    local m = ns.Data and ns.Data.Mounts and ns.Data.Mounts[id]
+    local name = Game.MountInfo(id) or (m and m.name) or (L["mount"] .. " " .. id)
+    if not (m and m.spell) then return "[" .. name .. "]" end
+    return string.format("|cff71d5ff|Hspell:%d:0|h[%s]|h|r", m.spell, name)
+  elseif kind == "spell" then
+    local name = Game.SpellName(id)
+    return string.format("|cff71d5ff|Hspell:%d:0|h[%s]|h|r", id, name or (L["spell"] .. " " .. id))
+  elseif kind == "achievement" then
+    return Game.AchievementLink(id)
+  end
+  return nil
+end
+
+-- Guide text with its markup applied (Guide.Markup over UI.GuideLink).
+function UI.GuideText(text)
+  return ns.Guide.Markup(text, UI.GuideLink)
 end
 
 -- Guides for a mount (their #mount lines) -> list of entries.

@@ -219,6 +219,7 @@ function Frame:GetLeft() return self.left end
 function Frame:GetTop() return self.top end
 function Frame:GetRight() return self.right end
 function Frame:GetBottom() return self.bottom end
+function Frame:SetHyperlinksEnabled(on) self.hyperlinks = on end
 function Frame:SetEnabled(on) self.enabled = on end
 function Frame:IsEnabled() return self.enabled ~= false end
 function Frame:SetFrameLevel(level) self.level = level end

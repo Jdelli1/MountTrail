@@ -62,8 +62,16 @@ describe("Guide format", function()
     eq(G.Clamp(g, 9), 2)
     eq(G.Clamp(g, 0), 1)
     eq(G.Id("Thundering Ruby: Cloud Serpent!"), "thundering-ruby-cloud-serpent")
-    eq(G.DoneText(g.steps[1], { quest = function() return "The Quest" end }),
-      { "turn in The Quest", "3 x item 4", "reach the spot" })
+    eq(G.DoneText(g.steps[1]), { "turn in [quest:9]", "3 x [item:4]", "reach the spot" })
+  end)
+
+  it("markup: **highlight** and [kind:id] links", function()
+    local G = loadLogic().Guide
+    local function linkFor(kind, id) return kind == "item" and ("<item " .. id .. ">") or nil end
+    eq(G.Markup("Loot **ten** [item:86547] now", linkFor), "Loot |cffffd100ten|r <item 86547> now")
+    eq(G.Markup("Turn in [quest:5]", linkFor), "Turn in [quest 5]", "no link yet: plain text")
+    eq(G.Markup("[npc:5] and [Item:2]", linkFor), "[npc:5] and <item 2>", "unknown kinds stay as written")
+    eq(G.Markup("**a** b **c**"), "|cffffd100a|r b |cffffd100c|r")
   end)
 end)
 
@@ -214,5 +222,33 @@ describe("Following a guide", function()
     local texts = {}
     for _, it in ipairs(items) do if it.text then texts[#texts + 1] = it.text end end
     eq(texts, { "Close guide", "Edit a copy...", "Export...", "Back to step 1" }, "built-in: no Delete")
+  end)
+
+  it("the window shows markup as links with the game's tooltip", function()
+    local ns = loadUI()
+    ns.Game.ItemLink = function(id) return id == 86547 and "|cff1eff00|Hitem:86547|h[Skyshard]|h|r" or nil end
+    local asked = {}
+    ns.Game.RequestItem = function(id) asked[#asked + 1] = id end
+    ns.Game.QuestName = function() return nil end
+    ns.Game.RequestQuest = function() end
+    ns.Data.Mounts = { [517] = { name = "Thundering Ruby Cloud Serpent", spell = 132036 } }
+    eq(ns.UI.GuideLink("item", 86547), "|cff1eff00|Hitem:86547|h[Skyshard]|h|r")
+    eq(ns.UI.GuideLink("item", 5), "|cffffffff|Hitem:5|h[item 5]|h|r")
+    eq(asked, { 5 }, "an unloaded item is asked for")
+    eq(ns.UI.GuideLink("mount", 517), "|cff71d5ff|Hspell:132036:0|h[Thundering Ruby Cloud Serpent]|h|r")
+    eq(ns.UI.GuideLink("quest", 7), "|cffffff00|Hquest:7:-1|h[quest 7]|h|r")
+    ns.UI.SaveGuide("#guide Links\nstep Loot **ten** [item:86547]\n  item 86547 10")
+    ns.UI.StartGuide("links")
+    local w = ns.UI.GuideWindow()
+    eq(w.StepText:GetText(), "Loot |cffffd100ten|r |cff1eff00|Hitem:86547|h[Skyshard]|h|r")
+    eq(w.Done:GetText(), "Done when: 10 x |cff1eff00|Hitem:86547|h[Skyshard]|h|r")
+    local shown
+    GameTooltip = {
+      SetOwner = function() end, Hide = function() end,
+      SetHyperlink = function(_, link) shown = link end, Show = function() end,
+    }
+    w.Body:GetScript("OnHyperlinkEnter")(w.Body, "item:86547")
+    eq(shown, "item:86547", "hovering a link shows the game's tooltip")
+    GameTooltip = nil
   end)
 end)

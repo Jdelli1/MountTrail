@@ -165,7 +165,7 @@ end
 
 function UI.NewGuide()
   return open("new", L["New guide"],
-    L["One keyword per line: #guide, #mount, step, note, goto, quest, item, mount, reach. See the README for the format."],
+    L["One keyword per line: #guide, #mount, step, note, goto, quest, item, mount, reach. **bold** and [item:ID] links work. docs/GUIDES.md has the details."],
     ns.Guide.TEMPLATE, nil, true)
 end
 

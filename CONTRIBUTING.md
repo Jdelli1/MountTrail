@@ -159,7 +159,7 @@ leaving it switched off.
 
 ### Adding a built-in guide
 
-Write the guide (README, "Guides", has the format), save it as
+Write the guide ([docs/GUIDES.md](docs/GUIDES.md) has the format), save it as
 `Guides/<Name>.lua` appending its text to `ns.GuideTexts` (copy
 `Guides/ThunderingRubyCloudSerpent.lua`), and list the file in `MountTrail.toc`
 under the other `Guides\` lines. `tests/guide_spec.lua` shows how to check it

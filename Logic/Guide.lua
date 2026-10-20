@@ -174,23 +174,45 @@ function Guide.Clamp(guide, n)
   return math.max(1, math.min(last, math.floor(n)))
 end
 
--- What a step's done lines ask for, as short phrases (the window's hint).
-function Guide.DoneText(step, names)
-  names = names or {}
+-- What a step's done lines ask for, as short phrases with link tokens
+-- (Guide.Markup turns those into the game's links): "turn in [quest:9]".
+function Guide.DoneText(step)
   local out = {}
   for _, d in ipairs(step and step.done or {}) do
     if d.kind == "quest" then
-      out[#out + 1] = string.format(L["turn in %s"], names.quest and names.quest(d.id) or (L["quest"] .. " " .. d.id))
+      out[#out + 1] = string.format(L["turn in %s"], "[quest:" .. d.id .. "]")
     elseif d.kind == "item" then
-      local item = names.item and names.item(d.id) or (L["item"] .. " " .. d.id)
+      local item = "[item:" .. d.id .. "]"
       out[#out + 1] = d.count > 1 and string.format(L["%d x %s"], d.count, item) or string.format(L["get %s"], item)
     elseif d.kind == "mount" then
-      out[#out + 1] = string.format(L["learn %s"], names.mount and names.mount(d.id) or (L["mount"] .. " " .. d.id))
+      out[#out + 1] = string.format(L["learn %s"], "[mount:" .. d.id .. "]")
     elseif d.kind == "reach" then
       out[#out + 1] = L["reach the spot"]
     end
   end
   return out
+end
+
+-- Markup inside step, note and description text:
+--   **words**          highlighted (gold): WoW text can't turn bold mid-line
+--   [item:86547]       the item's link: its name, the game's tooltip on hover
+--   [quest:31234]      the same for a quest, [mount:517] a mount,
+--   [spell:12345], [achievement:6] a spell or an achievement
+-- Guide text -> display text. linkFor(kind, id) -> the link, or nil to
+-- show the token as plain "[kind id]".
+Guide.HIGHLIGHT = "|cffffd100"
+Guide.LINK_KINDS = { item = true, quest = true, mount = true, spell = true, achievement = true }
+
+function Guide.Markup(text, linkFor)
+  if type(text) ~= "string" then return "" end
+  text = string.gsub(text, "%[(%a+):(%d+)%]", function(kind, id)
+    kind = string.lower(kind)
+    if not Guide.LINK_KINDS[kind] then return nil end
+    local link = linkFor and linkFor(kind, tonumber(id))
+    return link or ("[" .. kind .. " " .. id .. "]")
+  end)
+  text = string.gsub(text, "%*%*(.-)%*%*", function(inner) return Guide.HIGHLIGHT .. inner .. "|r" end)
+  return text
 end
 
 -- A starting point for a new guide.

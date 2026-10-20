@@ -40,6 +40,25 @@ local function text(parent, font, r, g, b)
   return fs
 end
 
+-- Links in guide text (Guide.Markup): the game's tooltip on hover,
+-- Shift-click puts the link in chat.
+local function enableLinks(frame)
+  if not frame.SetHyperlinksEnabled then return end
+  frame:SetHyperlinksEnabled(true)
+  frame:SetScript("OnHyperlinkEnter", function(self, link)
+    local tip = GameTooltip
+    if not tip then return end
+    tip:SetOwner(self, "ANCHOR_CURSOR")
+    if pcall(tip.SetHyperlink, tip, link) then tip:Show() else tip:Hide() end
+  end)
+  frame:SetScript("OnHyperlinkLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  frame:SetScript("OnHyperlinkClick", function(_, link, text)
+    if type(IsShiftKeyDown) == "function" and IsShiftKeyDown() and ns.Game.InsertChatLink then
+      ns.Game.InsertChatLink(text or link)
+    end
+  end)
+end
+
 local function height(fs)
   local h = fs.GetStringHeight and fs:GetStringHeight() or 12
   return math.max(tonumber(h) or 12, 12)
@@ -145,6 +164,7 @@ local function build()
   body:SetPoint("TOPRIGHT", w, "TOPRIGHT", -PAD, -(TITLE_H + 6))
   body:SetHeight(1)
   w.Body = body
+  enableLinks(body)
   w.StepText = text(body, "GameFontHighlight")
   w.Notes = text(body, "GameFontDisableSmall", 0.75, 0.75, 0.75)
   w.Place = text(body, "GameFontHighlightSmall", 0.45, 0.8, 1)
@@ -195,6 +215,7 @@ local function stepRow(i)
   r.Text = text(r, "GameFontHighlightSmall")
   r.Text:SetPoint("TOPLEFT", r, "TOPLEFT", 4, -3)
   r.Text:SetPoint("TOPRIGHT", r, "TOPRIGHT", -4, -3)
+  enableLinks(r)
   r:SetScript("OnClick", function(self) UI.GuideJump(self.step, self.step < (self.current or 1)) end)
   w.Rows[i] = r
   return r
@@ -217,11 +238,11 @@ local function paintCompact(entry, n, step)
     fs:Show()
     y = y + height(fs) + LINE_GAP
   end
-  place(w.StepText, step.text)
-  place(w.Notes, table.concat(step.notes, "\n"))
+  place(w.StepText, UI.GuideText(step.text))
+  place(w.Notes, UI.GuideText(table.concat(step.notes, "\n")))
   place(w.Place, UI.GuidePlaceText(step))
-  local done = ns.Guide.DoneText(step, UI.GuideNames())
-  place(w.Done, #done > 0 and (L["Done when: "] .. table.concat(done, ", ")) or L["Press Next when done."])
+  local done = ns.Guide.DoneText(step)
+  place(w.Done, #done > 0 and UI.GuideText(L["Done when: "] .. table.concat(done, ", ")) or L["Press Next when done."])
   w:SetHeight(TITLE_H + 6 + y + BUTTONS_H + 6)
 end
 
@@ -237,7 +258,7 @@ local function paintFull(entry, n)
     r:SetPoint("TOPLEFT", w.List, "TOPLEFT", 0, -y)
     r:SetWidth(width)
     r.Text:SetWidth(width - 8)
-    r.Text:SetText(string.format("%d. %s", i, step.text))
+    r.Text:SetText(string.format("%d. %s", i, UI.GuideText(step.text)))
     if i < n then
       r.Text:SetTextColor(0.5, 0.5, 0.5)
     elseif i == n then
@@ -315,3 +336,22 @@ function UI.ShowGuideMenu(id, owner)
 end
 
 UI.GuideWindow = function() return w end
+
+-- Names arriving from the server (an item or quest a link asked for):
+-- repaint once they settle.
+local pendingRepaint = false
+local loads = CreateFrame("Frame")
+loads:RegisterEvent("GET_ITEM_INFO_RECEIVED")
+loads:RegisterEvent("QUEST_DATA_LOAD_RESULT")
+loads:SetScript("OnEvent", function()
+  if not (w and w:IsShown()) or pendingRepaint then return end
+  if type(C_Timer) == "table" and type(C_Timer.After) == "function" then
+    pendingRepaint = true
+    C_Timer.After(0.2, function()
+      pendingRepaint = false
+      UI.RefreshGuideWindow()
+    end)
+  else
+    UI.RefreshGuideWindow()
+  end
+end)
