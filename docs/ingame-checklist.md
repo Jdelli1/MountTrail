@@ -604,7 +604,7 @@ The Checklist follows the other tabs: its list on the left, the detail pane on t
 A slim movable window (`/azt rares`, or right-click a rare header in the Checklist) that stays on screen without the main window. Title: "<Expansion> rare spawns (n left)"; click it for a menu: Current zone, or any expansion with rare-spawn mounts left. Rows come from the Checklist (daily / weekly rares and rare spawns with no lockout; owned and other-faction mounts left out): a box (daily kill: ticked and dimmed when the game says done; rare spawns: the Checklist's last-checked box, left-click marks, right-click clears), the rare's name, its zone (or "checked 3 hr ago"), and a pin button for a waypoint to its nearest spawn point. A rare with several spawn points lists each as a small gold coordinate button underneath. Clicking a row sets the waypoint too; hovering shows the mount tooltip. Drag the title to move; position, open state and choice are saved and it comes back after /reload. Scroll with the mouse wheel when long.
 
 - [ ] Checklist > right-click the Warlords of Draenor header under Rare spawns: the tracker opens on Warlords of Draenor. The title shows a small arrow; hovering says "Click to choose the expansion; drag to move"; the menu lists Current zone and every expansion with rares left. WoD lists Nok-Karosh, Luk'hok, Pathrunner, Gorok, Poundfist, Silthide, Nakk the Thunderer... (those whose mounts you don't own).
-- [ ] Luk'hok shows several coordinate buttons; each sets a waypoint there ("Waypoint: Luk'hok (Nagrand)"). The pin button goes to the nearest one.
+- [ ] Luk'hok shows several coordinate buttons; each sets a waypoint there ("Waypoint: Luk'hok (Nagrand)"). Clicking Luk'hok's row or pin plots all of them on TomTom.
 - [ ] Tick Nok-Karosh's box: "checked 1 min ago"; the Checklist's Rare spawns row shows the same; right-click clears.
 - [ ] A daily rare killed today: ticked and dimmed, at the bottom, no pin button.
 - [ ] Current zone: shows only the zone's rares and follows you as you fly to another zone.
@@ -615,7 +615,7 @@ A slim movable window (`/azt rares`, or right-click a rare header in the Checkli
 The game's map holds one pin, so plotting many points uses TomTom (when installed): each point becomes a TomTom waypoint titled after its NPC, AzerothTrail's previous plot is removed first, TomTom's arrow goes to the closest one, and the game pin goes to the nearest point too (unless Waypoints is TomTom only). Without TomTom only the nearest point is pinned and chat says TomTom is needed.
 
 - [ ] Detail pane of a rare with several spawn points: "Plot all (n)" (green) on the "Where to find it" line; click: n TomTom waypoints named after the rare, chat "Plotted n points on TomTom: <mount>".
-- [ ] Rare tracker: right-click a row's pin: that rare's spawn points plotted (hover the pin for the hint). "Plot all" in the title: every open rare's spawn points of the list at once; plotting again replaces the previous plot (no pile-up).
+- [ ] Rare tracker: left-click a rare with several spawn points (its row or its pin, e.g. Ascended Skymane in Bastion): every spawn point plotted on TomTom at once. A rare with one spot: the normal waypoint. Right-click the pin: a waypoint to the nearest spawn only. Hover the pin for the hint. "Plot all" in the title: every open rare's spawn points of the list at once; plotting again replaces the previous plot (no pile-up).
 - [ ] Without TomTom: the nearest point is pinned and chat says to install TomTom.
 
 ## Hints in the window's style

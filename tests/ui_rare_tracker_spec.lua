@@ -203,7 +203,7 @@ describe("rare tracker window", function()
     for _, c in ipairs(f.Content.children) do
       if c.data and c.data.id == 614 then first = c end
     end
-    first.Go:RunScript("OnClick", "LeftButton")
+    first.Go:RunScript("OnClick", "RightButton") -- the nearest only
     local buttons = {}
     for _, c in ipairs(f.Content.children) do
       if c.Text and c.m and c:IsShown() then buttons[#buttons + 1] = c end
@@ -213,17 +213,26 @@ describe("rare tracker window", function()
     eq(calls, { "wp614", "550 72.8 53.4 Luk'hok" })
   end)
 
-  it("right-click the pin plots the rare's spawns; Plot all plots every open rare", function()
+  it("left-click on a rare (row or pin) plots all its spawns; one spot: the waypoint; Plot all", function()
     local ns = loadUI()
     local f = open(ns)
-    local plots = {}
+    local plots, waypoints = {}, {}
     ns.Map.PlotMounts = function(ids, label) plots[#plots + 1] = { table.concat(ids, ","), label } end
-    local luk
+    ns.Map.SetWaypoint = function(id) waypoints[#waypoints + 1] = id end
+    local luk, nok
     for _, c in ipairs(f.Content.children) do
       if c.data and c.data.id == 614 then luk = c end
+      if c.data and c.data.id == 657 then nok = c end
     end
+    luk:RunScript("OnClick", "LeftButton")
+    eq(plots[1], { "614", "Luk'hok" }, "the row")
+    luk.Go:RunScript("OnClick", "LeftButton")
+    eq(#plots, 2, "the pin")
+    nok:RunScript("OnClick", "LeftButton")
+    eq(waypoints, { 657 }, "a single spot: the waypoint")
     luk.Go:RunScript("OnClick", "RightButton")
-    eq(plots[1], { "614", "Luk'hok" })
+    eq(waypoints, { 657, 614 }, "right-click: the nearest only")
+    plots = { plots[1] }
     f.PlotAll:RunScript("OnClick", "LeftButton")
     eq(plots[2][1], "614,657", "open rows only, in list order")
   end)

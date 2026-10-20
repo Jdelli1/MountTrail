@@ -5,10 +5,11 @@ local ADDON, ns = ...
 -- the zone the player is in) as a little checklist. Each row: a box (the
 -- daily kill as the game reports it, ticked and dimmed when done; a rare
 -- with no lockout gets the Checklist's "last checked" box, left-click marks,
--- right-click clears), the rare's name, its zone, and a -> button for a
--- waypoint to its spawn point nearest the player (Map.SetWaypoint); a rare
--- with several spawn points lists each as a small coordinate button
--- (Map.SetWaypointAt). Entries come from the Checklist (UI.ChecklistBuild:
+-- right-click clears), the rare's name, its zone, and a pin button. A click
+-- on the row or the pin plots every spawn point of a rare that has several
+-- on TomTom (Map.PlotMounts; the pin's right-click: a waypoint to the
+-- nearest instead), else sets the waypoint (Map.SetWaypoint); the spawn
+-- points are also listed as small coordinate buttons (Map.SetWaypointAt). Entries come from the Checklist (UI.ChecklistBuild:
 -- the daily / weekly "rares" category and the rare spawns with no lockout),
 -- so owned mounts and the other faction's are already left out. The title
 -- opens a menu to pick the expansion or "Current zone"; the window's
@@ -137,6 +138,26 @@ local function zoneIDs()
   return ids
 end
 
+-- How many spawn points a row's rare has (its spots, this faction).
+local function pointCount(row)
+  local n = 0
+  for _, spot in ipairs(row.spots or {}) do n = n + math.floor(#spot.pts / 3) end
+  return n
+end
+
+-- A rare's click: every spawn point on TomTom when it has several
+-- (Map.PlotMounts), else the plain waypoint; `nearest` forces the waypoint
+-- to the nearest point (the pin's right-click).
+function UI.RareTrackerGo(row, nearest)
+  local map = ns.Map
+  if not (row and map) then return end
+  if not nearest and pointCount(row) > 1 and map.PlotMounts then
+    map.PlotMounts({ row.id }, row.name)
+  else
+    map.SetWaypoint(row.id)
+  end
+end
+
 local function rowFrame(i)
   local r = rowFrames[i]
   if r then return r end
@@ -174,15 +195,14 @@ local function rowFrame(i)
   goHl:SetColorTexture(1, 1, 1, 0.15)
   if go.RegisterForClicks then go:RegisterForClicks("LeftButtonUp", "RightButtonUp") end
   go:SetScript("OnClick", function(_, button)
-    if not (r.data and ns.Map) then return end
-    if button == "RightButton" and ns.Map.PlotMounts then
-      ns.Map.PlotMounts({ r.data.id }, r.data.name)
-    else
-      ns.Map.SetWaypoint(r.data.id)
-    end
+    UI.RareTrackerGo(r.data, button == "RightButton")
   end)
   go:SetScript("OnEnter", function(self)
-    UI.ShowHint(self, L["Click: waypoint to the nearest spawn"], L["Right-click: plot every spawn on TomTom"], "right")
+    if r.data and pointCount(r.data) > 1 then
+      UI.ShowHint(self, L["Click: plot every spawn on TomTom"], L["Right-click: waypoint to the nearest spawn"], "right")
+    else
+      UI.ShowHint(self, L["Click: set a waypoint"], nil, "right")
+    end
   end)
   go:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   r.Go = go
@@ -198,8 +218,10 @@ local function rowFrame(i)
   name:SetWordWrap(false)
   r.Name = name
   -- The row itself: left-click waypoint, hover the mount tooltip.
+  -- The row itself: left-click as the pin (every spawn plotted, or the
+  -- waypoint for a single spot).
   r:SetScript("OnClick", function(self, button)
-    if button == "LeftButton" and self.data and ns.Map then ns.Map.SetWaypoint(self.data.id) end
+    if button == "LeftButton" then UI.RareTrackerGo(self.data) end
   end)
   r:SetScript("OnEnter", function(self)
     if self.data and UI.ShowMountTooltip then UI.ShowMountTooltip(self, self.data.id) end
