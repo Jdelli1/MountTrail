@@ -750,24 +750,6 @@ describe("journal", function()
       ok(J.SectionShown({ misc = "junk" }, "misc", "shop"), "a non-table view entry reads as all shown")
     end)
 
-    it("MigrateFilters moves the flat journal keys into filters.journal once", function()
-      local J = load()
-      local f = { collected = true, dungeon = true, raid = false, delve = false, other = true }
-      eq(J.MigrateFilters(f), true)
-      eq(f, { collected = true, journal = { raid = false, delve = false } })
-      eq(J.MigrateFilters(f), false, "nothing left to move")
-      eq(f, { collected = true, journal = { raid = false, delve = false } })
-
-      local g = { collected = false, raid = false, journal = { quest = false }, misc = { shop = false } }
-      J.MigrateFilters(g)
-      eq(g, { collected = false, journal = { quest = false, raid = false }, misc = { shop = false } })
-
-      local h = { collected = false, dungeon = true }
-      J.MigrateFilters(h)
-      eq(h, { collected = false }, "all-shown flat keys leave no journal table")
-      eq(J.MigrateFilters(nil), false)
-    end)
-
     it("collected, faction and search apply in every view", function()
       local J = load()
       local mounts = {

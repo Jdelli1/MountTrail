@@ -185,9 +185,8 @@ end
 -- (the zone's mounts; right-click pops them out), the Alts window, Browse
 -- (by source, Logic/Browse.lua: a browse page per category, or Holidays /
 -- Achievements / Timewalking's own views), then My lists and the quick lists, one entry each (a list opens as
--- a page of the journal view, UI.ShowListPage). A saved key of an older
--- version's tab maps to its successor (UI.LEGACY_TABS: the retired Route tab
--- -> Checklist); any other unknown key falls back to the first view.
+-- a page of the journal view, UI.ShowListPage). An unknown saved key falls
+-- back to the first view.
 local TABS = {
   { key = "journal", label = "Home" },
   { key = "holidays", label = "Holidays" },
@@ -198,8 +197,6 @@ local TABS = {
   { key = "here", label = "Current Zone" },
   { key = "browse", label = "Browse" },
 }
-
-UI.LEGACY_TABS = { route = "checklist" }
 
 local TAB_INDEX = {}
 for i, tab in ipairs(TABS) do TAB_INDEX[tab.key] = i end
@@ -221,10 +218,8 @@ function UI.WindowDB()
   return windowDB()
 end
 
--- A tab key to select: `key` when it is a tab, its successor when it is a
--- retired tab's key, else the first tab.
+-- A tab key to select: `key` when it is a tab, else the first tab.
 function UI.TabKey(key)
-  key = UI.LEGACY_TABS[key] or key
   return key and TAB_INDEX[key] and key or TABS[1].key
 end
 local validKey = UI.TabKey

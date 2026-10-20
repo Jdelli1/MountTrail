@@ -88,8 +88,7 @@ changed addon gives `nil`, never an error.
 
 - `Core/Locale.lua` loads first so every file can use `ns.L`.
 - `Core/Init.lua` creates the AceAddon object (`ns.addon`), the AceDB
-  database (`ns.db`), the migrations (old AzerothTrail name, retired route,
-  old filter layout), attempt counting (`ns.UpdateAttempts`), kill statistics
+  database (`ns.db`), the example lists' seeding, attempt counting (`ns.UpdateAttempts`), kill statistics
   (`ns.UpdateStats`), `ns.RecordSeen` for the alt matrix, the game events and
   the slash commands (`addon:OnSlash`).
 
@@ -126,8 +125,7 @@ changed addon gives `nil`, never an error.
 Every file starts with `local ADDON, ns = ...`. `ns` is the private table the
 game passes to each file of the addon; it is the only way files talk to each
 other. The addon creates no Lua globals of its own apart from the saved
-variables `MountTrailDB` (and the legacy `AzerothTrailDB`, emptied once on
-load). Named frames (`MountTrailFrame`, `MountTrailMenu`, ...) exist because
+variable `MountTrailDB`. Named frames (`MountTrailFrame`, `MountTrailMenu`, ...) exist because
 `UISpecialFrames` (Esc to close) needs names.
 
 - `ns.Data`, `ns.L`, `ns.Game`, `ns.Map`, `ns.Journal`, `ns.Checklist`, ...:

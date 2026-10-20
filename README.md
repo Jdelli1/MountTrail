@@ -1,8 +1,13 @@
 # MountTrail
 
+> **Public beta.** Everything works in our testing, but it is new: please
+> report anything odd on the [issue tracker](../../issues) (the bug template
+> asks for what helps most).
+
 MountTrail is a World of Warcraft Retail (Midnight 12.x) addon that tracks
 which mounts you are missing and the daily / weekly lockouts this character
-has left to farm them.
+has left to farm them, with step-by-step mount guides, your own shareable
+lists, and pop-out windows to keep on screen while you farm.
 
 - [Install and requirements](#install-and-requirements)
 - [The window](#the-window)
@@ -11,6 +16,9 @@ has left to farm them.
 - [Zone panel and world map tab](#zone-panel-and-world-map-tab)
 - [Alt lockout matrix](#alt-lockout-matrix)
 - [Search](#search)
+- [Your lists](#your-lists)
+- [Guides](#guides)
+- [Sharing lists](#sharing-lists)
 - [Options](#options)
 - [Slash commands](#slash-commands)
 - [Optional addons](#optional-addons)
@@ -23,9 +31,15 @@ has left to farm them.
   carries every waypoint. Without it MountTrail still loads, but a popup at
   login and a red error on each waypoint click (on screen and in chat) say to
   install it.
-- CurseForge and Wago packages will follow once in-game verification is done.
-  For now, install MountTrail as a development link: see
-  [CONTRIBUTING.md](CONTRIBUTING.md#setup) (`tools/link_addon.ps1`).
+- **Install** from CurseForge or Wago with your addon app (search for
+  MountTrail), or by hand: download the release zip from the
+  [Releases](../../releases) page and unzip it into
+  `World of Warcraft\_retail_\Interface\AddOns\` (you should end up with
+  `AddOns\MountTrail\MountTrail.toc`).
+- Optional: Rarity, Mount Journal Enhanced (or MountsRarity) and AllTheThings
+  add more (see [Optional addons](#optional-addons)).
+- Developers: see [CONTRIBUTING.md](CONTRIBUTING.md#setup) to run from a git
+  checkout.
 
 ## The window
 
@@ -36,7 +50,7 @@ left edge to resize them (saved; right-click either edge for the default).
 
 ### Navigation column
 
-The left column replaces the old tabs:
+The left column:
 
 - **Home**: the front page.
 - **Lockouts**: the daily / weekly checklist, with how many lockouts are left.
@@ -430,7 +444,6 @@ doesn't know are left out.
 | `/mtrail debug` | Toggle debug mode: errors MountTrail catches around maps and waypoints go to the error handler (off by default) |
 | `/mtrail help` | List the commands |
 | `/mounttrail`, `/mtl` | Same as `/mtrail` |
-| `/azt`, `/azerothtrail` | The old name's commands, still the same as `/mtrail` |
 
 ## Optional addons
 
@@ -449,15 +462,15 @@ None of these are required; MountTrail uses them when they are loaded.
 
 ## Known limits
 
-- **In-game verification is still pending.** The addon is built and
-  unit-tested; see [docs/ingame-checklist.md](docs/ingame-checklist.md) for
-  the open checks, starting with attempt counting under Midnight restrictions.
+- **Beta.** The addon is built and unit-tested and has been played with,
+  but not every corner has been checked in game yet; see
+  [docs/BETA_TESTING.md](docs/BETA_TESTING.md) for what beta testers can help
+  with.
+- **Midnight's addon limits**: inside instances addons can't read chat during
+  encounters, your exact position, or the combat log, so guides and shared
+  chat links work around those (see [docs/GUIDES.md](docs/GUIDES.md)).
 - **Event rares** never show as "up": the game's data cannot tell which
   assault or warfront phase spawns them (see [Lockouts](#lockouts)).
-- **Name availability**: check pending. On 2026-10-16 the CurseForge search
-  page answered with a Cloudflare challenge (HTTP 403) and the Wago search page
-  is rendered client-side, so neither returned a usable result. Search both
-  sites for "MountTrail" by hand before the first upload.
 
 ## Development
 

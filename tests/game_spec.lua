@@ -794,40 +794,6 @@ describe("init", function()
     eq(ns.db.global.minimap, { hide = false })
     eq(ns.db.global.window, {})
     eq(ns.db.char.ticks, {})
-    eq(ns.db.char.showCompleted, nil, "the route list's Show completed is retired (F16)")
-    eq(ns.db.char.routeMode, nil, "no route arrow")
-  end)
-
-  it("OnInitialize clears the removed route planner's saved state", function()
-    local AceDB = LibStub("AceDB-3.0")
-    local realNew = AceDB.New
-    AceDB.New = function(self, svName, defaults)
-      local db = realNew(self, svName, defaults)
-      db.char.routeMode, db.char.routeView, db.char.showCompleted = "arrow", "checklist", true
-      db.global.window = { tab = "route", point = "CENTER" }
-      return db
-    end
-    local good, ns = pcall(setup)
-    AceDB.New = realNew
-    assert(good, ns)
-    eq(ns.db.char.routeMode, nil, "the removed arrow's mode goes")
-    eq(ns.db.char.routeView, nil)
-    eq(ns.db.char.showCompleted, nil)
-    eq(ns.db.global.window, { tab = "checklist", point = "CENTER" })
-  end)
-
-  it("OnInitialize migrates pre-F15 flat journal filters into filters.journal", function()
-    local AceDB = LibStub("AceDB-3.0")
-    local realNew = AceDB.New
-    AceDB.New = function(self, svName, defaults)
-      local db = realNew(self, svName, defaults)
-      db.global.filters = { collected = true, dungeon = true, raid = false, vendor = false }
-      return db
-    end
-    local good, ns = pcall(setup)
-    AceDB.New = realNew
-    assert(good, ns)
-    eq(ns.db.global.filters, { collected = true, journal = { raid = false, vendor = false } })
   end)
 
   it("first observation counts nothing, then open -> done adds +1", function()
@@ -1053,7 +1019,7 @@ describe("init", function()
     it("dump prints instance, difficulty and bosses", function()
       local ns, w = setup()
       w.kill()
-      run_slash(ns.addon, "azt", "dump")
+      run_slash(ns.addon, "mtrail", "dump")
       local out = table.concat(ns.addon.printed, "\n")
       ok(out:find("532", 1, true), "instance id printed: " .. out)
       ok(out:find("Attumen the Huntsman", 1, true), "boss printed")
@@ -1065,28 +1031,28 @@ describe("init", function()
         if not includeIncomplete then return {} end
         return { { name = "Mystery Raid", instance = nil, difficulty = 16, bosses = { { name = "Boss", killed = true } } } }
       end
-      run_slash(ns.addon, "azt", "dump")
+      run_slash(ns.addon, "mtrail", "dump")
       local out = table.concat(ns.addon.printed, "\n")
       ok(out:find("Mystery Raid", 1, true), "incomplete row printed: " .. out)
       ok(out:find("nil", 1, true), "missing id shown as nil")
     end)
     it("dump with no saved instances says so", function()
       local ns = setup()
-      run_slash(ns.addon, "azt", "dump")
+      run_slash(ns.addon, "mtrail", "dump")
       ok(#ns.addon.printed >= 1, "prints something")
     end)
     it("no argument toggles the window when present, else prints", function()
       local ns = setup()
-      run_slash(ns.addon, "azt", "")
+      run_slash(ns.addon, "mtrail", "")
       ok(#ns.addon.printed >= 1, "prints when no window")
       local toggled = 0
       ns.ToggleWindow = function() toggled = toggled + 1 end
-      run_slash(ns.addon, "azerothtrail", "")
+      run_slash(ns.addon, "mounttrail", "")
       eq(toggled, 1)
     end)
     it("help lists commands", function()
       local ns = setup()
-      run_slash(ns.addon, "azt", "help")
+      run_slash(ns.addon, "mtrail", "help")
       local out = table.concat(ns.addon.printed, "\n")
       ok(out:find("dump", 1, true), "help mentions dump")
       ok(out:find("/mtrail debug", 1, true), "help mentions /mtrail debug")
@@ -1094,10 +1060,10 @@ describe("init", function()
     it("debug toggles ns.db.global.debug (default off) and says so", function()
       local ns = setup()
       eq(ns.db.global.debug, false)
-      run_slash(ns.addon, "azt", "debug")
+      run_slash(ns.addon, "mtrail", "debug")
       eq(ns.db.global.debug, true)
       ok(ns.addon.printed[#ns.addon.printed]:find("on", 1, true), "says on")
-      run_slash(ns.addon, "azt", " DEBUG ")
+      run_slash(ns.addon, "mtrail", " DEBUG ")
       eq(ns.db.global.debug, false)
       ok(ns.addon.printed[#ns.addon.printed]:find("off", 1, true), "says off")
     end)

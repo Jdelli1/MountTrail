@@ -163,45 +163,10 @@ end
 
 -- Lifecycle -------------------------------------------------------------------
 
--- Saved state of the removed route planner, its arrow and the farming run
--- goes; a saved "route" tab opens the Checklist tab. On `db` (AceDB: .char,
--- .global).
-function ns.RetireRoute(db)
-  local char, global = db and db.char, db and db.global
-  if type(char) == "table" then
-    char.routeMode = nil
-    char.routeView = nil
-    char.showCompleted = nil
-    -- The farming run (removed): its saved run and window state.
-    char.run = nil
-    char.runShown = nil
-  end
-  if type(global) == "table" then
-    global.runWindow = nil
-    global.arrow = nil
-  end
-  local window = type(global) == "table" and global.window or nil
-  if type(window) == "table" and window.tab == "route" then window.tab = "checklist" end
-end
-
--- The add-on was called AzerothTrail: its saved variable (AzerothTrailDB,
--- still listed in the .toc) becomes MountTrailDB once, when there is no
--- MountTrailDB yet; the old one is then cleared. WoW reads it from
--- WTF\Account\<account>\SavedVariables\MountTrail.lua, so the old
--- AzerothTrail.lua has to be copied to that name first
--- (tools\link_addon.ps1 does it).
-function ns.MigrateOldName()
-  if type(MountTrailDB) ~= "table" and type(AzerothTrailDB) == "table" then
-    MountTrailDB = AzerothTrailDB
-  end
-  AzerothTrailDB = nil
-end
-
 function addon:OnInitialize()
   -- One saved variable, MountTrailDB: AceDB keeps the per-character section
   -- under .char ("Name - Realm"), so no SavedVariablesPerCharacter is needed.
   -- char.last (the last lockout observation) starts nil.
-  ns.MigrateOldName()
   ns.db = LibStub("AceDB-3.0"):New("MountTrailDB", {
     global = {
       -- { collected = bool, [view] = { [section] = false } } (Logic\Journal.lua)
@@ -232,20 +197,12 @@ function addon:OnInitialize()
       campChecked = {}, -- Checklist rare spawns with no lockout: { [tick key] = time the player last checked the spawn }
     },
   }, true)
-  -- Pre-F15 saved variables kept the Journal's source filters as flat keys.
-  ns.Journal.MigrateFilters(ns.db.global.filters)
-  ns.RetireRoute(ns.db)
   -- Mythic Mounts, once, as an example custom list (My lists).
   if type(ns.db.global.lists) ~= "table" then ns.db.global.lists = {} end
   ns.QuickLists.SeedExamples(ns.db.global, ns.db.global.lists)
-  -- Waypoints are TomTom's now: the old Waypoints setting goes.
-  if type(ns.db.global.settings) == "table" then ns.db.global.settings.waypoints = nil end
   self:RegisterChatCommand("mtrail", "OnSlash")
   self:RegisterChatCommand("mounttrail", "OnSlash")
   self:RegisterChatCommand("mtl", "OnSlash")
-  -- The add-on's old name (AzerothTrail): its commands still work.
-  self:RegisterChatCommand("azt", "OnSlash")
-  self:RegisterChatCommand("azerothtrail", "OnSlash")
 end
 
 function addon:OnEnable()

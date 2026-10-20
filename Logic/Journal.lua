@@ -147,23 +147,6 @@ function Journal.SetSectionShown(filters, view, section, shown)
   t[section] = false
 end
 
--- Before F15 the Journal's source filters were flat keys (filters.raid =
--- false). Moves them into filters.journal (hidden ones only) and removes
--- them; `collected` stays. -> true when anything was moved. Idempotent.
-function Journal.MigrateFilters(filters)
-  if type(filters) ~= "table" then return false end
-  local moved = false
-  for _, key in ipairs(ORDER.journal) do
-    local v = filters[key]
-    if v ~= nil and type(v) ~= "table" then
-      if v == false then Journal.SetSectionShown(filters, "journal", key, false) end
-      filters[key] = nil
-      moved = true
-    end
-  end
-  return moved
-end
-
 -- Misc section of not-owned unobtainable mounts when the "Show unobtainable
 -- mounts" option is on (query.showUnobtainable); listed last.
 Journal.UNOBTAINABLE = "unobtainable"

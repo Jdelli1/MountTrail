@@ -20,9 +20,6 @@ explains how the code is laid out.
      itself; the script exits 1 when `_retail_` is missing.
    - It is safe to run again: an existing junction is left alone. It refuses
      to touch an existing folder or file that is not a junction.
-   - It also handles the old name: an `AddOns\AzerothTrail` junction is
-     removed, and each account's `SavedVariables\AzerothTrail.lua` is copied
-     to `MountTrail.lua` when that does not exist yet.
    - To unlink, delete only the junction:
      `cmd /c rmdir "<WowPath>\_retail_\Interface\AddOns\MountTrail"`. This does
      not delete the repository.
@@ -103,7 +100,7 @@ data), each mount's section against the game's source, and that every
 rare-spawn mount is on the checklist. It exits 1 on any error not listed in
 `tools/verify_allow.json`; an allowlisted finding is shown as info with its
 reason. See [docs/data-verification.md](docs/data-verification.md) for the
-latest report and [docs/ingame-checklist.md](docs/ingame-checklist.md) for the
+latest report and [docs/BETA_TESTING.md](docs/BETA_TESTING.md) for the
 checks that can only be done in game.
 
 Hand-written data (`Data/Lockouts.lua`, `Data/Holidays.lua`, `Data/Events.lua`,

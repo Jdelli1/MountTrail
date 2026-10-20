@@ -37,8 +37,8 @@
 -- Boss encounter names and difficulties partly derived from Rarity
 -- (https://github.com/WowRarity/Rarity, DB/Mounts/*.lua `lockBossName`,
 -- `instanceDifficulties`, `lockDungeonId`), GPL-2.0.
--- Entries marked `-- verify in game` are unconfirmed: check them with `/azt dump`
--- (docs/ingame-checklist.md).
+-- Entries marked `-- verify in game` are unconfirmed: check them with `/mtrail dump`
+-- (docs/BETA_TESTING.md lists what to check in game).
 
 local ADDON, ns = ...
 ns.Data = ns.Data or {}

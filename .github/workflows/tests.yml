@@ -1,0 +1,22 @@
+# Runs the addon's tests (Lua under lupa) and the data tools' tests on every
+# push and pull request.
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install lupa
+        run: python -m pip install --quiet lupa
+      - name: Addon tests
+        run: python tools/run_tests.py
+      - name: Data tool tests
+        run: python -m unittest tools/test_build_data.py tools/test_build_spots.py tools/test_build_zones.py tools/test_build_drops.py tools/test_verify_data.py

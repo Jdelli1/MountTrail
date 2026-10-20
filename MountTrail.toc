@@ -3,10 +3,17 @@
 ## Notes: A mount-collection guide: tracks the mounts you are missing and the daily / weekly lockouts left to farm them. Requires TomTom.
 ## Author: James
 ## Version: @project-version@
-## SavedVariables: MountTrailDB, AzerothTrailDB
+## SavedVariables: MountTrailDB
 ## OptionalDeps: TomTom, Rarity, AllTheThings
 # TomTom is required, but listed under OptionalDeps (not Dependencies) so MountTrail still loads without it and can say so.
 ## IconTexture: 132261
+## Category: Collections
+## X-License: GPL-2.0
+## X-Website: https://github.com/jdelli1/mounttrail
+# Fill these in once the CurseForge and Wago projects exist (the release
+# workflow's packager reads them):
+# ## X-Curse-Project-ID: 000000
+# ## X-Wago-ID: xxxxxxxx
 
 embeds.xml
 Core\Locale.lua
