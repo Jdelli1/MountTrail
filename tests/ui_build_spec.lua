@@ -182,7 +182,7 @@ describe("ui build", function()
     for _, f in ipairs(frames) do
       if f.Stripe then
         if f.Stripe:IsShown() then sawStripe = true else sawPlain = true end
-        ok(f.Name.font == "GameFontNormal" or f.Name.font == ns.UI.OwnedFont(), "GameFont family")
+        ok(f.Name.font == ns.UI.Font("GameFontNormal") or f.Name.font == ns.UI.OwnedFont(), "GameFont family")
       end
     end
     ok(sawStripe and sawPlain, "every other row striped")
@@ -209,12 +209,12 @@ describe("ui build", function()
     eq(f.Name.font, ns.UI.OwnedFont(), "light green name")
     local p = frames[plain]
     ok(not p.Owned:IsShown(), "missing mounts: no green")
-    eq(p.Name.font, "GameFontNormal")
+    eq(p.Name.font, ns.UI.Font("GameFontNormal"))
     eq(p.Icon.desaturated, false)
     -- A recycled frame drops the green look.
     list.ScrollBox.view.factory(function(_, init) init(f, rows[plain]) end, rows[plain])
     ok(not f.Owned:IsShown(), "recycled: green off")
-    eq(f.Name.font, "GameFontNormal")
+    eq(f.Name.font, ns.UI.Font("GameFontNormal"))
     list.ScrollBox.view.factory(function(_, init) init(f, rows[owned]) end, rows[owned])
     ok(f.Owned:IsShown(), "and on again")
   end)
@@ -224,7 +224,7 @@ describe("ui build", function()
     local name = ns.UI.OwnedFont()
     eq(name, "MountTrailFontOwned")
     local font = _G[name]
-    eq(font.base, GameFontNormal)
+    eq(font.base, _G[ns.UI.Font("GameFontNormal")], "from the sized copy of GameFontNormal")
     eq(font.color, { 0.55, 0.95, 0.6 })
   end)
 
@@ -958,8 +958,8 @@ describe("ui build", function()
       if not row.header then eq(row.owned, false, "Collected off: no owned rows") end
     end
     ok(sub, "dungeon/raid/world sections split into sub-groups")
-    eq(top.Label.font, "GameFontNormal")
-    eq(sub.Label.font, "GameFontNormalSmall")
+    eq(top.Label.font, ns.UI.Font("GameFontNormal"))
+    eq(sub.Label.font, ns.UI.Font("GameFontNormalSmall"))
     ok(select(4, sub.Indicator:GetPoint(1)) > select(4, top.Indicator:GetPoint(1)), "sub-header indented")
     eq(list.ScrollBox.view.extent(1, { header = true, depth = 2 }) < list.ScrollBox.view.extent(1, rows[1]), true,
       "sub-headers are shorter")
@@ -1101,7 +1101,7 @@ describe("ui build", function()
     eq({ panel:GetPoint(2) }, { "BOTTOMLEFT", frame, "BOTTOMRIGHT", 2, 0 })
     eq(panel.width, 260)
     ok(not panel:IsShown(), "closed by default")
-    eq({ frame.DragHandle:GetPoint(2) }, { "TOPRIGHT", frame, "TOPRIGHT", -52, 0 }, "drag handle leaves room")
+    eq({ frame.DragHandle:GetPoint(2) }, { "TOPRIGHT", frame, "TOPRIGHT", -74, 0 }, "drag handle leaves room (zone panel and settings buttons)")
 
     frame.ZoneButton:RunScript("OnClick")
     eq(ns.db.global.zonePanel.open, true)
@@ -1441,7 +1441,7 @@ describe("ui build", function()
     ok(rows[3].category, "category header")
     eq(box.view.extent(1, rows[3]), 20, "category header: sub-header height")
     eq({ frames[3].Indicator:GetPoint(1) }, { "LEFT", frames[3], "LEFT", 22 + 16, 0 }, "indented a step further")
-    eq(frames[3].Label.font, "GameFontNormalSmall")
+    eq(frames[3].Label.font, ns.UI.Font("GameFontNormalSmall"))
     ok(frames[3].Label:GetText():find("(0/" .. rows[3].total .. ")", 1, true), "category done/total")
 
     -- A row: list look, pin, click, hover. A game-tracked lockout has no

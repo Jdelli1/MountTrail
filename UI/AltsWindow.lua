@@ -192,7 +192,7 @@ local function cellFrame(r, i)
   fill:SetColorTexture(1, 1, 1, 0.06)
   UI.FlatBorder(box, 1, 1, 1, 0.35)
   c.Box = box
-  local text = c:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  local text = c:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisableSmall"))
   text:SetPoint("CENTER", c, "CENTER", 0, 0)
   c.Text = text
   c:SetScript("OnEnter", function(self)
@@ -207,7 +207,7 @@ end
 
 local function paintCell(c, state, style)
   c.state = state
-  if style then UI.PopoutStyleText(c.Text, style, "GameFontDisableSmall", 0, { 0.6, 0.6, 0.6 }) end
+  if style then UI.PopoutStyleText(c.Text, style, UI.Font("GameFontDisableSmall"), 0, { 0.6, 0.6, 0.6 }) end
   c.Check:SetShown(state == "done")
   c.Box:SetShown(state == "open")
   if state == "na" then
@@ -268,7 +268,7 @@ local function initElement(f, data)
     local icon = name:CreateTexture(nil, "ARTWORK")
     icon:SetSize(ICON_SIZE, ICON_SIZE)
     name.Icon = icon
-    local text = name:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    local text = name:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlightSmall"))
     text:SetJustifyH("LEFT")
     text:SetWordWrap(false)
     name.Text = text
@@ -294,9 +294,9 @@ local function initElement(f, data)
     name.Text:SetPoint("RIGHT", name, "RIGHT", -6, 0)
     local style = w and w.style
     if style then
-      UI.PopoutStyleText(name.Text, style, sub and "GameFontNormalSmall" or "GameFontNormal", sub and 0 or 1, style.header)
+      UI.PopoutStyleText(name.Text, style, sub and UI.Font("GameFontNormalSmall") or UI.Font("GameFontNormal"), sub and 0 or 1, style.header)
     else
-      name.Text:SetFontObject(sub and "GameFontNormalSmall" or "GameFontNormal")
+      name.Text:SetFontObject(sub and UI.Font("GameFontNormalSmall") or UI.Font("GameFontNormal"))
     end
     name.Text:SetText((data.collapsed and "+ " or "- ") .. (data.text or "")
       .. "  " .. GREY .. string.format(L["%d open"], data.open or 0) .. "|r")
@@ -330,7 +330,7 @@ local function initElement(f, data)
   name.Text:SetPoint("LEFT", name.Icon, "RIGHT", 4, 0)
   name.Text:SetPoint("RIGHT", name, "RIGHT", -4, 0)
   if w and w.style then
-    UI.PopoutStyleText(name.Text, w.style, "GameFontHighlightSmall")
+    UI.PopoutStyleText(name.Text, w.style, UI.Font("GameFontHighlightSmall"))
   else
     name.Text:SetFontObject("GameFontHighlightSmall")
   end
@@ -371,7 +371,7 @@ local function columnFrame(i)
   local hl = c:CreateTexture(nil, "HIGHLIGHT")
   hl:SetAllPoints(c)
   hl:SetColorTexture(1, 1, 1, 0.08)
-  local text = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  local text = c:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlightSmall"))
   text:SetPoint("LEFT", c, "LEFT", 2, 0)
   text:SetPoint("RIGHT", c, "RIGHT", -2, 0)
   text:SetWordWrap(false)
@@ -487,7 +487,7 @@ local function build()
   showAll:Hide()
   w.ShowAll = showAll
 
-  local title = strip:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  local title = strip:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormal"))
   title:SetPoint("LEFT", strip, "LEFT", 8, 0)
   title:SetPoint("RIGHT", showAll, "LEFT", -4, 0)
   title:SetJustifyH("LEFT")
@@ -495,7 +495,7 @@ local function build()
   w.Title = title
 
   -- Under the title: the reset timers, then the column headers.
-  local resets = w:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  local resets = w:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlightSmall"))
   resets:SetPoint("TOPLEFT", strip, "BOTTOMLEFT", 8, -5)
   resets:SetPoint("TOPRIGHT", strip, "BOTTOMRIGHT", -8, -5)
   resets:SetJustifyH("LEFT")
@@ -526,7 +526,7 @@ local function build()
   ScrollUtil.InitScrollBoxListWithScrollBar(scrollBox, scrollBar, view)
   w.ScrollBox = scrollBox
 
-  local empty = list:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+  local empty = list:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisable"))
   empty:SetPoint("CENTER", scrollBox, "CENTER", 0, 0)
   empty:Hide()
   w.Empty = empty
@@ -572,8 +572,8 @@ function UI.RefreshAltsWindow()
   w.style = style
   if style then
     w.Fill:SetColorTexture(style.bg[1], style.bg[2], style.bg[3], style.alpha)
-    UI.PopoutStyleText(w.Title, { font = style.font, size = style.size }, "GameFontNormal", 2, style.header)
-    UI.PopoutStyleText(w.Resets, style, "GameFontHighlightSmall")
+    UI.PopoutStyleText(w.Title, { font = style.font, size = style.size }, UI.Font("GameFontNormal"), 2, style.header)
+    UI.PopoutStyleText(w.Resets, style, UI.Font("GameFontHighlightSmall"))
     local size = style.size or 11
     w.rowHeight = math.max(ROW_HEIGHT, size + 9)
     w.subHeight = math.max(SUB_HEADER_HEIGHT, size + 7)
@@ -603,7 +603,7 @@ function UI.RefreshAltsWindow()
     local c = columnFrame(i)
     c.char = char
     c.Text:SetText(char.name)
-    if style then UI.PopoutStyleText(c.Text, style, "GameFontHighlightSmall") end
+    if style then UI.PopoutStyleText(c.Text, style, UI.Font("GameFontHighlightSmall")) end
     c.Text:SetTextColor(UI.AltsColumnColor(char.class))
     c:Show()
   end

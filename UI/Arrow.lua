@@ -350,12 +350,12 @@ local function createFrame()
   if arrow:SetTexture(ARROW_TEXTURE) == false then arrow:SetTexture(FALLBACK_TEXTURE) end
   f.Arrow = arrow
 
-  f.Title = textLine(f, "GameFontNormal", -8)
-  f.Detail = textLine(f, "GameFontHighlightSmall", -24)
-  f.Hint = textLine(f, "GameFontDisableSmall", -38)
-  f.Status = textLine(f, "GameFontHighlightSmall", -52)
+  f.Title = textLine(f, UI.Font("GameFontNormal"), -8)
+  f.Detail = textLine(f, UI.Font("GameFontHighlightSmall"), -24)
+  f.Hint = textLine(f, UI.Font("GameFontDisableSmall"), -38)
+  f.Status = textLine(f, UI.Font("GameFontHighlightSmall"), -52)
 
-  local done = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  local done = f:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormal"))
   done:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -10)
   done:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -10, 10)
   done:SetJustifyH("CENTER")

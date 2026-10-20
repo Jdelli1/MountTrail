@@ -270,18 +270,18 @@ local function createCard(i, name)
   card.Logo = logo
 
   -- Fallback when the client has no logo for this expansion.
-  local label = card:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+  local label = card:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalLarge"))
   label:SetPoint("CENTER", logo, "CENTER", 0, 0)
   label:SetWidth(G.tileW - 16)
   label:SetText(L[name])
   card.Name = label
 
   -- Bottom area: a slim bar across the tile, owned / total left, percent right.
-  local count = card:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  local count = card:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlightSmall"))
   count:SetPoint("BOTTOMLEFT", card, "BOTTOMLEFT", 10, 9)
   card.Count = count
 
-  local pct = card:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  local pct = card:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisableSmall"))
   pct:SetPoint("BOTTOMRIGHT", card, "BOTTOMRIGHT", -10, 9)
   card.Percent = pct
 
@@ -337,7 +337,7 @@ local function createChips(s)
     glow:SetColorTexture(1, 1, 1, 0.08)
     glow:Hide()
     chip.Glow = glow
-    local text = chip:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    local text = chip:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlightSmall"))
     text:SetPoint("LEFT", chip, "LEFT", 4, 0)
     chip.Text = text
     chip:SetScript("OnEnter", function() glow:Show() end)
@@ -358,12 +358,12 @@ local function createSummary()
   s:SetPoint("TOPRIGHT", home, "TOPRIGHT", -G.left, 0)
   s:SetHeight(G.stripH)
 
-  local heading = s:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+  local heading = s:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalLarge"))
   heading:SetPoint("TOPLEFT", s, "TOPLEFT", 0, -8)
   heading:SetText(L["Mount Collection"])
   s.Title = heading
 
-  local totals = s:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+  local totals = s:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlight"))
   totals:SetPoint("TOPRIGHT", s, "TOPRIGHT", 0, -10)
   s.Totals = totals
 
@@ -527,7 +527,7 @@ local function pageWithStrip(parent)
   back:SetSize(80, 22)
   back:SetPoint("TOPLEFT", page, "TOPLEFT", 4, -4)
   back:SetText(L["Back"])
-  local t = page:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+  local t = page:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalLarge"))
   t:SetPoint("LEFT", back, "RIGHT", 12, 0)
   local holder = CreateFrame("Frame", nil, page)
   holder:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -36)
@@ -569,7 +569,7 @@ local function build(parent)
   back:SetText(L["Back"])
   back:SetScript("OnClick", showHome)
 
-  title = listPage:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+  title = listPage:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalLarge"))
   title:SetPoint("LEFT", back, "RIGHT", 12, 0)
 
   local holder = CreateFrame("Frame", nil, listPage)
@@ -591,7 +591,7 @@ local function build(parent)
   sBack:SetSize(80, 22)
   sBack:SetPoint("TOPLEFT", searchPage, "TOPLEFT", 4, -4)
   sBack:SetText(L["Back"])
-  local sTitle = searchPage:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+  local sTitle = searchPage:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalLarge"))
   sTitle:SetPoint("LEFT", sBack, "RIGHT", 12, 0)
   sTitle:SetText(L["Search all mounts"])
   local sHolder = CreateFrame("Frame", nil, searchPage)

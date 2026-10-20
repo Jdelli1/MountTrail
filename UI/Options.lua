@@ -51,6 +51,34 @@ function Options.WindowScale()
   return clamp(saved, Options.SCALE_RANGE, 100)
 end
 
+-- Text sizes by colour (UI.FONT_ROLES): gold (headers, titles, mount
+-- names), white (body text), grey (second lines): points added, -2..+6.
+Options.TEXT_RANGE = { min = -2, max = 6, step = 1 }
+Options.TEXT_KEYS = { header = "textHeader", body = "textBody", detail = "textDetail" }
+Options.TEXT_VARS = { header = "MOUNTTRAIL_TEXT_HEADER", body = "MOUNTTRAIL_TEXT_BODY", detail = "MOUNTTRAIL_TEXT_DETAIL" }
+Options.TEXT_LABELS = { header = "Gold text size", body = "White text size", detail = "Grey text size" }
+Options.TEXT_TIPS = {
+  header = "Headers, titles and mount names (the gold text).",
+  body = "The white text: row names, counts and lines in the detail pane.",
+  detail = "The grey second lines: sources, zones and hints.",
+}
+
+function Options.TextSize(role)
+  local key = Options.TEXT_KEYS[role]
+  local global = ns.db and ns.db.global
+  local saved = key and global and type(global.settings) == "table" and global.settings[key] or nil
+  return clamp(saved, Options.TEXT_RANGE, 0)
+end
+
+function Options.SetTextSize(role, points)
+  local key = Options.TEXT_KEYS[role]
+  if not key or not ns.db then return end
+  local global = ns.db.global
+  if type(global.settings) ~= "table" then global.settings = {} end
+  global.settings[key] = clamp(points, Options.TEXT_RANGE, 0)
+  if ns.UI and ns.UI.ApplyTextSizes then ns.UI.ApplyTextSizes() end
+end
+
 -- Points added to the navigation's fonts (0-6, default 2).
 function Options.NavTextSize()
   local global = ns.db and ns.db.global
@@ -118,6 +146,30 @@ local function slider(api, category, setting, range, format, tooltip)
   api.CreateSlider(category, setting, options, tooltip)
 end
 
+-- One setting by name, for the window's settings menu (UI.SettingsMenuItems):
+-- windowScale, navTextSize, showUnobtainable, rarityColors, minimap (shown).
+function Options.Set(name, value)
+  if not ns.db then return end
+  if name == "windowScale" then setWindowScale(value)
+  elseif name == "navTextSize" then setNavTextSize(value)
+  elseif name == "showUnobtainable" then setUnobtainable(value)
+  elseif name == "rarityColors" then setRarityColors(value)
+  elseif name == "minimap" then Options.SetMinimap(value)
+  end
+  for _, var in pairs({ Options.WINDOW_SCALE, Options.NAV_TEXT, Options.UNOBTAINABLE, Options.RARITY_COLORS,
+    Options.MINIMAP }) do
+    Options.Changed(var)
+  end
+end
+
+-- Every text size back to the game's (0), the navigation's to +2.
+function Options.ResetTextSizes()
+  if not ns.db then return end
+  local s = settings()
+  s.textHeader, s.textBody, s.textDetail, s.navTextSize = nil, nil, nil, nil
+  if ns.UI and ns.UI.ApplyTextSizes then ns.UI.ApplyTextSizes() end
+end
+
 local function minimapDb()
   local global = ns.db.global
   if type(global.minimap) ~= "table" then global.minimap = { hide = false } end
@@ -137,6 +189,7 @@ local function setMinimap(shown)
   local method = shown and DBIcon.Show or DBIcon.Hide
   if type(method) == "function" then pcall(method, DBIcon, ADDON) end
 end
+Options.SetMinimap = setMinimap
 
 local function getDebug()
   return ns.db.global.debug == true
@@ -174,6 +227,13 @@ local function build(api)
       L["Window scale"], 100, Options.WindowScale, setWindowScale)
     slider(api, category, scale, Options.SCALE_RANGE, function(v) return string.format("%d%%", v) end,
       L["Size of the MountTrail window and everything in it, text included."])
+    for _, role in ipairs({ "header", "body", "detail" }) do
+      local setting = api.RegisterProxySetting(category, Options.TEXT_VARS[role], VarType.Number or "number",
+        L[Options.TEXT_LABELS[role]], 0, function() return Options.TextSize(role) end,
+        function(v) Options.SetTextSize(role, v) end)
+      slider(api, category, setting, Options.TEXT_RANGE, function(v) return string.format("%+d", v) end,
+        L[Options.TEXT_TIPS[role]])
+    end
     local navText = api.RegisterProxySetting(category, Options.NAV_TEXT, VarType.Number or "number",
       L["Navigation text size"], 2, Options.NavTextSize, setNavTextSize)
     slider(api, category, navText, Options.NAV_TEXT_RANGE, function(v) return string.format("+%d", v) end,

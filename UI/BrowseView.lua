@@ -60,7 +60,7 @@ function view.Build(parent)
   strip:SetPoint("TOPRIGHT", root, "TOPRIGHT", 0, 0)
   strip:SetHeight(30)
   strip:SetColorTexture(1, 1, 1, 0.04)
-  title = root:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+  title = root:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalLarge"))
   title:SetPoint("LEFT", root, "TOPLEFT", 10, -15)
   root.Title = title
   local holder = CreateFrame("Frame", nil, root)

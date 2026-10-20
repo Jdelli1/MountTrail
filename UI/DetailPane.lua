@@ -166,11 +166,11 @@ end
 local function lineString(pane, i)
   local fs = pane.lineStrings[i]
   if not fs then
-    fs = pane.Info:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    fs = pane.Info:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlightSmall"))
     fs:SetJustifyH("LEFT")
     fs:SetWordWrap(true)
     pane.lineStrings[i] = fs
-    local right = pane.Info:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    local right = pane.Info:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlightSmall"))
     right:SetJustifyH("RIGHT")
     pane.rightStrings[i] = right
   end
@@ -308,7 +308,7 @@ local function build(parent)
     rider:SetSize(22, 22)
     rider:SetPoint("BOTTOMRIGHT", modelArea, "BOTTOMRIGHT", -4, 4)
     if rider.SetFrameLevel then rider:SetFrameLevel(scene:GetFrameLevel() + 10) end
-    local riderText = rider:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    local riderText = rider:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalSmall"))
     riderText:SetPoint("RIGHT", rider, "LEFT", 0, 0)
     riderText:SetText(L["Rider"])
     rider:SetScript("OnShow", function(self)
@@ -343,7 +343,7 @@ local function build(parent)
   addList:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   pane.AddList = addList
 
-  local name = pane:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+  local name = pane:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalLarge"))
   name:SetPoint("LEFT", icon, "RIGHT", 8, 0)
   name:SetPoint("RIGHT", addList, "LEFT", -22, 0)
   name:SetJustifyH("LEFT")
@@ -403,7 +403,7 @@ local function build(parent)
   end)
   pane.Scroll, pane.Info = scroll, info
 
-  local empty = pane:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+  local empty = pane:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisable"))
   empty:SetPoint("TOPLEFT", modelArea, "BOTTOMLEFT", PAD, -20)
   empty:SetPoint("TOPRIGHT", modelArea, "BOTTOMRIGHT", -PAD, -20)
   empty:SetText(L["Click a mount to see it here"])

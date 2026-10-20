@@ -377,7 +377,7 @@ local function buildPanel(frame)
   close:SetScript("OnClick", function() UI.SetZonePanelOpen(false) end)
   p.CloseButton = close
 
-  local title = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  local title = p:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormal"))
   title:SetPoint("LEFT", strip, "LEFT", 10, 0)
   title:SetPoint("RIGHT", close, "LEFT", -4, 0)
   title:SetJustifyH("LEFT")
@@ -409,8 +409,8 @@ local function buildPanel(frame)
   p.ScrollBar = scrollBar
   local view = CreateScrollBoxListLinearView()
   view:SetElementExtentCalculator(function(_, row)
-    if row.header then return SOURCE_HEADER_HEIGHT end
-    return UI.MOUNT_ROW_HEIGHT
+    if row.header then return UI.HeaderHeight(SOURCE_HEADER_HEIGHT) end
+    return UI.RowHeight(UI.MOUNT_ROW_HEIGHT)
   end)
   view:SetElementFactory(function(factory, row)
     if row.header then
@@ -439,7 +439,7 @@ local function buildPanel(frame)
   end)
   ScrollUtil.InitScrollBoxListWithScrollBar(scrollBox, scrollBar, view)
 
-  local empty = p:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+  local empty = p:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisable"))
   empty:SetPoint("LEFT", scrollBox, "LEFT", 12, 0)
   empty:SetPoint("RIGHT", scrollBox, "RIGHT", -12, 0)
   empty:SetText(L["Nothing left to collect here"])

@@ -12,6 +12,77 @@ ns.UI = UI
 local ICON = 132261 -- same as ## IconTexture in the .toc
 local WIDTH, HEIGHT = 900, 560
 
+-- Text sizes ----------------------------------------------------------------------
+-- Every game font the add-on draws text with belongs to a role: headers
+-- (the gold titles and headers), body (the white text: mount names, rows)
+-- and details (the grey second lines: sources, zones, counts). UI.Font(name)
+-- hands out the add-on's own copy of the game font (MountTrail<name>, made
+-- with CreateFont on first use) sized by its role: the game's size plus
+-- UI.TextSize(role) points (Options' text size sliders). Font strings set to
+-- a font object follow it, so UI.ApplyTextSizes resizes all the text at
+-- once. Without CreateFont (or the game font) the game font itself is used.
+
+UI.FONT_ROLES = {
+  GameFontNormal = "header", GameFontNormalSmall = "header", GameFontNormalLarge = "header",
+  GameFontHighlight = "body", GameFontHighlightSmall = "body", GameFontGreen = "body",
+  GameFontDisable = "detail", GameFontDisableSmall = "detail", GameFontDisableLarge = "detail",
+}
+UI.TEXT_ROLES = { "header", "body", "detail" }
+
+local fonts = {} -- MountTrail<name> -> { base =, role =, object = }
+
+-- Points added to a role's fonts (Options: settings.text<Role>, -2..+6).
+function UI.TextSize(role)
+  local options = ns.Options
+  if options and options.TextSize then return options.TextSize(role) end
+  return 0
+end
+
+local function sizeFont(f)
+  local base = _G[f.base]
+  if type(base) ~= "table" or type(base.GetFont) ~= "function" then return end
+  local path, size, flags = base:GetFont()
+  if path and size then f.object:SetFont(path, math.max(6, size + UI.TextSize(f.role)), flags or "") end
+end
+
+-- The font object to use for game font `name`: the add-on's sized copy, or
+-- `name` itself (not a role's font, no CreateFont, no such game font).
+function UI.Font(name)
+  local role = UI.FONT_ROLES[name]
+  if not role or type(CreateFont) ~= "function" then return name end
+  local mine = "MountTrail" .. name
+  if not fonts[mine] then
+    local base = _G[name]
+    if type(base) ~= "table" then return name end
+    local good, object = pcall(CreateFont, mine)
+    if not (good and object) then return name end
+    if object.CopyFontObject then object:CopyFontObject(base) end
+    fonts[mine] = { base = name, role = role, object = object }
+    sizeFont(fonts[mine])
+  end
+  return mine
+end
+
+-- Taller rows for larger text: a mount row (gold name over a grey line)
+-- grows by both sizes' extra points, a header by the gold one's (smaller
+-- text never shrinks a row).
+local function grow(role) return math.max(0, UI.TextSize(role)) end
+
+function UI.RowHeight(base)
+  return base + grow("header") + grow("detail")
+end
+
+function UI.HeaderHeight(base)
+  return base + grow("header")
+end
+
+-- Resizes every copy for the current settings (the text follows), then
+-- redraws (row heights follow the sizes).
+function UI.ApplyTextSizes()
+  for _, f in pairs(fonts) do sizeFont(f) end
+  if ns.Refresh then ns.Refresh() end
+end
+
 -- Style helpers ------------------------------------------------------------------
 -- The window follows Blizzard's current flat panel style (Professions, Delves,
 -- the modern Collections). Every template newer than the classic ones goes
@@ -129,11 +200,11 @@ local function buildHint()
   rule:SetPoint("TOPLEFT", h, "TOPLEFT", 1, -1)
   rule:SetPoint("TOPRIGHT", h, "TOPRIGHT", -1, -1)
   rule:SetColorTexture(1, 0.82, 0, 0.35)
-  local title = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  local title = h:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalSmall"))
   title:SetPoint("TOPLEFT", h, "TOPLEFT", 8, -7)
   title:SetJustifyH("LEFT")
   h.Title = title
-  local body = h:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  local body = h:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlightSmall"))
   body:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -3)
   body:SetJustifyH("LEFT")
   body:SetWordWrap(true)
@@ -215,7 +286,7 @@ function UI.FlatButton(parent, text, style, height)
   local hl = b:CreateTexture(nil, "HIGHLIGHT")
   hl:SetAllPoints(b)
   hl:SetColorTexture(1, 1, 1, 0.12)
-  local label = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  local label = b:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlightSmall"))
   label:SetPoint("CENTER", b, "CENTER", 0, 0)
   b.Text = label
   UI.FlatButtonSetText(b, text)
@@ -302,7 +373,7 @@ end
 -- A slider row's readout and slider, made when an item first needs them.
 local function sliderParts(it)
   if it.Slider then return it.Slider end
-  local value = it:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  local value = it:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalSmall"))
   value:SetPoint("TOPRIGHT", it, "TOPRIGHT", -9, -4)
   value:SetJustifyH("RIGHT")
   it.Value = value
@@ -370,10 +441,10 @@ local function menuItem(i)
     else t:SetPoint("TOPRIGHT", box, "TOPRIGHT"); t:SetPoint("BOTTOMRIGHT", box, "BOTTOMRIGHT") end
   end
   it.BoxEdge = boxEdge
-  local text = it:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  local text = it:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlightSmall"))
   text:SetJustifyH("LEFT")
   it.Label = text
-  local arrow = it:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  local arrow = it:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisableSmall"))
   arrow:SetPoint("RIGHT", it, "RIGHT", -8, 0)
   arrow:SetText(">")
   it.Arrow = arrow
@@ -463,8 +534,8 @@ function showMenu(owner, items, anchor, inPlace)
     else
       it:SetHeight(MENU_ITEM)
       it.Label:SetText(data.title or data.text or "")
-      it.Label:SetFontObject(data.title and "GameFontNormalSmall"
-        or (data.disabled and "GameFontDisableSmall" or "GameFontHighlightSmall"))
+      it.Label:SetFontObject(data.title and UI.Font("GameFontNormalSmall")
+        or (data.disabled and UI.Font("GameFontDisableSmall") or UI.Font("GameFontHighlightSmall")))
       y = y + MENU_ITEM
     end
     it:Show()
@@ -521,7 +592,7 @@ function UI.ExpansionBadge(parent)
   local fill = b:CreateTexture(nil, "ARTWORK")
   fill:SetAllPoints(b)
   b.Fill = fill
-  local text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  local text = b:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlightSmall"))
   text:SetPoint("CENTER", b, "CENTER", 0, 0)
   if text.SetFont and text.GetFont then
     local font, _, flags = text:GetFont()
@@ -582,12 +653,12 @@ local function buildPrompt()
   flatPanel(prompt, 0.97)
   prompt:Hide()
   tinsert(UISpecialFrames, "MountTrailPrompt")
-  local title = prompt:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  local title = prompt:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormal"))
   title:SetPoint("TOPLEFT", prompt, "TOPLEFT", 12, -12)
   title:SetPoint("TOPRIGHT", prompt, "TOPRIGHT", -12, -12)
   title:SetJustifyH("LEFT")
   prompt.Title = title
-  local hint = prompt:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  local hint = prompt:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisableSmall"))
   hint:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -4)
   hint:SetPoint("TOPRIGHT", title, "BOTTOMRIGHT", 0, -4)
   hint:SetJustifyH("LEFT")
@@ -930,6 +1001,54 @@ function UI.SelectTab(key)
   if UI.RefreshNav then UI.RefreshNav() end
 end
 
+-- Settings menu -----------------------------------------------------------------------
+-- The title bar's cogwheel: the settings at hand in a flat menu (UI.ShowMenu):
+-- the window scale and the text sizes as sliders, the options' checkboxes,
+-- and "All options..." for the AddOns page (UI/Options.lua). Each change
+-- applies at once.
+
+UI.COG_TEXTURE = "Interface\\Buttons\\UI-OptionsButton"
+
+-- The menu's items (rebuilt on each repaint) -> UI.ShowMenu items.
+function UI.SettingsMenuItems()
+  local O = ns.Options
+  if not O then return { { title = L["Settings"] } } end
+  local global = ns.db and ns.db.global
+  local saved = global and type(global.settings) == "table" and global.settings or {}
+  local function check(text, on, flip)
+    return { text = text, checked = on, keepOpen = true, onClick = flip }
+  end
+  local items = {
+    { title = L["Settings"] },
+    { slider = true, text = L["Window scale"], min = O.SCALE_RANGE.min, max = O.SCALE_RANGE.max,
+      step = O.SCALE_RANGE.step, value = O.WindowScale(), format = "%d%%",
+      onChange = function(v) O.Set("windowScale", v) end },
+  }
+  for _, role in ipairs(UI.TEXT_ROLES) do
+    items[#items + 1] = { slider = true, text = L[O.TEXT_LABELS[role]], min = O.TEXT_RANGE.min,
+      max = O.TEXT_RANGE.max, step = 1, value = O.TextSize(role), format = "%+d",
+      onChange = function(v) O.SetTextSize(role, v) end }
+  end
+  items[#items + 1] = { slider = true, text = L["Navigation text size"], min = O.NAV_TEXT_RANGE.min,
+    max = O.NAV_TEXT_RANGE.max, step = 1, value = O.NavTextSize(), format = "+%d",
+    onChange = function(v) O.Set("navTextSize", v) end }
+  items[#items + 1] = { separator = true }
+  items[#items + 1] = check(L["Show unobtainable mounts"], saved.showUnobtainable == true,
+    function() O.Set("showUnobtainable", not (saved.showUnobtainable == true)) end)
+  items[#items + 1] = check(L["Colour pop-out names by rarity"], saved.rarityColors == true,
+    function() O.Set("rarityColors", not (saved.rarityColors == true)) end)
+  items[#items + 1] = check(L["Show minimap button"], not (global and global.minimap and global.minimap.hide),
+    function() O.Set("minimap", global and global.minimap and global.minimap.hide == true) end)
+  items[#items + 1] = { separator = true }
+  items[#items + 1] = { text = L["Reset text sizes"], onClick = function() O.ResetTextSizes() end }
+  items[#items + 1] = { text = L["All options..."], onClick = function() O.Open() end }
+  return items
+end
+
+function UI.ShowSettingsMenu(owner)
+  if UI.ShowMenu then UI.ShowMenu(owner, UI.SettingsMenuItems, "cursor") end
+end
+
 -- Splitters --------------------------------------------------------------------------
 -- The window's three boxes (navigation, list, detail pane) share its width
 -- through drag handles: the navigation's right edge and the detail pane's
@@ -1005,7 +1124,7 @@ local TITLE_HEIGHT = 24 -- title bar of the portrait frame
 local PORTRAIT_RIGHT = 60 -- the portrait covers the top-left corner up to here
 local CONTENT_TOP = -60 -- the navigation column starts below the portrait
 local VIEW_TOP = -34 -- the view area starts clear of the title bar and its border (right of the portrait)
-local TITLE_BUTTONS_RIGHT = 52 -- close button + one 20 px title-bar button
+local TITLE_BUTTONS_RIGHT = 74 -- close button + two 20 px title-bar buttons (zone panel, settings)
 
 local NAV_ROW, NAV_HEADING = 24, 26
 -- Points added to the navigation's fonts (the game's small fonts read tiny
@@ -1103,10 +1222,10 @@ local function navButton(parent)
   local hl = b:CreateTexture(nil, "HIGHLIGHT")
   hl:SetAllPoints(b)
   hl:SetColorTexture(1, 1, 1, 0.06)
-  local badge = b:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  local badge = b:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisableSmall"))
   badge:SetPoint("RIGHT", b, "RIGHT", -8, 0)
   b.Badge = badge
-  local text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+  local text = b:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlight"))
   text:SetPoint("LEFT", b, "LEFT", 12, 0)
   text:SetPoint("RIGHT", badge, "LEFT", -4, 0)
   text:SetJustifyH("LEFT")
@@ -1187,10 +1306,10 @@ local function navHeading(parent)
   indicator:SetSize(12, 12)
   indicator:SetPoint("LEFT", h, "LEFT", 8, -2)
   h.Indicator = indicator
-  local glyph = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  local glyph = h:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalSmall"))
   glyph:SetPoint("CENTER", indicator, "CENTER", 0, 0)
   h.Glyph = glyph
-  local text = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  local text = h:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalSmall"))
   text:SetJustifyH("LEFT")
   h.Text = text
   h:SetScript("OnClick", function(self)
@@ -1210,7 +1329,7 @@ end
 -- indicator (UI.HeaderIcon) with the text after it.
 local function paintHeading(h, text, key)
   h.key = key
-  navFont(h.Text, "GameFontNormalSmall")
+  navFont(h.Text, UI.Font("GameFontNormalSmall"))
   h.Text:SetText(text)
   h.Text:ClearAllPoints()
   if key then
@@ -1271,7 +1390,7 @@ local function createNav(frame)
   add:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   n.AddList = add
 
-  local empty = content:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  local empty = content:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisableSmall"))
   empty:SetJustifyH("LEFT")
   empty:SetWidth(UI.NavWidth() - 24)
   empty:SetText(L["No lists yet: + here, or + List on any mount."])
@@ -1344,11 +1463,13 @@ function UI.RefreshNav()
     local on = (e.key ~= nil and e.key == selected)
     b.Selected:SetShown(on)
     b.Bar:SetShown(on)
-    navFont(b.Text, on and "GameFontNormal" or "GameFontHighlight")
-    navFont(b.Badge, "GameFontDisableSmall")
+    navFont(b.Text, on and UI.Font("GameFontNormal") or UI.Font("GameFontHighlight"))
+    navFont(b.Badge, UI.Font("GameFontDisableSmall"))
     b.selected = on
+    local rowH = NAV_ROW + math.max(0, UI.NavFontBonus() - 2) + grow("body")
+    b:SetHeight(rowH)
     b:Show()
-    y = y + NAV_ROW
+    y = y + rowH
   end
   for _, e in ipairs(UI.NAV) do entry(e, false) end
   y = y + 4
@@ -1477,7 +1598,7 @@ local function createWindow()
     content:Hide()
     contents[tab.key] = content
 
-    local placeholder = content:CreateFontString(nil, "OVERLAY", "GameFontDisableLarge")
+    local placeholder = content:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisableLarge"))
     placeholder:SetPoint("CENTER", content, "CENTER", 0, 0)
     placeholder:SetText(L["Coming soon"])
     placeholders[tab.key] = placeholder
@@ -1489,6 +1610,28 @@ local function createWindow()
   tinsert(UISpecialFrames, frame:GetName())
 
   for _, fn in ipairs(windowHooks) do runWindowHook(fn, frame) end
+
+  -- Settings: a cogwheel in the title bar, left of the zone panel's button.
+  local cog = CreateFrame("Button", nil, frame)
+  cog:SetSize(20, 20)
+  if frame.ZoneButton then
+    cog:SetPoint("RIGHT", frame.ZoneButton, "LEFT", -2, 0)
+  elseif frame.CloseButton then
+    cog:SetPoint("RIGHT", frame.CloseButton, "LEFT", -24, 0)
+  else
+    cog:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -52, -2)
+  end
+  local gear = cog:CreateTexture(nil, "ARTWORK")
+  gear:SetAllPoints(cog)
+  gear:SetTexture(UI.COG_TEXTURE)
+  cog.Icon = gear
+  local hl = cog:CreateTexture(nil, "HIGHLIGHT")
+  hl:SetAllPoints(cog)
+  hl:SetColorTexture(1, 1, 1, 0.15)
+  cog:SetScript("OnClick", function(self) UI.ShowSettingsMenu(self) end)
+  cog:SetScript("OnEnter", function(self) UI.ShowHint(self, L["Settings"], L["Text sizes, window scale and options"]) end)
+  cog:SetScript("OnLeave", function(self) UI.HideHint(self) end)
+  frame.SettingsButton = cog
 
   local db = windowDB()
   UI.SelectTab(db and db.tab)

@@ -1176,7 +1176,7 @@ function UI.SourceFont()
     font:SetTextColor(0.7, 0.7, 0.7)
     sourceFont = SOURCE_FONT
   else
-    sourceFont = "GameFontDisableSmall"
+    sourceFont = UI.Font("GameFontDisableSmall")
   end
   return sourceFont
 end
@@ -1190,11 +1190,12 @@ function UI.OwnedFont()
   if ownedFont then return ownedFont end
   if type(CreateFont) == "function" and GameFontNormal then
     local font = _G[OWNED_FONT] or CreateFont(OWNED_FONT)
-    font:SetFontObject(GameFontNormal)
+    -- From the add-on's sized copy, so it follows the gold text size.
+    font:SetFontObject(_G[UI.Font("GameFontNormal")] or GameFontNormal)
     font:SetTextColor(0.55, 0.95, 0.6)
     ownedFont = OWNED_FONT
   else
-    ownedFont = "GameFontGreen"
+    ownedFont = UI.Font("GameFontGreen")
   end
   return ownedFont
 end
@@ -1267,10 +1268,10 @@ local function initHeader(frame, data)
     local indicator = frame:CreateTexture(nil, "ARTWORK")
     indicator:SetSize(INDICATOR_SIZE, INDICATOR_SIZE)
     frame.Indicator = indicator
-    local indicatorText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    local indicatorText = frame:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlight"))
     indicatorText:SetPoint("CENTER", indicator, "CENTER", 0, 0)
     frame.IndicatorText = indicatorText
-    local label = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    local label = frame:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormal"))
     label:SetPoint("LEFT", indicator, "RIGHT", 6, 0)
     label:SetJustifyH("LEFT")
     frame.Label = label
@@ -1322,7 +1323,7 @@ local function initHeader(frame, data)
     frame.IndicatorText:SetText(glyph)
     frame.IndicatorText:Show()
   end
-  frame.Label:SetFontObject(sub and "GameFontNormalSmall" or "GameFontNormal")
+  frame.Label:SetFontObject(sub and UI.Font("GameFontNormalSmall") or UI.Font("GameFontNormal"))
   frame.Label:SetText(UI.HeaderText(data))
 end
 
@@ -1423,7 +1424,7 @@ local function setupRow(row)
   pin:SetPoint("RIGHT", row, "RIGHT", -PIN_RIGHT, 0)
   row.Pin = pin
 
-  local name = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  local name = row:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormal"))
   -- Same-edge anchor pairs only (a RIGHT anchor would also pin the vertical
   -- centre). The 32 px icon is centred in the 40 px row, so its top is at -4
   -- and the name's at -6; the right edge stops 8 px left of the pin.
@@ -1487,7 +1488,7 @@ local function initRow(row, data)
   -- Owned (collected) mounts: green tint and a light green name, the icon
   -- in full colour; everything reset for a recycled frame.
   row.Owned:SetShown(data.owned == true)
-  row.Name:SetFontObject(data.owned and UI.OwnedFont() or "GameFontNormal")
+  row.Name:SetFontObject(data.owned and UI.OwnedFont() or UI.Font("GameFontNormal"))
   row.Icon:SetDesaturated(false)
 end
 
@@ -1512,7 +1513,7 @@ local function makeCheck(panel, label, onClick)
   cb:SetSize(CHECK_SIZE, CHECK_SIZE)
   local text = cb.Text or cb.text
   if not text then
-    text = cb:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    text = cb:CreateFontString(nil, "ARTWORK", UI.Font("GameFontHighlightSmall"))
     text:SetPoint("LEFT", cb, "RIGHT", 2, 0)
   end
   text:SetWidth(FILTER_LABEL_WIDTH)
@@ -1551,7 +1552,7 @@ local function layoutFilterPanel(list, search)
   collected:SetPoint("TOPLEFT", search, "BOTTOMLEFT", -6, -8)
   list.CollectedCheck = collected
 
-  local sectionsTitle = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  local sectionsTitle = panel:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalSmall"))
   sectionsTitle:SetPoint("TOPLEFT", collected, "BOTTOMLEFT", 4, -8)
   sectionsTitle:SetText(L["Sources"])
   list.SectionsTitle = sectionsTitle
@@ -1795,9 +1796,9 @@ function UI.List(parent, getQuery, opts)
   local view = CreateScrollBoxListLinearView()
   view:SetElementExtentCalculator(function(_, elementData)
     if elementData.header then
-      return elementData.depth == 2 and SUB_HEADER_HEIGHT or HEADER_HEIGHT
+      return UI.HeaderHeight(elementData.depth == 2 and SUB_HEADER_HEIGHT or HEADER_HEIGHT)
     end
-    return ROW_HEIGHT
+    return UI.RowHeight(ROW_HEIGHT)
   end)
   -- Clicking a header flips its saved collapse state and redraws in place.
   local function toggle(key)
@@ -1826,7 +1827,7 @@ function UI.List(parent, getQuery, opts)
   end)
   ScrollUtil.InitScrollBoxListWithScrollBar(scrollBox, scrollBar, view)
 
-  local empty = list:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+  local empty = list:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisable"))
   empty:SetPoint("CENTER", scrollBox, "CENTER", 0, 0)
   empty:SetText(L["No mounts match these filters."])
   empty:Hide()

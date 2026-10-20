@@ -211,6 +211,66 @@ describe("ui", function()
     eq(nav.width, ns.UI.NAV_WIDTH)
   end)
 
+  it("the title bar's cogwheel opens the settings menu: sliders and checkboxes that apply at once", function()
+    local ns = loadUI()
+    local applied = {}
+    ns.Options = {
+      SCALE_RANGE = { min = 80, max = 150, step = 5 }, TEXT_RANGE = { min = -2, max = 6, step = 1 },
+      NAV_TEXT_RANGE = { min = 0, max = 6, step = 1 },
+      TEXT_LABELS = { header = "Gold text size", body = "White text size", detail = "Grey text size" },
+      WindowScale = function() return 100 end, TextSize = function() return 0 end, NavTextSize = function() return 2 end,
+      Set = function(name, v) applied[#applied + 1] = { name, v } end,
+      SetTextSize = function(role, v) applied[#applied + 1] = { role, v } end,
+      ResetTextSizes = function() applied[#applied + 1] = { "reset" } end,
+      Open = function() applied[#applied + 1] = { "open" } end,
+    }
+    ns.ToggleWindow()
+    local cog = ns.UI.frame.SettingsButton
+    ok(cog and cog.Icon.texture == ns.UI.COG_TEXTURE, "a cogwheel")
+    local shown
+    ns.UI.ShowMenu = function(owner, items) shown = type(items) == "function" and items() or items end
+    cog:RunScript("OnClick", "LeftButton")
+    eq(shown[1].title, "Settings")
+    local byText = {}
+    for _, it in ipairs(shown) do if it.text then byText[it.text] = it end end
+    ok(byText["Window scale"].slider and byText["Gold text size"].slider and byText["Grey text size"].slider)
+    byText["Window scale"].onChange(120)
+    byText["White text size"].onChange(3)
+    byText["Show unobtainable mounts"].onClick()
+    byText["Reset text sizes"].onClick()
+    byText["All options..."].onClick()
+    eq(applied, { { "windowScale", 120 }, { "body", 3 }, { "showUnobtainable", true }, { "reset" }, { "open" } })
+  end)
+
+  it("UI.Font: a sized copy per game font, by its role (gold / white / grey); a change resizes them all", function()
+    local ns = loadUI()
+    local sizes = { header = 3, body = 0, detail = -1 }
+    ns.Options = { TextSize = function(role) return sizes[role] end }
+    eq(ns.UI.Font("GameFontNormal"), "GameFontNormal", "no CreateFont: the game font")
+    CreateFont = function(name)
+      local f = { name = name }
+      function f:CopyFontObject(base) self.copied = base end
+      function f:SetFont(path, size) self.path, self.size = path, size end
+      _G[name] = f
+      return f
+    end
+    for _, name in ipairs({ "GameFontNormal", "GameFontHighlightSmall", "GameFontDisableSmall" }) do
+      _G[name] = { GetFont = function() return "Fonts\\FRIZQT__.TTF", 12, "" end }
+    end
+    eq(ns.UI.Font("GameFontNormal"), "MountTrailGameFontNormal")
+    eq(_G.MountTrailGameFontNormal.size, 15, "gold: +3")
+    eq(_G[ns.UI.Font("GameFontDisableSmall")].size, 11, "grey: -1")
+    eq(ns.UI.Font("SomeOtherFont"), "SomeOtherFont", "not a role's font")
+    sizes.header = 6
+    ns.UI.ApplyTextSizes()
+    eq(_G.MountTrailGameFontNormal.size, 18, "follows the setting")
+    eq(ns.UI.RowHeight(40), 46, "rows grow with gold and grey (grey smaller: no shrink)")
+    eq(ns.UI.HeaderHeight(24), 30)
+    CreateFont = nil
+    for _, name in ipairs({ "GameFontNormal", "GameFontHighlightSmall", "GameFontDisableSmall",
+      "MountTrailGameFontNormal", "MountTrailGameFontDisableSmall" }) do _G[name] = nil end
+  end)
+
   it("UI.NavSelected / UI.NavListEntries: a list page marks its list; lists then quick lists", function()
     local ns = loadUI()
     eq(ns.UI.NavSelected("checklist", nil), "checklist")

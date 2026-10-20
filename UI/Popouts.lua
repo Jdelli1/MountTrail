@@ -487,7 +487,7 @@ local function rowFrame(w, i)
     ns.Refresh()
   end)
   r.Check = check
-  local zone = r:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  local zone = r:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisableSmall"))
   zone:SetPoint("RIGHT", r, "RIGHT", -4, 0)
   zone:SetJustifyH("RIGHT")
   zone:SetWordWrap(false)
@@ -495,7 +495,7 @@ local function rowFrame(w, i)
   -- The mount's expansion: a small coloured tag.
   r.Badge = UI.ExpansionBadge(r)
   r.Badge:SetPoint("LEFT", check, "RIGHT", 2, 0)
-  local name = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  local name = r:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlightSmall"))
   name:SetPoint("LEFT", r.Badge, "RIGHT", 5, 0)
   name:SetPoint("RIGHT", zone, "LEFT", -6, 0)
   name:SetJustifyH("LEFT")
@@ -668,7 +668,7 @@ local function groupHeader(w, i)
     UI.ShowHint(self, L["Click: collapse or expand"], L["Shift-click: all groups at once"])
   end)
   h:SetScript("OnLeave", function(self) UI.HideHint(self) end)
-  local text = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  local text = h:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalSmall"))
   text:SetPoint("LEFT", h, "LEFT", 2, 0)
   h.Text = text
   local rule = h:CreateTexture(nil, "ARTWORK")
@@ -717,7 +717,7 @@ local function applyChrome(w, style)
   w.Fill:SetColorTexture(style.bg[1], style.bg[2], style.bg[3], style.alpha)
   -- The title takes the header colour (else the font's own gold), not the
   -- body text colour.
-  styleText(w.Title, { font = style.font, size = style.size }, "GameFontNormal", 2, style.header)
+  styleText(w.Title, { font = style.font, size = style.size }, UI.Font("GameFontNormal"), 2, style.header)
 end
 
 -- Windows outside this file that take the pop-outs' appearance menu, their
@@ -825,7 +825,7 @@ local function refreshWindow(w, built)
       h.groupKey = gkey
       h.Text:SetText((isCollapsed and "+ " or "- ") .. (g.label or (g.exp and L[g.exp]) or L["Other"])
         .. "  |cff9d9d9d(" .. string.format(L["%d left"], g.left) .. ")|r")
-      styleText(h.Text, style, "GameFontNormalSmall", 0, style.header or c)
+      styleText(h.Text, style, UI.Font("GameFontNormalSmall"), 0, style.header or c)
       h.Rule:SetColorTexture(c[1], c[2], c[3], 0.35)
       h:Show()
       y = y + groupHeight + 2
@@ -843,9 +843,9 @@ local function refreshWindow(w, built)
       r:Show()
       r.Name:SetText(row.name)
       UI.SetExpansionBadge(r.Badge, row.entry and (row.entry.exp or (row.entry.m and row.entry.m.exp)))
-      styleText(r.Name, style, row.done and "GameFontDisableSmall" or "GameFontHighlightSmall", 0,
+      styleText(r.Name, style, row.done and UI.Font("GameFontDisableSmall") or UI.Font("GameFontHighlightSmall"), 0,
         row.done and { 0.5, 0.5, 0.5 } or UI.PopoutRarityColor(row.id))
-      styleText(r.Zone, style, "GameFontDisableSmall", -1, { 0.55, 0.55, 0.55 })
+      styleText(r.Zone, style, UI.Font("GameFontDisableSmall"), -1, { 0.55, 0.55, 0.55 })
       local zoneText = row.zone or ""
       if row.camp and row.checked then
         zoneText = string.format(L["checked %s ago"], UI.FormatAgo(now - row.checked))
@@ -1019,7 +1019,7 @@ local function build(key, source)
   plot:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   w.PlotAll = plot
 
-  local titleText = strip:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  local titleText = strip:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormal"))
   titleText:SetPoint("LEFT", strip, "LEFT", 8, 0)
   titleText:SetPoint("RIGHT", plot, "LEFT", -4, 0)
   titleText:SetJustifyH("LEFT")
@@ -1066,7 +1066,7 @@ local function build(key, source)
   dropLine:Hide()
   w.DropLine = dropLine
 
-  local empty = content:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  local empty = content:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisableSmall"))
   empty:SetPoint("TOPLEFT", content, "TOPLEFT", 4, -6)
   empty:SetText(source.kind == "list" and L["Nothing on this list yet."] or L["Nothing left here."])
   empty:Hide()

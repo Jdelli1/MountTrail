@@ -779,19 +779,19 @@ local function buildHeader(parent)
   -- Header lines span the header with same-edge anchor pairs, each chained
   -- under the one above (the Filter button overlays the name line's right
   -- end; the name is short and left-justified).
-  local name = top:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+  local name = top:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalLarge"))
   name:SetPoint("TOPLEFT", top, "TOPLEFT", 8, -6)
   name:SetPoint("TOPRIGHT", top, "TOPRIGHT", -8, -6)
   name:SetJustifyH("LEFT")
   top.Name = name
 
-  local resets = top:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  local resets = top:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlightSmall"))
   resets:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -4)
   resets:SetPoint("TOPRIGHT", name, "BOTTOMRIGHT", 0, -4)
   resets:SetJustifyH("LEFT")
   top.Resets = resets
 
-  local flavour = top:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+  local flavour = top:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlight"))
   flavour:SetPoint("TOPLEFT", resets, "BOTTOMLEFT", 0, -8)
   flavour:SetPoint("TOPRIGHT", resets, "BOTTOMRIGHT", 0, -8)
   flavour:SetJustifyH("LEFT")
@@ -818,7 +818,7 @@ local function buildHeader(parent)
     bg:SetAllPoints(chip)
     bg:SetColorTexture(1, 1, 1, 0.06)
     chip.Bg = bg
-    local text = chip:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    local text = chip:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlightSmall"))
     text:SetPoint("CENTER", chip, "CENTER", 0, 0)
     chip.Text = text
     local hl = chip:CreateTexture(nil, "HIGHLIGHT")
@@ -933,8 +933,8 @@ function view.Build(parent)
 
   local listView = CreateScrollBoxListLinearView()
   listView:SetElementExtentCalculator(function(_, row)
-    if row.header then return (row.depth or 1) >= 2 and SUB_HEADER_HEIGHT or HEADER_HEIGHT end
-    return UI.MOUNT_ROW_HEIGHT
+    if row.header then return UI.HeaderHeight((row.depth or 1) >= 2 and SUB_HEADER_HEIGHT or HEADER_HEIGHT) end
+    return UI.RowHeight(UI.MOUNT_ROW_HEIGHT)
   end)
   listView:SetElementFactory(function(factory, row)
     if row.header then
@@ -945,7 +945,7 @@ function view.Build(parent)
   end)
   ScrollUtil.InitScrollBoxListWithScrollBar(scrollBox, scrollBar, listView)
 
-  empty = frame:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+  empty = frame:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisable"))
   empty:SetPoint("CENTER", scrollBox, "CENTER", 0, 0)
   empty:SetText(L["No lockouts left to farm on this character."])
   empty:Hide()
