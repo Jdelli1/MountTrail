@@ -693,6 +693,8 @@ UI.NAV = {
   { key = "misc", label = "Misc" },
 }
 UI.NAV_WIDTH = 156
+-- The collapse keys of the My lists and Quick lists sections.
+UI.NAV_LISTS_KEY, UI.NAV_QUICK_KEY = "nav|lists", "nav|quick"
 -- The quick lists' mark: the Auction House's favourite star, inline.
 UI.NAV_STAR = "|A:auctionhouse-icon-favorite:12:12|a"
 local TAB_INDEX = {}
@@ -1036,10 +1038,73 @@ function UI.NavClick(e)
   UI.SelectTab(e.key)
 end
 
+-- The navigation's collapsed sections ({ ["nav|lists"] = true, ... }), kept
+-- with the lists' collapsed headers (ns.db.global.collapsed).
+local function navCollapsed()
+  local global = ns.db and ns.db.global
+  if not global then return {} end
+  if type(global.collapsed) ~= "table" then global.collapsed = {} end
+  return global.collapsed
+end
+
+-- A section heading: a button whose text is the section's name; a
+-- collapsible one (`key`) carries a +/- indicator and flips on click.
 local function navHeading(parent)
-  local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-  fs:SetJustifyH("LEFT")
-  return fs
+  local h = CreateFrame("Button", nil, parent)
+  h:SetHeight(NAV_HEADING)
+  local indicator = h:CreateTexture(nil, "ARTWORK")
+  indicator:SetSize(12, 12)
+  indicator:SetPoint("LEFT", h, "LEFT", 8, -2)
+  h.Indicator = indicator
+  local glyph = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  glyph:SetPoint("CENTER", indicator, "CENTER", 0, 0)
+  h.Glyph = glyph
+  local text = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  text:SetJustifyH("LEFT")
+  h.Text = text
+  h:SetScript("OnClick", function(self)
+    if not self.key then return end
+    local store = navCollapsed()
+    store[self.key] = (not store[self.key]) or nil
+    UI.RefreshNav()
+  end)
+  h:SetScript("OnEnter", function(self)
+    if self.key then UI.ShowHint(self, L["Click: collapse or expand"]) end
+  end)
+  h:SetScript("OnLeave", function(self) UI.HideHint(self) end)
+  return h
+end
+
+-- Paints heading `h`: its text, and for a collapsible one (`key`) the +/-
+-- indicator (UI.HeaderIcon) with the text after it.
+local function paintHeading(h, text, key)
+  h.key = key
+  h.Text:SetText(text)
+  h.Text:ClearAllPoints()
+  if key then
+    local collapsed = navCollapsed()[key] == true
+    h.collapsed = collapsed
+    -- UI.HeaderIcon (UI/List.lua) when loaded, else a text +/-.
+    local atlas, glyph
+    if UI.HeaderIcon then atlas, glyph = UI.HeaderIcon(collapsed) else glyph = collapsed and "+" or "-" end
+    if atlas then
+      h.Indicator:SetAtlas(atlas)
+      h.Indicator:Show()
+      h.Glyph:Hide()
+    else
+      h.Indicator:Hide()
+      h.Glyph:SetText(glyph)
+      h.Glyph:Show()
+    end
+    h.Text:SetPoint("LEFT", h.Indicator, "RIGHT", 4, 0)
+    h:EnableMouse(true)
+  else
+    h.collapsed = nil
+    h.Indicator:Hide()
+    h.Glyph:Hide()
+    h.Text:SetPoint("LEFT", h, "LEFT", 10, -2)
+    h:EnableMouse(false)
+  end
 end
 
 -- Builds the column on the window's left, under the portrait.
@@ -1094,20 +1159,23 @@ function UI.RefreshNav()
     return cache
   end
   local y, nb, nh = 0, 0, 0
-  local function heading(text, withAdd)
+  -- -> whether the section is collapsed (only for a collapsible `key`).
+  local function heading(text, withAdd, key)
     nh = nh + 1
-    local fs = nav.Headings[nh] or navHeading(nav.Content)
-    nav.Headings[nh] = fs
-    fs:SetText(text)
-    fs:ClearAllPoints()
-    fs:SetPoint("TOPLEFT", nav.Content, "TOPLEFT", 10, -(y + 8))
-    fs:Show()
+    local h = nav.Headings[nh] or navHeading(nav.Content)
+    nav.Headings[nh] = h
+    paintHeading(h, text, key)
+    h:ClearAllPoints()
+    h:SetPoint("TOPLEFT", nav.Content, "TOPLEFT", 0, -y)
+    h:SetPoint("RIGHT", nav.Content, "RIGHT", withAdd and -30 or 0, 0)
+    h:Show()
     if withAdd then
       nav.AddList:ClearAllPoints()
       nav.AddList:SetPoint("TOPRIGHT", nav.Content, "TOPRIGHT", -6, -(y + 4))
       nav.AddList:Show()
     end
     y = y + NAV_HEADING
+    return key ~= nil and navCollapsed()[key] == true
   end
   local function entry(e, indent)
     nb = nb + 1
@@ -1141,18 +1209,30 @@ function UI.RefreshNav()
       entry(e, under)
     end
   end
+  -- My lists (with +) and Quick lists: each its own collapsible section.
   y = y + 4
-  heading(L["My lists"], true)
   local store = UI.ListsDB and UI.ListsDB()
   local lists = UI.NavListEntries(store, ns.QuickLists and ns.QuickLists.LISTS)
-  local custom = store and #ns.Lists.Sorted(store) or 0
-  nav.Empty:SetShown(custom == 0)
-  if custom == 0 then
-    nav.Empty:ClearAllPoints()
-    nav.Empty:SetPoint("TOPLEFT", nav.Content, "TOPLEFT", 12, -(y + 2))
-    y = y + 30
+  local mine, quick = {}, {}
+  for _, e in ipairs(lists) do
+    if e.builtIn then quick[#quick + 1] = e else mine[#mine + 1] = e end
   end
-  for _, e in ipairs(lists) do entry(e, true) end
+  local mineCollapsed = heading(L["My lists"], true, UI.NAV_LISTS_KEY)
+  nav.Empty:SetShown(#mine == 0 and not mineCollapsed)
+  if not mineCollapsed then
+    if #mine == 0 then
+      nav.Empty:ClearAllPoints()
+      nav.Empty:SetPoint("TOPLEFT", nav.Content, "TOPLEFT", 12, -(y + 2))
+      y = y + 30
+    end
+    for _, e in ipairs(mine) do entry(e, true) end
+  end
+  if #quick > 0 then
+    y = y + 4
+    if not heading(L["Quick lists"], false, UI.NAV_QUICK_KEY) then
+      for _, e in ipairs(quick) do entry(e, true) end
+    end
+  end
   for i = nb + 1, #nav.Buttons do nav.Buttons[i]:Hide() end
   for i = nh + 1, #nav.Headings do nav.Headings[i]:Hide() end
   nav.contentHeight = y

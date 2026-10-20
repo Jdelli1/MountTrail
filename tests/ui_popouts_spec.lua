@@ -1282,6 +1282,35 @@ describe("lists in the navigation column", function()
     eq(navButton(ns, "Loop"), nil, "its entry gone")
   end)
 
+  it("My lists and Quick lists are separate sections, each collapsing on a click (saved)", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    local store = ns.UI.ListsDB()
+    ns.Lists.Create(store, "Loop")
+    home(ns)
+    local nav = ns.UI.frame.Nav
+    local function heading(text)
+      for _, h in ipairs(nav.Headings) do
+        if h:IsShown() and h.Text:GetText() == text then return h end
+      end
+    end
+    local mine, quick = heading("My lists"), heading("Quick lists")
+    ok(mine and quick, "two headings")
+    eq(mine.key, ns.UI.NAV_LISTS_KEY)
+    ok(navButton(ns, "Loop") and navButton(ns, "Mythic Mounts"), "both sections open")
+    mine:RunScript("OnClick", "LeftButton")
+    eq(ns.db.global.collapsed[ns.UI.NAV_LISTS_KEY], true)
+    eq(navButton(ns, "Loop"), nil, "My lists collapsed")
+    ok(navButton(ns, "Mythic Mounts"), "Quick lists still open")
+    ok(heading("My lists").collapsed, "marked collapsed")
+    heading("Quick lists"):RunScript("OnClick", "LeftButton")
+    eq(navButton(ns, "Mythic Mounts"), nil, "Quick lists collapsed")
+    heading("My lists"):RunScript("OnClick", "LeftButton")
+    ok(navButton(ns, "Loop"), "expanded again")
+    eq(ns.db.global.collapsed[ns.UI.NAV_LISTS_KEY], nil)
+    ok(not heading("Browse").key, "Browse does not collapse")
+  end)
+
   it("right-click a list entry opens its menu; + starts a list", function()
     local ns = loadUI()
     ns.UI.ChecklistBuild = function() return built() end
