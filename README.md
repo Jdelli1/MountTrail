@@ -396,6 +396,8 @@ None of these are required; MountTrail uses them when they are loaded.
 
 ## Development
 
+Planned features and ideas: [docs/ROADMAP.md](docs/ROADMAP.md).
+
 Tests, the data tools and code conventions are in
 [CONTRIBUTING.md](CONTRIBUTING.md); the code layout is in
 [ARCHITECTURE.md](ARCHITECTURE.md).
