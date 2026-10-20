@@ -13,6 +13,7 @@ Core\Locale.lua
 Data\Mounts.lua
 Data\Route.lua
 Data\Lockouts.lua
+Data\JournalDrops.lua
 Data\Holidays.lua
 Data\Events.lua
 Data\Zones.lua

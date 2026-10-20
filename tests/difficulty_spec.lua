@@ -23,6 +23,25 @@ describe("Lockouts.WrongDifficulty", function()
     eq(L.WrongDifficulty({ 1 }, 603, 4, specFor), {}, "the right difficulty: nothing")
     eq(L.WrongDifficulty({ 1 }, nil, nil, specFor), {}, "outside instances: nothing")
   end)
+
+  it("the Encounter Journal decides when it knows the mount here", function()
+    local ns = load_addon({ "Core/Locale.lua", "Logic/Lockouts.lua" })
+    local L = ns.Lockouts
+    local specs = { [395] = { instance = 657, difficulties = { 2 } }, [349] = { instance = 249, difficulties = { 3, 4 } } }
+    local drops = { [395] = { map = 657, d = { 1, 2 } }, [349] = { map = 249 } }
+    local function specFor(id) return specs[id] end
+    eq(L.WrongDifficulty({ 395 }, 657, 1, specFor), { { id = 395, wanted = { 2 }, journal = false } },
+      "the lockout spec alone: Normal looks wrong")
+    eq(L.WrongDifficulty({ 395 }, 657, 1, specFor, drops), {}, "the journal says Normal drops it too")
+    eq(L.WrongDifficulty({ 349 }, 249, 9, specFor, drops), {}, "the journal: every difficulty")
+    eq(L.WrongDifficulty({ 395 }, 657, 23, specFor, drops), { { id = 395, wanted = { 1, 2 }, journal = true } })
+  end)
+
+  it("the shipped journal data loads and covers the classics", function()
+    local ns = load_addon({ "Data/JournalDrops.lua" })
+    eq(ns.Data.JournalDrops[363].map, 631)
+    eq(ns.Data.JournalDrops[363].d, { 6 }, "Invincible: 25 Heroic")
+  end)
 end)
 
 describe("the warning", function()

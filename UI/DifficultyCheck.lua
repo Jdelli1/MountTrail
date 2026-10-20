@@ -2,8 +2,9 @@ local ADDON, ns = ...
 
 -- Wrong-difficulty warning: on entering an instance (or changing its
 -- difficulty), the mounts in the open pop-outs that drop in this instance
--- but not on this difficulty (Lockouts.WrongDifficulty) get a warning on
--- screen and in chat: "Wrong difficulty for Invincible: you are on 10 Player,
+-- but not on this difficulty (Lockouts.WrongDifficulty: the Encounter
+-- Journal's drops, Data/JournalDrops.lua, else the lockout specs) get a
+-- warning on screen and in chat: "Wrong difficulty for Invincible: you are on 10 Player,
 -- it drops on 25 Player (Heroic)". Once per instance and difficulty; owned
 -- mounts are left out. Options: "Warn about the wrong difficulty" (on).
 
@@ -65,7 +66,7 @@ function UI.CheckDifficulty(force)
   if key == lastWarned and not force then return {} end
   local wrong = ns.Lockouts.WrongDifficulty(UI.OpenPopoutMounts(), instanceID, difficultyID, function(id)
     return ns.Lockouts.SpecFor(id)
-  end)
+  end, ns.Data and ns.Data.JournalDrops)
   if #wrong == 0 then return {} end
   lastWarned = key
   local here = ns.Game.DifficultyName(difficultyID) or tostring(difficultyID)

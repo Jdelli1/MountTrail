@@ -177,21 +177,35 @@ function Lockouts.DropDifficulties(spec)
 end
 
 -- The mounts of `mountIDs` that drop in instance `instanceID` but not on
--- `difficultyID` -> { { id =, spec =, wanted = { difficulty IDs, sorted } } }.
--- specFor(mountID) -> spec (Lockouts.SpecFor); a mount without an instance
--- spec, or one that drops on this difficulty, is left out.
-function Lockouts.WrongDifficulty(mountIDs, instanceID, difficultyID, specFor)
+-- `difficultyID` -> { { id =, wanted = { difficulty IDs, sorted }, journal =
+-- true when the Encounter Journal said so } }. The journal decides when it
+-- knows the mount in this instance (drops = ns.Data.JournalDrops: { map =,
+-- d = difficulty IDs or nil for every one }); else specFor(mountID) -> the
+-- lockout spec (Lockouts.SpecFor). A mount that drops on this difficulty, or
+-- that neither knows here, is left out.
+function Lockouts.WrongDifficulty(mountIDs, instanceID, difficultyID, specFor, drops)
   local out = {}
   if not (instanceID and difficultyID) then return out end
   for _, id in ipairs(mountIDs or {}) do
-    local spec = specFor(id)
-    if type(spec) == "table" and spec.instance == instanceID and type(spec.difficulties) == "table" then
-      local set = Lockouts.DropDifficulties(spec)
+    local journal = drops and drops[id]
+    local set
+    if type(journal) == "table" and journal.map == instanceID then
+      set = {}
+      for _, d in ipairs(journal.d or {}) do set[d] = true end
+      if not journal.d then set = nil end -- every difficulty
+    else
+      journal = nil
+      local spec = specFor and specFor(id)
+      if type(spec) == "table" and spec.instance == instanceID and type(spec.difficulties) == "table" then
+        set = Lockouts.DropDifficulties(spec)
+      end
+    end
+    if set then
       if next(set) and not set[difficultyID] then
         local wanted = {}
         for d in pairs(set) do wanted[#wanted + 1] = d end
         table.sort(wanted)
-        out[#out + 1] = { id = id, spec = spec, wanted = wanted }
+        out[#out + 1] = { id = id, wanted = wanted, journal = journal ~= nil }
       end
     end
   end

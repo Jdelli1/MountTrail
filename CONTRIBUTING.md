@@ -78,7 +78,7 @@ How the harness works:
 The data tools have their own Python unit tests:
 
 ```bash
-python3 -m unittest tools/test_build_data.py tools/test_build_spots.py tools/test_build_zones.py tools/test_verify_data.py
+python3 -m unittest tools/test_build_data.py tools/test_build_spots.py tools/test_build_zones.py tools/test_build_drops.py tools/test_verify_data.py
 ```
 
 They use the fixtures in `tools/fixtures/` and need no network.
@@ -94,6 +94,7 @@ the Python standard library only.
 | `tools/build_data.py` | `Data/Mounts.lua`, `Data/Route.lua`, `Data/LICENSE-SimpleArmory.txt` | From SimpleArmory and Rarity at the commits pinned in `tools/sources.json`. `--update` pins the current master commits first. |
 | `tools/build_spots.py` | `Data/Spots.lua`, `Data/LICENSE-AllTheThings.txt` | From AllTheThings (pinned commit) and the game's Mount.db2 source text / UiMap. `--offline` uses the cache only. |
 | `tools/build_zones.py` | `Data/Zones.lua` | From the game's UiMap and ContentTuning tables at the pinned `db2build`. `--offline` uses the cache only. |
+| `tools/build_drops.py` | `Data/JournalDrops.lua` | Which difficulties each boss-drop mount drops on, from the Encounter Journal tables (JournalEncounterItem, JournalEncounter, JournalInstance, JournalItemXDifficulty) at the pinned `db2build`. Rerun after a patch. `--offline` uses the cache only. |
 | `tools/verify_data.py` | `docs/data-verification.md` | Checks `Data/` against the game's DB2 tables (via wago.tools). `--build <version>`, `--offline`, `--json out.json`. |
 
 `tools/verify_data.py` checks mount identity, route drop claims, lockout specs,

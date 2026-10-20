@@ -223,7 +223,9 @@ Where a waypoint goes:
 **Wrong-difficulty warning**: with a pop-out open, zoning into a raid or
 dungeon (or changing its difficulty) checks the pop-out's mounts: one that
 drops in this instance but not on this difficulty gets a warning before you
-pull (Options: `Warn about the wrong difficulty`).
+pull (Options: `Warn about the wrong difficulty`). The difficulties come from
+the game's Encounter Journal (the Adventure Guide's loot per difficulty, built
+into `Data/JournalDrops.lua`), else from MountTrail's lockout data.
 
 A pop-out is a small window that stays on screen without the main window. Open
 as many as you like; they come back after /reload.
