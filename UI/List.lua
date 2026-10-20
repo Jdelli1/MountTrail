@@ -1167,6 +1167,75 @@ function UI.HandleRowClick(mountID, button, routeBoss, eventMap)
   end
 end
 
+-- Rows of a list with the detail pane (no buttons there: the clicks do it).
+local function hasAchievement(mountID)
+  local scan = ns.AchievementScan
+  return scan and scan.Lookup and scan.Lookup(mountID) ~= nil or false
+end
+
+-- What the modifiers do on such a row: "waypoint" (plain; the zone map for
+-- an unknown event, the achievement when there is nowhere to go), "map"
+-- (Shift) or "achievement" (Ctrl; the preview when it has none) -> action.
+function UI.PaneRowAction(mountID, ctrl, shift, routeBoss, eventMap)
+  if ctrl then return hasAchievement(mountID) and "achievement" or "preview" end
+  if shift then return "map" end
+  if eventMap or UI.HasLocation(mountID, routeBoss) then return "waypoint" end
+  return hasAchievement(mountID) and "achievement" or nil
+end
+
+-- A left-click on a row of a list with the detail pane (after selecting it).
+function UI.PaneRowClick(mountID, routeBoss, eventMap)
+  local ctrl = type(IsControlKeyDown) == "function" and IsControlKeyDown() and true or false
+  local shift = type(IsShiftKeyDown) == "function" and IsShiftKeyDown() and true or false
+  local action = UI.PaneRowAction(mountID, ctrl, shift, routeBoss, eventMap)
+  trace("pane click on mount %s -> %s", tostring(mountID), tostring(action))
+  if action == "waypoint" and eventMap and UI.OpenEventMap then
+    UI.OpenEventMap(eventMap)
+  elseif action == "waypoint" then
+    UI.GoTo(mountID, routeBoss)
+  elseif action == "map" then
+    mapAction("OpenMap", mountID, routeBoss)
+  elseif action == "achievement" then
+    UI.OpenMountAchievement(mountID)
+  elseif action == "preview" then
+    UI.PreviewMount(mountID)
+  end
+  return action
+end
+
+local KEY_CODE = "|cffffd100"
+
+-- The hover hint's lines on such a row: one per click that does something.
+function UI.PaneRowHint(mountID, routeBoss, eventMap)
+  local lines = {}
+  local function add(key, what) lines[#lines + 1] = KEY_CODE .. key .. "|r  " .. what end
+  local located = UI.HasLocation(mountID, routeBoss)
+  local achievement = hasAchievement(mountID)
+  local map = ns.Map
+  local n = located and map and map.PlotCount and map.PlotCount(mountID, routeBoss) or 0
+  if eventMap then
+    add(L["Left-click"], L["open the zone map"])
+  elseif n > 1 then
+    add(L["Left-click"], string.format(L["plot all %d spawn points"], n))
+  elseif located then
+    add(L["Left-click"], L["plot the coordinates"])
+  elseif achievement then
+    add(L["Left-click"], L["view the achievement"])
+  end
+  if located then add(L["Shift-click"], L["show on the map"]) end
+  if achievement then
+    add(L["Ctrl-click"], L["view the achievement"])
+  else
+    add(L["Ctrl-click"], L["preview in the dressing room"])
+  end
+  return table.concat(lines, "\n")
+end
+
+-- The hint's title: the row's name.
+function UI.RowHintTitle(row)
+  return row.Name and row.Name:GetText() or ""
+end
+
 -- Widgets ----------------------------------------------------------------------------
 
 local FILTER_WIDTH = 150 -- fallback filter panel
@@ -1466,25 +1535,28 @@ local function setupRow(row)
   row.Source = source
 
   row:SetScript("OnEnter", function(self)
-    if self.tooltip then
+    if self.onSelect and self.mountID then
+      -- The detail pane shows the mount: the hover just says what a click does.
+      UI.ShowHint(self, UI.RowHintTitle(self), UI.PaneRowHint(self.mountID, self.routeBoss, self.eventMap), "cursor")
+    elseif self.tooltip then
       self.tooltip(self)
     elseif self.mountID then
       -- A route / checklist row's boss decides the lockout line.
       UI.ShowMountTooltip(self, self.mountID, self.routeBoss)
     end
   end)
-  row:SetScript("OnLeave", function() UI.HideMountTooltip() end)
+  row:SetScript("OnLeave", function(self)
+    UI.HideMountTooltip()
+    UI.HideHint(self)
+  end)
   row:SetScript("OnClick", function(self, button)
-    -- In a list with the detail pane a plain left-click selects the row
-    -- (an achievement mount also opens its achievement). Otherwise:
-    -- left-click waypoint (or the achievement), Shift+left-click world map,
-    -- Ctrl+left-click preview, Shift+right-click achievement
-    -- (UI.RowClickAction).
-    if self.onSelect and button == "LeftButton" and self.mountID
-      and not (type(IsShiftKeyDown) == "function" and IsShiftKeyDown())
-      and not (type(IsControlKeyDown) == "function" and IsControlKeyDown()) then
+    -- In a list with the detail pane a left-click also selects the row
+    -- (UI.PaneRowClick). Otherwise: left-click waypoint (or the
+    -- achievement), Shift+left-click world map, Ctrl+left-click preview,
+    -- Shift+right-click achievement (UI.RowClickAction).
+    if self.onSelect and button == "LeftButton" and self.mountID then
       self.onSelect(self.mountID, self)
-      UI.AchievementClick(self.mountID)
+      UI.PaneRowClick(self.mountID, self.routeBoss, self.eventMap)
       return
     end
     UI.HandleRowClick(self.mountID, button, self.routeBoss, self.eventMap)
@@ -1935,7 +2007,7 @@ function UI.List(parent, getQuery, opts)
         n = n + 1
         row.alt = n % 2 == 0
         row.desc = describe(row.id)
-        -- With the detail pane its Waypoint / Map buttons stand for the
+        -- With the detail pane its clicks (UI.PaneRowClick) stand for the
         -- row's location icon.
         if not pane then row.pin = UI.LocationIcon(row.id) end
         if pane then

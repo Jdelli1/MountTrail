@@ -153,7 +153,7 @@ describe("detail pane", function()
     eq(rows[1].id, 1)
     eq(rows[1].selected, true)
     eq(rows[2].selected, false)
-    eq(rows[1].pin, nil, "no location icon: the pane's buttons stand for it")
+    eq(rows[1].pin, nil, "no location icon: the row's clicks stand for it")
     local pane = list.Detail
     eq(pane.mountID, 1)
     eq(pane.Name:GetText(), "Alpha")
@@ -161,11 +161,10 @@ describe("detail pane", function()
     eq(pane.Scene.sceneID, 7)
     eq(pane.Scene.noRider, true, "rider hidden while the Mount Journal setting is off")
     eq(pane.Scene.fanfare, false, "no present box")
-    eq(pane.Waypoint.enabled, true, "has a location")
-    eq(pane.Achievement.enabled, false)
+    eq(pane.Waypoint, nil, "no buttons: the rows' clicks do it")
   end)
 
-  it("a plain left-click selects (no waypoint); rows show no tooltip", function()
+  it("a plain left-click selects (nowhere to go: no waypoint); the hover says what clicks do", function()
     local ns = loadUI()
     local list = makeList(ns)
     local waypoints = 0
@@ -187,6 +186,10 @@ describe("detail pane", function()
     row:RunScript("OnEnter")
     ns.UI.ShowMountTooltip = old
     eq(shown, false, "the pane replaces the hover tooltip")
+    local hint = ns.UI.PaneRowHint(3)
+    ok(not hint:find("Left-click", 1, true), "no location, no achievement: no plain click line")
+    ok(not hint:find("Shift-click", 1, true), "nor the map")
+    ok(hint:find("Ctrl-click", 1, true) and hint:find("preview", 1, true), hint)
   end)
 
   it("a plain left-click on an achievement mount selects it and opens its achievement", function()
@@ -204,7 +207,7 @@ describe("detail pane", function()
     ns.UI.InitMountRow(row, mountRows(list)[1])
     row:RunScript("OnClick", "LeftButton")
     eq(list.selectedID, 1)
-    eq(opened, nil, "other mounts: selected only")
+    eq(opened, nil, "other mounts: no achievement")
   end)
 
   it("Shift-click still opens the map from a row", function()
@@ -258,7 +261,7 @@ describe("detail pane", function()
     ok(list2.Detail.BigIcon:IsShown())
   end)
 
-  it("buttons: waypoint and map through Map, achievement through the achievement opener", function()
+  it("row clicks: plain plots, Shift opens the map, Ctrl the achievement; the hover lists them", function()
     local ns = loadUI()
     local list = makeList(ns)
     local calls = {}
@@ -266,10 +269,22 @@ describe("detail pane", function()
       OpenMap = function(id) calls[#calls + 1] = "map" .. id end,
       HasLocation = function() return true end, HasSpot = function() return true end }
     ns.UI.OpenMountAchievement = function(id) calls[#calls + 1] = "ach" .. id end
-    list.Detail.Waypoint:RunScript("OnClick")
-    list.Detail.MapButton:RunScript("OnClick")
-    list.Detail.Achievement:RunScript("OnClick")
+    ns.AchievementScan.Lookup = function() return 77, "ready" end
+    local row = CreateFrame("Button")
+    ns.UI.InitMountRow(row, mountRows(list)[1])
+    row:RunScript("OnClick", "LeftButton")
+    IsShiftKeyDown = function() return true end
+    row:RunScript("OnClick", "LeftButton")
+    IsShiftKeyDown = nil
+    IsControlKeyDown = function() return true end
+    row:RunScript("OnClick", "LeftButton")
+    IsControlKeyDown = nil
     eq(calls, { "wp1", "map1", "ach1" })
+    eq(list.selectedID, 1, "each click also selects")
+    local hint = ns.UI.PaneRowHint(1)
+    ok(hint:find("plot the coordinates", 1, true), hint)
+    ok(hint:find("show on the map", 1, true), hint)
+    ok(hint:find("view the achievement", 1, true), hint)
   end)
 
   it("opts.detail = false keeps the old full-width list and click", function()
@@ -311,8 +326,10 @@ describe("detail pane", function()
     eq(pane.PlotAll, nil, "no Plot all")
     local went
     ns.UI.GoTo = function(id) went = id end
-    pane.Waypoint:RunScript("OnClick", "LeftButton")
-    eq(went, 1, "the Waypoint button is the one go-to")
+    local row = CreateFrame("Button")
+    ns.UI.InitMountRow(row, mountRows(list)[1])
+    row:RunScript("OnClick", "LeftButton")
+    eq(went, 1, "a row's left-click is the one go-to")
   end)
 
   it("a row click plots every spawn point when the rare has several (map tab, zone panel)", function()
@@ -344,7 +361,6 @@ describe("detail pane width", function()
     a.Splitter:RunScript("OnMouseUp", "LeftButton")
     eq({ a.width, b.width }, { 360, 360 }, "both panes")
     eq(ns.db.global.window.paneWidth, 360)
-    eq(a.Waypoint.width, math.floor((360 - 20 - 8) / 3), "buttons follow")
     STUB_CURSOR[1] = 0
     a.Splitter:RunScript("OnMouseDown", "LeftButton")
     a.Splitter:GetScript("OnUpdate")(a.Splitter, 0.01)

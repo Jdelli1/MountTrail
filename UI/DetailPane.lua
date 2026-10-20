@@ -8,9 +8,8 @@ local ADDON, ns = ...
 -- tooltip's lines (UI.TooltipLines without the click hints: source, chance,
 -- attempts, lockout, achievement) and "Where to find it": each NPC behind
 -- the mount (Map.Spots: the vendor, a rare) by name, its zones and how
--- many spawn points - all in a scrolling area - and Waypoint / Map /
--- Achievement buttons (Waypoint: UI.GoTo, every spawn point of a
--- multi-spawn rare on TomTom).
+-- many spawn points - all in a scrolling area. No buttons: the list's rows
+-- do it (UI.PaneRowClick: left-click plot, Shift map, Ctrl achievement).
 --   local pane = UI.CreateDetailPane(parent)
 --   pane:SetMount(mountID[, routeBoss])   -- nil: empty
 --   pane:Refresh()                        -- same mount, fresh numbers
@@ -50,7 +49,6 @@ function UI.SetPaneWidth(w, save)
 end
 local MODEL_HEIGHT = 230
 local HEADER_HEIGHT = 44
-local BUTTON_HEIGHT = 22
 local PAD = 10
 local LINE_GAP = 3
 local SCROLL_STEP = 30
@@ -155,13 +153,6 @@ function UI.ShowMountModel(scene, mountID)
   return true
 end
 
-local function flatButton(parent, label)
-  local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-  b:SetHeight(BUTTON_HEIGHT)
-  b:SetText(label)
-  return b
-end
-
 -- Lines in the scrolling info area: font strings reused between mounts.
 local function lineString(pane, i)
   local fs = pane.lineStrings[i]
@@ -213,8 +204,8 @@ local function layoutInfo(pane, content)
       place(l.left, l.r, l.g, l.b)
     end
   end
-  -- Where to find it: each NPC, its zones and how many spawn points (the
-  -- Waypoint button plots them all).
+  -- Where to find it: each NPC, its zones and how many spawn points (a
+  -- left-click on the row plots them all).
   if content.spots and #content.spots > 0 then
     y = y + 6
     place(L["Where to find it"], 1, 0.82, 0)
@@ -248,9 +239,6 @@ local function paint(pane)
   pane.Icon:SetShown(has)
   pane.Info:SetShown(has)
   pane.Empty:SetShown(not has)
-  pane.Waypoint:SetShown(has)
-  pane.MapButton:SetShown(has)
-  pane.Achievement:SetShown(has)
   pane.AddList:SetShown(has)
   if not has then return end
   local content = UI.DetailContent(id, pane.routeBoss)
@@ -259,9 +247,6 @@ local function paint(pane)
   pane.Icon:SetTexture(UI.MountIcon(id))
   pane.Owned:SetShown(ns.Game.IsOwned and ns.Game.IsOwned(id) and true or false)
   layoutInfo(pane, content)
-  pane.Waypoint:SetEnabled(content.location)
-  pane.MapButton:SetEnabled(content.location)
-  pane.Achievement:SetEnabled(content.achievement ~= nil)
 end
 
 local function build(parent)
@@ -361,37 +346,10 @@ local function build(parent)
   owned:Hide()
   pane.Owned = owned
 
-  -- Buttons along the bottom.
-  local waypoint = flatButton(pane, L["Waypoint"])
-  local mapButton = flatButton(pane, L["Map"])
-  local achievement = flatButton(pane, L["Achievement"])
-  local function layoutButtons(width)
-    local bw = math.floor((width - 2 * PAD - 8) / 3)
-    for i, b in ipairs({ waypoint, mapButton, achievement }) do
-      b:SetWidth(bw)
-      b:SetPoint("BOTTOMLEFT", pane, "BOTTOMLEFT", PAD + (i - 1) * (bw + 4), 6)
-    end
-  end
-  layoutButtons(pane.paneWidth)
-  waypoint:SetScript("OnClick", function()
-    if pane.mountID then UI.GoTo(pane.mountID, pane.routeBoss) end
-  end)
-  waypoint:SetScript("OnEnter", function(self)
-    if pane.mountID and UI.ClickHint then UI.ShowHint(self, UI.ClickHint(pane.mountID, pane.routeBoss, true)) end
-  end)
-  waypoint:SetScript("OnLeave", function(self) UI.HideHint(self) end)
-  mapButton:SetScript("OnClick", function()
-    if pane.mountID then UI.MapAction("OpenMap", pane.mountID, pane.routeBoss) end
-  end)
-  achievement:SetScript("OnClick", function()
-    if pane.mountID then UI.OpenMountAchievement(pane.mountID) end
-  end)
-  pane.Waypoint, pane.MapButton, pane.Achievement = waypoint, mapButton, achievement
-
   -- Scrolling info: flavor text and the tooltip's lines.
   local scroll = CreateFrame("ScrollFrame", nil, pane)
   scroll:SetPoint("TOPLEFT", icon, "BOTTOMLEFT", 0, -10)
-  scroll:SetPoint("BOTTOMRIGHT", pane, "BOTTOMRIGHT", -PAD, BUTTON_HEIGHT + 14)
+  scroll:SetPoint("BOTTOMRIGHT", pane, "BOTTOMRIGHT", -PAD, 8)
   if scroll.EnableMouseWheel then scroll:EnableMouseWheel(true) end
   local info = CreateFrame("Frame", nil, scroll)
   info:SetSize(pane.paneWidth - 2 * PAD, 1)
@@ -429,7 +387,6 @@ local function build(parent)
   function pane:SetPaneWidth(w)
     self.paneWidth = w
     self:SetWidth(w)
-    layoutButtons(w)
     self.Info:SetWidth(w - 2 * PAD)
     paint(self)
   end
