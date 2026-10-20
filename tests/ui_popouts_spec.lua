@@ -1405,7 +1405,13 @@ describe("lists in the navigation column", function()
     eq(menuFor, id, "Shift-right-click: rename / delete")
     local asked = 0
     ns.UI.NewListPrompt = function() asked = asked + 1 end
+    local items
+    ns.UI.ShowMenu = function(_, list) items = list end
     ns.UI.frame.Nav.AddList:RunScript("OnClick", "LeftButton")
+    local by = {}
+    for _, it in ipairs(items or {}) do if it.text then by[it.text] = it end end
+    ok(by["Import list..."], "+ also imports")
+    by["New list..."].onClick()
     eq(asked, 1)
   end)
 end)

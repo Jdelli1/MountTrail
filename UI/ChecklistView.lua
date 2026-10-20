@@ -620,6 +620,7 @@ local function listsMenu(data, owner)
     UI.ShowMenu(owner, {
       { title = L["My lists"] },
       { text = L["New list..."], onClick = function() newList() end },
+      { text = L["Import list..."], onClick = function() UI.ImportListPrompt() end },
     }, "cursor")
     return
   end
@@ -627,7 +628,8 @@ local function listsMenu(data, owner)
   if items then UI.ShowMenu(owner, items, "cursor") end
 end
 
--- A custom list's menu items: its name, `extra` items, pop out, rename, delete (typing the name to confirm).
+-- A custom list's menu items: its name, `extra` items, pop out, the sharing
+-- ones (UI/Share.lua), rename, delete (typing the name to confirm).
 -- nil for an unknown list.
 function UI.CustomListMenuItems(id, extra)
   local store = UI.ListsDB and UI.ListsDB()
@@ -637,6 +639,11 @@ function UI.CustomListMenuItems(id, extra)
   for _, it in ipairs(extra or {}) do items[#items + 1] = it end
   for _, it in ipairs({
     { text = L["Pop out"], onClick = function() UI.OpenPopout({ kind = "list", list = id }) end },
+    { separator = true },
+    { text = L["Share in chat"], onClick = function() UI.ShareListInChat(id) end },
+    { text = L["Send to player..."], onClick = function() UI.SendListPrompt(id) end },
+    { text = L["Export..."], onClick = function() UI.ExportList(id) end },
+    { separator = true },
     { text = L["Rename..."], onClick = function()
       UI.AskText(L["Rename list"], l.name, function(name)
         ns.Lists.Rename(store, id, name)

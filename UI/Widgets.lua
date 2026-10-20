@@ -551,7 +551,8 @@ function UI.AskText(title, default, onAccept, opts)
   prompt.onAccept = onAccept
   prompt.copy = opts.copy == true
   prompt.Cancel:SetShown(not prompt.copy)
-  if prompt.Edit.SetMaxLetters then prompt.Edit:SetMaxLetters(opts.copy and 200 or 40) end
+  -- Names: 40 letters; a copy box or a pasted list (opts.long): no limit.
+  if prompt.Edit.SetMaxLetters then prompt.Edit:SetMaxLetters((opts.copy or opts.long) and 0 or 40) end
   prompt.match = opts.match
   prompt.Hint:SetText(opts.hint or "")
   prompt.Hint:SetShown(opts.hint ~= nil)

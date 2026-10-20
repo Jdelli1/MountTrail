@@ -329,6 +329,25 @@ window's title bar has the same settings, plus `Reset text sizes` and
 | `Show minimap button` | Shows or hides the minimap button. |
 | Debug messages | The same as `/mtrail debug`. |
 
+## Sharing lists
+
+Shift-right-click one of your lists in the navigation column for:
+
+- **Share in chat**: puts a link such as `[MountTrail: Mythic Mounts]` in the
+  chat box. Anyone with MountTrail who clicks it gets the list from you
+  (MountTrail on both sides whispers it addon to addon) and is asked whether
+  to import it. You need to be online; only lists you linked or sent this
+  session answer.
+- **Send to player...**: sends the list straight to a player by name
+  (`Name-Realm` for another realm). They are asked whether to import it.
+- **Export...**: the list as one line of text (`!MT1!...`) to copy with
+  Ctrl+C and paste anywhere: Discord, a guide, a forum post.
+
+To import a pasted line, click `+` next to My lists and pick `Import list...`
+(or type `/mtrail import`). Every import asks first, lets you rename the list,
+and adds a number when the name is taken. Mounts your version of MountTrail
+doesn't know are left out.
+
 ## Slash commands
 
 | Command | Action |
@@ -338,6 +357,7 @@ window's title bar has the same settings, plus `Reset text sizes` and
 | `/mtrail here` | Show or hide every mount still to get in your zone, in a pop-out that follows you |
 | `/mtrail rares` | Show or hide the rare spawns of your zone, in a pop-out that follows you |
 | `/mtrail alts` | Show or hide the alt lockout matrix |
+| `/mtrail import` | Paste a list someone shared |
 | `/mtrail options` | Open the MountTrail page in Options > AddOns |
 | `/mtrail dump` | List saved instances (instance ID, difficulty ID, bosses) for checking `Data/Lockouts.lua` |
 | `/mtrail debug` | Toggle debug mode: errors MountTrail catches around maps and waypoints go to the error handler (off by default) |

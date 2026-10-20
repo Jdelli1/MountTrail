@@ -32,6 +32,7 @@ Logic\Stats.lua
 Logic\Odds.lua
 Logic\Lists.lua
 Logic\QuickLists.lua
+Logic\Share.lua
 Logic\Search.lua
 Logic\Browse.lua
 Game\API.lua
@@ -56,6 +57,7 @@ UI\AltsWindow.lua
 UI\Popouts.lua
 UI\HereView.lua
 UI\BrowseView.lua
+UI\Share.lua
 UI\ZonePanel.lua
 UI\MapTab.lua
 UI\Options.lua

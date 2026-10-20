@@ -363,7 +363,7 @@ local function navButton(parent)
     local e = self.entry
     local reorder = e and e.section and ("\n" .. L["Alt-drag to reorder."]) or ""
     if e and e.source then
-      UI.ShowHint(self, e.label, (e.source.kind == "list" and L["Click: open. Right-click: pop out. Shift-right-click: rename or delete"]
+      UI.ShowHint(self, e.label, (e.source.kind == "list" and L["Click: open. Right-click: pop out. Shift-right-click: share, rename or delete"]
         or L["Click: open. Right-click: pop out"]) .. reorder)
     elseif e and e.section then
       UI.ShowHint(self, L[e.label] or e.label, L["Alt-drag to reorder."])
@@ -570,8 +570,16 @@ function UI.CreateNav(frame)
 
   local add = UI.FlatButton(content, "+", "gold", 16)
   add:SetWidth(20)
-  add:SetScript("OnClick", function() if UI.NewListPrompt then UI.NewListPrompt() end end)
-  add:SetScript("OnEnter", function(self) UI.ShowHint(self, L["New list"], L["Or + List on any mount to start one with it"]) end)
+  add:SetScript("OnClick", function(self)
+    UI.ShowMenu(self, {
+      { title = L["My lists"] },
+      { text = L["New list..."], onClick = function() if UI.NewListPrompt then UI.NewListPrompt() end end },
+      { text = L["Import list..."], onClick = function() if UI.ImportListPrompt then UI.ImportListPrompt() end end },
+    }, "cursor")
+  end)
+  add:SetScript("OnEnter", function(self)
+    UI.ShowHint(self, L["New or imported list"], L["Or + List on any mount to start one with it"])
+  end)
   add:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   n.AddList = add
 

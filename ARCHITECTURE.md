@@ -55,7 +55,8 @@ unit-tested under plain Lua 5.1.
 | `Zone.lua` | Which mounts belong to a zone. |
 | `Attempts.lua`, `Stats.lua`, `Odds.lua` | Attempt counting, kill statistics, drop-chance maths. |
 | `Achievements.lua` | Matching mounts to the achievements that reward them. |
-| `Lists.lua`, `QuickLists.lua` | Custom lists; the built-in quick lists (Mythic Mounts). |
+| `Lists.lua`, `QuickLists.lua` | Custom lists; the built-in quick lists and the example lists seeded once (Mythic Mounts). |
+| `Share.lua` | The `!MT1!` share string, addon-message chunks and chat links for sharing lists. |
 | `Search.lua` | The fuzzy search scoring engine (words, aliases, typos). |
 | `Browse.lua` | Browse-by-source categories. |
 
@@ -109,6 +110,7 @@ changed addon gives `nil`, never an error.
 | `Popouts.lua` | Pop-out windows, their styles, snapping and order. |
 | `HereView.lua` | The Current Zone view. |
 | `BrowseView.lua` | Browse-by-source pages. |
+| `Share.lua` | Sharing lists: export / import boxes, chat links (clicking asks the sharer's addon), Send to player, the `CHAT_MSG_ADDON` handler. |
 | `ZonePanel.lua` | The zone side panel docked to the window. |
 | `MapTab.lua` | The MountTrail tab in the world map's side tabs. |
 | `Options.lua` | Options > AddOns > MountTrail (Settings API). |

@@ -692,3 +692,41 @@ function Game.ContributionsForMap(uiMapID)
   end
   return out
 end
+
+-- Addon messages and chat links (shared lists, UI/Share.lua) ------------------
+
+-- Registers the addon-message prefix -> true when the client took it.
+function Game.RegisterAddonPrefix(prefix)
+  local chat = C_ChatInfo
+  if not (chat and chat.RegisterAddonMessagePrefix) then return false end
+  local good, result = pcall(chat.RegisterAddonMessagePrefix, prefix)
+  return good and result ~= false
+end
+
+-- Whispers `msg` to `target` ("Name-Realm") addon to addon -> true when sent.
+-- The game can refuse (throttled, or addon messages blocked in an encounter).
+function Game.SendAddonWhisper(prefix, msg, target)
+  local chat = C_ChatInfo
+  if not (chat and chat.SendAddonMessage and target) then return false end
+  local good, result = pcall(chat.SendAddonMessage, prefix, msg, "WHISPER", target)
+  if not good then return false end
+  -- 11.x+ returns an Enum.SendAddonMessageResult (0 = Success); older a boolean.
+  if type(result) == "number" then return result == 0 end
+  return result ~= false
+end
+
+-- Puts `link` into the chat box: the open one, else a new one.
+function Game.InsertChatLink(link)
+  local util = ChatFrameUtil
+  if util and type(util.InsertLink) == "function" and util.InsertLink(link) then return true end
+  if type(ChatEdit_InsertLink) == "function" and ChatEdit_InsertLink(link) then return true end
+  if util and type(util.OpenChat) == "function" then
+    util.OpenChat(link)
+    return true
+  end
+  if type(ChatFrame_OpenChat) == "function" then
+    ChatFrame_OpenChat(link)
+    return true
+  end
+  return false
+end
