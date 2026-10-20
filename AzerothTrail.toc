@@ -29,6 +29,7 @@ Logic\Attempts.lua
 Logic\Achievements.lua
 Logic\Stats.lua
 Logic\Odds.lua
+Logic\Lists.lua
 Logic\Search.lua
 Game\API.lua
 Integrations\Map.lua
@@ -44,7 +45,7 @@ UI\Tabs.lua
 UI\LockoutHelpers.lua
 UI\Arrow.lua
 UI\ChecklistView.lua
-UI\RareTracker.lua
+UI\Popouts.lua
 UI\ZonePanel.lua
 UI\MapTab.lua
 UI\Options.lua

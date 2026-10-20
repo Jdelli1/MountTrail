@@ -7,10 +7,10 @@ local ADDON, ns = ...
 -- checkbox here too), the name and icon, the client's flavor text, then the
 -- tooltip's lines (UI.TooltipLines without the click hints: source, chance,
 -- attempts, lockout, achievement) and "Where to find it": each NPC behind
--- the mount (Map.Spots: the vendor, a rare with every spawn point) by name
--- and map, its coordinates as small buttons that set a waypoint there
--- (Map.SetWaypointAt) - all in a scrolling area - and Waypoint / Map /
--- Achievement buttons.
+-- the mount (Map.Spots: the vendor, a rare) by name, its zones and how
+-- many spawn points - all in a scrolling area - and Waypoint / Map /
+-- Achievement buttons (Waypoint: UI.GoTo, every spawn point of a
+-- multi-spawn rare on TomTom).
 --   local pane = UI.CreateDetailPane(parent)
 --   pane:SetMount(mountID[, routeBoss])   -- nil: empty
 --   pane:Refresh()                        -- same mount, fresh numbers
@@ -152,38 +152,6 @@ local function lineString(pane, i)
   return fs, pane.rightStrings[i]
 end
 
--- Coordinate buttons in the info area, reused between mounts.
-local POINT_HEIGHT = 16
-local POINT_GAP = 6
-local function pointButton(pane, i)
-  local b = pane.pointButtons[i]
-  if not b then
-    b = CreateFrame("Button", nil, pane.Info)
-    b:SetHeight(POINT_HEIGHT)
-    local text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    text:SetPoint("LEFT", b, "LEFT", 4, 0)
-    b.Text = text
-    local bg = b:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints(b)
-    bg:SetColorTexture(1, 0.82, 0, 0.12)
-    local hl = b:CreateTexture(nil, "HIGHLIGHT")
-    hl:SetAllPoints(b)
-    hl:SetColorTexture(1, 0.82, 0, 0.25)
-    b:SetScript("OnClick", function(self)
-      if ns.Map and ns.Map.SetWaypointAt then ns.Map.SetWaypointAt(self.m, self.x, self.y, self.npc) end
-    end)
-    b:SetScript("OnEnter", function(self) UI.ShowHint(self, L["Set a waypoint here"]) end)
-    b:SetScript("OnLeave", function(self) UI.HideHint(self) end)
-    pane.pointButtons[i] = b
-  end
-  return b
-end
-
-local function fmt(v)
-  local s = string.format("%.1f", v)
-  return s
-end
-
 local function layoutInfo(pane, content)
   local width = UI.DETAIL_WIDTH - 2 * PAD - 12
   local y = 0
@@ -220,53 +188,25 @@ local function layoutInfo(pane, content)
       place(l.left, l.r, l.g, l.b)
     end
   end
-  -- Where to find it: each NPC, then its coordinates as buttons, wrapped;
-  -- "Plot all" on the heading's line puts every point on TomTom at once.
-  local used = 0
-  local total = 0
-  for _, spot in ipairs(content.spots or {}) do
-    for _, group in ipairs(spot.maps) do total = total + #group.points end
-  end
-  pane.PlotAll:Hide()
+  -- Where to find it: each NPC, its zones and how many spawn points (the
+  -- Waypoint button plots them all).
   if content.spots and #content.spots > 0 then
     y = y + 6
-    if total > 1 then
-      pane.PlotAll:ClearAllPoints()
-      pane.PlotAll:SetPoint("TOPRIGHT", pane.Info, "TOPLEFT", width, -y)
-      pane.PlotAll.Text:SetText(string.format("%s (%d)", L["Plot all"], total))
-      pane.PlotAll:SetWidth((pane.PlotAll.Text.GetStringWidth and pane.PlotAll.Text:GetStringWidth() or 60) + 10)
-      pane.PlotAll:Show()
-    end
     place(L["Where to find it"], 1, 0.82, 0)
     for _, spot in ipairs(content.spots) do
       local label = spot.name or (spot.kind == "vendor" and L["Vendor"]) or L["Spawn points"]
       if spot.kind == "vendor" and spot.name then label = label .. "  |cff9d9d9d" .. L["vendor"] .. "|r" end
       if spot.daily then label = label .. "  |cff9d9d9d" .. L["daily"] .. "|r" end
-      place(label, 1, 1, 1)
+      local where, count = {}, 0
       for _, group in ipairs(spot.maps) do
-        place(group.name or tostring(group.map), 0.7, 0.7, 0.7)
-        local x = 0
-        for _, p in ipairs(group.points) do
-          used = used + 1
-          local b = pointButton(pane, used)
-          b.m, b.x, b.y, b.npc = group.map, p[1], p[2], spot.name
-          b.Text:SetText(fmt(p[1]) .. ", " .. fmt(p[2]))
-          local w = (b.Text.GetStringWidth and b.Text:GetStringWidth() or 60) + 8
-          if x > 0 and x + w > width then
-            x = 0
-            y = y + POINT_HEIGHT + 3
-          end
-          b:SetWidth(w)
-          b:ClearAllPoints()
-          b:SetPoint("TOPLEFT", pane.Info, "TOPLEFT", x, -y)
-          b:Show()
-          x = x + w + POINT_GAP
-        end
-        y = y + POINT_HEIGHT + LINE_GAP + 2
+        where[#where + 1] = group.name or tostring(group.map)
+        count = count + #group.points
       end
+      local line = table.concat(where, ", ")
+      if count > 1 then line = line .. " 9483 " .. string.format(L["%d spawn points"], count) end
+      place(label, 1, 1, 1, line, 0.7, 0.7, 0.7)
     end
   end
-  for i = used + 1, #pane.pointButtons do pane.pointButtons[i]:Hide() end
   for i = n + 1, #pane.lineStrings do
     pane.lineStrings[i]:Hide()
     pane.rightStrings[i]:Hide()
@@ -286,6 +226,7 @@ local function paint(pane)
   pane.Waypoint:SetShown(has)
   pane.MapButton:SetShown(has)
   pane.Achievement:SetShown(has)
+  pane.AddList:SetShown(has)
   if not has then return end
   local content = UI.DetailContent(id, pane.routeBoss)
   pane.content = content
@@ -301,7 +242,7 @@ end
 local function build(parent)
   local pane = CreateFrame("Frame", nil, parent)
   pane:SetWidth(UI.DETAIL_WIDTH)
-  pane.lineStrings, pane.rightStrings, pane.pointButtons = {}, {}, {}
+  pane.lineStrings, pane.rightStrings = {}, {}
 
   local fill = pane:CreateTexture(nil, "BACKGROUND")
   fill:SetAllPoints(pane)
@@ -365,9 +306,20 @@ local function build(parent)
   icon:SetPoint("TOPLEFT", modelArea, "BOTTOMLEFT", PAD, -8)
   UI.StyleIcon(pane, icon)
   pane.Icon = icon
+  -- "+ List": add the mount to a custom list (a flat menu of the lists,
+  -- each toggled; "New list..." asks for a name).
+  local addList = UI.FlatButton(pane, L["+ List"], "gold", 18)
+  addList:SetPoint("TOPRIGHT", modelArea, "BOTTOMRIGHT", -PAD, -15)
+  addList:SetScript("OnClick", function(self)
+    if pane.mountID then UI.ShowListMenu(self, pane.mountID) end
+  end)
+  addList:SetScript("OnEnter", function(self) UI.ShowHint(self, L["Add to a custom list"]) end)
+  addList:SetScript("OnLeave", function(self) UI.HideHint(self) end)
+  pane.AddList = addList
+
   local name = pane:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
   name:SetPoint("LEFT", icon, "RIGHT", 8, 0)
-  name:SetPoint("RIGHT", pane, "RIGHT", -PAD - 18, 0)
+  name:SetPoint("RIGHT", addList, "LEFT", -22, 0)
   name:SetJustifyH("LEFT")
   name:SetWordWrap(true)
   if name.SetMaxLines then name:SetMaxLines(2) end
@@ -393,8 +345,12 @@ local function build(parent)
     b:SetPoint("BOTTOMLEFT", pane, "BOTTOMLEFT", PAD + (i - 1) * (bw + 4), 6)
   end
   waypoint:SetScript("OnClick", function()
-    if pane.mountID then UI.MapAction("SetWaypoint", pane.mountID, pane.routeBoss) end
+    if pane.mountID then UI.GoTo(pane.mountID, pane.routeBoss) end
   end)
+  waypoint:SetScript("OnEnter", function(self)
+    if pane.mountID and UI.ClickHint then UI.ShowHint(self, UI.ClickHint(pane.mountID, pane.routeBoss)) end
+  end)
+  waypoint:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   mapButton:SetScript("OnClick", function()
     if pane.mountID then UI.MapAction("OpenMap", pane.mountID, pane.routeBoss) end
   end)
@@ -417,28 +373,6 @@ local function build(parent)
     self:SetVerticalScroll(v)
   end)
   pane.Scroll, pane.Info = scroll, info
-
-  -- "Plot all (n)": every point of the mount on TomTom (Map.PlotMounts).
-  local plotAll = CreateFrame("Button", nil, info)
-  plotAll:SetHeight(16)
-  local plotText = plotAll:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  plotText:SetPoint("CENTER", plotAll, "CENTER", 0, 0)
-  plotAll.Text = plotText
-  local plotBg = plotAll:CreateTexture(nil, "BACKGROUND")
-  plotBg:SetAllPoints(plotAll)
-  plotBg:SetColorTexture(0.25, 0.78, 0.35, 0.25)
-  local plotHl = plotAll:CreateTexture(nil, "HIGHLIGHT")
-  plotHl:SetAllPoints(plotAll)
-  plotHl:SetColorTexture(1, 1, 1, 0.12)
-  plotAll:SetScript("OnClick", function()
-    if pane.mountID and ns.Map and ns.Map.PlotMounts then
-      ns.Map.PlotMounts({ pane.mountID }, pane.content and pane.content.name)
-    end
-  end)
-  plotAll:SetScript("OnEnter", function(self) UI.ShowHint(self, L["Plot every point on TomTom"]) end)
-  plotAll:SetScript("OnLeave", function(self) UI.HideHint(self) end)
-  plotAll:Hide()
-  pane.PlotAll = plotAll
 
   local empty = pane:CreateFontString(nil, "OVERLAY", "GameFontDisable")
   empty:SetPoint("TOPLEFT", modelArea, "BOTTOMLEFT", PAD, -20)
@@ -467,3 +401,27 @@ local function build(parent)
 end
 
 UI.CreateDetailPane = build
+
+-- The "+ List" menu for a mount: each custom list ticked when the mount is
+-- on it (a click toggles, the menu stays open), then "New list...".
+function UI.ShowListMenu(owner, mountID)
+  local store = UI.ListsDB and UI.ListsDB()
+  if not store then return end
+  UI.ShowMenu(owner, function()
+    local items = { { title = L["Add to list"] } }
+    for _, l in ipairs(ns.Lists.Sorted(store)) do
+      items[#items + 1] = {
+        text = l.name, checked = ns.Lists.Has(store, l.id, mountID), keepOpen = true,
+        onClick = function()
+          ns.Lists.Toggle(store, l.id, mountID)
+          ns.Refresh()
+        end,
+      }
+    end
+    if #items > 1 then items[#items + 1] = { separator = true } end
+    items[#items + 1] = { text = L["New list..."], onClick = function()
+      if UI.NewListPrompt then UI.NewListPrompt(mountID) end
+    end }
+    return items
+  end)
+end

@@ -4,7 +4,7 @@
 -- their actions. (tests/ui_build_spec.lua covers the tab without the pane.)
 
 local UI_FILES = { "UI/Frame.lua", "UI/Tooltip.lua", "UI/List.lua", "UI/DetailPane.lua",
-  "UI/Tabs.lua", "UI/LockoutHelpers.lua", "UI/ChecklistView.lua" }
+  "UI/Tabs.lua", "UI/LockoutHelpers.lua", "UI/ChecklistView.lua", "UI/Popouts.lua" }
 
 -- Widget methods the views call that the base stub does not need.
 local probe = CreateFrame("Frame")

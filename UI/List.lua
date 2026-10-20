@@ -1032,6 +1032,20 @@ end
 -- Map.SetWaypoint / Map.OpenMap for a mount, guarded (the detail pane's buttons).
 UI.MapAction = mapAction
 
+-- The one waypoint action everywhere (a row click, the pane's Waypoint
+-- button, a pop-out's pin): every spawn point on TomTom when the mount's
+-- rare has several (Map.PlotCount / Map.PlotMounts; TomTom clears each as
+-- you reach it), else the waypoint (Map.SetWaypoint).
+function UI.GoTo(mountID, routeBoss)
+  local map = ns.Map
+  if map and map.PlotCount and map.PlotCount(mountID, routeBoss) > 1 then
+    local good, err = pcall(map.PlotMounts, { mountID }, UI.MountName and UI.MountName(mountID) or nil)
+    if not good and ns.Game and ns.Game.ReportError then ns.Game.ReportError(err) end
+    return
+  end
+  mapAction("SetWaypoint", mountID, routeBoss)
+end
+
 -- OnClick of a mount row (lists, Checklist and zone panel): reads the modifier keys and
 -- runs UI.RowClickAction's action for `mountID`. `routeBoss` (optional): the
 -- route / checklist row's boss, so the waypoint and map go to that boss's
@@ -1049,13 +1063,8 @@ function UI.HandleRowClick(mountID, button, routeBoss, eventMap)
   trace("click %s on mount %s -> %s", tostring(button), tostring(mountID), tostring(action))
   if action == "waypoint" and eventMap and UI.OpenEventMap then
     UI.OpenEventMap(eventMap)
-  elseif action == "waypoint" and ns.Map and ns.Map.PlotCount and ns.Map.PlotCount(mountID, routeBoss) > 1 then
-    -- A rare with several spawn points (or several vendors): all of them
-    -- on TomTom, as the rare tracker does (Map.PlotMounts).
-    local good, err = pcall(ns.Map.PlotMounts, { mountID }, UI.MountName and UI.MountName(mountID) or nil)
-    if not good and ns.Game and ns.Game.ReportError then ns.Game.ReportError(err) end
   elseif action == "waypoint" then
-    mapAction("SetWaypoint", mountID, routeBoss)
+    UI.GoTo(mountID, routeBoss)
   elseif action == "map" then
     mapAction("OpenMap", mountID, routeBoss)
   elseif action == "preview" then
@@ -1166,7 +1175,7 @@ end
 -- fainter band; depth 3 -- the checklist's categories -- looks the same, one
 -- DEPTH_STEP further in). A plain Frame (not a Button) so the ScrollBox pools it apart
 -- from the mount rows; left-click (OnMouseUp) calls frame.onToggle(key), a
--- right-click frame.onRightClick(data) when the caller set one, and hovering
+-- right-click frame.onRightClick(data, frame) when the caller set one, and hovering
 -- shows frame.hint (UI.ShowHint, beside the cursor) when set.
 local function initHeader(frame, data)
   if not frame.Label then
@@ -1209,7 +1218,7 @@ local function initHeader(frame, data)
       -- it cancels, as with buttons).
       if type(self.IsMouseOver) == "function" and not self:IsMouseOver() then return end
       if button == "RightButton" and self.onRightClick and self.data then
-        self.onRightClick(self.data)
+        self.onRightClick(self.data, self)
         return
       end
       if button ~= "LeftButton" or not (self.key and self.onToggle) then return end

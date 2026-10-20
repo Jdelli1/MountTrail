@@ -7,7 +7,7 @@
 -- UI/Arrow.lua is not loaded.
 
 local UI_FILES = { "UI/Frame.lua", "UI/Tooltip.lua", "UI/List.lua", "UI/JournalHome.lua",
-  "UI/Tabs.lua", "UI/LockoutHelpers.lua", "UI/ChecklistView.lua", "UI/ZonePanel.lua" }
+  "UI/Tabs.lua", "UI/LockoutHelpers.lua", "UI/ChecklistView.lua", "UI/Popouts.lua", "UI/ZonePanel.lua" }
 
 -- Widget methods the views call that the base stub does not need.
 local probe = CreateFrame("Frame")
@@ -718,7 +718,8 @@ describe("ui build", function()
     eq(header.PopOut, nil, "no pop-out button: rare headers pop out on right-click")
     -- Chips: All (shown, gold) / Daily (n) / Weekly (n) / Rare spawns (n).
     local chips = header.Chips
-    eq(#chips, 4)
+    eq(#chips, 5)
+    ok(chips[5].Text:GetText():find("^My lists %(%d+%)$"), chips[5].Text:GetText())
     eq(chips[1].Text:GetText(), "All")
     eq(chips[1].selected, true)
     ok(chips[2].Text:GetText():find("^Daily %(%d+%)$"), chips[2].Text:GetText())
@@ -753,7 +754,7 @@ describe("ui build", function()
     local root = content(ns, "checklist").children[2]
     local header = root.children[1]
     local popped = {}
-    ns.UI.OpenRareTracker = function(exp) popped[#popped + 1] = exp end
+    ns.UI.OpenPopout = function(source) popped[#popped + 1] = source end
     local tip = { lines = {} }
     function tip:SetOwner() end
     function tip:SetText(t) self.text = t end
@@ -772,7 +773,7 @@ describe("ui build", function()
     rareHeader:RunScript("OnEnter")
     local hint = _G.AzerothTrailHint
     ok(hint and hint:IsShown(), "the window-styled hint, not the game tooltip")
-    eq(hint.Title:GetText(), string.format("Right-click to pop out %s rares", rareHeader.data.popout))
+    eq(hint.Title:GetText(), "Right-click to pop out " .. ns.UI.PopoutTitle(rareHeader.data.popout))
     eq(hint.Fill.color, { 0.05, 0.05, 0.06, 0.85 }, "flat, slightly see-through")
     eq(tip.text, nil, "the game tooltip is not used")
     rareHeader:RunScript("OnLeave")
@@ -782,10 +783,12 @@ describe("ui build", function()
     plainHeader:RunScript("OnMouseUp", "RightButton")
     eq(#popped, 1, "other headers do nothing on right-click")
     GameTooltip = oldTip
-    eq(ns.UI.ChecklistPopout({ header = true, depth = 2, camp = true, exp = "Legion" }), "Legion")
-    eq(ns.UI.ChecklistPopout({ header = true, depth = 1, camp = true }), nil)
-    eq(ns.UI.ChecklistPopout({ header = true, depth = 3, category = "rares", exp = "Cataclysm" }), "Cataclysm")
-    eq(ns.UI.ChecklistPopout({ header = true, depth = 3, category = "raids", exp = "Cataclysm" }), nil)
+    eq(ns.UI.ChecklistPopout({ header = true, depth = 2, camp = true, exp = "Legion" }), { kind = "camp", exp = "Legion" })
+    eq(ns.UI.ChecklistPopout({ header = true, depth = 1, camp = true }), { kind = "zone" })
+    eq(ns.UI.ChecklistPopout({ header = true, depth = 3, reset = "daily", category = "rares", exp = "Cataclysm" }),
+      { kind = "daily", exp = "Cataclysm", category = "rares" })
+    eq(ns.UI.ChecklistPopout({ header = true, depth = 2, reset = "weekly", exp = "Legion" }), { kind = "weekly", exp = "Legion" })
+    eq(ns.UI.ChecklistPopout({ header = true, depth = 1, reset = "daily" }), nil, "Daily itself")
   end)
 
   it("mount rows (lists and Checklist) take left and right clicks and dispatch through HandleRowClick", function()

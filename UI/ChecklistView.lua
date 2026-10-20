@@ -34,9 +34,11 @@ local ADDON, ns = ...
 -- character's name, the reset timers ("Daily reset in 9 hr ..."),
 -- the flavour line, then chips All / Daily / Weekly / Rare spawns (with
 -- what is left) that show one group or all (ns.db.char.checklistShow).
--- Right-clicking a rare header (an expansion or zone of the rare spawns, a
--- "Rares" category) pops that expansion out in the rare tracker
--- (UI.OpenRareTracker); hovering one says so.
+-- Right-clicking a header pops that set out as its own window
+-- (UI.ChecklistPopout / UI.OpenPopout, UI/Popouts.lua); hovering says so.
+-- A "My lists" chip and group show the custom lists (Logic/Lists.lua): its
+-- header's right-click starts a list; a list's opens pop out / rename /
+-- delete (flat menus, UI.ShowMenu / UI.AskText).
 -- After Daily and Weekly, "Rare spawns (no lockout)" lists the camp specs
 -- (rares with no kill flag and no reset) by expansion and zone, headers
 -- counting the mounts left ("(12 left)"); each row's box records when the
@@ -413,6 +415,8 @@ end
 -- entry's box is always enabled and checked while `campStore` (default
 -- ns.db.char.campChecked) has a time for it.
 function UI.ChecklistCheck(entry, campStore)
+  -- A custom list's mount the Checklist does not track: no box.
+  if type(entry) == "table" and entry.listOnly then return entry.done == true, false, false end
   if isCamp(entry) then
     local char = ns.db and ns.db.char
     local store = campStore or (char and char.campChecked)
@@ -445,8 +449,8 @@ local root, header, frame, scrollBox, empty, pane
 local selectedKey -- the selected row's entry key (the detail pane's mount)
 
 -- Chips: which group the list shows.
-local SHOWS = { "all", "daily", "weekly", "camp" }
-local SHOW_LABELS = { all = "All", daily = "Daily", weekly = "Weekly", camp = "Rare spawns" }
+local SHOWS = { "all", "daily", "weekly", "camp", "lists" }
+local SHOW_LABELS = { all = "All", daily = "Daily", weekly = "Weekly", camp = "Rare spawns", lists = "My lists" }
 
 -- The group shown (ns.db.char.checklistShow), "all" by default.
 function view.Show()
@@ -459,17 +463,19 @@ end
 function UI.ChecklistOnly(built, show)
   if show == "all" or not SHOW_LABELS[show] then return built end
   local out = { daily = {}, weekly = {}, camp = {} }
-  out[show] = built[show] or {}
+  if show ~= "lists" then out[show] = built[show] or {} end
   return out
 end
 
 -- What is left per group under `filters` -> { daily =, weekly =, camp = }.
 function UI.ChecklistLeft(built, filters)
   local C = ns.Checklist
+  local store = UI.ListsDB and UI.ListsDB()
   return {
     daily = C.Remaining({ daily = built.daily or {} }, filters),
     weekly = C.Remaining({ weekly = built.weekly or {} }, filters),
     camp = C.CampLeft(built, filters),
+    lists = store and #ns.Lists.Sorted(store) or 0,
   }
 end
 
@@ -583,27 +589,120 @@ local function toggleHeader(key)
   ns.Refresh()
 end
 
--- Rare headers (an expansion or zone of the rare spawns, a "Rares"
--- category): right-click pops that expansion out in the rare tracker.
+-- Right-click on a header: pop that set out (UI.OpenPopout); on "My
+-- lists": a menu to start a list; on a list: pop out / rename / delete.
 local function popOut(data)
-  if UI.OpenRareTracker and data.popout then UI.OpenRareTracker(data.popout) end
+  if UI.OpenPopout and data.popout then UI.OpenPopout(data.popout) end
+end
+
+local function newList(addMountID)
+  UI.AskText(L["Name of the new list"], "", function(name)
+    local store = UI.ListsDB and UI.ListsDB()
+    if not store then return end
+    local id = ns.Lists.Create(store, name)
+    if id and addMountID then ns.Lists.Add(store, id, addMountID) end
+    ns.Refresh()
+  end)
+end
+UI.NewListPrompt = newList
+
+local function listsMenu(data, owner)
+  if data.listsRoot then
+    UI.ShowMenu(owner, {
+      { title = L["My lists"] },
+      { text = L["New list..."], onClick = function() newList() end },
+    }, "cursor")
+    return
+  end
+  local id = data.listID
+  local store = UI.ListsDB and UI.ListsDB()
+  local l = store and ns.Lists.Get(store, id)
+  if not l then return end
+  UI.ShowMenu(owner, {
+    { title = l.name },
+    { text = L["Pop out"], onClick = function() UI.OpenPopout({ kind = "list", list = id }) end },
+    { text = L["Rename..."], onClick = function()
+      UI.AskText(L["Rename list"], l.name, function(name)
+        ns.Lists.Rename(store, id, name)
+        ns.Refresh()
+      end)
+    end },
+    { separator = true },
+    { text = L["Delete..."], onClick = function()
+      UI.ShowMenu(owner, {
+        { title = string.format(L["Delete %s?"], l.name) },
+        { text = L["Delete"], onClick = function()
+          ns.Lists.Delete(store, id)
+          if UI.ClosePopout then UI.ClosePopout(UI.PopoutKey({ kind = "list", list = id })) end
+          ns.Refresh()
+        end },
+        { text = L["Keep"], onClick = function() end },
+      }, "cursor")
+    end },
+  }, "cursor")
 end
 
 local function initHeader(f, data)
   f.onToggle = toggleHeader
   -- Recycled frames: set (or clear) the right-click and its hint every time.
-  f.onRightClick = data.popout and popOut or nil
+  if data.popout then
+    f.onRightClick = popOut
+  elseif data.listID or data.listsRoot then
+    f.onRightClick = listsMenu
+  else
+    f.onRightClick = nil
+  end
   f.hint = data.hint
   UI.InitListHeader(f, data)
 end
 
--- The expansion a header pops out in the rare tracker, or nil: rare-spawn
--- expansion / zone headers and daily / weekly "Rares" categories.
+-- The set a header pops out (UI.OpenPopout), or nil: "Rare spawns" itself
+-- -> the zone's rares; under it an expansion or zone -> that expansion's
+-- rare spawns; Daily / Weekly expansion headers -> that reset's lockouts
+-- of the expansion; a category under them -> just that category.
 function UI.ChecklistPopout(row)
-  if not (row and row.header and row.exp) then return nil end
-  if row.camp and (row.depth or 1) >= 2 then return row.exp end
-  if row.category == "rares" then return row.exp end
+  if not (row and row.header) then return nil end
+  if row.camp then
+    if (row.depth or 1) <= 1 then return { kind = "zone" } end
+    if row.exp then return { kind = "camp", exp = row.exp } end
+    return nil
+  end
+  if (row.reset == "daily" or row.reset == "weekly") and row.exp then
+    if row.category then return { kind = row.reset, exp = row.exp, category = row.category } end
+    return { kind = row.reset, exp = row.exp }
+  end
   return nil
+end
+
+-- The "My lists" group: a header, then per custom list a sub-header (its
+-- mounts left) and its mounts (UI.PopoutRows: the Checklist's entry when it
+-- tracks the mount, else a plain row).
+local function listRows(built, collapsed)
+  local store = UI.ListsDB and UI.ListsDB()
+  local sorted = store and ns.Lists.Sorted(store) or {}
+  local rootKey = "checklist|lists"
+  local rootCollapsed = collapsed[rootKey] == true
+  local out = { {
+    header = true, depth = 1, key = rootKey, text = L["My lists"], collapsed = rootCollapsed,
+    listsRoot = true, hint = L["Right-click to start a list (or + List on a mount)"],
+  } }
+  if rootCollapsed then return out end
+  local char = ns.db and ns.db.char
+  for _, l in ipairs(sorted) do
+    local rows, left = UI.PopoutRows({ kind = "list", list = l.id }, built, {
+      store = store, campStore = char and char.campChecked, isOwned = ns.Game.IsOwned,
+    })
+    local key = rootKey .. "|" .. l.id
+    local isCollapsed = collapsed[key] == true
+    out[#out + 1] = { header = true, depth = 2, key = key, text = l.name, left = left, collapsed = isCollapsed,
+      listID = l.id, hint = L["Right-click: pop out, rename or delete"] }
+    if not isCollapsed then
+      for _, r in ipairs(rows) do
+        out[#out + 1] = { id = r.id, m = r.entry.m, entry = r.entry, done = r.done, camp = r.camp, depth = 2 }
+      end
+    end
+  end
+  return out
 end
 
 -- The summary line: when the dailies and the weeklies reset (the chips
@@ -783,6 +882,13 @@ function view.Refresh()
     label = function(reset) return UI.ChecklistHeaderLabel(reset, untilDaily, untilWeekly) end,
     status = UI.ChecklistStatusOf(statusTexts),
   })
+  -- My lists: always on its own chip (its header starts a list); under
+  -- All once there is a list.
+  local store = UI.ListsDB and UI.ListsDB()
+  local hasLists = store ~= nil and #ns.Lists.Sorted(store) > 0
+  if show == "lists" or (show == "all" and hasLists) then
+    for _, row in ipairs(listRows(built, collapsedDB() or {})) do rows[#rows + 1] = row end
+  end
   local sourceText = UI.MemoText(Game.MountSourceText)
   local char = charDB()
   local campStore = char and char.campChecked
@@ -801,9 +907,9 @@ function view.Refresh()
   for _, row in ipairs(rows) do
     if row.header then
       n = 0
-      row.popout = UI.ChecklistPopout(row)
+      row.popout = UI.OpenPopout and UI.ChecklistPopout(row) or nil
       if row.popout then
-        row.hint = string.format(L["Right-click to pop out %s rares"], L[row.popout])
+        row.hint = string.format(L["Right-click to pop out %s"], UI.PopoutTitle(row.popout))
       end
     else
       n = n + 1

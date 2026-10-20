@@ -192,6 +192,266 @@ function UI.HideHint(owner)
   end
 end
 
+-- Flat widgets ---------------------------------------------------------------------
+-- The window's own look for buttons, menus and the name prompt (no Blizzard
+-- dropdown menus or dialog art): dark flat panels, a faint edge, a thin
+-- gold rule, small fonts.
+
+local FLAT_STYLES = {
+  gold = { 1, 0.82, 0, 0.18 },
+  green = { 0.25, 0.78, 0.35, 0.25 },
+  plain = { 1, 1, 1, 0.07 },
+}
+
+-- A flat text button: tinted fill, lighter on hover, small font; width
+-- follows the text (UI.FlatButtonSetText). style: "gold" | "green" | "plain".
+function UI.FlatButton(parent, text, style, height)
+  local b = CreateFrame("Button", nil, parent)
+  b:SetHeight(height or 18)
+  local fill = b:CreateTexture(nil, "BACKGROUND")
+  fill:SetAllPoints(b)
+  fill:SetColorTexture(unpack(FLAT_STYLES[style] or FLAT_STYLES.plain))
+  b.Fill = fill
+  local hl = b:CreateTexture(nil, "HIGHLIGHT")
+  hl:SetAllPoints(b)
+  hl:SetColorTexture(1, 1, 1, 0.12)
+  local label = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  label:SetPoint("CENTER", b, "CENTER", 0, 0)
+  b.Text = label
+  UI.FlatButtonSetText(b, text)
+  return b
+end
+
+function UI.FlatButtonSetText(b, text)
+  b.Text:SetText(text or "")
+  local w = b.Text.GetStringWidth and b.Text:GetStringWidth() or 40
+  b:SetWidth((tonumber(w) or 40) + 14)
+end
+
+-- Panel look shared by the menu and the prompt.
+local function flatPanel(f, alpha)
+  local fill = f:CreateTexture(nil, "BACKGROUND")
+  fill:SetAllPoints(f)
+  fill:SetColorTexture(0.05, 0.05, 0.06, alpha or 0.95)
+  f.Fill = fill
+  f.Edge = UI.FlatBorder(f, 1, 1, 1, 0.12)
+  local rule = f:CreateTexture(nil, "ARTWORK")
+  rule:SetHeight(1)
+  rule:SetPoint("TOPLEFT", f, "TOPLEFT", 1, -1)
+  rule:SetPoint("TOPRIGHT", f, "TOPRIGHT", -1, -1)
+  rule:SetColorTexture(1, 0.82, 0, 0.35)
+end
+
+-- Menu: UI.ShowMenu(owner, items[, anchor]) with items (a list, or a
+-- function returning one)
+--   { title = "Text" }                                 a gold heading
+--   { text =, onClick = fn, checked = bool|nil, disabled = bool, keepOpen = bool }
+--   { separator = true }
+-- A checked / unchecked item shows a small square box (filled gold when
+-- checked). A click runs onClick and closes the menu (keepOpen: stays open
+-- and repaints). A click anywhere else, Escape, or the owner hiding closes
+-- it. anchor: "cursor" or below the owner (default).
+local MENU_WIDTH = 190
+local MENU_ITEM = 18
+local menu, menuCatcher
+
+local function buildMenu()
+  menuCatcher = CreateFrame("Button", "AzerothTrailMenuCatcher", UIParent)
+  menuCatcher:SetAllPoints(UIParent)
+  menuCatcher:SetFrameStrata("FULLSCREEN_DIALOG")
+  menuCatcher:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+  menuCatcher:SetScript("OnClick", function() UI.HideMenu() end)
+  menuCatcher:Hide()
+  menu = CreateFrame("Frame", "AzerothTrailMenu", UIParent)
+  menu:SetFrameStrata("FULLSCREEN_DIALOG")
+  if menu.SetFrameLevel and menuCatcher.GetFrameLevel then menu:SetFrameLevel(menuCatcher:GetFrameLevel() + 10) end
+  menu:SetWidth(MENU_WIDTH)
+  menu:EnableMouse(true)
+  flatPanel(menu)
+  menu:Hide()
+  menu.items = {}
+  tinsert(UISpecialFrames, "AzerothTrailMenu")
+  menu:SetScript("OnHide", function() if menuCatcher then menuCatcher:Hide() end end)
+  return menu
+end
+
+local function menuItem(i)
+  local it = menu.items[i]
+  if it then return it end
+  it = CreateFrame("Button", nil, menu)
+  it:SetHeight(MENU_ITEM)
+  local hl = it:CreateTexture(nil, "HIGHLIGHT")
+  hl:SetAllPoints(it)
+  hl:SetColorTexture(1, 0.82, 0, 0.15)
+  it.Highlight = hl
+  local box = it:CreateTexture(nil, "ARTWORK")
+  box:SetSize(10, 10)
+  box:SetPoint("LEFT", it, "LEFT", 8, 0)
+  it.Box = box
+  local boxEdge = UI.FlatBorder(it, 1, 1, 1, 0.35)
+  -- The box's own edge: re-anchor the four edges around the box.
+  for k, t in ipairs(boxEdge.edges) do
+    t:ClearAllPoints()
+    if k == 1 then t:SetPoint("TOPLEFT", box, "TOPLEFT"); t:SetPoint("TOPRIGHT", box, "TOPRIGHT")
+    elseif k == 2 then t:SetPoint("BOTTOMLEFT", box, "BOTTOMLEFT"); t:SetPoint("BOTTOMRIGHT", box, "BOTTOMRIGHT")
+    elseif k == 3 then t:SetPoint("TOPLEFT", box, "TOPLEFT"); t:SetPoint("BOTTOMLEFT", box, "BOTTOMLEFT")
+    else t:SetPoint("TOPRIGHT", box, "TOPRIGHT"); t:SetPoint("BOTTOMRIGHT", box, "BOTTOMRIGHT") end
+  end
+  it.BoxEdge = boxEdge
+  local text = it:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  text:SetJustifyH("LEFT")
+  it.Label = text
+  local rule = it:CreateTexture(nil, "ARTWORK")
+  rule:SetHeight(1)
+  rule:SetPoint("LEFT", it, "LEFT", 6, 0)
+  rule:SetPoint("RIGHT", it, "RIGHT", -6, 0)
+  rule:SetColorTexture(1, 1, 1, 0.12)
+  it.Rule = rule
+  it:SetScript("OnClick", function(self)
+    local data = self.data
+    if not data or data.title or data.separator or data.disabled then return end
+    if data.onClick then data.onClick(data) end
+    if data.keepOpen and menu.lastItems then
+      UI.ShowMenu(menu.owner, menu.lastItems, menu.anchor)
+    else
+      UI.HideMenu()
+    end
+  end)
+  menu.items[i] = it
+  return it
+end
+
+function UI.ShowMenu(owner, items, anchor)
+  if not menu then buildMenu() end
+  menu.owner, menu.lastItems, menu.anchor = owner, items, anchor
+  -- items may be a function that builds the list (a keepOpen click
+  -- repaints from it, so ticks follow the click).
+  if type(items) == "function" then items = items() end
+  local y = 6
+  for i, data in ipairs(items or {}) do
+    local it = menuItem(i)
+    it.data = data
+    it:ClearAllPoints()
+    it:SetPoint("TOPLEFT", menu, "TOPLEFT", 1, -y)
+    it:SetPoint("TOPRIGHT", menu, "TOPRIGHT", -1, -y)
+    it.Label:ClearAllPoints()
+    local boxed = data.checked ~= nil
+    it.Box:SetShown(boxed)
+    for _, t in ipairs(it.BoxEdge.edges) do t:SetShown(boxed) end
+    if boxed then
+      it.Box:SetColorTexture(1, 0.82, 0, data.checked and 0.9 or 0)
+      it.Label:SetPoint("LEFT", it.Box, "RIGHT", 6, 0)
+    else
+      it.Label:SetPoint("LEFT", it, "LEFT", 9, 0)
+    end
+    it.Rule:SetShown(data.separator == true)
+    it.Highlight:SetShown(not (data.title or data.separator or data.disabled))
+    if data.separator then
+      it:SetHeight(7)
+      it.Label:SetText("")
+      y = y + 7
+    else
+      it:SetHeight(MENU_ITEM)
+      it.Label:SetText(data.title or data.text or "")
+      it.Label:SetFontObject(data.title and "GameFontNormalSmall"
+        or (data.disabled and "GameFontDisableSmall" or "GameFontHighlightSmall"))
+      y = y + MENU_ITEM
+    end
+    it:Show()
+  end
+  for i = #(items or {}) + 1, #menu.items do menu.items[i]:Hide() end
+  menu:SetHeight(y + 5)
+  local parentScale = UIParent.GetEffectiveScale and UIParent:GetEffectiveScale() or 1
+  local ownerScale = owner and owner.GetEffectiveScale and owner:GetEffectiveScale() or parentScale
+  if menu.SetScale then menu:SetScale(ownerScale / parentScale) end
+  menu:ClearAllPoints()
+  if anchor == "cursor" and type(GetCursorPosition) == "function" then
+    local x, cy = GetCursorPosition()
+    local eff = menu.GetEffectiveScale and menu:GetEffectiveScale() or 1
+    menu:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", x / eff + 4, cy / eff - 4)
+  elseif owner then
+    menu:SetPoint("TOPLEFT", owner, "BOTTOMLEFT", 0, -2)
+  else
+    menu:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+  end
+  menuCatcher:Show()
+  menu:Show()
+  if UI.HideHint then UI.HideHint() end
+  return menu
+end
+
+function UI.HideMenu()
+  if menu then menu:Hide() end
+  if menuCatcher then menuCatcher:Hide() end
+end
+
+-- Name prompt: UI.AskText(title, default, onAccept) - a small flat dialog
+-- with a text box, OK and Cancel; Enter accepts, Escape cancels. onAccept
+-- gets the trimmed text (not called for an empty one).
+local prompt
+
+local function buildPrompt()
+  prompt = CreateFrame("Frame", "AzerothTrailPrompt", UIParent)
+  prompt:SetSize(280, 104)
+  prompt:SetFrameStrata("FULLSCREEN_DIALOG")
+  prompt:SetPoint("CENTER", UIParent, "CENTER", 0, 120)
+  prompt:EnableMouse(true)
+  flatPanel(prompt, 0.97)
+  prompt:Hide()
+  tinsert(UISpecialFrames, "AzerothTrailPrompt")
+  local title = prompt:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  title:SetPoint("TOPLEFT", prompt, "TOPLEFT", 12, -12)
+  title:SetPoint("TOPRIGHT", prompt, "TOPRIGHT", -12, -12)
+  title:SetJustifyH("LEFT")
+  prompt.Title = title
+  local boxFrame = CreateFrame("Frame", nil, prompt)
+  boxFrame:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -10)
+  boxFrame:SetPoint("TOPRIGHT", title, "BOTTOMRIGHT", 0, -10)
+  boxFrame:SetHeight(24)
+  local boxFill = boxFrame:CreateTexture(nil, "BACKGROUND")
+  boxFill:SetAllPoints(boxFrame)
+  boxFill:SetColorTexture(0, 0, 0, 0.5)
+  UI.FlatBorder(boxFrame, 1, 1, 1, 0.2)
+  local edit = CreateFrame("EditBox", nil, boxFrame)
+  edit:SetPoint("TOPLEFT", boxFrame, "TOPLEFT", 6, 0)
+  edit:SetPoint("BOTTOMRIGHT", boxFrame, "BOTTOMRIGHT", -6, 0)
+  if edit.SetFontObject then edit:SetFontObject("GameFontHighlight") end
+  if edit.SetAutoFocus then edit:SetAutoFocus(false) end
+  if edit.SetMaxLetters then edit:SetMaxLetters(40) end
+  prompt.Edit = edit
+  local function accept()
+    local text = string.match(edit:GetText() or "", "^%s*(.-)%s*$")
+    local fn = prompt.onAccept
+    prompt:Hide()
+    if fn and text ~= "" then fn(text) end
+  end
+  edit:SetScript("OnEnterPressed", accept)
+  edit:SetScript("OnEscapePressed", function() prompt:Hide() end)
+  local ok = UI.FlatButton(prompt, L["OK"], "gold", 20)
+  ok:SetWidth(70)
+  ok:SetPoint("BOTTOMRIGHT", prompt, "BOTTOMRIGHT", -12, 10)
+  ok:SetScript("OnClick", accept)
+  prompt.OK = ok
+  local cancel = UI.FlatButton(prompt, L["Cancel"], "plain", 20)
+  cancel:SetWidth(70)
+  cancel:SetPoint("RIGHT", ok, "LEFT", -6, 0)
+  cancel:SetScript("OnClick", function() prompt:Hide() end)
+  prompt.Cancel = cancel
+  return prompt
+end
+
+function UI.AskText(title, default, onAccept)
+  if not prompt then buildPrompt() end
+  UI.HideMenu()
+  prompt.Title:SetText(title or "")
+  prompt.onAccept = onAccept
+  prompt.Edit:SetText(default or "")
+  prompt:Show()
+  if prompt.Edit.SetFocus then prompt.Edit:SetFocus() end
+  if prompt.Edit.HighlightText then prompt.Edit:HighlightText() end
+  return prompt
+end
+
 -- Tab order is fixed; views plug in by key. A saved key of an older
 -- version's tab maps to its successor (UI.LEGACY_TABS: the retired Route tab
 -- -> Checklist); any other unknown key falls back to the first tab.

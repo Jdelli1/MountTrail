@@ -263,7 +263,7 @@ describe("detail pane", function()
     eq(mountRows(list)[1].onSelect, nil)
   end)
 
-  it("Where to find it: each NPC's points by map, as buttons that set a waypoint there", function()
+  it("Where to find it: each NPC with its zones and spawn count, no coordinate list; Waypoint plots them all", function()
     local ns = loadUI()
     local spots = ns.UI.DetailSpots(1)
     eq(#spots, 1)
@@ -274,24 +274,27 @@ describe("detail pane", function()
     eq(ns.UI.DetailSpots(3), {}, "the other faction's vendor is left out")
     local list = makeList(ns)
     local pane = list.Detail
-    local shown = {}
-    for _, b in ipairs(pane.pointButtons) do
-      if b:IsShown() then shown[#shown + 1] = b.Text:GetText() end
+    local texts, rights = {}, {}
+    for i, fs in ipairs(pane.lineStrings) do
+      if fs:IsShown() then
+        texts[#texts + 1] = fs:GetText()
+        if pane.rightStrings[i]:IsShown() then rights[fs:GetText()] = pane.rightStrings[i]:GetText() end
+      end
     end
-    eq(shown, { "67.6, 42.6", "72.8, 53.4", "1.0, 2.0" })
-    local set
-    ns.Map.SetWaypointAt = function(m, x, y, name) set = { m, x, y, name } end
-    pane.pointButtons[2]:RunScript("OnClick", "LeftButton")
-    eq(set, { 550, 72.8, 53.4, "Luk'hok" })
-    ok(pane.PlotAll:IsShown(), "Plot all for several points")
-    eq(pane.PlotAll.Text:GetText(), "Plot all (3)")
-    local plotted
-    ns.Map.PlotMounts = function(ids, label) plotted = { ids[1], label } end
-    pane.PlotAll:RunScript("OnClick", "LeftButton")
-    eq(plotted, { 1, "Alpha" })
-    list:Select(2)
-    for _, b in ipairs(pane.pointButtons) do ok(not b:IsShown(), "no spots: buttons hidden") end
-    ok(not pane.PlotAll:IsShown(), "no Plot all without spots")
+    local heading, label
+    for _, t in ipairs(texts) do
+      if t == "Where to find it" then heading = true end
+      if t:find("^Luk'hok") then label = t end
+    end
+    ok(heading, "heading")
+    ok(label and label:find("daily", 1, true), tostring(label))
+    eq(rights[label], "Nagrand, Old Nagrand 9483 3 spawn points")
+    eq(pane.pointButtons, nil, "no coordinate buttons")
+    eq(pane.PlotAll, nil, "no Plot all")
+    local went
+    ns.UI.GoTo = function(id) went = id end
+    pane.Waypoint:RunScript("OnClick", "LeftButton")
+    eq(went, 1, "the Waypoint button is the one go-to")
   end)
 
   it("a row click plots every spawn point when the rare has several (map tab, zone panel)", function()

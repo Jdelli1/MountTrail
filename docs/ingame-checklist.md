@@ -588,7 +588,7 @@ Every Holidays header shows dates read from the in-game calendar (`C_Calendar`; 
 - [ ] Primordial Direhorns: the nearest Zandalari Warbringer zone point.
 - [ ] A raid mount (Invincible) still goes to the raid entrance; a holiday mount to its holiday place.
 - [ ] Map tab on a zone with a mount vendor (e.g. Iskaara's Tatto in the Azure Span): the vendor's mounts are listed.
-- [ ] Detail pane, a rare with several spawn points (Mottled Meadowstomper / Luk'hok): "Where to find it" lists Luk'hok (daily if it has a kill quest), the map name, and each spawn point as a small gold button; clicking one sets a waypoint there and chat says "Waypoint: Luk'hok (Nagrand)". A vendor mount lists the vendor ("vendor" after the name); the other faction's vendors are not listed.
+- [ ] Detail pane, a rare with several spawn points (Mottled Meadowstomper / Luk'hok): "Where to find it" shows one line per NPC: its name (and "daily" when it has a kill quest) and, on the right, its zone and "5 spawn points". No coordinate list. The Waypoint button plots every spawn point on TomTom (hover: "Click to plot all 5 spawn points"). A vendor mount shows the vendor ("vendor" after the name); the other faction's vendors are not listed.
 
 ## Checklist: list + detail pane, summary and chips
 
@@ -599,30 +599,31 @@ The Checklist follows the other tabs: its list on the left, the detail pane on t
 - [ ] Chips: Daily shows only the daily group, Weekly only weekly, Rare spawns only the camp group; All everything. Counts match the headers. /reload keeps the chip.
 - [ ] Hover a rare header (an expansion or zone under Rare spawns, or a "Rares" category under Daily / Weekly): a green "Right-click to pop out <expansion> rares" hint. Right-click: the tracker opens on that expansion (or switches to it). Other headers do nothing on right-click.
 
-## Pop-out rare tracker
-
-A slim movable window (`/azt rares`, or right-click a rare header in the Checklist) that stays on screen without the main window. Title: "<Expansion> rare spawns (n left)"; click it for a menu: Current zone, or any expansion with rare-spawn mounts left. Rows come from the Checklist (daily / weekly rares and rare spawns with no lockout; owned and other-faction mounts left out): a box (daily kill: ticked and dimmed when the game says done; rare spawns: the Checklist's last-checked box, left-click marks, right-click clears), the rare's name, its zone (or "checked 3 hr ago"), and a pin button for a waypoint to its nearest spawn point. A rare with several spawn points lists each as a small gold coordinate button underneath. Clicking a row sets the waypoint too; hovering shows the mount tooltip. Drag the title to move; position, open state and choice are saved and it comes back after /reload. Scroll with the mouse wheel when long.
-
-- [ ] Checklist > right-click the Warlords of Draenor header under Rare spawns: the tracker opens on Warlords of Draenor. The title shows a small arrow; hovering says "Click to choose the expansion; drag to move"; the menu lists Current zone and every expansion with rares left. WoD lists Nok-Karosh, Luk'hok, Pathrunner, Gorok, Poundfist, Silthide, Nakk the Thunderer... (those whose mounts you don't own).
-- [ ] Luk'hok shows several coordinate buttons; each sets a waypoint there ("Waypoint: Luk'hok (Nagrand)"). Clicking Luk'hok's row or pin plots all of them on TomTom.
-- [ ] Tick Nok-Karosh's box: "checked 1 min ago"; the Checklist's Rare spawns row shows the same; right-click clears.
-- [ ] A daily rare killed today: ticked and dimmed, at the bottom, no pin button.
-- [ ] Current zone: shows only the zone's rares and follows you as you fly to another zone.
-- [ ] Close the main window: the tracker stays. Drag it somewhere, /reload: same place, still open. Close button hides it (and stays hidden after /reload).
-
-## Plot every spawn point on TomTom
-
-The game's map holds one pin, so plotting many points uses TomTom (when installed): each point becomes a TomTom waypoint titled after its NPC, AzerothTrail's previous plot is removed first, TomTom's arrow goes to the closest one, and the game pin goes to the nearest point too (unless Waypoints is TomTom only). Without TomTom only the nearest point is pinned and chat says TomTom is needed.
-
-- [ ] Detail pane of a rare with several spawn points: "Plot all (n)" (green) on the "Where to find it" line; click: n TomTom waypoints named after the rare, chat "Plotted n points on TomTom: <mount>".
-- [ ] Rare tracker: left-click a rare with several spawn points (its row or its pin, e.g. Ascended Skymane in Bastion): every spawn point plotted on TomTom at once. A rare with one spot: the normal waypoint. Right-click the pin: a waypoint to the nearest spawn only. Hover the pin for the hint. "Plot all" in the title: every open rare's spawn points of the list at once; plotting again replaces the previous plot (no pile-up).
-- [ ] Without TomTom: the nearest point is pinned and chat says to install TomTom.
-
 ## Hints in the window's style
 
-Short hints (a rare header's right-click, the tracker's title / pin / Plot all, the pane's coordinate and Plot all buttons, the size grip, the zone panel button, the home search box) use AzerothTrail's own hint: a small flat dark panel, slightly see-through, faint edge, thin gold rule on top, small gold title and grey second line. Mount tooltips keep the game tooltip (item details).
+Short hints (a header's right-click, a pop-out's title / pin / close, the pane's Waypoint and + List buttons, the size grip, the zone panel button, the home search box) use AzerothTrail's own hint: a small flat dark panel, slightly see-through, faint edge, thin gold rule on top, small gold title and grey second line. Mount tooltips keep the game tooltip (item details).
 
 - [ ] Hover a rare header in the Checklist: the hint appears beside the cursor in the window's style (not the big game tooltip), and goes away when the mouse leaves.
 - [ ] Scale the window up (size grip): hints grow with it.
 - [ ] The Checklist's reset line fits on one line.
 - [ ] World map tab / zone panel: clicking a mount whose rare has several spawn points (e.g. Bastion's Ascended Skymane) plots all of them on TomTom; its tooltip's last line reads "Click to plot all 6 spawn points". One-spot mounts, raid / dungeon mounts (entrance) and holiday mounts still set one waypoint.
+
+## One waypoint button; pop-out checklists; custom lists
+
+One go-to everywhere (a row click in the map tab / zone panel, the pane's Waypoint button, a pop-out's row or pin): a mount whose rare has several spawn points (or several vendors) gets all of them on TomTom at once (TomTom clears each as you reach it); anything else one waypoint (raid / dungeon entrance, holiday place, the single spot). No coordinate lists, no "Plot all" buttons.
+
+Pop-outs: right-click a Checklist header to pop that set out as its own window; any number can be open at once, each remembered (position, open) and back after /reload:
+- "Rare spawns (no lockout)" itself: the rares of the zone you are in (follows you; also `/azt rares`).
+- an expansion or zone under it: that expansion's rare spawns.
+- a Daily / Weekly expansion header: all that reset's lockouts of the expansion ("Warlords of Draenor dailies"); a category under it (e.g. Rares): just that category ("... dailies · Rares").
+Each window: title with what is left, a flat x to close, drag the title to move; rows as before (box, name, zone or "checked 3 hr ago", pin).
+
+Custom lists (account-wide): the pane's "+ List" opens a flat menu of your lists (click to tick / untick the mount, the menu stays open) and "New list..." (a small name prompt; the mount goes on the new list). The Checklist's "My lists" chip shows them: "My lists" (right-click: New list...) and per list its mounts (the Checklist's row when it tracks the mount, else a plain row, collected ones ticked). Right-click a list: Pop out, Rename..., Delete... (confirm). In a list's pop-out, right-click a row: Remove from <list>. Under All, My lists shows once you have a list.
+
+- [ ] Map tab / zone panel / pane Waypoint / pop-out pin on Ascended Skymane: all 6 spawn points on TomTom, chat "Plotted 6 points on TomTom". On Nok-Karosh (one spot): one waypoint. On a raid mount: the entrance.
+- [ ] No coordinate buttons anywhere; no Plot all buttons.
+- [ ] Checklist: right-click Daily > Warlords of Draenor: "Warlords of Draenor dailies" opens; right-click Rare spawns > Warlords of Draenor: a second window "Warlords of Draenor rare spawns"; both stay; right-click Rare spawns (no lockout) itself: "Rare spawns here". Hover a header: the hint names the window it opens.
+- [ ] Close one with its x; the others stay. /reload: the open ones come back where you left them.
+- [ ] Pane > + List > New list... > "WoD loop" > OK: the list exists with the mount; + List again: WoD loop ticked; click it: unticked (menu stays open).
+- [ ] Checklist > My lists: WoD loop with its mounts; right-click it: Pop out / Rename... / Delete... work (Delete asks first; its pop-out closes).
+- [ ] Menus, the name prompt and the pop-outs' buttons are in the window's flat style (no Blizzard dropdown or dialog art).
