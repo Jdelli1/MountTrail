@@ -868,7 +868,7 @@ describe("custom lists in the pane and the Checklist", function()
     eq(ns.Lists.Get(store, sorted[2].id).mounts, { 614 })
   end)
 
-  it("Checklist chips: right-click Daily / Weekly / Rare spawns pops the whole group out; Lists offers a menu", function()
+  it("Checklist chips: right-click Daily / Weekly / Rare spawns pops the whole group out", function()
     local ns = loadUI()
     ns.UI.ChecklistBuild = function() return built() end
     local store = ns.UI.ListsDB()
@@ -897,58 +897,10 @@ describe("custom lists in the pane and the Checklist", function()
     ok(camp.Title:GetText():find("^Rare spawns"), camp.Title:GetText())
     eq(#camp.rows, 2, "rare spawns of every expansion")
     eq(ns.db.global.popouts["camp|all"].source, { kind = "camp", all = true }, "saved: back after /reload")
-    -- Lists: a menu of the quick lists and the player's lists.
-    local menu
-    ns.UI.ShowMenu = function(_, items) menu = items end
-    chip.lists:RunScript("OnClick", "RightButton")
-    local texts = {}
-    for _, it in ipairs(menu) do if it.text then texts[#texts + 1] = it.text end end
-    eq(texts[1], "Mythic Mounts")
-    eq(texts[#texts - 1], "Loop")
-    eq(texts[#texts], "New list...")
-    for _, it in ipairs(menu) do if it.text == "Loop" then it.onClick() end end
-    ok(W["list|" .. id]:IsShown(), "the list pops out")
+    eq(chip.lists, nil, "no Lists chip: the lists live in the navigation")
     -- A left-click still switches the list.
     chip.weekly:RunScript("OnClick", "LeftButton")
     eq(ns.db.char.checklistShow, "weekly")
-  end)
-
-  it("Checklist: My lists chip; a list's header right-click pops it out", function()
-    local ns = loadUI()
-    ns.UI.ChecklistBuild = function() return built() end
-    local store = ns.UI.ListsDB()
-    local id = ns.Lists.Create(store, "Loop")
-    ns.Lists.Add(store, id, 614)
-    ns.ToggleWindow()
-    ns.UI.SelectTab("checklist")
-    ns.db.char.checklistShow = "lists"
-    ns.Refresh()
-    local root
-    for _, c in ipairs(ns.UI.frame.Contents.checklist.children) do if c.Detail then root = c end end
-    local header
-    for _, c in ipairs(root.children) do if c.Chips then header = c end end
-    local all = header.Checklist.ScrollBox.provider.rows
-    eq(all[1].text, "Quick lists", "quick lists first")
-    eq(all[2].text, "Mythic Mounts")
-    eq(all[2].popout, { kind = "quick", key = "mythic" }, "right-click pops it out")
-    local rows
-    for i, r in ipairs(all) do
-      if r.listsRoot then rows = { unpack(all, i) } end
-    end
-    eq(rows[1].text, "My lists")
-    eq(rows[2].text, "Loop")
-    eq(rows[2].listID, id)
-    eq(rows[3].id, 614)
-    local opened
-    ns.UI.OpenPopout = function(source) opened = source end
-    local f = CreateFrame("Frame", nil, UIParent)
-    header.Checklist.ScrollBox.view.factory(function(kind, init) init(f, rows[2]) end, rows[2])
-    f:RunScript("OnMouseUp", "RightButton")
-    local menu = _G.MountTrailMenu
-    local pop
-    for _, it in ipairs(menu.items) do if it:IsShown() and it.data.text == "Pop out" then pop = it end end
-    pop:RunScript("OnClick", "LeftButton")
-    eq(opened, { kind = "list", list = id })
   end)
 
   it("deleting a list asks for its name; Delete only works once it is typed", function()
@@ -957,18 +909,8 @@ describe("custom lists in the pane and the Checklist", function()
     local store = ns.UI.ListsDB()
     local id = ns.Lists.Create(store, "WoD loop")
     ns.ToggleWindow()
-    ns.UI.SelectTab("checklist")
-    ns.db.char.checklistShow = "lists"
-    ns.Refresh()
-    local root
-    for _, c in ipairs(ns.UI.frame.Contents.checklist.children) do if c.Detail then root = c end end
-    local header
-    for _, c in ipairs(root.children) do if c.Chips then header = c end end
-    local listRow
-    for _, r in ipairs(header.Checklist.ScrollBox.provider.rows) do if r.listID == id then listRow = r end end
-    local f = CreateFrame("Frame", nil, UIParent)
-    header.Checklist.ScrollBox.view.factory(function(kind, init) init(f, listRow) end, listRow)
-    f:RunScript("OnMouseUp", "RightButton")
+    -- The list's menu (the navigation's right-click on it).
+    ns.UI.ShowCustomListMenu(id, CreateFrame("Frame", nil, UIParent))
     local menu = _G.MountTrailMenu
     local del
     for _, it in ipairs(menu.items) do if it:IsShown() and it.data.text == "Delete..." then del = it end end
@@ -1251,8 +1193,8 @@ describe("lists in the navigation column", function()
     local b = navButton(ns, "Loop")
     ok(b, "the list's entry")
     ok(b.Badge:GetText():find("1", 1, true), "its open lockout: " .. tostring(b.Badge:GetText()))
-    ok(navButton(ns, "Mythic Mounts").Text:GetText():find(ns.UI.NAV_STAR, 1, true), "built-in mark: the star atlas")
-    ok(not navButton(ns, "Mythic Mounts").Text:GetText():find("\226", 1, true), "no glyph the font lacks")
+    eq(navButton(ns, "Mythic Mounts").Text:GetText(), "Mythic Mounts", "no mark in the name (the star is a button)")
+    ok(navButton(ns, "Mythic Mounts").Star:IsShown(), "a favourite star on each list")
     b:RunScript("OnClick", "LeftButton")
     local journal = ns.UI.frame.Contents.journal
     local page
@@ -1314,6 +1256,57 @@ describe("lists in the navigation column", function()
     eq(navButton(ns, "Drops"), nil, "Browse collapsed")
     heading("Browse"):RunScript("OnClick", "LeftButton")
     ok(navButton(ns, "Drops"), "and back")
+  end)
+
+  it("Quick lists hold Daily / Weekly lockouts and Rare spawns: a click opens Lockouts on that group", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    home(ns)
+    local daily = navButton(ns, "Daily lockouts")
+    ok(daily and navButton(ns, "Weekly lockouts") and navButton(ns, "Rare spawns"), "the three groups")
+    eq(daily.Badge:GetText(), "2", "what is left")
+    daily:RunScript("OnClick", "LeftButton")
+    eq(ns.UI.CurrentTab(), "checklist")
+    eq(ns.db.char.checklistShow, "daily")
+    ok(navButton(ns, "Daily lockouts").selected and not navButton(ns, "Lockouts").selected, "the group marked")
+    navButton(ns, "Lockouts"):RunScript("OnClick", "LeftButton")
+    eq(ns.db.char.checklistShow, "all", "Lockouts shows everything")
+    ok(navButton(ns, "Lockouts").selected)
+    -- Right-click pops the group out.
+    ns.UI.ShowMenu = function(_, items) for _, it in ipairs(items) do if it.onClick then it.onClick() end end end
+    navButton(ns, "Weekly lockouts"):RunScript("OnClick", "RightButton")
+    ok(ns.UI.PopoutWindows["weekly|all"]:IsShown())
+  end)
+
+  it("the star favourites a list: pinned to the top of its section, saved; again unpins", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    local store = ns.UI.ListsDB()
+    ns.Lists.Create(store, "Alpha")
+    ns.Lists.Create(store, "Beta")
+    home(ns)
+    local nav = ns.UI.frame.Nav
+    local function order(names)
+      local out = {}
+      for i = 1, nav.shown do
+        local t = nav.Buttons[i].Text:GetText()
+        for _, n in ipairs(names) do if t == n then out[#out + 1] = t end end
+      end
+      return out
+    end
+    eq(order({ "Alpha", "Beta" }), { "Alpha", "Beta" })
+    local beta = navButton(ns, "Beta")
+    eq(beta.Star.favorite, false)
+    beta.Star:RunScript("OnClick", "LeftButton")
+    eq(order({ "Alpha", "Beta" }), { "Beta", "Alpha" }, "pinned to the top")
+    ok(navButton(ns, "Beta").Star.favorite, "a filled star")
+    eq(navButton(ns, "Beta").Star.Icon.atlas, ns.UI.STAR_ON)
+    ok(next(ns.db.global.navFavorites), "saved")
+    navButton(ns, "Weekly lockouts").Star:RunScript("OnClick", "LeftButton")
+    eq(order({ "Daily lockouts", "Weekly lockouts" }), { "Weekly lockouts", "Daily lockouts" }, "quick lists too")
+    navButton(ns, "Beta").Star:RunScript("OnClick", "LeftButton")
+    eq(order({ "Alpha", "Beta" }), { "Alpha", "Beta" }, "unpinned")
+    ok(not navButton(ns, "Lockouts").Star:IsShown(), "views have no star")
   end)
 
   it("right-click a list entry opens its menu; + starts a list", function()

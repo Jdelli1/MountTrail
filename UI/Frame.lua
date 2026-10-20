@@ -779,8 +779,37 @@ UI.NAV_WIDTH = 156
 -- The collapse keys of the My lists and Quick lists sections.
 UI.NAV_LISTS_KEY, UI.NAV_QUICK_KEY = "nav|lists", "nav|quick"
 UI.NAV_BROWSE_KEY = "nav|browse"
--- The quick lists' mark: the Auction House's favourite star, inline.
-UI.NAV_STAR = "|A:auctionhouse-icon-favorite:12:12|a"
+-- A list entry's favourite star (the Auction House's: filled / hollow). A
+-- favourite (ns.db.global.navFavorites[entry key]) is pinned to the top of
+-- its section.
+UI.STAR_ON, UI.STAR_OFF = "auctionhouse-icon-favorite", "auctionhouse-icon-favorite-off"
+
+local function favorites()
+  local global = ns.db and ns.db.global
+  if not global then return {} end
+  if type(global.navFavorites) ~= "table" then global.navFavorites = {} end
+  return global.navFavorites
+end
+
+function UI.IsNavFavorite(key)
+  return favorites()[key] == true
+end
+
+function UI.ToggleNavFavorite(key)
+  local store = favorites()
+  store[key] = (not store[key]) or nil
+  if UI.RefreshNav then UI.RefreshNav() end
+end
+
+-- `entries` with the favourites first (each part keeps its order).
+function UI.FavoritesFirst(entries, isFavorite)
+  local fav, rest = {}, {}
+  for _, e in ipairs(entries) do
+    if isFavorite(e.key) then fav[#fav + 1] = e else rest[#rest + 1] = e end
+  end
+  for _, e in ipairs(rest) do fav[#fav + 1] = e end
+  return fav
+end
 local TAB_INDEX = {}
 for i, tab in ipairs(TABS) do TAB_INDEX[tab.key] = i end
 
@@ -1155,10 +1184,22 @@ local NAV_GOLD = { 1, 0.82, 0 }
 -- quick list ({ quick = key, builtIn = true }) -> { { key = "list:<id>" |
 -- "quick:<key>", label =, source = (UI.OpenPopout / UI.ShowListPage source),
 -- builtIn = } }.
+-- The lockout groups among the quick lists: each opens Lockouts on that
+-- group (ns.db.char.checklistShow) and pops out as the whole group.
+UI.NAV_LOCKOUT_GROUPS = {
+  { show = "daily", label = "Daily lockouts" },
+  { show = "weekly", label = "Weekly lockouts" },
+  { show = "camp", label = "Rare spawns" },
+}
+
 function UI.NavListEntries(store, quick)
   local out = {}
   for _, l in ipairs(store and ns.Lists.Sorted(store) or {}) do
     out[#out + 1] = { key = "list:" .. tostring(l.id), label = l.name, source = { kind = "list", list = l.id } }
+  end
+  for _, g in ipairs(UI.NAV_LOCKOUT_GROUPS) do
+    out[#out + 1] = { key = "lockouts:" .. g.show, label = L[g.label], show = g.show,
+      source = { kind = g.show, all = true }, builtIn = true }
   end
   for _, q in ipairs(quick or {}) do
     out[#out + 1] = { key = "quick:" .. tostring(q.key), label = L[q.name],
@@ -1170,8 +1211,11 @@ end
 -- The entry that shows as selected: the list page's list when the journal
 -- view shows one (UI.CurrentListPage), the browse page's category, else the
 -- view's key.
-function UI.NavSelected(view, listSource, browseCategory)
+function UI.NavSelected(view, listSource, browseCategory, checklistShow)
   if view == "browse" and browseCategory then return "browse:" .. tostring(browseCategory) end
+  if view == "checklist" and (checklistShow == "daily" or checklistShow == "weekly" or checklistShow == "camp") then
+    return "lockouts:" .. checklistShow
+  end
   if view == "journal" and listSource then
     if listSource.kind == "quick" then return "quick:" .. tostring(listSource.key) end
     return "list:" .. tostring(listSource.list)
@@ -1189,6 +1233,12 @@ function UI.NavBadge(entry, built)
       local char = ns.db and ns.db.char
       local filters = char and type(char.checklistFilters) == "table" and char.checklistFilters or nil
       local n = ns.Checklist.Remaining(built(), filters)
+      return n > 0 and tostring(n) or nil
+    end
+    if entry.show and built and UI.ChecklistLeft then
+      local char = ns.db and ns.db.char
+      local filters = char and type(char.checklistFilters) == "table" and char.checklistFilters or nil
+      local n = UI.ChecklistLeft(built(), filters)[entry.show] or 0
       return n > 0 and tostring(n) or nil
     end
     if entry.source and UI.ListCardStatsFor and built then
@@ -1222,6 +1272,23 @@ local function navButton(parent)
   local hl = b:CreateTexture(nil, "HIGHLIGHT")
   hl:SetAllPoints(b)
   hl:SetColorTexture(1, 1, 1, 0.06)
+  -- A list's favourite star (right edge), the badge left of it.
+  local star = CreateFrame("Button", nil, b)
+  star:SetSize(14, 14)
+  star:SetPoint("RIGHT", b, "RIGHT", -6, 0)
+  local starIcon = star:CreateTexture(nil, "ARTWORK")
+  starIcon:SetAllPoints(star)
+  star.Icon = starIcon
+  star:SetScript("OnClick", function(self)
+    local e = self:GetParent().entry
+    if e then UI.ToggleNavFavorite(e.key) end
+  end)
+  star:SetScript("OnEnter", function(self)
+    local e = self:GetParent().entry
+    UI.ShowHint(self, e and UI.IsNavFavorite(e.key) and L["Unpin from the top"] or L["Favourite: pin to the top"])
+  end)
+  star:SetScript("OnLeave", function(self) UI.HideHint(self) end)
+  b.Star = star
   local badge = b:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisableSmall"))
   badge:SetPoint("RIGHT", b, "RIGHT", -8, 0)
   b.Badge = badge
@@ -1276,6 +1343,18 @@ function UI.NavClick(e)
   end
   if e.category then
     if UI.ShowBrowse then UI.ShowBrowse(e.category) end
+    return
+  end
+  -- Lockouts (all) or one of its groups (the quick lists' Daily / Weekly /
+  -- Rare spawns).
+  if e.show or e.key == "checklist" then
+    local char = ns.db and ns.db.char
+    if char then char.checklistShow = e.show or "all" end
+    if current == "checklist" then
+      ns.Refresh()
+    else
+      UI.SelectTab("checklist")
+    end
     return
   end
   if e.source then
@@ -1420,7 +1499,9 @@ end
 function UI.RefreshNav()
   if not nav then return end
   local listPage = UI.CurrentListPage and UI.CurrentListPage() or nil
-  local selected = UI.NavSelected(current, listPage, UI.BrowseCategory and UI.BrowseCategory() or nil)
+  local char = ns.db and ns.db.char
+  local selected = UI.NavSelected(current, listPage, UI.BrowseCategory and UI.BrowseCategory() or nil,
+    char and char.checklistShow)
   local cache
   local function built()
     cache = cache or (UI.ChecklistBuild and UI.ChecklistBuild(ns.Game.Now())) or {}
@@ -1456,7 +1537,18 @@ function UI.RefreshNav()
     b.Text:SetPoint("LEFT", b, "LEFT", indent and 18 or 12, 0)
     local label = L[e.label] or e.label
     -- A quick list: the game's favourite star (the font has no star glyph).
-    if e.builtIn then label = label .. " " .. UI.NAV_STAR end
+    -- A list: its favourite star (filled when pinned), the badge beside it.
+    local isList = e.source ~= nil
+    b.Star:SetShown(isList)
+    b.Badge:ClearAllPoints()
+    if isList then
+      b.Star.favorite = UI.IsNavFavorite(e.key)
+      b.Star.Icon:SetAtlas(b.Star.favorite and UI.STAR_ON or UI.STAR_OFF)
+      b.Star.Icon:SetAlpha(b.Star.favorite and 1 or 0.5)
+      b.Badge:SetPoint("RIGHT", b.Star, "LEFT", -4, 0)
+    else
+      b.Badge:SetPoint("RIGHT", b, "RIGHT", -8, 0)
+    end
     b.Text:SetText(label)
     local badge, green = UI.NavBadge(e, built)
     b.Badge:SetText(badge and ((green and "|cff40c040" or "") .. badge .. (green and "|r" or "")) or "")
@@ -1484,6 +1576,8 @@ function UI.RefreshNav()
   for _, e in ipairs(lists) do
     if e.builtIn then quick[#quick + 1] = e else mine[#mine + 1] = e end
   end
+  mine = UI.FavoritesFirst(mine, UI.IsNavFavorite)
+  quick = UI.FavoritesFirst(quick, UI.IsNavFavorite)
   local mineCollapsed = heading(L["My lists"], true, UI.NAV_LISTS_KEY)
   nav.Empty:SetShown(#mine == 0 and not mineCollapsed)
   if not mineCollapsed then

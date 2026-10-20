@@ -350,19 +350,18 @@ describe("checklist filter menu", function()
       kinds[#kinds + 1] = item.kind
       labels[#labels + 1] = item.label or "-"
     end
-    eq(kinds, { "checkbox", "checkbox", "checkbox", "checkbox", "checkbox", "checkbox", "checkbox", "checkbox",
+    eq(kinds, { "checkbox", "checkbox", "checkbox", "checkbox", "checkbox", "checkbox", "checkbox",
       "divider", "button", "button" })
     eq(labels, { "Show raids", "Show dungeons", "Show world bosses", "Show rares", "Show holidays", "Show other",
-      "Show rare spawns (no lockout)", "Show quick lists", "-", "Check all", "Uncheck all" })
+      "Show rare spawns (no lockout)", "-", "Check all", "Uncheck all" })
     eq(items[1].key, "raids")
     eq(items[1].checked, true)
     eq(items[4].key, "rares")
     eq(items[4].checked, false)
     eq(items[7].key, "camp")
     eq(items[7].checked, true)
-    eq(items[8].key, "quick")
-    eq(items[10].action, "checkAll")
-    eq(items[11].action, "uncheckAll")
+    eq(items[9].action, "checkAll")
+    eq(items[10].action, "uncheckAll")
     eq(UI.ChecklistFilterItems(nil)[1].checked, true, "no store: all shown")
   end)
 
@@ -381,7 +380,7 @@ describe("checklist filter menu", function()
     eq(UI.ChecklistFiltersAreDefault(filters), true)
     UI.ApplyChecklistFilterAction(filters, "uncheckAll")
     eq(filters, { raids = false, dungeons = false, worldbosses = false, rares = false, holidays = false, other = false,
-      camp = false, quick = false })
+      camp = false })
     eq(UI.ChecklistFiltersAreDefault(filters), false)
     UI.ApplyChecklistFilterAction(filters, "checkAll")
     eq(filters, {})

@@ -166,6 +166,8 @@ function Region:SetColorTexture(r, g, b, a) self.color = { r, g, b, a } end
 function Region:SetAtlas(atlas) self.atlas = atlas end
 -- Font strings: justification, wrapping and font objects are recorded.
 function Region:SetJustifyH(j) self.justifyH = j end
+function Region:SetAlpha(a) self.alpha = a end
+function Region:GetAlpha() return self.alpha or 1 end
 function Region:SetWordWrap(on) self.wordWrap = on end
 function Region:SetFontObject(font) self.font = font end
 

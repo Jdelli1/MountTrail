@@ -303,7 +303,6 @@ local FILTER_LABELS = {
   raids = "Show raids", dungeons = "Show dungeons", worldbosses = "Show world bosses",
   rares = "Show rares", holidays = "Show holidays", other = "Show other",
   camp = "Show rare spawns (no lockout)",
-  quick = "Show quick lists",
 }
 
 -- UI.CreateFilterDropdown items: a "Show <category>" checkbox per filter key
@@ -450,8 +449,9 @@ local root, header, frame, scrollBox, empty, pane
 local selectedKey -- the selected row's entry key (the detail pane's mount)
 
 -- Chips: which group the list shows.
-local SHOWS = { "all", "daily", "weekly", "camp", "lists" }
-local SHOW_LABELS = { all = "All", daily = "Daily", weekly = "Weekly", camp = "Rare spawns", lists = "Lists" }
+-- (The lists live in the navigation column; a saved "lists" shows All.)
+local SHOWS = { "all", "daily", "weekly", "camp" }
+local SHOW_LABELS = { all = "All", daily = "Daily", weekly = "Weekly", camp = "Rare spawns" }
 
 -- The group shown (ns.db.char.checklistShow), "all" by default.
 function view.Show()
@@ -464,19 +464,17 @@ end
 function UI.ChecklistOnly(built, show)
   if show == "all" or not SHOW_LABELS[show] then return built end
   local out = { daily = {}, weekly = {}, camp = {} }
-  if show ~= "lists" then out[show] = built[show] or {} end
+  out[show] = built[show] or {}
   return out
 end
 
 -- What is left per group under `filters` -> { daily =, weekly =, camp = }.
 function UI.ChecklistLeft(built, filters)
   local C = ns.Checklist
-  local store = UI.ListsDB and UI.ListsDB()
   return {
     daily = C.Remaining({ daily = built.daily or {} }, filters),
     weekly = C.Remaining({ weekly = built.weekly or {} }, filters),
     camp = C.CampLeft(built, filters),
-    lists = (store and #ns.Lists.Sorted(store) or 0) + (ns.QuickLists and #ns.QuickLists.LISTS or 0),
   }
 end
 
@@ -678,7 +676,6 @@ end
 -- of the expansion; a category under them -> just that category.
 function UI.ChecklistPopout(row)
   if not (row and row.header) then return nil end
-  if row.quickKey then return { kind = "quick", key = row.quickKey } end
   if row.camp then
     if (row.depth or 1) <= 1 then return { kind = "zone" } end
     if row.exp then return { kind = "camp", exp = row.exp } end
@@ -689,65 +686,6 @@ function UI.ChecklistPopout(row)
     return { kind = row.reset, exp = row.exp }
   end
   return nil
-end
-
--- The "Quick lists" group (Logic/QuickLists.lua): a header, then per quick
--- list a sub-header (its mounts left; right-click pops it out) and its
--- mounts, as a custom list's.
-local function quickRows(built, collapsed)
-  local Q = ns.QuickLists
-  if not (Q and UI.PopoutRows) then return {} end
-  local rootKey = "checklist|quick"
-  local rootCollapsed = collapsed[rootKey] == true
-  local out = { { header = true, depth = 1, key = rootKey, text = L["Quick lists"], collapsed = rootCollapsed } }
-  if rootCollapsed then return out end
-  local char = ns.db and ns.db.char
-  for _, q in ipairs(Q.LISTS) do
-    local rows, left = UI.PopoutRows({ kind = "quick", key = q.key }, built, {
-      campStore = char and char.campChecked, isOwned = ns.Game.IsOwned,
-    })
-    local key = rootKey .. "|" .. q.key
-    local isCollapsed = collapsed[key] == true
-    out[#out + 1] = { header = true, depth = 2, key = key, text = L[q.name], left = left, collapsed = isCollapsed,
-      quickKey = q.key }
-    if not isCollapsed then
-      for _, r in ipairs(rows) do
-        out[#out + 1] = { id = r.id, m = r.entry.m, entry = r.entry, done = r.done, camp = r.camp, depth = 2 }
-      end
-    end
-  end
-  return out
-end
-
--- The "My lists" group: a header, then per custom list a sub-header (its
--- mounts left) and its mounts (UI.PopoutRows: the Checklist's entry when it
--- tracks the mount, else a plain row).
-local function listRows(built, collapsed)
-  local store = UI.ListsDB and UI.ListsDB()
-  local sorted = store and ns.Lists.Sorted(store) or {}
-  local rootKey = "checklist|lists"
-  local rootCollapsed = collapsed[rootKey] == true
-  local out = { {
-    header = true, depth = 1, key = rootKey, text = L["My lists"], collapsed = rootCollapsed,
-    listsRoot = true, hint = L["Right-click to start a list (or + List on a mount)"],
-  } }
-  if rootCollapsed then return out end
-  local char = ns.db and ns.db.char
-  for _, l in ipairs(sorted) do
-    local rows, left = UI.PopoutRows({ kind = "list", list = l.id }, built, {
-      store = store, campStore = char and char.campChecked, isOwned = ns.Game.IsOwned,
-    })
-    local key = rootKey .. "|" .. l.id
-    local isCollapsed = collapsed[key] == true
-    out[#out + 1] = { header = true, depth = 2, key = key, text = l.name, left = left, collapsed = isCollapsed,
-      listID = l.id, hint = L["Right-click: pop out, rename or delete"] }
-    if not isCollapsed then
-      for _, r in ipairs(rows) do
-        out[#out + 1] = { id = r.id, m = r.entry.m, entry = r.entry, done = r.done, camp = r.camp, depth = 2 }
-      end
-    end
-  end
-  return out
 end
 
 -- The summary line: when the dailies and the weeklies reset (the chips
@@ -839,8 +777,6 @@ local function buildHeader(parent)
       local source = UI.ChecklistChipPopout(key)
       if source and UI.PopoutTitle then
         UI.ShowHint(self, string.format(L["Right-click to pop out %s"], UI.PopoutTitle(source)))
-      elseif key == "lists" then
-        UI.ShowHint(self, L["Right-click: pop out a list"])
       end
     end)
     chip:SetScript("OnLeave", function(self) UI.HideHint(self) end)
@@ -857,28 +793,13 @@ function UI.ChecklistChipPopout(key)
   return nil
 end
 
--- A chip's right-click: pops its group out; on Lists, a menu of the quick
--- lists and the player's lists to pop out, and New list...
+-- A chip's right-click: pops its group out.
 function UI.ChecklistChipRightClick(key, owner)
   local source = UI.ChecklistChipPopout(key)
   if source then
     if UI.OpenPopout then UI.OpenPopout(source) end
     return
   end
-  if key ~= "lists" or not UI.ShowMenu then return end
-  local items = { { title = L["Pop out"] } }
-  for _, q in ipairs((ns.QuickLists and ns.QuickLists.LISTS) or {}) do
-    items[#items + 1] = { text = L[q.name], onClick = function() UI.OpenPopout({ kind = "quick", key = q.key }) end }
-  end
-  local store = UI.ListsDB and UI.ListsDB()
-  local mine = store and ns.Lists.Sorted(store) or {}
-  if #mine > 0 then items[#items + 1] = { separator = true } end
-  for _, l in ipairs(mine) do
-    items[#items + 1] = { text = l.name, onClick = function() UI.OpenPopout({ kind = "list", list = l.id }) end }
-  end
-  items[#items + 1] = { separator = true }
-  items[#items + 1] = { text = L["New list..."], onClick = function() newList() end }
-  UI.ShowMenu(owner, items, "cursor")
 end
 
 -- Paints the chips: label with what is left, the shown one gold.
@@ -972,17 +893,6 @@ function view.Refresh()
     label = function(reset) return UI.ChecklistHeaderLabel(reset, untilDaily, untilWeekly) end,
     status = UI.ChecklistStatusOf(statusTexts),
   })
-  -- Lists: the quick lists, then My lists - always on the Lists chip (My
-  -- lists' header starts a list); under All the quick lists, and My lists
-  -- once there is one.
-  local store = UI.ListsDB and UI.ListsDB()
-  local hasLists = store ~= nil and #ns.Lists.Sorted(store) > 0
-  if show == "lists" or (show == "all" and ns.Checklist.Shown(filters, "quick")) then
-    for _, row in ipairs(quickRows(built, collapsedDB() or {})) do rows[#rows + 1] = row end
-  end
-  if show == "lists" or (show == "all" and hasLists) then
-    for _, row in ipairs(listRows(built, collapsedDB() or {})) do rows[#rows + 1] = row end
-  end
   local sourceText = UI.MemoText(Game.MountSourceText)
   local char = charDB()
   local campStore = char and char.campChecked

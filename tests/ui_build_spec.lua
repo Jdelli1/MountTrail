@@ -718,8 +718,7 @@ describe("ui build", function()
     eq(header.PopOut, nil, "no pop-out button: rare headers pop out on right-click")
     -- Chips: All (shown, gold) / Daily (n) / Weekly (n) / Rare spawns (n).
     local chips = header.Chips
-    eq(#chips, 5)
-    ok(chips[5].Text:GetText():find("^Lists %(%d+%)$"), chips[5].Text:GetText())
+    eq(#chips, 4, "All / Daily / Weekly / Rare spawns (the lists live in the navigation)")
     eq(chips[1].Text:GetText(), "All")
     eq(chips[1].selected, true)
     ok(chips[2].Text:GetText():find("^Daily %(%d+%)$"), chips[2].Text:GetText())
@@ -741,7 +740,7 @@ describe("ui build", function()
     eq(boxes, 0, "no route list beside the checklist")
     -- Everything done: the Oregon line.
     ns.db.char.checklistFilters = { raids = false, dungeons = false, worldbosses = false, rares = false,
-      holidays = false, other = false, camp = false, quick = false }
+      holidays = false, other = false, camp = false }
     ns.Refresh()
     eq(header.Flavour:GetText(), "Tester has reached Oregon. Nothing left to farm until reset.")
     ok(header.Checklist.Empty:IsShown(), "empty line")
@@ -1308,7 +1307,7 @@ describe("ui build", function()
     local labels = {}
     for _, c in ipairs(calls) do if c.kind == "checkbox" then labels[#labels + 1] = c.text end end
     eq(labels, { "Show raids", "Show dungeons", "Show world bosses", "Show rares", "Show holidays", "Show other",
-      "Show rare spawns (no lockout)", "Show quick lists" })
+      "Show rare spawns (no lockout)" })
 
     local box = header.Checklist.ScrollBox
     local function count(category)

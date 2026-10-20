@@ -102,7 +102,7 @@ Checklist.CATEGORIES = CATEGORIES
 local CAMP = "camp"
 Checklist.CAMP = CAMP
 -- The Filter menu's keys: the lockout categories, then the camp group.
-Checklist.FILTERS = { "raids", "dungeons", "worldbosses", "rares", "holidays", "other", CAMP, "quick" }
+Checklist.FILTERS = { "raids", "dungeons", "worldbosses", "rares", "holidays", "other", CAMP }
 
 -- Localised label of a category key ("raids" -> "Raids").
 function Checklist.CategoryLabel(key)
