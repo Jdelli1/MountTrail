@@ -213,6 +213,8 @@ function addon:OnInitialize()
       settings = { waypoints = "game", showUnobtainable = false },
       runWindow = {}, -- tonight's run window position (UI\RunWindow.lua)
       collapsed = {}, -- list headers the player collapsed: { ["<view>|<exp>|<section>[|<sub-group>]"] = true } (UI\List.lua)
+      altsHidden = {}, -- alt lockout matrix: characters hidden from it, { ["Name - Realm"] = true } (UI\AltsWindow.lua)
+      altsWindow = {}, -- alt lockout matrix window position (UI\AltsWindow.lua)
     },
     char = {
       ticks = {},
@@ -336,6 +338,12 @@ function addon:OnSlash(input)
     else
       self:Print(L["The window is not available yet. Type /mtrail help for commands."])
     end
+  elseif cmd == "alts" then
+    if ns.UI and ns.UI.ToggleAltsWindow then
+      ns.UI.ToggleAltsWindow()
+    else
+      self:Print(L["The window is not available yet. Type /mtrail help for commands."])
+    end
   elseif cmd == "options" then
     if ns.Options and ns.Options.Open then
       ns.Options.Open()
@@ -366,6 +374,7 @@ function addon:OnSlash(input)
     self:Print(L["/mtrail rares - show or hide the rare spawns of your zone"])
     self:Print(L["/mtrail run - start tonight's farming run (or show / hide the one in progress)"])
     self:Print(L["/mtrail options - open the MountTrail options (Options > AddOns)"])
+    self:Print(L["/mtrail alts - show or hide the alt lockout matrix (who is still unsaved)"])
     self:Print(L["/mtrail debug - show or hide caught map and waypoint errors"])
     self:Print(L["/mtrail help - this list"])
   end

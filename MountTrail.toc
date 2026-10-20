@@ -23,6 +23,7 @@ Logic\Lockouts.lua
 Logic\Route.lua
 Logic\Checklist.lua
 Logic\Run.lua
+Logic\Alts.lua
 Logic\Events.lua
 Logic\Journal.lua
 Logic\Zone.lua
@@ -48,6 +49,7 @@ UI\LockoutHelpers.lua
 UI\Arrow.lua
 UI\ChecklistView.lua
 UI\RunWindow.lua
+UI\AltsWindow.lua
 UI\Popouts.lua
 UI\ZonePanel.lua
 UI\MapTab.lua
