@@ -644,6 +644,15 @@ function UI.ToggleAllCollapsed(store, rows, clicked)
   return collapse
 end
 
+-- A header's hover hint -> title, text: its own hint (e.g. "Right-click to
+-- pop out ...") over the collapse lines when it collapses; nil when it has
+-- neither.
+function UI.HeaderHint(hint, collapsible)
+  if not collapsible then return hint, nil end
+  if hint then return hint, L["Click: collapse or expand. Shift-click: all at once"] end
+  return L["Click: collapse or expand"], L["Shift-click: collapse or expand all"]
+end
+
 -- Whether Shift is held (a header's Shift-click: all headers at once).
 function UI.ShiftDown()
   return type(IsShiftKeyDown) == "function" and IsShiftKeyDown() and true or false
@@ -1267,7 +1276,8 @@ local function initHeader(frame, data)
     frame.Label = label
     frame:SetScript("OnEnter", function(self)
       self.Hover:Show()
-      if self.hint and UI.ShowHint then UI.ShowHint(self, self.hint, nil, "cursor") end
+      local title, text = UI.HeaderHint(self.hint, self.onToggle ~= nil)
+      if title and UI.ShowHint then UI.ShowHint(self, title, text, "cursor") end
     end)
     frame:SetScript("OnLeave", function(self)
       self.Hover:Hide()

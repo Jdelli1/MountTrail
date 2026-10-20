@@ -310,8 +310,10 @@ local function initElement(f, data)
       end
       toggleHeader(data.key)
     end)
-    name:SetScript("OnEnter", nil)
-    name:SetScript("OnLeave", nil)
+    name:SetScript("OnEnter", function(self)
+      UI.ShowHint(self, UI.HeaderHint(nil, true))
+    end)
+    name:SetScript("OnLeave", function(self) UI.HideHint(self) end)
     for _, c in ipairs(f.Cells or {}) do c:Hide() end
     return
   end

@@ -390,3 +390,5 @@ L["/mtrail here - show or hide every mount still to get in your zone"] = "/mtrai
 -- Collapsing headers (UI/List.lua, UI/Popouts.lua)
 L["Click: collapse or expand"] = "Click: collapse or expand"
 L["Shift-click: all groups at once"] = "Shift-click: all groups at once"
+L["Click: collapse or expand. Shift-click: all at once"] = "Click: collapse or expand. Shift-click: all at once"
+L["Shift-click: collapse or expand all"] = "Shift-click: collapse or expand all"

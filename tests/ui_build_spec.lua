@@ -881,6 +881,20 @@ describe("ui build", function()
     eq(#list.ScrollBox.provider.rows, before)
   end)
 
+  it("headers explain collapsing on hover; a pop-out hint keeps its line on top", function()
+    local ns = loadUI()
+    eq({ ns.UI.HeaderHint(nil, true) }, { "Click: collapse or expand", "Shift-click: collapse or expand all" })
+    eq({ ns.UI.HeaderHint("Right-click to pop out Weeklies", true) },
+      { "Right-click to pop out Weeklies", "Click: collapse or expand. Shift-click: all at once" })
+    eq({ ns.UI.HeaderHint("Just a hint", false) }, { "Just a hint", nil })
+    eq(ns.UI.HeaderHint(nil, false), nil, "nothing to say")
+    local hints = {}
+    ns.UI.ShowHint = function(_, title, text) hints[#hints + 1] = { title, text } end
+    local list = openJournalList(ns)
+    render(list.ScrollBox)[1]:RunScript("OnEnter")
+    eq(hints[#hints], { "Click: collapse or expand", "Shift-click: collapse or expand all" })
+  end)
+
   it("UI.ToggleAllCollapsed: collapse every shown header; expand them and the keys under them", function()
     local ns = loadUI()
     local store = { ["c|a|x"] = true, ["other|z"] = true }
