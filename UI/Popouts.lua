@@ -12,9 +12,10 @@ local ADDON, ns = ...
 -- Checklist (UI.ChecklistBuild), so they match it: a box (a lockout ticked
 -- and dimmed when the game says done; a rare spawn's "last checked" box,
 -- left-click marks, right-click clears), the name (the rare's for rare
--- rows), its zone, and a pin. A click on the row or the pin is UI.GoTo:
--- every spawn point of a rare that has several on TomTom, else the
--- waypoint. A custom list's rows are its mounts (collected ones ticked);
+-- rows) and its zone. A click on the row is UI.GoTo: every spawn point of
+-- a rare that has several on TomTom, else the waypoint. "Plot all" in the
+-- title puts every open row's spawn points on TomTom at once
+-- (Map.PlotMounts). A custom list's rows are its mounts (collected ones ticked);
 -- right-click one to take it off the list. Each window's position and open
 -- state are saved by its set (ns.db.global.popouts) and come back after
 -- /reload.
@@ -218,25 +219,8 @@ local function rowFrame(w, i)
     ns.Refresh()
   end)
   r.Check = check
-  local go = CreateFrame("Button", nil, r)
-  go:SetSize(18, 18)
-  go:SetPoint("RIGHT", r, "RIGHT", -2, 0)
-  local goIcon = go:CreateTexture(nil, "ARTWORK")
-  goIcon:SetAllPoints(go)
-  local atlas, texture = UI.PinIcon()
-  if atlas then goIcon:SetAtlas(atlas) else goIcon:SetTexture(texture) end
-  go.Icon = goIcon
-  local goHl = go:CreateTexture(nil, "HIGHLIGHT")
-  goHl:SetAllPoints(go)
-  goHl:SetColorTexture(1, 1, 1, 0.15)
-  go:SetScript("OnClick", function() UI.PopoutGo(r.data) end)
-  go:SetScript("OnEnter", function(self)
-    if r.data then UI.ShowHint(self, UI.ClickHint(r.data.id, r.data.entry and r.data.entry.boss), nil, "right") end
-  end)
-  go:SetScript("OnLeave", function(self) UI.HideHint(self) end)
-  r.Go = go
   local zone = r:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-  zone:SetPoint("RIGHT", go, "LEFT", -4, 0)
+  zone:SetPoint("RIGHT", r, "RIGHT", -4, 0)
   zone:SetJustifyH("RIGHT")
   zone:SetWordWrap(false)
   r.Zone = zone
@@ -307,7 +291,6 @@ local function refreshWindow(w, built)
     r.Zone:SetText(zoneText)
     r.Check:SetChecked(row.done or (row.camp and row.checked ~= nil) or false)
     r.Check:SetEnabled(row.camp and true or false)
-    r.Go:SetShown(not row.done)
     y = y + ROW_HEIGHT
   end
   for i = #rows + 1, #w.rowFrames do w.rowFrames[i]:Hide() end
@@ -407,9 +390,23 @@ local function build(key, source)
   close:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   w.Close = close
 
+  -- Plot all: every open row's spawn points on TomTom (Map.PlotMounts).
+  local plot = UI.FlatButton(strip, L["Plot all"], "green", 16)
+  plot:SetPoint("RIGHT", close, "LEFT", -4, 0)
+  plot:SetScript("OnClick", function()
+    local ids = {}
+    for _, row in ipairs(w.rows or {}) do
+      if not row.done then ids[#ids + 1] = row.id end
+    end
+    if ns.Map and ns.Map.PlotMounts then ns.Map.PlotMounts(ids, UI.PopoutTitle(w.source, listsDB())) end
+  end)
+  plot:SetScript("OnEnter", function(self) UI.ShowHint(self, L["Plot every open row on TomTom"]) end)
+  plot:SetScript("OnLeave", function(self) UI.HideHint(self) end)
+  w.PlotAll = plot
+
   local titleText = strip:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   titleText:SetPoint("LEFT", strip, "LEFT", 8, 0)
-  titleText:SetPoint("RIGHT", close, "LEFT", -4, 0)
+  titleText:SetPoint("RIGHT", plot, "LEFT", -4, 0)
   titleText:SetJustifyH("LEFT")
   titleText:SetWordWrap(false)
   w.Title = titleText

@@ -226,6 +226,8 @@ L["/azt options - open the AzerothTrail options (Options > AddOns)"] = "/azt opt
 -- Journal home (front page)
 L["Mount Collection"] = "Mount Collection"
 L["Current zone"] = "Current zone"
+L["Plot every open row on TomTom"] = "Plot every open row on TomTom"
+L["Plot all"] = "Plot all"
 L["%d spawn points"] = "%d spawn points"
 L["List"] = "List"
 L["Rare spawns here"] = "Rare spawns here"

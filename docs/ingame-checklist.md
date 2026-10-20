@@ -616,12 +616,12 @@ Pop-outs: right-click a Checklist header to pop that set out as its own window; 
 - "Rare spawns (no lockout)" itself: the rares of the zone you are in (follows you; also `/azt rares`).
 - an expansion or zone under it: that expansion's rare spawns.
 - a Daily / Weekly expansion header: all that reset's lockouts of the expansion ("Warlords of Draenor dailies"); a category under it (e.g. Rares): just that category ("... dailies · Rares").
-Each window: title with what is left, a flat x to close, drag the title to move; rows as before (box, name, zone or "checked 3 hr ago", pin).
+Each window: title with what is left, a green "Plot all" (every open row's spawn points on TomTom at once) and a flat x to close, drag the title to move; rows: box, name, zone or "checked 3 hr ago" (no pin; click the row for its waypoint / spawn points).
 
 Custom lists (account-wide): the pane's "+ List" opens a flat menu of your lists (click to tick / untick the mount, the menu stays open) and "New list..." (a small name prompt; the mount goes on the new list). The Checklist's "My lists" chip shows them: "My lists" (right-click: New list...) and per list its mounts (the Checklist's row when it tracks the mount, else a plain row, collected ones ticked). Right-click a list: Pop out, Rename..., Delete... (confirm). In a list's pop-out, right-click a row: Remove from <list>. Under All, My lists shows once you have a list.
 
-- [ ] Map tab / zone panel / pane Waypoint / pop-out pin on Ascended Skymane: all 6 spawn points on TomTom, chat "Plotted 6 points on TomTom". On Nok-Karosh (one spot): one waypoint. On a raid mount: the entrance.
-- [ ] No coordinate buttons anywhere; no Plot all buttons.
+- [ ] Map tab / zone panel / pane Waypoint / a pop-out row on Ascended Skymane: all 6 spawn points on TomTom, chat "Plotted 6 points on TomTom". On Nok-Karosh (one spot): one waypoint. On a raid mount: the entrance.
+- [ ] No coordinate buttons anywhere; no pin on pop-out rows; each pop-out's "Plot all" plots every open row (e.g. all of Shadowlands' rare spawns) at once.
 - [ ] Checklist: right-click Daily > Warlords of Draenor: "Warlords of Draenor dailies" opens; right-click Rare spawns > Warlords of Draenor: a second window "Warlords of Draenor rare spawns"; both stay; right-click Rare spawns (no lockout) itself: "Rare spawns here". Hover a header: the hint names the window it opens.
 - [ ] Close one with its x; the others stay. /reload: the open ones come back where you left them.
 - [ ] Pane > + List > New list... > "WoD loop" > OK: the list exists with the mount; + List again: WoD loop ticked; click it: unticked (menu stays open).

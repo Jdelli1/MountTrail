@@ -214,13 +214,12 @@ describe("pop-out windows", function()
     ok(daily.Title:GetText():find("(2 left)", 1, true), daily.Title:GetText())
     eq(ns.db.global.popouts["camp|" .. WOD].open, true)
     eq(ns.UI.OpenPopout({ kind = "camp", exp = WOD }), camp, "same set: the same window")
-    eq(camp.PlotAll, nil, "no Plot all")
     camp.Close:RunScript("OnClick", "LeftButton")
     ok(not camp:IsShown() and daily:IsShown())
     eq(ns.db.global.popouts["camp|" .. WOD].open, false)
   end)
 
-  it("one button: the row or its pin goes through UI.GoTo with the entry's boss; no coordinate buttons", function()
+  it("a row click goes through UI.GoTo with the entry's boss; no pin per row; Plot all at the top", function()
     local ns = loadUI()
     setup(ns)
     local w = ns.UI.OpenPopout({ kind = "weekly", exp = WOD })
@@ -229,8 +228,15 @@ describe("pop-out windows", function()
     local row
     for _, c in ipairs(w.Content.children) do if c.data and c.data.id == 10 then row = c end end
     row:RunScript("OnClick", "LeftButton")
-    row.Go:RunScript("OnClick", "LeftButton")
-    eq(went, { { 10, "Boss" }, { 10, "Boss" } })
+    eq(went, { { 10, "Boss" } })
+    eq(row.Go, nil, "no pin on rows")
+    local plotted
+    ns.Map.PlotMounts = function(ids, label) plotted = { table.concat(ids, ","), label } end
+    local d = ns.UI.OpenPopout({ kind = "daily", exp = WOD })
+    eq(d.PlotAll.Text:GetText(), "Plot all")
+    d.PlotAll:RunScript("OnClick", "LeftButton")
+    eq(plotted[1], "9,614", "the open rows")
+    eq(plotted[2], WOD .. " dailies")
     local daily = ns.UI.OpenPopout({ kind = "daily", exp = WOD, category = "rares" })
     for _, c in ipairs(daily.Content.children) do
       ok(not (c.Text and c.m), "no coordinate buttons")
