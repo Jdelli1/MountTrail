@@ -7,7 +7,7 @@
 -- UI/Arrow.lua is not loaded.
 
 local UI_FILES = { "UI/Frame.lua", "UI/Tooltip.lua", "UI/List.lua", "UI/JournalHome.lua",
-  "UI/Tabs.lua", "UI/LockoutHelpers.lua", "UI/ChecklistView.lua", "UI/Popouts.lua", "UI/ZonePanel.lua" }
+  "UI/Tabs.lua", "UI/LockoutHelpers.lua", "UI/ChecklistView.lua", "UI/AltsWindow.lua", "UI/Popouts.lua", "UI/ZonePanel.lua" }
 
 -- Widget methods the views call that the base stub does not need.
 local probe = CreateFrame("Frame")
@@ -1544,5 +1544,91 @@ describe("ui build", function()
     ok(check, "a row with a tick box")
     eq(check.template, "UICheckButtonTemplate")
     eq(ns.UI.TemplateFallbacks.MinimalCheckboxTemplate, "UICheckButtonTemplate")
+  end)
+
+  it("Alt lockouts: a column per character, a cell per lockout, hide / show all, /mtrail alts", function()
+    local ns = loadUI()
+    RAID_CLASS_COLORS = { MAGE = { r = 0.2, g = 0.8, b = 1 } }
+    local now = ns.Game.Now()
+    ns.db.char.seen = { name = "Tester", class = "MAGE", faction = "Alliance", level = 80,
+      at = now, dailyReset = now + 3600, weeklyReset = now + 86400 }
+    ns.db.char.last = { snap = {}, quests = {}, lfg = {} }
+    ns.db.sv = { char = {
+      ["Tester - Realm"] = ns.db.char,
+      ["Alt - Realm"] = { seen = { name = "Alt", class = "WARRIOR", faction = "Horde" } },
+      ["Never - Realm"] = { last = {} }, -- never stamped: no column
+    } }
+    ns.db.keys = { char = "Tester - Realm" }
+    eq(ns.UI.AltsWidth(1), 380)
+    eq(select(2, ns.UI.AltsWidth(40)), 14, "columns past the max width are left off")
+    eq(ns.UI.AltsCellHint("Alt", "unknown"), "Alt: no data yet (log in once)")
+    run_slash(ns.addon, "mtrail", "alts")
+    local w = ns.UI.AltsWindow()
+    ok(w and w:IsShown(), "opened")
+    eq(w.Title:GetText(), "Alt lockouts")
+    ok(w.Resets:GetText():find("Weekly reset in ", 1, true), w.Resets:GetText())
+    eq(#w.shownChars, 2)
+    eq(w.Columns[1].Text:GetText(), "Tester", "the current character first")
+    eq({ ns.UI.AltsColumnColor("MAGE") }, { 0.2, 0.8, 1 }, "class colour")
+    eq({ ns.UI.AltsColumnColor("NOPE") }, { 1, 1, 1 })
+    eq(w.Columns[2].Text:GetText(), "Alt")
+    ok(not w.ShowAll:IsShown(), "nothing hidden")
+    local rows = w.ScrollBox.provider.rows
+    eq(rows[1].header, true)
+    eq(rows[1].key, "alts|weekly")
+    local frames = render(w.ScrollBox)
+    local seen = {}
+    for i, f in ipairs(frames) do
+      local data = rows[i]
+      if not data.header then
+        local c1, c2 = f.Cells[1], f.Cells[2]
+        ok(c1:IsShown() and c2:IsShown(), "one cell per character")
+        seen[c1.state] = true
+        ok(c2.state == "unknown" or c2.state == "na", "the alt has no stored lockouts: " .. tostring(c2.state))
+        if c2.state == "na" then eq(c2.Text:GetText(), "-") else eq(c2.Text:GetText(), "?") end
+        if c1.state == "open" then ok(c1.Box:IsShown() and not c1.Check:IsShown(), "open: the square") end
+      end
+    end
+    ok(seen.open, "the current character has open lockouts")
+    -- Hover a cell: the hint names the character and the state.
+    local cell
+    for i, f in ipairs(frames) do if not rows[i].header and not cell then cell = f.Cells[2] end end
+    cell:RunScript("OnEnter")
+    ok(cell.char and cell.char.name == "Alt")
+    cell:RunScript("OnLeave")
+    -- A header click collapses its group.
+    frames[1].Name:RunScript("OnClick", "LeftButton")
+    eq(ns.db.global.collapsed["alts|weekly"], true)
+    eq(w.ScrollBox.provider.rows[1].collapsed, true)
+    -- Right-click a column header: Hide <name>; then Show all.
+    local menu
+    ns.UI.ShowMenu = function(owner, items) menu = items end
+    w.Columns[2]:RunScript("OnClick", "RightButton")
+    eq(menu[2].text, "Hide Alt")
+    menu[2].onClick()
+    eq(ns.db.global.altsHidden["Alt - Realm"], true)
+    eq(#w.shownChars, 1)
+    ok(not w.Columns[2]:IsShown(), "the hidden column is gone")
+    ok(w.ShowAll:IsShown(), "Show all")
+    w.ShowAll:RunScript("OnClick", "LeftButton")
+    eq(#w.shownChars, 2)
+    ok(not w.ShowAll:IsShown())
+    -- Closed: the refresh hook leaves it alone; the slash toggles.
+    run_slash(ns.addon, "mtrail", "alts")
+    ok(not w:IsShown(), "closed")
+    -- The Checklist header's Alts button opens it again.
+    ns.ToggleWindow()
+    ns.UI.SelectTab("checklist")
+    local header = content(ns, "checklist").children[2].children[1]
+    ok(header.AltsButton, "Alts button")
+    eq(header.AltsButton:GetPoint(1), "RIGHT")
+    eq(select(2, header.AltsButton:GetPoint(1)), header.ChecklistFilter, "left of the Filter button")
+    header.AltsButton:RunScript("OnClick", "LeftButton")
+    ok(w:IsShown(), "opened from the Checklist")
+    run_slash(ns.addon, "mtrail", "help")
+    local found = false
+    for _, line in ipairs(ns.addon.printed) do if line:find("^/mtrail alts") then found = true end end
+    ok(found, "help lists /mtrail alts")
+    RAID_CLASS_COLORS = nil
   end)
 end)
