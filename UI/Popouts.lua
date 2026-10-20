@@ -712,12 +712,17 @@ local function styleOf(w)
   return UI.PopoutStyle(state and state.style or sharedStyle())
 end
 
+-- A title or header in a style: its font and size, the Header colour, else
+-- `fallback`, else the font's own colour (gold). Never the Text colour:
+-- headers and body text are set apart in the appearance menu.
+local function headerText(fs, style, fontObject, sizeDelta, fallback)
+  styleText(fs, { font = style.font, size = style.size }, fontObject, sizeDelta, style.header or fallback)
+end
+
 -- The window's background and title in its style.
 local function applyChrome(w, style)
   w.Fill:SetColorTexture(style.bg[1], style.bg[2], style.bg[3], style.alpha)
-  -- The title takes the header colour (else the font's own gold), not the
-  -- body text colour.
-  styleText(w.Title, { font = style.font, size = style.size }, UI.Font("GameFontNormal"), 2, style.header)
+  headerText(w.Title, style, UI.Font("GameFontNormal"), 2)
 end
 
 -- Windows outside this file that take the pop-outs' appearance menu, their
@@ -735,6 +740,7 @@ end
 -- font string in a style, for the extra windows.
 UI.PopoutStyleOf = function(w) return styleOf(w) end
 UI.PopoutStyleText = styleText
+UI.PopoutStyleHeader = headerText
 
 -- Every shown pop-out, extra window and the main window but those in
 -- `except` ({ [frame] = true }) -> their rects (UI.SnapRect's `others`).
@@ -831,7 +837,7 @@ local function refreshWindow(w, built)
       h.groupKey = gkey
       h.Text:SetText((isCollapsed and "+ " or "- ") .. (g.label or (g.exp and L[g.exp]) or L["Other"])
         .. "  |cff9d9d9d(" .. string.format(L["%d left"], g.left) .. ")|r")
-      styleText(h.Text, style, UI.Font("GameFontNormalSmall"), 0, style.header or c)
+      headerText(h.Text, style, UI.Font("GameFontNormalSmall"), 0, c)
       h.Rule:SetColorTexture(c[1], c[2], c[3], 0.35)
       h:Show()
       y = y + groupHeight + 2

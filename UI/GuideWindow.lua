@@ -421,7 +421,7 @@ function UI.RefreshGuideWindow()
   local st = style()
   if st then
     w.Fill:SetColorTexture(st.bg[1], st.bg[2], st.bg[3], st.alpha)
-    styled(w.Title, "GameFontNormal", st.header, 1)
+    if UI.PopoutStyleHeader then UI.PopoutStyleHeader(w.Title, st, UI.Font("GameFontNormal"), 1) end
     styled(w.Byline, "GameFontDisableSmall", { 0.62, 0.62, 0.62 }, -2)
   end
   w.Title:SetText(entry.title)

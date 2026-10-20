@@ -1601,3 +1601,36 @@ describe("the Appearance menu on other windows", function()
     ok(found, "still on a pop-out")
   end)
 end)
+
+describe("header and text colours stay apart", function()
+  local RED, BLUE = { 1, 0, 0 }, { 0, 0, 1 }
+  local function same(a, b) return a and b and a[1] == b[1] and a[2] == b[2] and a[3] == b[3] end
+
+  it("a pop-out: Text colours the rows only, Header the title and group headers only", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    ns.db.global.popoutStyle = { text = RED }
+    ns.UI.OpenPopout({ kind = "daily", all = true })
+    local w = ns.UI.PopoutWindows["daily|all"]
+    ok(same(w.rowFrames[1].Name.textColor, RED), "the rows take the Text colour")
+    ok(not same(w.Title.textColor, RED), "the title does not")
+    local h = w.groupFrames[1]
+    ok(not h or not same(h.Text.textColor, RED), "nor a group header")
+    ns.db.global.popoutStyle = { text = RED, header = BLUE }
+    ns.UI.RefreshPopouts()
+    ok(same(w.Title.textColor, BLUE), "Header colours the title")
+    ok(not h or same(h.Text.textColor, BLUE), "and a group header")
+    ok(same(w.rowFrames[1].Name.textColor, RED), "the rows keep the Text colour")
+  end)
+
+  it("the shared helper never gives a header the Text colour", function()
+    local ns = loadUI()
+    local fs = UIParent:CreateFontString()
+    ns.UI.PopoutStyleHeader(fs, ns.UI.PopoutStyle({ text = RED }), "GameFontNormal", 0)
+    ok(not same(fs.textColor, RED), "Default header: the font's own colour, not Text")
+    ns.UI.PopoutStyleHeader(fs, ns.UI.PopoutStyle({ text = RED }), "GameFontNormal", 0, { 0.5, 0.5, 0.5 })
+    ok(same(fs.textColor, { 0.5, 0.5, 0.5 }), "or the header's own fallback")
+    ns.UI.PopoutStyleHeader(fs, ns.UI.PopoutStyle({ text = RED, header = BLUE }), "GameFontNormal", 0)
+    ok(same(fs.textColor, BLUE))
+  end)
+end)

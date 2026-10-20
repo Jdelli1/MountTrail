@@ -294,7 +294,7 @@ local function initElement(f, data)
     name.Text:SetPoint("RIGHT", name, "RIGHT", -6, 0)
     local style = w and w.style
     if style then
-      UI.PopoutStyleText(name.Text, style, sub and UI.Font("GameFontNormalSmall") or UI.Font("GameFontNormal"), sub and 0 or 1, style.header)
+      UI.PopoutStyleHeader(name.Text, style, sub and UI.Font("GameFontNormalSmall") or UI.Font("GameFontNormal"), sub and 0 or 1)
     else
       name.Text:SetFontObject(sub and UI.Font("GameFontNormalSmall") or UI.Font("GameFontNormal"))
     end
@@ -572,7 +572,7 @@ function UI.RefreshAltsWindow()
   w.style = style
   if style then
     w.Fill:SetColorTexture(style.bg[1], style.bg[2], style.bg[3], style.alpha)
-    UI.PopoutStyleText(w.Title, { font = style.font, size = style.size }, UI.Font("GameFontNormal"), 2, style.header)
+    UI.PopoutStyleHeader(w.Title, style, UI.Font("GameFontNormal"), 2)
     UI.PopoutStyleText(w.Resets, style, UI.Font("GameFontHighlightSmall"))
     local size = style.size or 11
     w.rowHeight = math.max(ROW_HEIGHT, size + 9)

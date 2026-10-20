@@ -336,4 +336,17 @@ describe("Following a guide", function()
     eq(ns.db.global.guideWindow.width, nil, "right-click: the default size")
     eq(w:GetWidth(), 300)
   end)
+
+  it("the window's title takes the Header colour, never the Text colour", function()
+    local ns = loadUI()
+    local RED = { 1, 0, 0 }
+    local headerColour
+    ns.UI.PopoutStyleOf = function() return { bg = { 0, 0, 0 }, alpha = 1, text = RED, size = 12 } end
+    ns.UI.PopoutStyleText = function(fs, st, _, _, color) local c = color or st.text if c then fs:SetTextColor(c[1], c[2], c[3]) end end
+    ns.UI.PopoutStyleHeader = function(fs, st, _, _, fallback) headerColour = st.header or fallback or "font" end
+    ns.UI.StartGuide("builtin:thundering-ruby-cloud-serpent")
+    eq(headerColour, "font", "Default header: the font's own colour")
+    local c = ns.UI.GuideWindow().StepText.textColor
+    eq({ c[1], c[2], c[3] }, RED, "the step text takes the Text colour")
+  end)
 end)
