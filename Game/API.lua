@@ -273,7 +273,42 @@ function Game.Faction()
   return "Neutral"
 end
 
+-- Calendar -----------------------------------------------------------------------
+-- C_Calendar.GetNumDayEvents(monthOffset, monthDay), GetDayEvent(monthOffset,
+-- monthDay, index) -> { title, calendarType ("HOLIDAY"), sequenceType,
+-- startTime, endTime = CalendarTime { year, month, monthDay, weekday, hour,
+-- minute } }, GetMonthInfo(monthOffset) -> { year, month, numDays },
+-- GetMaxCreateDate() -> CalendarTime; C_DateAndTime.GetCurrentCalendarTime()
+-- -> CalendarTime (Blizzard_APIDocumentationGenerated, 12.1.5). Month offsets
+-- are relative to the month the calendar UI shows.
+
 local calendarOpened = false
+
+local function openCalendarOnce(cal)
+  if not calendarOpened and cal.OpenCalendar then
+    calendarOpened = true
+    cal.OpenCalendar()
+  end
+end
+
+-- Month offset of today's month: the player may have browsed the calendar to
+-- another month.
+local function todayMonthOffset(cal, today)
+  local shown = cal.GetMonthInfo and cal.GetMonthInfo(0)
+  if shown and shown.year and shown.month and today.year and today.month then
+    return (today.year - shown.year) * 12 + (today.month - shown.month)
+  end
+  return 0
+end
+
+-- {[calendar title] = holidayKey} for Data.Holidays.
+local function holidayKeysByTitle()
+  local keyByTitle = {}
+  for key, holiday in pairs((ns.Data and ns.Data.Holidays) or {}) do
+    if holiday.title then keyByTitle[holiday.title] = key end
+  end
+  return keyByTitle
+end
 
 -- {[holidayKey]=true} for every Data.Holidays entry whose title matches a
 -- HOLIDAY event on today's calendar. The calendar loads asynchronously:
@@ -284,23 +319,11 @@ function Game.ActiveHolidays()
   if not (cal and dt and dt.GetCurrentCalendarTime and cal.GetNumDayEvents and cal.GetDayEvent) then
     return active
   end
-  if not calendarOpened and cal.OpenCalendar then
-    calendarOpened = true
-    cal.OpenCalendar()
-  end
+  openCalendarOnce(cal)
   local today = dt.GetCurrentCalendarTime()
   if not (today and today.monthDay) then return active end
-  -- Month offsets are relative to the month the calendar UI shows; work out
-  -- where today's month is in case the player browsed to another month.
-  local offset = 0
-  local shown = cal.GetMonthInfo and cal.GetMonthInfo(0)
-  if shown and shown.year and shown.month and today.year and today.month then
-    offset = (today.year - shown.year) * 12 + (today.month - shown.month)
-  end
-  local keyByTitle = {}
-  for key, holiday in pairs((ns.Data and ns.Data.Holidays) or {}) do
-    if holiday.title then keyByTitle[holiday.title] = key end
-  end
+  local offset = todayMonthOffset(cal, today)
+  local keyByTitle = holidayKeysByTitle()
   for i = 1, cal.GetNumDayEvents(offset, today.monthDay) or 0 do
     local event = cal.GetDayEvent(offset, today.monthDay, i)
     if event and event.calendarType == "HOLIDAY" and event.title and keyByTitle[event.title] then
@@ -308,6 +331,95 @@ function Game.ActiveHolidays()
     end
   end
   return active
+end
+
+local MONTHS_AHEAD = 12 -- how far the schedule reads (the calendar's own limit is GetMaxCreateDate)
+local RUNS_PER_HOLIDAY = 2 -- the one running or next, and the one after (when the first ended today)
+
+local function timeKey(t)
+  return table.concat({ tostring(t.year), tostring(t.month), tostring(t.monthDay),
+    tostring(t.hour), tostring(t.minute) }, "-")
+end
+
+-- {[holidayKey] = { {startTime=, endTime=}, ... }} from today on, the first
+-- RUNS_PER_HOLIDAY runs of each holiday in calendar order. A run that spans
+-- days shows up on each of them with the same start: counted once. Raises
+-- whatever the calendar API raises (HolidaySchedule catches it).
+local function scanHolidayRuns(cal, today)
+  local keyByTitle = holidayKeysByTitle()
+  local wanted = 0
+  for _ in pairs(keyByTitle) do wanted = wanted + 1 end
+  local runs, complete = {}, 0
+  local offset = todayMonthOffset(cal, today)
+  local ahead = MONTHS_AHEAD
+  local last = cal.GetMaxCreateDate and cal.GetMaxCreateDate() or nil
+  if last and last.year and last.month then
+    ahead = math.max(0, math.min(ahead, (last.year - today.year) * 12 + (last.month - today.month)))
+  end
+  for plus = 0, ahead do
+    local info = cal.GetMonthInfo(offset + plus)
+    local numDays = info and tonumber(info.numDays)
+    if numDays then
+      for day = (plus == 0) and today.monthDay or 1, numDays do
+        for i = 1, cal.GetNumDayEvents(offset + plus, day) or 0 do
+          local event = cal.GetDayEvent(offset + plus, day, i)
+          local key = event and event.calendarType == "HOLIDAY" and keyByTitle[event.title]
+          if key and type(event.startTime) == "table" and type(event.endTime) == "table" then
+            local list = runs[key]
+            if not list then
+              list = {}
+              runs[key] = list
+            end
+            local newest = list[#list]
+            if #list < RUNS_PER_HOLIDAY and not (newest and timeKey(newest.startTime) == timeKey(event.startTime)) then
+              list[#list + 1] = { startTime = event.startTime, endTime = event.endTime }
+              if #list == RUNS_PER_HOLIDAY then complete = complete + 1 end
+            end
+          end
+        end
+        if complete == wanted then return runs end
+      end
+    end
+  end
+  return runs
+end
+
+local scheduleCache
+local calendarGeneration = 0
+
+-- CALENDAR_UPDATE_EVENT_LIST: the calendar's contents changed, so
+-- HolidaySchedule reads them again.
+function Game.CalendarChanged()
+  calendarGeneration = calendarGeneration + 1
+end
+
+-- { now = <current CalendarTime>, occurrences = { [holidayKey] = { {startTime=,
+-- endTime=} } } } for every Data.Holidays entry the calendar lists from today
+-- on (see scanHolidayRuns), or nil when the calendar API is missing or
+-- errors (Game.ReportError). The calendar is read once per calendar day and
+-- again after CalendarChanged. Like ActiveHolidays, the first call may find
+-- little until the calendar has loaded.
+function Game.HolidaySchedule()
+  local cal, dt = C_Calendar, C_DateAndTime
+  if not (cal and dt and dt.GetCurrentCalendarTime and cal.GetNumDayEvents and cal.GetDayEvent
+    and cal.GetMonthInfo) then
+    return nil
+  end
+  openCalendarOnce(cal)
+  local today = dt.GetCurrentCalendarTime()
+  if not (today and today.year and today.month and today.monthDay) then return nil end
+  local cache = scheduleCache
+  local day = today.year .. "-" .. today.month .. "-" .. today.monthDay
+  if not (cache and cache.day == day and cache.generation == calendarGeneration) then
+    local good, runs = pcall(scanHolidayRuns, cal, today)
+    if not good then
+      Game.ReportError(runs)
+      return nil
+    end
+    cache = { day = day, generation = calendarGeneration, occurrences = runs }
+    scheduleCache = cache
+  end
+  return { now = today, occurrences = cache.occurrences }
 end
 
 -- index: position in Data.Expansions (1 = Classic); the API takes the

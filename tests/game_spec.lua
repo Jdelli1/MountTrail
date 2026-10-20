@@ -561,6 +561,194 @@ describe("game adapter", function()
       eq(seen, -2)
     end)
   end)
+
+  describe("HolidaySchedule", function()
+    local TODAY = { year = 2026, month = 10, monthDay = 19, weekday = 2, hour = 12, minute = 0 }
+    local DAYS_IN_MONTH = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 } -- 2026 and 2027
+
+    local function ct(year, month, monthDay, hour)
+      return { year = year, month = month, monthDay = monthDay, weekday = 1, hour = hour or 0, minute = 0 }
+    end
+
+    -- A calendar showing `shown`: cfg.events["<year>-<month>-<day>"] = { day events }.
+    -- Records every GetNumDayEvents(offset, day) in cal.calls.
+    local function fakeCalendar(cfg)
+      cfg = cfg or {}
+      local shown = cfg.shown or { year = 2026, month = 10 }
+      local events = cfg.events or {}
+      local cal = { calls = {}, opened = 0, today = cfg.today or TODAY }
+      local function monthOf(offset)
+        local index = shown.year * 12 + (shown.month - 1) + offset
+        local month = index % 12 + 1
+        return math.floor(index / 12), month, DAYS_IN_MONTH[month]
+      end
+      C_DateAndTime = { GetCurrentCalendarTime = function() return cal.today end }
+      C_Calendar = {
+        OpenCalendar = function() cal.opened = cal.opened + 1 end,
+        GetMonthInfo = function(offset)
+          local year, month, numDays = monthOf(offset)
+          return { year = year, month = month, numDays = numDays, firstWeekday = 1 }
+        end,
+        GetNumDayEvents = function(offset, day)
+          cal.calls[#cal.calls + 1] = { offset, day }
+          local year, month = monthOf(offset)
+          return #(events[year .. "-" .. month .. "-" .. day] or {})
+        end,
+        GetDayEvent = function(offset, day, i)
+          local year, month = monthOf(offset)
+          return events[year .. "-" .. month .. "-" .. day][i]
+        end,
+        GetMaxCreateDate = cfg.max and function() return cfg.max end or nil,
+      }
+      return cal
+    end
+
+    local function holiday(title, startTime, endTime, extra)
+      local event = { title = title, calendarType = "HOLIDAY", startTime = startTime, endTime = endTime,
+        sequenceType = "ONGOING" }
+      for k, v in pairs(extra or {}) do event[k] = v end
+      return event
+    end
+
+    it("lists each holiday's coming runs: one entry per run, however many days it spans", function()
+      local hallowStart, hallowEnd = ct(2026, 10, 18, 6), ct(2026, 11, 1, 6)
+      local darkStart, darkEnd = ct(2026, 11, 1, 0), ct(2026, 11, 7, 23)
+      fakeCalendar({ events = {
+        ["2026-10-19"] = { holiday("Hallow's End", hallowStart, hallowEnd) },
+        ["2026-10-20"] = { holiday("Hallow's End", hallowStart, hallowEnd) },
+        ["2026-11-1"] = { holiday("Hallow's End", hallowStart, hallowEnd, { sequenceType = "END" }),
+          holiday("Darkmoon Faire", darkStart, darkEnd, { sequenceType = "START" }) },
+        ["2026-11-2"] = { holiday("Darkmoon Faire", darkStart, darkEnd) },
+      } })
+      local schedule = loadGame().Game.HolidaySchedule()
+      eq(schedule.occurrences.hallowsend, { { startTime = hallowStart, endTime = hallowEnd } })
+      eq(schedule.occurrences.darkmoon, { { startTime = darkStart, endTime = darkEnd } })
+      eq(schedule.occurrences.brewfest, nil)
+    end)
+
+    it("hands over the calendar's current time", function()
+      fakeCalendar()
+      eq(loadGame().Game.HolidaySchedule().now, TODAY)
+    end)
+
+    it("ignores events that are not holidays or not in Data.Holidays, and ones without times", function()
+      local s, e = ct(2026, 10, 25), ct(2026, 10, 30)
+      fakeCalendar({ events = { ["2026-10-25"] = {
+        holiday("Brewfest", s, e, { calendarType = "PLAYER" }),
+        holiday("Some Other Holiday", s, e),
+        holiday("Noblegarden", nil, e),
+        holiday("Lunar Festival", s, nil),
+        holiday("Winter Veil", s, e),
+      } } })
+      eq(loadGame().Game.HolidaySchedule().occurrences, {})
+    end)
+
+    it("keeps the next two runs of a holiday, in calendar order", function()
+      local runs = { { ct(2026, 10, 21), ct(2026, 10, 22) }, { ct(2026, 11, 3), ct(2026, 11, 4) },
+        { ct(2026, 12, 5), ct(2026, 12, 6) } }
+      fakeCalendar({ events = {
+        ["2026-10-21"] = { holiday("Darkmoon Faire", runs[1][1], runs[1][2], { sequenceType = "START" }) },
+        ["2026-11-3"] = { holiday("Darkmoon Faire", runs[2][1], runs[2][2], { sequenceType = "START" }) },
+        ["2026-12-5"] = { holiday("Darkmoon Faire", runs[3][1], runs[3][2], { sequenceType = "START" }) },
+      } })
+      eq(loadGame().Game.HolidaySchedule().occurrences.darkmoon, {
+        { startTime = runs[1][1], endTime = runs[1][2] },
+        { startTime = runs[2][1], endTime = runs[2][2] },
+      })
+    end)
+
+    it("starts at today in this month and at the 1st in later ones, for each month's real length", function()
+      local cal = fakeCalendar({ max = { year = 2026, month = 12 } })
+      loadGame().Game.HolidaySchedule()
+      eq(cal.calls[1], { 0, 19 })
+      eq(cal.calls[13], { 0, 31 })
+      eq(cal.calls[14], { 1, 1 })
+      eq(cal.calls[43], { 1, 30 })
+      eq(cal.calls[44], { 2, 1 })
+      eq(cal.calls[#cal.calls], { 2, 31 })
+      eq(#cal.calls, 13 + 30 + 31)
+    end)
+
+    it("counts month offsets from the month the calendar shows", function()
+      local cal = fakeCalendar({ shown = { year = 2026, month = 12 }, max = { year = 2026, month = 10 } })
+      loadGame().Game.HolidaySchedule()
+      eq(cal.calls[1], { -2, 19 })
+      eq(cal.calls[#cal.calls], { -2, 31 })
+    end)
+
+    it("looks ahead to the latest date the calendar offers, at most a year", function()
+      local cal = fakeCalendar({ max = { year = 2030, month = 1 } })
+      loadGame().Game.HolidaySchedule()
+      eq(cal.calls[#cal.calls], { 12, DAYS_IN_MONTH[(10 - 1 + 12) % 12 + 1] })
+      cal = fakeCalendar()
+      loadGame().Game.HolidaySchedule()
+      eq(cal.calls[#cal.calls][1], 12, "no GetMaxCreateDate: a year ahead")
+    end)
+
+    it("opens the calendar once", function()
+      local cal = fakeCalendar()
+      local G = loadGame().Game
+      G.HolidaySchedule()
+      G.CalendarChanged()
+      G.HolidaySchedule()
+      G.ActiveHolidays()
+      eq(cal.opened, 1)
+    end)
+
+    it("reads the calendar once per day until it changes", function()
+      local cal = fakeCalendar({ max = { year = 2026, month = 10 } })
+      local G = loadGame().Game
+      local first = G.HolidaySchedule()
+      local reads = #cal.calls
+      ok(reads > 0, "scanned")
+      cal.today = { year = 2026, month = 10, monthDay = 19, weekday = 2, hour = 18, minute = 30 }
+      local second = G.HolidaySchedule()
+      eq(#cal.calls, reads, "same day: no rescan")
+      eq(second.occurrences, first.occurrences)
+      eq(second.now, cal.today, "but the time is current")
+      G.CalendarChanged()
+      G.HolidaySchedule()
+      eq(#cal.calls, reads * 2, "CALENDAR_UPDATE_EVENT_LIST: rescan")
+      cal.today = { year = 2026, month = 10, monthDay = 20, weekday = 3, hour = 0, minute = 5 }
+      G.HolidaySchedule()
+      ok(#cal.calls > reads * 2, "next day: rescan")
+    end)
+
+    it("is nil when the calendar API is missing or incomplete", function()
+      local G = loadGame().Game
+      C_DateAndTime, C_Calendar = nil, nil
+      eq(G.HolidaySchedule(), nil)
+      fakeCalendar()
+      C_Calendar.GetDayEvent = nil
+      eq(G.HolidaySchedule(), nil)
+      fakeCalendar()
+      C_Calendar.GetMonthInfo = nil
+      eq(G.HolidaySchedule(), nil)
+      fakeCalendar()
+      C_DateAndTime.GetCurrentCalendarTime = function() return nil end
+      eq(G.HolidaySchedule(), nil)
+    end)
+
+    it("skips a month the calendar has no length for", function()
+      local cal = fakeCalendar({ max = { year = 2026, month = 11 } })
+      local info = C_Calendar.GetMonthInfo
+      C_Calendar.GetMonthInfo = function(offset) if offset ~= 1 then return info(offset) end end
+      loadGame().Game.HolidaySchedule()
+      eq(cal.calls[#cal.calls], { 0, 31 })
+    end)
+
+    it("an API error gives nil, nothing cached, no Lua error", function()
+      local cal = fakeCalendar()
+      local boom = true
+      local count = C_Calendar.GetNumDayEvents
+      C_Calendar.GetNumDayEvents = function(...) if boom then error("calendar hiccup") end return count(...) end
+      local G = loadGame().Game
+      eq(G.HolidaySchedule(), nil)
+      boom = false
+      ok(G.HolidaySchedule() ~= nil, "the next call retries")
+      ok(#cal.calls > 0)
+    end)
+  end)
 end)
 
 describe("init", function()
@@ -828,6 +1016,15 @@ describe("init", function()
     ns.Refresh = function() calls = calls + 1 end
     fire_event(ns.addon, "CALENDAR_UPDATE_EVENT_LIST")
     eq(calls, 1)
+  end)
+
+  it("CALENDAR_UPDATE_EVENT_LIST drops the cached holiday schedule before the refresh", function()
+    local ns = setup()
+    local order = {}
+    ns.Game.CalendarChanged = function() order[#order + 1] = "changed" end
+    ns.Refresh = function() order[#order + 1] = "refresh" end
+    fire_event(ns.addon, "CALENDAR_UPDATE_EVENT_LIST")
+    eq(order, { "changed", "refresh" })
   end)
 
   it("AREA_POIS_UPDATED and CONTRIBUTION_COLLECTOR_UPDATE tell the checklist's event status (F17)", function()

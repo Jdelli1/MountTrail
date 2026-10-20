@@ -16,6 +16,7 @@ Data\Holidays.lua
 Data\Events.lua
 Data\Zones.lua
 Logic\Resets.lua
+Logic\HolidayDates.lua
 Logic\Lockouts.lua
 Logic\Route.lua
 Logic\Checklist.lua

@@ -240,6 +240,7 @@ function addon:OnKill()
 end
 
 function addon:OnCalendarUpdate()
+  ns.Game.CalendarChanged()
   ns.Refresh()
 end
 

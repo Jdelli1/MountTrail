@@ -22,8 +22,9 @@ local ADDON, ns = ...
 -- them.
 -- opts (optional): { select = fn(mounts, query) -> Journal.Select-shaped
 -- list (default Journal.Select; the front page's search uses Search.Select),
--- headerSuffix = fn(sectionKey) -> string|nil (a green
--- badge after the header text), headerActive = fn(sectionKey) -> bool (the
+-- headerSuffix = fn(sectionKey) -> string|nil, muted (a green
+-- badge after the header text; grey when the second return is true),
+-- headerActive = fn(sectionKey) -> bool (the
 -- header text in green), rowTag = fn(mountID, m) -> string|nil (a green tag
 -- after the row's source line) }. The base query may carry pin =
 -- {[section]=true} (Journal.Select: those sections first).
@@ -636,7 +637,7 @@ end
 -- header, including owned ones hidden by opts.hideOwned and children of a
 -- collapsed header. Headers with no shown mount are left out; a collapsed
 -- header's children are left out.
--- opts (all optional): headerSuffix = fn(section) -> badge, headerActive =
+-- opts (all optional): headerSuffix = fn(section) -> badge, muted, headerActive =
 -- fn(section) -> true marks the section header active (row.active = true;
 -- UI.HeaderText paints it green), rowTag =
 -- fn(id, m) -> tag, view =, exp = (collapse keys), collapsed = { [key] = true },
@@ -701,9 +702,11 @@ function UI.ListRows(selected, isOwned, opts)
     if shown > 0 then
       local key = UI.CollapseKey(opts.view, opts.exp, sec.key)
       local isCollapsed = collapsed[key] == true
+      local badge, muted
+      if headerSuffix then badge, muted = headerSuffix(sec.key) end
       rows[#rows + 1] = {
         header = true, depth = 1, section = sec.key, key = key, text = UI.SectionLabel(sec.key),
-        badge = headerSuffix and headerSuffix(sec.key) or nil,
+        badge = badge or nil, badgeMuted = (badge and muted) and true or nil,
         owned = owned, total = total, collapsed = isCollapsed,
         active = (headerActive and headerActive(sec.key)) and true or nil,
       }
@@ -753,9 +756,9 @@ function UI.HeaderIcon(collapsed)
 end
 
 -- Header label: section / sub-group name, "(owned/total)" in grey when
--- counted, then the badge in green. Active headers (row.active, e.g. a
--- holiday on the calendar now) paint the name and badge in the game's
--- GREEN_FONT_COLOR.
+-- counted, then the badge in green (grey when row.badgeMuted, e.g. a holiday
+-- that starts later). Active headers (row.active, e.g. a holiday on the
+-- calendar now) paint the name and badge in the game's GREEN_FONT_COLOR.
 local ACTIVE_GREEN = "|cff19ff19"
 local STATUS_BLUE = "|cff71d5ff"
 function UI.HeaderText(row)
@@ -769,7 +772,8 @@ function UI.HeaderText(row)
     text = text .. "  " .. GREY .. "(" .. string.format(L["%d left"], row.left) .. ")|r"
   end
   if row.badge and row.badge ~= "" then
-    text = text .. "  " .. (row.active and ACTIVE_GREEN or GREEN) .. row.badge .. "|r"
+    local color = row.active and ACTIVE_GREEN or (row.badgeMuted and GREY or GREEN)
+    text = text .. "  " .. color .. row.badge .. "|r"
   end
   -- A checklist header's event status (F17, Checklist.Rows opts.status).
   if row.status and row.status ~= "" then

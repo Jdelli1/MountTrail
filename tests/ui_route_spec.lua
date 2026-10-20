@@ -480,6 +480,29 @@ describe("ui route", function()
       eq(rows[3].active, nil, "inactive header: no flag")
     end)
 
+    it("ListRows carries a muted badge (headerSuffix's second return) as badgeMuted", function()
+      local ns = loadUI(nil, { Holidays = { brewfest = { title = "Brewfest" }, darkmoon = { title = "Darkmoon Faire" } } })
+      local a, b = { section = "brewfest" }, { section = "darkmoon" }
+      local rows = ns.UI.ListRows({ { id = 1, m = a }, { id = 2, m = b } }, nil, {
+        headerSuffix = function(section)
+          if section == "darkmoon" then return "Starts in 9d", true end
+          return "Active now", false
+        end,
+      })
+      eq(rows[1].badge, "Active now")
+      eq(rows[1].badgeMuted, nil)
+      eq(rows[3].badge, "Starts in 9d")
+      eq(rows[3].badgeMuted, true)
+    end)
+
+    it("HeaderText paints a muted badge in grey, an active header's in green", function()
+      local ns = loadUI()
+      eq(ns.UI.HeaderText({ text = "Darkmoon Faire", owned = 0, total = 2, badge = "Starts in 9d", badgeMuted = true }),
+        "Darkmoon Faire  |cff9d9d9d(0/2)|r  |cff9d9d9dStarts in 9d|r")
+      eq(ns.UI.HeaderText({ text = "Brewfest", active = true, badge = "Active · ends in 6d", badgeMuted = true }),
+        "|cff19ff19Brewfest|r  |cff19ff19Active · ends in 6d|r")
+    end)
+
     it("HeaderText paints an active header's text and badge in green", function()
       local ns = loadUI()
       eq(ns.UI.HeaderText({ text = "Brewfest", badge = "Active now", active = true, owned = 1, total = 3 }),
@@ -495,6 +518,26 @@ describe("ui route", function()
         "Trading Post: October · |cff33ff99Trading Post — this month|r")
       eq(ns.UI.RowSourceText({ id = 8, tag = "T" }), "|cff33ff99T|r")
       eq(ns.UI.RowSourceText({ id = 7 }), "Trading Post: October")
+    end)
+
+    it("HolidayBadge dates a holiday from the schedule: running, upcoming, or nothing", function()
+      local ns = loadUI()
+      local function ct(month, monthDay, hour)
+        return { year = 2026, month = month, monthDay = monthDay, weekday = 1, hour = hour or 0, minute = 0 }
+      end
+      local schedule = { now = ct(10, 19, 12), occurrences = {
+        brewfest = { { startTime = ct(9, 20), endTime = ct(10, 25, 15) } },
+        hallowsend = { { startTime = ct(10, 28, 12), endTime = ct(11, 2) } },
+        darkmoon = { { startTime = { year = 2027, month = 3, monthDay = 1, weekday = 1, hour = 0, minute = 0 },
+          endTime = { year = 2027, month = 3, monthDay = 7, weekday = 1, hour = 0, minute = 0 } } },
+      } }
+      local active = { brewfest = true }
+      eq({ ns.UI.HolidayBadge("brewfest", active, schedule) }, { "Active · ends in 6d", false })
+      eq({ ns.UI.HolidayBadge("hallowsend", active, schedule) }, { "Starts in 9d", true })
+      eq({ ns.UI.HolidayBadge("darkmoon", active, schedule) }, { "Starts Mar 1", true })
+      eq(ns.UI.HolidayBadge("noblegarden", active, schedule), nil, "not in the schedule")
+      eq({ ns.UI.HolidayBadge("brewfest", active, {}) }, { "Active now", false }, "schedule without data")
+      eq({ ns.UI.HolidayBadge("brewfest", active, nil) }, { "Active now", false }, "no schedule")
     end)
 
     it("HolidayBadge and TradingTag", function()

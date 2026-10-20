@@ -669,6 +669,38 @@ describe("ui build", function()
     eq({ o, t }, { o2, t2 }, "journal counts do not depend on the setting")
   end)
 
+  it("Holidays tab: headers carry the dates of Game.HolidaySchedule; Active now when it has none", function()
+    local ns = loadUI({ filters = { collected = true } })
+    local function ct(month, monthDay, hour)
+      return { year = 2026, month = month, monthDay = monthDay, weekday = 1, hour = hour or 0, minute = 0 }
+    end
+    ns.Game.HolidaySchedule = function()
+      return { now = ct(10, 19, 12), occurrences = {
+        brewfest = { { startTime = ct(9, 20), endTime = ct(10, 25, 15) } }, -- running, 6d 3h left
+        hallowsend = { { startTime = ct(10, 28, 12), endTime = ct(11, 2) } }, -- in 9d
+      } }
+    end
+    ns.ToggleWindow()
+    local headers = tabRows(ns, "holidays")
+    local by = {}
+    for _, h in ipairs(headers) do by[h.section] = h end
+    eq(by.brewfest.badge, "Active · ends in 6d")
+    eq(by.brewfest.badgeMuted, nil)
+    eq(by.brewfest.active, true)
+    eq(by.hallowsend.badge, "Starts in 9d")
+    eq(by.hallowsend.badgeMuted, true)
+    eq(by.hallowsend.active, nil)
+    eq(by.loveisintheair.badge, nil, "no date in the schedule: no badge")
+
+    ns.Game.HolidaySchedule = function() return nil end
+    ns.Refresh()
+    headers = tabRows(ns, "holidays")
+    by = {}
+    for _, h in ipairs(headers) do by[h.section] = h end
+    eq(by.brewfest.badge, "Active now")
+    eq(by.hallowsend.badge, nil)
+  end)
+
   it("Checklist tab: a flat header (name, resets, flavour, Filter) over the list; no route controls (F16)", function()
     local ns = loadUI()
     ns.ToggleWindow()

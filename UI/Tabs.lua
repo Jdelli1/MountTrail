@@ -5,20 +5,24 @@ local ADDON, ns = ...
 -- Achievements view takes the misc achievement section, grouped by
 -- expansion; Timewalking takes the holiday timewalking section; Holidays and
 -- Misc keep the rest of their data tabs). Holiday sections on the calendar
--- now come first, with green header text and an "Active now" badge; Trading Post
--- mounts in this month's rotation get a "Trading Post — this month" tag.
+-- now come first, with green header text; every holiday header carries its
+-- dates from the calendar ("Active · ends in 6d", "Starts in 9d"; Logic/
+-- HolidayDates.lua); Trading Post mounts in this month's rotation get a
+-- "Trading Post — this month" tag.
 -- The two hooks are pure (UI.HolidayBadge, UI.TradingTag) and unit-tested;
--- the views are compile-checked only.
+-- the views are built in tests/ui_build_spec.lua.
 
 local L = ns.L
 
 local UI = ns.UI or {}
 ns.UI = UI
 
--- active: {[holidayKey]=true} (Game.ActiveHolidays) -> badge text or nil.
-function UI.HolidayBadge(section, active)
-  if active and active[section] then return L["Active now"] end
-  return nil
+-- active: {[holidayKey]=true} (Game.ActiveHolidays), schedule: Game.HolidaySchedule()
+-- (nil when the calendar is not readable) -> badge text, muted (a holiday still
+-- to come: List paints its badge grey); nil for a holiday with no date to show.
+function UI.HolidayBadge(section, active, schedule)
+  local occurrences = schedule and schedule.occurrences and schedule.occurrences[section]
+  return ns.HolidayDates.Badge(active and active[section] == true, occurrences, schedule and schedule.now)
 end
 
 -- Misc row tag: Trading Post mounts in the current rotation.
@@ -31,6 +35,7 @@ end
 
 local holidayList
 local activeNow = {}
+local schedule
 
 UI.RegisterView("holidays", {
   Build = function(parent)
@@ -39,9 +44,10 @@ UI.RegisterView("holidays", {
       -- Active holidays are pinned to the top (Journal.Select's pin) with
       -- green header text.
       activeNow = ns.Game.ActiveHolidays() or {}
+      schedule = ns.Game.HolidaySchedule()
       return { view = "holidays", pin = activeNow }
     end, {
-      headerSuffix = function(section) return UI.HolidayBadge(section, activeNow) end,
+      headerSuffix = function(section) return UI.HolidayBadge(section, activeNow, schedule) end,
       headerActive = function(section) return activeNow[section] == true end,
     })
   end,
