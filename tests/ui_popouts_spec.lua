@@ -548,6 +548,11 @@ describe("pop-out windows", function()
     click("Gold")
     eq(st.text, { 1, 0.82, 0 })
     click("Back")
+    click("Header colour")
+    click("Sky")
+    eq(st.header, { 0.55, 0.8, 1 })
+    eq(a.Title.textColor, { 0.55, 0.8, 1 }, "the title: the header colour, not the text colour")
+    click("Back")
     -- Opacity shows what was set when the menu is painted again.
     eq(sliderRow("Opacity").Slider.value, 60)
     -- Font size: a number (8-24), the window's own default until one is set.

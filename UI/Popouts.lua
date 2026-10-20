@@ -350,6 +350,7 @@ function UI.PopoutStyle(saved)
     alpha = alpha and math.max(ALPHA_MIN, math.min(1, alpha)) or d.alpha,
     bg = type(saved.bg) == "table" and saved.bg or d.bg,
     text = type(saved.text) == "table" and saved.text or d.text,
+    header = type(saved.header) == "table" and saved.header or nil,
     size = size and math.max(SIZE_MIN, math.min(SIZE_MAX, math.floor(size + 0.5))) or d.size,
     font = type(saved.font) == "string" and saved.font or d.font,
   }
@@ -620,7 +621,9 @@ end
 -- The window's background and title in its style.
 local function applyChrome(w, style)
   w.Fill:SetColorTexture(style.bg[1], style.bg[2], style.bg[3], style.alpha)
-  styleText(w.Title, style, "GameFontNormal", 2, nil)
+  -- The title takes the header colour (else the font's own gold), not the
+  -- body text colour.
+  styleText(w.Title, { font = style.font, size = style.size }, "GameFontNormal", 2, style.header)
 end
 
 local function refreshWindow(w, built)
@@ -664,7 +667,7 @@ local function refreshWindow(w, built)
       h:SetHeight(groupHeight)
       local c = (UI.EXPANSION_COLORS and UI.EXPANSION_COLORS[g.exp]) or { 0.8, 0.8, 0.8 }
       h.Text:SetText((g.exp and L[g.exp] or L["Other"]) .. "  |cff9d9d9d(" .. string.format(L["%d left"], g.left) .. ")|r")
-      styleText(h.Text, style, "GameFontNormalSmall", 0, c)
+      styleText(h.Text, style, "GameFontNormalSmall", 0, style.header or c)
       h.Rule:SetColorTexture(c[1], c[2], c[3], 0.35)
       h:Show()
       y = y + groupHeight + 2
@@ -1005,6 +1008,14 @@ function UI.ShowPopoutStyleMenu(w, owner)
         out[#out + 1] = { text = L["Custom..."], onClick = function() pickColor(w, "bg", current().bg) end }
         return out
       end) },
+      { text = L["Header colour"], submenu = sub(L["Header colour"], function()
+        local out = { choice(L["Default"], current().header == nil, function(st) st.header = nil end) }
+        for _, p in ipairs(TEXT_PRESETS) do
+          out[#out + 1] = choice(L[p[1]], same(current().header, p[2]), function(st) st.header = p[2] end)
+        end
+        out[#out + 1] = { text = L["Custom..."], onClick = function() pickColor(w, "header", current().header) end }
+        return out
+      end) },
       { text = L["Text colour"], submenu = sub(L["Text colour"], function()
         local out = { choice(L["Default"], current().text == nil, function(st) st.text = nil end) }
         for _, p in ipairs(TEXT_PRESETS) do
@@ -1028,7 +1039,7 @@ function UI.ShowPopoutStyleMenu(w, owner)
         -- This window's look becomes every window's (and new ones').
         local mine = db and db[w.key] and db[w.key].style or sharedStyle()
         if ns.db and ns.db.global then
-          ns.db.global.popoutStyle = mine and { alpha = mine.alpha, bg = mine.bg, text = mine.text,
+          ns.db.global.popoutStyle = mine and { alpha = mine.alpha, bg = mine.bg, text = mine.text, header = mine.header,
             size = mine.size, font = mine.font } or nil
         end
         for _, state in pairs(db or {}) do
