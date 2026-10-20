@@ -303,6 +303,8 @@ describe("Following a guide", function()
     ns.UI.StartGuide("macro-test")
     local w = ns.UI.GuideWindow()
     eq(w.Byline:GetText(), "by Adventurer, Someone")
+    eq(w.Byline:GetParent(), w.Strip, "on the title's line")
+    eq({ w.Byline:GetPoint(1) }, { "LEFT", w.Title, "RIGHT", 6, 0 }, "right after the title")
     ok(w.CopyMacro:IsShown() and w.MakeMacro:IsShown(), "macro buttons on a step with a macro")
     local copied
     ns.UI.ShowGuideCopy = function(_, _, body) copied = body end

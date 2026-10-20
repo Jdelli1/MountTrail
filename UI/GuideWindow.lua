@@ -24,7 +24,6 @@ local BUTTONS_H = 30
 local FULL_H = 340
 local LINE_GAP = 4
 local STEP_ROW = 20
-local BYLINE_H = 14
 local MACRO_ROW = 24
 
 local w
@@ -224,10 +223,16 @@ local function build()
 
   local title = strip:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormal"))
   title:SetPoint("LEFT", strip, "LEFT", PAD, 0)
-  title:SetPoint("RIGHT", strip, "RIGHT", -60, 0)
   title:SetJustifyH("LEFT")
   title:SetWordWrap(false)
   w.Title = title
+  -- The authors, small and grey, on the title's line right after it.
+  local byline = strip:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisableSmall"))
+  byline:SetPoint("LEFT", title, "RIGHT", 6, 0)
+  byline:SetPoint("RIGHT", strip, "RIGHT", -60, 0)
+  byline:SetJustifyH("LEFT")
+  byline:SetWordWrap(false)
+  w.Byline = byline
   local count = strip:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisableSmall"))
   count:SetPoint("RIGHT", strip, "RIGHT", -4, 0)
   w.Count = count
@@ -247,12 +252,6 @@ local function build()
   body:SetHeight(1)
   w.Body = body
   enableLinks(body)
-  local byline = w:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisableSmall"))
-  byline:SetPoint("TOPLEFT", w, "TOPLEFT", PAD, -(TITLE_H + 3))
-  byline:SetPoint("TOPRIGHT", w, "TOPRIGHT", -PAD, -(TITLE_H + 3))
-  byline:SetJustifyH("LEFT")
-  byline:SetWordWrap(false)
-  w.Byline = byline
   -- A step's macro: copy it, or have it made and put on the cursor.
   local copyMacro = UI.FlatButton(body, L["Copy macro"], "plain", 20)
   copyMacro:SetWidth(110)
@@ -468,12 +467,20 @@ function UI.RefreshGuideWindow()
     if UI.PopoutStyleHeader then UI.PopoutStyleHeader(w.Title, st, UI.Font("GameFontNormal"), 1) end
     styled(w.Byline, "GameFontDisableSmall", { 0.62, 0.62, 0.62 }, -2)
   end
-  w.Title:SetText(entry.title)
-  -- The authors under the title; the views start below them.
+  -- Title, then the authors on the same line: the title keeps its full
+  -- width while it fits, giving way (cut short) to at least part of the
+  -- authors when the window is narrow.
   local byline = ns.Guide.Byline(entry.guide)
+  w.Title:SetWidth(0)
+  w.Title:SetText(entry.title)
   w.Byline:SetText(byline or "")
   w.Byline:SetShown(byline ~= nil)
-  w.top = TITLE_H + 6 + (byline and BYLINE_H or 0)
+  local room = innerWidth() - 60
+  local titleW = tonumber(w.Title.GetStringWidth and w.Title:GetStringWidth()) or room
+  local bylineW = byline and (tonumber(w.Byline.GetStringWidth and w.Byline:GetStringWidth()) or 0) or 0
+  local keep = byline and math.min(bylineW, math.floor(room * 0.4)) + 6 or 0
+  w.Title:SetWidth(math.max(40, math.min(titleW, room - keep)))
+  w.top = TITLE_H + 6
   w.Body:ClearAllPoints()
   w.Body:SetPoint("TOPLEFT", w, "TOPLEFT", PAD, -w.top)
   w.Body:SetPoint("TOPRIGHT", w, "TOPRIGHT", -PAD, -w.top)
