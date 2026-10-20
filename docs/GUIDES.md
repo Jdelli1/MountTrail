@@ -18,6 +18,8 @@ text editor, or in a Discord message, and share it by copying and pasting.
 - [When a step is done](#when-a-step-is-done)
 - [Highlighting (bold)](#highlighting-bold)
 - [Links with tooltips](#links-with-tooltips)
+- [Macros](#macros)
+- [Credits](#credits)
 - [Finding IDs and coordinates](#finding-ids-and-coordinates)
 - [Writing, testing and sharing in game](#writing-testing-and-sharing-in-game)
 - [Mistakes and what the editor says](#mistakes-and-what-the-editor-says)
@@ -67,7 +69,8 @@ the real ones as described in [Finding IDs](#finding-ids-and-coordinates).
 | --- | --- | --- |
 | `#guide <title>` | Yes | The guide's name, shown in the Guides list and the window. Write it first. |
 | `#mount <mount ID>` | No | The mount the guide is for. That mount's detail pane gets a **Guide** button. Use one line per mount if the guide covers several. |
-| `#author <name>` | No | Who wrote it. |
+| `#author <name>` | No | Who wrote it. One line per author; they show as "by A, B" under the guide's title, in its menu and when hovering it in the Guides list. |
+| `#credit <text>` | No | Anyone else to thank, or where information came from. One line each; shown in the guide's menu and on hover. |
 | `#description <text>` | No | One line about the guide. |
 
 The guide's ID comes from its title (`Swift Spectral Tiger hunt` becomes
@@ -97,6 +100,7 @@ These go under a `step`:
 | `item <item ID> [count]` | Done when that many are in your bags (1 if you leave the count out). |
 | `mount <mount ID>` | Done when you have the mount. |
 | `reach [yards]` | Done when you are that close to the step's **first** `goto` (15 yards if you leave it out). |
+| `macro <line>` | A macro for this step. More `macro` lines add more lines to the same macro (255 characters in all, the game's limit). See [Macros](#macros). |
 
 `x` and `y` are the numbers the game's map shows, from 0 to 100, for example
 `goto 390 35.6 26`. A comma between them is fine: `goto 390 35.6, 26`.
@@ -157,6 +161,47 @@ step Combine ten [item:12345] into a [item:12346]
 - Links also work inside highlighted text and in notes.
 - The "Done when" line uses links too, so every item, quest and mount in a
   guide has its tooltip.
+
+## Macros
+
+A step can carry a macro, for example to target a rare or use an item:
+
+```
+step Find Alani and target her
+  goto 390 35.6 26 Alani
+  macro /tar Alani
+  macro /run if UnitExists("target") then PlaySound(8959) end
+```
+
+When that step is shown, the window has two buttons:
+
+- **Copy macro**: the macro's text, selected; press Ctrl+C, open `/macro`,
+  click New and paste it in.
+- **Make macro**: MountTrail writes it into one account macro called
+  `MountTrail` (made the first time, rewritten after that) and puts it on your
+  cursor: drop it on an action bar. This needs one free account macro slot and
+  doesn't work in combat (the game's rule); Copy always works.
+
+Every `macro` line is one line of the macro, in order. Keep them short: the
+game allows 255 characters per macro.
+
+## Credits
+
+Give credit where it is due:
+
+```
+#guide Thundering Ruby Cloud Serpent
+#author Adventurer
+#author AnotherWriter
+#credit Spawn points from AllTheThings
+#credit Thanks to the Wowhead commenters who mapped Alani's loop
+```
+
+- `#author` lines show as **by Adventurer, AnotherWriter** under the guide's title.
+- `#credit` lines show in the guide's menu (right-click it) and when hovering
+  the guide in the Guides list.
+- Editing a copy of someone's guide keeps their lines: add yourself as another
+  `#author` rather than replacing them.
 
 ## Finding IDs and coordinates
 
@@ -232,25 +277,46 @@ Midnight keeps some things away from addons, so guides work around them:
 
 ## A complete example
 
-The built-in Thundering Ruby Cloud Serpent guide (Guides/ThunderingRubyCloudSerpent.lua):
+The built-in Thundering Ruby Cloud Serpent guide
+(`Guides/ThunderingRubyCloudSerpent.lua`) uses every feature: authors and
+credits, comments, highlighting, links, several points in one step, a macro,
+and done lines (`reach`, `mount`) next to steps that wait for Next.
 
 ```
 #guide Thundering Ruby Cloud Serpent
 #mount 517
 #author MountTrail
-#description Alani the Stormborn, a rare cloud serpent circling the Vale of Eternal Blossoms.
-step Travel to the Vale of Eternal Blossoms in Pandaria
+#credit Alani's spawn points from AllTheThings
+#credit An example guide: edit a copy to improve it
+#description Alani the Stormborn, a rare elite cloud serpent circling the Vale of Eternal Blossoms, drops [mount:517].
+
+-- 1. Getting there: moves on by itself once you are in the Vale.
+step Travel to the **Vale of Eternal Blossoms** in Pandaria
+  note Any flying mount works; the Vale sits in the middle of Pandaria
   goto 390 56.2 42.6 Vale of Eternal Blossoms
   reach 200
+
+-- 2. The shards: no done line the game can check, so press Next.
 step Kill mobs in the Vale until you have **ten Skyshards**
-  note Skyshards are a rare drop from any mob in the Vale; ten combine into a Sky Crystal
-step Find Alani: she flies a loop around the Vale
-  goto 390 35.6 26 Alani
-  goto 390 38.6 64.6 Alani
-  goto 390 56.2 42.6 Alani
+  note Skyshards are a **rare** drop from any mob in the Vale
+  note Ten of them combine into a Sky Crystal
+
+-- 3. Finding her: three points on TomTom, the arrow picks the closest.
+step Find **Alani**: she flies a loop around the Vale
+  note Use the macro to check whether she is near
+  goto 390 35.6 26 Alani (north)
+  goto 390 38.6 64.6 Alani (south)
+  goto 390 56.2 42.6 Alani (east)
+  macro /tar Alani
+
+-- 4. The fight.
 step Use the **Sky Crystal** near Alani to break her shield, then kill her
-  note She is an elite: bring a friend or a strong character
+  note She is an **elite**: bring a friend or a strong character
+  macro /tar Alani
+
+-- 5. The prize: moves on (and finishes) once the mount is yours.
 step Loot her: [mount:517] is a rare drop
+  note Not this time? She comes back: try again on another day
   mount 517
 ```
 

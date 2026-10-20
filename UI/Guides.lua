@@ -300,6 +300,25 @@ function UI.GuideLink(kind, id)
   return nil
 end
 
+-- A step's macro: one reusable account macro, "MountTrail", rewritten each
+-- time and put on the cursor (out of combat; it takes a free macro slot).
+UI.GUIDE_MACRO = "MountTrail"
+local MACRO_ERRORS = {
+  combat = "Macros can't be made in combat.",
+  full = "No free account macro slot: delete one, or copy the macro instead.",
+  error = "Could not make the macro: copy it instead.",
+}
+
+function UI.MakeGuideMacro(body)
+  local good, why = ns.Game.MakeMacro(UI.GUIDE_MACRO, body)
+  if good then
+    say(string.format(L["Macro \"%s\" is on your cursor: drop it on an action bar."], UI.GUIDE_MACRO))
+  else
+    say(L[MACRO_ERRORS[why] or MACRO_ERRORS.error])
+  end
+  return good
+end
+
 -- Guide text with its markup applied (Guide.Markup over UI.GuideLink).
 function UI.GuideText(text)
   return ns.Guide.Markup(text, UI.GuideLink)

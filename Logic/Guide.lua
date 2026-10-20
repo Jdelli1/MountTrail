@@ -8,7 +8,8 @@ local ADDON, ns = ...
 --
 --   #guide Thundering Ruby Cloud Serpent     the title (required, first)
 --   #mount 517                              the mount(s) it is for
---   #author Adventurer                            optional
+--   #author Adventurer                            who wrote it (one line each)
+--   #credit Thanks to Wowhead's commenters  anyone else to thank (optional)
 --   #description One line about it          optional
 --   -- a comment                            ignored
 --   step Fly to the Vale of Eternal Blossoms
@@ -18,6 +19,7 @@ local ADDON, ns = ...
 --     item 86547 10                          done with 10 of the item in bags
 --     mount 517                              done when the mount is known
 --     reach 20                               done within 20 yards of the first goto
+--     macro /tar Alani                       a macro to copy (more lines: more macro lines)
 --
 -- A step with no done line moves on with Next only. Indenting is optional:
 -- every line after `step` belongs to it until the next `step`.
@@ -30,6 +32,7 @@ Guide.HEADER = "#guide"
 Guide.REACH_YARDS = 15 -- `reach` without a distance
 Guide.MAX_STEPS = 500
 Guide.MAX_TEXT = 60000
+Guide.MACRO_MAX = 255 -- the game's limit on a macro's text
 
 local function trim(s)
   return (string.match(s, "^%s*(.-)%s*$"))
@@ -70,7 +73,7 @@ function Guide.Parse(text)
     fail(1, "The guide is too long.")
     return nil, errors
   end
-  local guide = { mounts = {}, steps = {} }
+  local guide = { mounts = {}, steps = {}, authors = {}, credits = {} }
   local step
   local n = 0
   for raw in string.gmatch(text .. "\n", "([^\n]*)\n") do
@@ -85,7 +88,12 @@ function Guide.Parse(text)
         local mountID = id(rest)
         if mountID then guide.mounts[#guide.mounts + 1] = mountID else fail(n, "#mount needs a mount ID") end
       elseif word == "#author" then
-        guide.author = rest ~= "" and rest or nil
+        if rest ~= "" then
+          guide.authors[#guide.authors + 1] = rest
+          guide.author = guide.author or rest
+        end
+      elseif word == "#credit" then
+        if rest ~= "" then guide.credits[#guide.credits + 1] = rest end
       elseif word == "#description" then
         guide.description = rest ~= "" and rest or nil
       elseif word == "step" then
@@ -98,6 +106,15 @@ function Guide.Parse(text)
         guide.steps[#guide.steps + 1] = step
       elseif not step then
         fail(n, "Start a step with: step <directions>")
+      elseif word == "macro" then
+        local body = step.macro and (step.macro .. "\n" .. rest) or rest
+        if rest == "" then
+          fail(n, "macro needs the macro's text, e.g. macro /tar Alani")
+        elseif #body > Guide.MACRO_MAX then
+          fail(n, "The macro is longer than the game's 255 characters.")
+        else
+          step.macro = body
+        end
       elseif word == "note" then
         if rest ~= "" then step.notes[#step.notes + 1] = rest end
       elseif word == "goto" then
@@ -215,11 +232,18 @@ function Guide.Markup(text, linkFor)
   return text
 end
 
+-- "by A, B" for a guide's authors, or nil without any.
+function Guide.Byline(guide)
+  if not (guide and guide.authors and #guide.authors > 0) then return nil end
+  return string.format(L["by %s"], table.concat(guide.authors, ", "))
+end
+
 -- A starting point for a new guide.
 Guide.TEMPLATE = table.concat({
   "#guide My mount guide",
   "-- #mount 517   (the mount's ID, e.g. from its Wowhead page)",
   "#author You",
+  "-- #credit Thanks to anyone who helped",
   "-- Lines starting with -- are comments.",
   "step Fly to the zone",
   "  goto 390 35.6 26 First spot",

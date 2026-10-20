@@ -375,7 +375,10 @@ local function navButton(parent)
     local e = self.entry
     local reorder = e and e.section and ("\n" .. L["Alt-drag to reorder."]) or ""
     if e and e.guide then
-      UI.ShowHint(self, e.label, L["Click: follow this guide. Right-click: edit, export, reset or delete."] .. reorder)
+      local entry = UI.GuideById and UI.GuideById(e.guide)
+      local credits = entry and UI.GuideCreditsText and UI.GuideCreditsText(entry.guide) or ""
+      UI.ShowHint(self, e.label, (credits ~= "" and (credits .. "\n") or "")
+        .. L["Click: follow this guide. Right-click: edit, export, reset or delete."] .. reorder)
     elseif e and e.source then
       UI.ShowHint(self, e.label, (e.source.kind == "list" and L["Click: open. Right-click: pop out. Shift-right-click: share, rename or delete"]
         or L["Click: open. Right-click: pop out"]) .. reorder)

@@ -15,10 +15,15 @@ describe("Guide format", function()
     eq(g.author, "MountTrail")
     eq(#g.steps, 5)
     eq(#g.steps[3].gotos, 3)
-    eq(g.steps[3].gotos[1], { m = 390, x = 35.6, y = 26, label = "Alani" })
+    eq(g.steps[3].gotos[1], { m = 390, x = 35.6, y = 26, label = "Alani (north)" })
+    eq(g.credits[1], "Alani's spawn points from AllTheThings")
+    eq(g.steps[3].macro, "/tar Alani")
+    ok(g.steps[1].text:find("**", 1, true) and g.steps[5].text:find("[mount:517]", 1, true),
+      "it shows highlighting and links")
     eq(g.steps[1].done, { { kind = "reach", yards = 200 } })
     eq(g.steps[5].done, { { kind = "mount", id = 517 } })
     eq(g.steps[2].notes[1]:sub(1, 9), "Skyshards")
+    eq(#g.steps[2].notes, 2)
   end)
 
   it("says what is wrong and on which line, keeping the rest", function()
@@ -109,7 +114,7 @@ describe("Following a guide", function()
     local w = ns.UI.GuideWindow()
     ok(w:IsShown(), "the window opens")
     eq(w.Count:GetText(), "1 / 5")
-    eq(w.StepText:GetText(), "Travel to the Vale of Eternal Blossoms in Pandaria")
+    eq(w.StepText:GetText(), "Travel to the |cffffd100Vale of Eternal Blossoms|r in Pandaria")
     eq(w.Done:GetText(), "Done when: reach the spot")
     ok(w.Place:GetText():find("Vale of Eternal Blossoms: Vale of Eternal Blossoms 56.2, 42.6", 1, true), w.Place:GetText())
     ns.UI.GuideGo(1)
@@ -221,7 +226,9 @@ describe("Following a guide", function()
     button("Thundering Ruby Cloud Serpent"):RunScript("OnClick", "RightButton")
     local texts = {}
     for _, it in ipairs(items) do if it.text then texts[#texts + 1] = it.text end end
-    eq(texts, { "Close guide", "Edit a copy...", "Export...", "Back to step 1" }, "built-in: no Delete")
+    eq(texts, { "by MountTrail", "Alani's spawn points from AllTheThings", "An example guide: edit a copy to improve it",
+      "Close guide", "Edit a copy...", "Export...", "Back to step 1" }, "authors and credits first; built-in: no Delete")
+    eq(items[2].disabled, true, "the author line is not a button")
   end)
 
   it("the window shows markup as links with the game's tooltip", function()
@@ -250,5 +257,48 @@ describe("Following a guide", function()
     w.Body:GetScript("OnHyperlinkEnter")(w.Body, "item:86547")
     eq(shown, "item:86547", "hovering a link shows the game's tooltip")
     GameTooltip = nil
+  end)
+
+  it("macros: Copy shows the text, Make writes the account macro; authors and credits show", function()
+    local ns = loadUI()
+    local text = table.concat({
+      "#guide Macro test",
+      "#author Adventurer",
+      "#author Someone",
+      "#credit Thanks to the Wowhead comments",
+      "step Target her",
+      "  macro /tar Alani",
+      "  macro /cleartarget [dead]",
+      "step Done",
+    }, "\n")
+    local g = ns.Guide.Parse(text)
+    eq(g.steps[1].macro, "/tar Alani\n/cleartarget [dead]")
+    eq(g.authors, { "Adventurer", "Someone" })
+    eq(g.credits, { "Thanks to the Wowhead comments" })
+    eq(ns.Guide.Byline(g), "by Adventurer, Someone")
+    local _, errors = ns.Guide.Parse("#guide T\nstep A\n  macro " .. string.rep("x", 256))
+    eq(errors[1].msg, "The macro is longer than the game's 255 characters.")
+
+    ns.UI.SaveGuide(text)
+    ns.UI.StartGuide("macro-test")
+    local w = ns.UI.GuideWindow()
+    eq(w.Byline:GetText(), "by Adventurer, Someone")
+    ok(w.CopyMacro:IsShown() and w.MakeMacro:IsShown(), "macro buttons on a step with a macro")
+    local copied
+    ns.UI.ShowGuideCopy = function(_, _, body) copied = body end
+    w.CopyMacro:RunScript("OnClick", "LeftButton")
+    eq(copied, "/tar Alani\n/cleartarget [dead]")
+    local made
+    ns.Game.MakeMacro = function(name, body) made = { name, body } return true end
+    w.MakeMacro:RunScript("OnClick", "LeftButton")
+    eq(made, { "MountTrail", "/tar Alani\n/cleartarget [dead]" })
+    ns.Game.MakeMacro = function() return false, "combat" end
+    local said
+    ns.addon.Print = function(_, msg) said = msg end
+    w.MakeMacro:RunScript("OnClick", "LeftButton")
+    eq(said, "Macros can't be made in combat.")
+    ns.UI.GuideGo(1)
+    ok(not w.CopyMacro:IsShown(), "no macro: no buttons")
+    ok(ns.UI.GuideCreditsText(g):find("Thanks to the Wowhead comments", 1, true))
   end)
 end)

@@ -364,7 +364,9 @@ to go (plotted on TomTom), and when a step is done.
 A guide is plain text, one keyword per line, so it can be written anywhere and
 shared by copy and paste. `**words**` are highlighted, and `[item:ID]`,
 `[quest:ID]`, `[mount:ID]`, `[spell:ID]` or `[achievement:ID]` become the
-game's links with their tooltips. **[docs/GUIDES.md](docs/GUIDES.md) explains
+game's links with their tooltips. A `macro` line gives the step **Copy macro**
+and **Make macro** buttons, and `#author` / `#credit` lines credit the people
+behind a guide. **[docs/GUIDES.md](docs/GUIDES.md) explains
 how to write guides**: every keyword, done lines, highlighting, links, finding
 IDs and coordinates, and what the editor's messages mean.
 

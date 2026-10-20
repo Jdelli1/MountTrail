@@ -809,3 +809,24 @@ function Game.AchievementLink(achievementID)
   local good, link = pcall(GetAchievementLink, achievementID)
   return good and type(link) == "string" and link ~= "" and link or nil
 end
+
+-- Makes (or updates) the account-wide macro `name` with `body` and puts it on
+-- the cursor to drop on an action bar -> true, or false and why ("combat",
+-- "full", "error").
+function Game.MakeMacro(name, body)
+  if type(InCombatLockdown) == "function" and InCombatLockdown() then return false, "combat" end
+  if type(CreateMacro) ~= "function" or type(GetMacroIndexByName) ~= "function" then return false, "error" end
+  local icon = "INV_MISC_QUESTIONMARK"
+  local good, index = pcall(GetMacroIndexByName, name)
+  index = good and index or 0
+  if index and index > 0 and type(EditMacro) == "function" then
+    good = pcall(EditMacro, index, name, icon, body)
+  else
+    local made
+    good, made = pcall(CreateMacro, name, icon, body, false)
+    if not good or not made then return false, "full" end
+  end
+  if not good then return false, "error" end
+  if type(PickupMacro) == "function" then pcall(PickupMacro, name) end
+  return true
+end

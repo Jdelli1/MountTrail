@@ -165,7 +165,7 @@ end
 
 function UI.NewGuide()
   return open("new", L["New guide"],
-    L["One keyword per line: #guide, #mount, step, note, goto, quest, item, mount, reach. **bold** and [item:ID] links work. docs/GUIDES.md has the details."],
+    L["One keyword per line: #guide, #mount, #author, #credit, step, note, goto, quest, item, mount, reach, macro. **bold** and [item:ID] links work. docs/GUIDES.md has the details."],
     ns.Guide.TEMPLATE, nil, true)
 end
 
@@ -182,6 +182,11 @@ function UI.EditGuide(id)
       L["Built-in guides stay as they are: Save keeps this as your own guide."], entry.text, nil, false)
   end
   return open("edit", string.format(L["Edit %s"], entry.title), nil, entry.text, entry.id, false)
+end
+
+-- Read-only text to copy (a step's macro).
+function UI.ShowGuideCopy(titleText, hintText, body)
+  return open("export", titleText, hintText, body, nil, false)
 end
 
 function UI.ExportGuide(id)

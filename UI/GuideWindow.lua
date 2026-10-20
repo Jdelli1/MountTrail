@@ -4,7 +4,8 @@ local ADDON, ns = ...
 -- current step only (compact: its directions, notes, where its points are
 -- and what finishes it) or every step (click one to jump there). Back / Next
 -- move through it; right-click the title for the mode, Edit, Export, Reset
--- and Close. Its position and mode are saved (ns.db.global.guideWindow).
+-- and Close. Its authors show under the title (credits on hover), and a step
+-- with a macro gets Copy macro / Make macro buttons. Its position and mode are saved (ns.db.global.guideWindow).
 
 local L = ns.L
 
@@ -18,6 +19,8 @@ local BUTTONS_H = 30
 local FULL_H = 340
 local LINE_GAP = 4
 local STEP_ROW = 20
+local BYLINE_H = 14
+local MACRO_ROW = 24
 
 local w
 
@@ -133,7 +136,10 @@ local function build()
     end
   end)
   strip:SetScript("OnClick", function(self, button) if button == "RightButton" then showMenu(self) end end)
-  strip:SetScript("OnEnter", function(self) UI.ShowHint(self, L["Guide"], L["Drag to move. Right-click for options."]) end)
+  strip:SetScript("OnEnter", function(self)
+    local entry = UI.ActiveGuide()
+    UI.ShowHint(self, entry and entry.title or L["Guide"], UI.GuideCreditsText(entry and entry.guide, true))
+  end)
   strip:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   local band = strip:CreateTexture(nil, "BACKGROUND")
   band:SetAllPoints(strip)
@@ -165,6 +171,36 @@ local function build()
   body:SetHeight(1)
   w.Body = body
   enableLinks(body)
+  local byline = w:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisableSmall"))
+  byline:SetPoint("TOPLEFT", w, "TOPLEFT", PAD, -(TITLE_H + 3))
+  byline:SetPoint("TOPRIGHT", w, "TOPRIGHT", -PAD, -(TITLE_H + 3))
+  byline:SetJustifyH("LEFT")
+  byline:SetWordWrap(false)
+  w.Byline = byline
+  -- A step's macro: copy it, or have it made and put on the cursor.
+  local copyMacro = UI.FlatButton(body, L["Copy macro"], "plain", 20)
+  copyMacro:SetWidth(110)
+  copyMacro:SetScript("OnClick", function()
+    local entry, n = UI.ActiveGuide()
+    local step = entry and entry.guide.steps[n]
+    if step and step.macro then
+      UI.ShowGuideCopy(L["Macro"], L["Ctrl+C to copy, then /macro, New, and paste it in."], step.macro)
+    end
+  end)
+  w.CopyMacro = copyMacro
+  local makeMacro = UI.FlatButton(body, L["Make macro"], "gold", 20)
+  makeMacro:SetWidth(110)
+  makeMacro:SetPoint("LEFT", copyMacro, "RIGHT", 6, 0)
+  makeMacro:SetScript("OnClick", function()
+    local entry, n = UI.ActiveGuide()
+    local step = entry and entry.guide.steps[n]
+    if step and step.macro then UI.MakeGuideMacro(step.macro) end
+  end)
+  makeMacro:SetScript("OnEnter", function(self)
+    UI.ShowHint(self, L["Make macro"], string.format(L["Writes it into your account macro \"%s\" and puts it on your cursor."], UI.GUIDE_MACRO))
+  end)
+  makeMacro:SetScript("OnLeave", function(self) UI.HideHint(self) end)
+  w.MakeMacro = makeMacro
   w.StepText = text(body, "GameFontHighlight")
   w.Notes = text(body, "GameFontDisableSmall", 0.75, 0.75, 0.75)
   w.Place = text(body, "GameFontHighlightSmall", 0.45, 0.8, 1)
@@ -243,7 +279,14 @@ local function paintCompact(entry, n, step)
   place(w.Place, UI.GuidePlaceText(step))
   local done = ns.Guide.DoneText(step)
   place(w.Done, #done > 0 and UI.GuideText(L["Done when: "] .. table.concat(done, ", ")) or L["Press Next when done."])
-  w:SetHeight(TITLE_H + 6 + y + BUTTONS_H + 6)
+  w.CopyMacro:SetShown(step.macro ~= nil)
+  w.MakeMacro:SetShown(step.macro ~= nil)
+  if step.macro then
+    w.CopyMacro:ClearAllPoints()
+    w.CopyMacro:SetPoint("TOPLEFT", w.Body, "TOPLEFT", 0, -y)
+    y = y + MACRO_ROW
+  end
+  w:SetHeight(w.top + y + BUTTONS_H + 6)
 end
 
 local function paintFull(entry, n)
@@ -289,6 +332,15 @@ function UI.RefreshGuideWindow()
   local steps = entry.guide.steps
   local step = steps[n]
   w.Title:SetText(entry.title)
+  -- The authors under the title; the views start below them.
+  local byline = ns.Guide.Byline(entry.guide)
+  w.Byline:SetText(byline or "")
+  w.Byline:SetShown(byline ~= nil)
+  w.top = TITLE_H + 6 + (byline and BYLINE_H or 0)
+  w.Body:ClearAllPoints()
+  w.Body:SetPoint("TOPLEFT", w, "TOPLEFT", PAD, -w.top)
+  w.Body:SetPoint("TOPRIGHT", w, "TOPRIGHT", -PAD, -w.top)
+  w.Scroll:SetPoint("TOPLEFT", w, "TOPLEFT", PAD, -w.top)
   w.Count:SetText(string.format(L["%d / %d"], n, #steps))
   w.Back:SetEnabled(n > 1)
   if w.Back.SetAlpha then w.Back:SetAlpha(n > 1 and 1 or 0.4) end
@@ -314,15 +366,19 @@ function UI.ShowGuideMenu(id, owner)
   if not entry then return end
   local active = UI.ActiveGuide()
   local following = active and active.id == id
-  local items = {
-    { title = entry.title },
+  local items = { { title = entry.title } }
+  local byline = ns.Guide.Byline(entry.guide)
+  if byline then items[#items + 1] = { text = byline, disabled = true } end
+  for _, c in ipairs(entry.guide.credits or {}) do items[#items + 1] = { text = c, disabled = true } end
+  if #items > 1 then items[#items + 1] = { separator = true } end
+  for _, it in ipairs({
     { text = following and L["Close guide"] or L["Follow"], onClick = function()
       if following then UI.StopGuide() else UI.StartGuide(id) end
     end },
     { text = entry.builtIn and L["Edit a copy..."] or L["Edit..."], onClick = function() UI.EditGuide(id) end },
     { text = L["Export..."], onClick = function() UI.ExportGuide(id) end },
     { text = L["Back to step 1"], onClick = function() UI.ResetGuide(id) end },
-  }
+  }) do items[#items + 1] = it end
   if not entry.builtIn then
     items[#items + 1] = { separator = true }
     items[#items + 1] = { text = L["Delete..."], onClick = function()
@@ -333,6 +389,17 @@ function UI.ShowGuideMenu(id, owner)
     end }
   end
   UI.ShowMenu(owner, items, "cursor")
+end
+
+-- "by A, B" and the credit lines (one per line), or "" without either.
+-- withHelp: the window's own hint line after them.
+function UI.GuideCreditsText(guide, withHelp)
+  local lines = {}
+  local byline = guide and ns.Guide.Byline(guide)
+  if byline then lines[#lines + 1] = byline end
+  for _, c in ipairs(guide and guide.credits or {}) do lines[#lines + 1] = "|cff9d9d9d" .. c .. "|r" end
+  if withHelp then lines[#lines + 1] = L["Drag to move. Right-click for options."] end
+  return table.concat(lines, "\n")
 end
 
 UI.GuideWindow = function() return w end
