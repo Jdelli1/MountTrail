@@ -37,6 +37,26 @@ function FrameMT:SetEnabled(on) self.enabled = on end
 function FrameMT:CreateMaskTexture() return self:CreateTexture(nil, "ARTWORK") end
 function FrameMT:SetDataProvider(provider, retain) self.provider = provider; self.retain = retain end
 function FrameMT:SetClampRectInsets(l, r, t, b) self.clampInsets = { l, r, t, b } end
+-- Slider (the menu's sliders): range, step and value recorded; SetValue clamps
+-- and fires OnValueChanged on a change, as the client does.
+function FrameMT:SetMinMaxValues(lo, hi) self.min, self.max = lo, hi end
+function FrameMT:GetMinMaxValues() return self.min, self.max end
+function FrameMT:SetValueStep(step) self.step = step end
+function FrameMT:GetValueStep() return self.step or 1 end
+function FrameMT:SetObeyStepOnDrag(on) self.obeyStep = on end
+function FrameMT:SetOrientation(o) self.orientation = o end
+function FrameMT:SetValue(v)
+  if self.min and self.max then v = math.max(self.min, math.min(self.max, v)) end
+  if v == self.value then return end
+  self.value = v
+  if self.scripts.OnValueChanged then self.scripts.OnValueChanged(self, v) end
+end
+function FrameMT:GetValue() return self.value or 0 end
+function FrameMT:SetThumbTexture(asset)
+  self.thumb = self:CreateTexture(nil, "OVERLAY")
+  self.thumb.texture = asset
+end
+function FrameMT:GetThumbTexture() return self.thumb end
 
 function CreateScrollBoxListLinearView()
   local view = {}
@@ -475,31 +495,52 @@ describe("pop-out windows", function()
     local a = ns.UI.OpenPopout({ kind = "camp", exp = WOD })
     local b = ns.UI.OpenPopout({ kind = "daily", exp = WOD })
     local menu
+    -- Every click comes with the pointer lower and further right than the one
+    -- before (it is over the row just clicked).
+    local function nudge() STUB_CURSOR[1], STUB_CURSOR[2] = STUB_CURSOR[1] + 15, STUB_CURSOR[2] - 20 end
     local function click(text)
       for _, it in ipairs(menu.items) do
-        if it:IsShown() and it.data and it.data.text == text then
+        if it:IsShown() and it.data and not it.data.slider and it.data.text == text then
+          nudge()
           it:RunScript("OnClick", "LeftButton")
           return it
         end
       end
       error("no menu item " .. text)
     end
+    local function sliderRow(label)
+      for _, it in ipairs(menu.items) do
+        if it:IsShown() and it.data and it.data.slider and it.data.text == label then return it end
+      end
+      error("no slider " .. label)
+    end
+    local function pos() local p, _, rp, x, y = menu:GetPoint(1); return { p, rp, x, y } end
+    STUB_CURSOR[1], STUB_CURSOR[2] = 600, 700
     a.Strip:RunScript("OnMouseUp", "RightButton")
     menu = _G.AzerothTrailMenu
     ok(menu:IsShown(), "the flat menu")
+    local opened = pos()
+    eq(opened, { "TOPLEFT", "BOTTOMLEFT", 604, 696 }, "opens at the pointer")
     eq(menu.items[1].data.title, "Appearance")
-    ok(menu.items[2].Arrow:IsShown(), "a sub-menu item shows its arrow")
-    click("Opacity: 92%")
-    ok(menu:IsShown(), "the sub-menu replaces it")
-    eq(menu.items[1].data.title, "Opacity")
-    click("60%")
-    ok(menu:IsShown(), "stays open to try another")
+    -- Opacity: a slider (20-100 %), no steps to pick from.
+    local op = sliderRow("Opacity")
+    eq({ op.Slider.min, op.Slider.max, op.Slider.step, op.Slider.value }, { 20, 100, 1, 92 })
+    eq(op.Value:GetText(), "92%")
+    ok(not (ns.db.global.popouts["camp|" .. WOD] or {}).style, "opening the menu changes nothing")
+    op.Slider:SetValue(60)
+    ok(menu:IsShown(), "stays open")
     local st = ns.db.global.popouts["camp|" .. WOD].style
     eq(st.alpha, 0.6)
-    eq(a.Fill.color[4], 0.6, "the window follows")
+    eq(op.Value:GetText(), "60%")
+    eq(a.Fill.color[4], 0.6, "the window follows live")
     eq(b.Fill.color[4], 0.92, "the other window keeps its look")
-    click("Back")
+    op.Slider:SetValue(5)
+    eq(st.alpha, 0.2, "no lower than 20%")
+    op.Slider:SetValue(60)
+    ok(menu.items[3].Arrow:IsShown(), "a sub-menu item shows its arrow")
     click("Background colour")
+    ok(menu:IsShown(), "the sub-menu replaces it")
+    eq(menu.items[1].data.title, "Background colour")
     click("Forest")
     eq(st.bg, { 0.05, 0.12, 0.07 })
     click("Back")
@@ -507,11 +548,30 @@ describe("pop-out windows", function()
     click("Gold")
     eq(st.text, { 1, 0.82, 0 })
     click("Back")
-    click("Font size")
-    click("Large")
+    -- Opacity shows what was set when the menu is painted again.
+    eq(sliderRow("Opacity").Slider.value, 60)
+    -- Font size: a number (8-24), the window's own default until one is set.
+    local fs = sliderRow("Font size")
+    eq({ fs.Slider.min, fs.Slider.max, fs.Slider.step, fs.Slider.value }, { 8, 24, 1, 11 })
+    eq(fs.Value:GetText(), "11")
+    local default
+    for _, it in ipairs(menu.items) do if it.data and it.data.text == "Default size" then default = it end end
+    eq(default.data.checked, true, "no size chosen: the default is ticked")
+    eq(st.size, nil)
+    fs.Slider:SetValue(14)
     eq(st.size, 14)
+    eq(fs.Value:GetText(), "14")
     ok(a.rowHeight > 20, "taller rows for bigger text")
-    click("Back")
+    eq(default.data.checked, false, "repainted: no longer the default")
+    fs.Slider:SetValue(30)
+    eq(st.size, 24, "no bigger than 24")
+    fs.Slider:SetValue(7)
+    eq(st.size, 8, "no smaller than 8")
+    click("Default size")
+    eq(st.size, nil, "back to the default")
+    eq(sliderRow("Font size").Slider.value, 11, "the slider follows")
+    sliderRow("Font size").Slider:SetValue(14)
+    eq(st.size, 14)
     click("Font")
     click("Morpheus")
     eq(st.font, "Fonts\\MORPHEUS.TTF")
@@ -519,7 +579,10 @@ describe("pop-out windows", function()
     for _, c in ipairs(a.Content.children) do if c.data and c.data.id == 657 then row = c end end
     eq({ row.Name.fontPath, row.Name.fontSize }, { "Fonts\\MORPHEUS.TTF", 14 })
     eq(row.Name.textColor, { 1, 0.82, 0 })
+    ok(menu:IsShown(), "still open after all those clicks")
+    eq(pos(), opened, "and where it opened: a click does not move the menu")
     click("Back")
+    eq(pos(), opened, "Back neither")
     click("Apply to all pop-outs")
     ok(not menu:IsShown(), "closed")
     eq(ns.db.global.popoutStyle.alpha, 0.6)
@@ -533,6 +596,31 @@ describe("pop-out windows", function()
     eq(a.Fill.color[4], 0.6, "the others keep the shared look")
     ok(ns.UI.PopoutFonts()[1].path:find("FRIZQT"), "the game's fonts first")
     eq(ns.UI.PopoutStyle({ alpha = 5 }).alpha, 1, "opacity clamped")
+    STUB_CURSOR[1], STUB_CURSOR[2] = 0, 0
+  end)
+
+  it("style: opacity 0.2-1 and font size 8-24 whole points, as saved", function()
+    local ns = loadUI()
+    local style = ns.UI.PopoutStyle
+    eq(style({ alpha = 0.05 }).alpha, 0.2)
+    eq(style({ alpha = 0.55 }).alpha, 0.55)
+    eq(style({}).alpha, 0.92, "the default")
+    eq(style({}).size, nil, "no size chosen")
+    eq(style({ size = 3 }).size, 8)
+    eq(style({ size = 99 }).size, 24)
+    eq(style({ size = 13.4 }).size, 13, "whole points")
+    eq(style({ size = 10 }).size, 10, "an old preset size still holds")
+  end)
+
+  it("style: the default font size is the small font's own, within 8-24", function()
+    local ns = loadUI()
+    eq(ns.UI.PopoutDefaultSize(), 11, "no font object to ask: 11")
+    local saved = _G.GameFontHighlightSmall
+    _G.GameFontHighlightSmall = { GetFont = function() return "Fonts\\FRIZQT__.TTF", 12.4, "" end }
+    eq(ns.UI.PopoutDefaultSize(), 12)
+    _G.GameFontHighlightSmall = { GetFont = function() return "x", 40, "" end }
+    eq(ns.UI.PopoutDefaultSize(), 24)
+    _G.GameFontHighlightSmall = saved
   end)
 
   it("snapped windows move together: the top one takes the stack, a middle one those below", function()
@@ -620,6 +708,119 @@ describe("flat widgets", function()
     eq(clicked, 1, "disabled does nothing")
     _G.AzerothTrailMenuCatcher:RunScript("OnClick", "LeftButton")
     ok(not menu:IsShown(), "a click elsewhere closes")
+  end)
+
+  it("menu: a click repaints in place; a sub-menu opens where the menu is; it never follows the pointer", function()
+    local ns = loadUI()
+    local owner = CreateFrame("Button", nil, UIParent)
+    local state = false
+    local main
+    local function sub()
+      return { { title = "Sub" }, { text = "Back", submenu = main } }
+    end
+    main = function()
+      return {
+        { title = "Main" },
+        { text = "Loop", checked = state, keepOpen = true, onClick = function() state = not state end },
+        { text = "More", submenu = sub },
+      }
+    end
+    local function pos(m) local p, _, rp, x, y = m:GetPoint(1); return { p, rp, x, y } end
+    STUB_CURSOR[1], STUB_CURSOR[2] = 400, 700
+    local menu = ns.UI.ShowMenu(owner, main, "cursor")
+    local first = pos(menu)
+    eq(first, { "TOPLEFT", "BOTTOMLEFT", 404, 696 })
+    ok(menu.clamped, "kept on screen")
+    -- Each click is made with the pointer lower and to the right of the
+    -- menu's corner; the menu used to jump to it every time.
+    STUB_CURSOR[1], STUB_CURSOR[2] = 460, 650
+    menu.items[2]:RunScript("OnClick", "LeftButton")
+    eq(state, true)
+    eq(pos(menu), first, "a keepOpen click stays put")
+    STUB_CURSOR[1], STUB_CURSOR[2] = 470, 620
+    menu.items[3]:RunScript("OnClick", "LeftButton")
+    eq(menu.items[1].data.title, "Sub")
+    eq(pos(menu), first, "the sub-menu opens in the same place")
+    STUB_CURSOR[1], STUB_CURSOR[2] = 480, 600
+    menu.items[2]:RunScript("OnClick", "LeftButton")
+    eq(menu.items[1].data.title, "Main")
+    eq(pos(menu), first, "Back too")
+    -- Closed and opened again: at the pointer once more (and scaled to its owner).
+    ns.UI.HideMenu()
+    STUB_CURSOR[1], STUB_CURSOR[2] = 120, 340
+    ns.UI.ShowMenu(owner, main, "cursor")
+    eq(pos(menu), { "TOPLEFT", "BOTTOMLEFT", 124, 336 }, "a new open is placed afresh")
+    -- Below its owner, the other anchor, also stays through a repaint.
+    ns.UI.HideMenu()
+    ns.UI.ShowMenu(owner, main)
+    local below = pos(menu)
+    eq(below, { "TOPLEFT", "BOTTOMLEFT", 0, -2 })
+    menu.items[2]:RunScript("OnClick", "LeftButton")
+    eq(pos(menu), below)
+    STUB_CURSOR[1], STUB_CURSOR[2] = 0, 0
+  end)
+
+  it("menu: a slider row has a range, step and value; dragging reports, painting does not", function()
+    local ns = loadUI()
+    local owner = CreateFrame("Button", nil, UIParent)
+    local value, got, ticks = 60, {}, 0
+    local function items()
+      return {
+        { title = "Look" },
+        { slider = true, text = "Opacity", min = 20, max = 100, step = 1, value = value, format = "%d%%",
+          onChange = function(v) value = v; got[#got + 1] = v end },
+        { text = "Tick", checked = value > 60, keepOpen = true, onClick = function() ticks = ticks + 1 end },
+      }
+    end
+    local menu = ns.UI.ShowMenu(owner, items)
+    local row = menu.items[2]
+    local s = row.Slider
+    ok(s:IsShown(), "a slider")
+    eq({ s.min, s.max, s.step, s.value, s.obeyStep, s.orientation }, { 20, 100, 1, 60, true, "HORIZONTAL" })
+    eq(row.Label:GetText(), "Opacity")
+    eq(row.Value:GetText(), "60%")
+    ok(not row.Highlight:IsShown(), "no hover highlight on a slider row")
+    ok(row:GetHeight() > 18, "taller than a text row")
+    eq(got, {}, "painting does not report a change")
+    s:SetValue(75)
+    eq(got, { 75 })
+    eq(row.Value:GetText(), "75%", "the readout follows")
+    eq(menu.items[3].data.checked, true, "the rest repaints (no jump back to 60)")
+    eq(s.value, 75)
+    s:RunScript("OnMouseWheel", 1)
+    eq(value, 76, "wheel: one step up")
+    s:RunScript("OnMouseWheel", -1)
+    s:RunScript("OnMouseWheel", -1)
+    eq(value, 74, "and down")
+    s:SetValue(75.4)
+    eq(value, 75, "whole steps")
+    s:SetValue(75)
+    eq(#got, 5, "the same value reports nothing")
+    -- A click on the row's label or a tick elsewhere does not close or report.
+    row:RunScript("OnClick", "LeftButton")
+    ok(menu:IsShown(), "a click on the row itself does nothing")
+    menu.items[3]:RunScript("OnClick", "LeftButton")
+    eq(ticks, 1)
+    eq(#got, 5)
+    eq(s.value, 75)
+    -- The row's frames serve other menus: no slider there.
+    ns.UI.ShowMenu(owner, { { title = "x" }, { text = "plain" } })
+    ok(not menu.items[2].Slider:IsShown(), "a plain row hides it")
+    eq(menu.items[2]:GetHeight(), 18)
+    -- A menu given as a plain list (not rebuilt on a repaint): the slider keeps what was dragged to.
+    ns.UI.ShowMenu(owner, { { slider = true, min = 0, max = 10, step = 1, value = 3, onChange = function() end } })
+    menu.items[1].Slider:SetValue(7)
+    eq(menu.items[1].Slider.value, 7, "no jump back to the value it was opened with")
+    eq(menu.items[1].Value:GetText(), "7")
+    -- A value out of range is held to it; the step snaps it.
+    ns.UI.ShowMenu(owner, { { slider = true, min = 8, max = 24, step = 1, value = 99, onChange = function() end } })
+    eq(menu.items[1].Slider.value, 24)
+    eq(menu.items[1].Value:GetText(), "24", "no format: the number")
+    eq(ns.UI.SnapSliderValue(10.4, 8, 24, 1), 10)
+    eq(ns.UI.SnapSliderValue(10.5, 8, 24, 1), 11)
+    eq(ns.UI.SnapSliderValue(3, 8, 24, 1), 8)
+    eq(ns.UI.SnapSliderValue(30, 8, 24, 1), 24)
+    eq(ns.UI.SnapSliderValue(5, 0, 10, nil), 5, "no step given: whole")
   end)
 
   it("name prompt: Enter accepts the trimmed text, empty is ignored, Cancel closes", function()

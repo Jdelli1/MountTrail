@@ -25,9 +25,10 @@ local ADDON, ns = ...
 -- Windows that are not the player's own list (quick lists, the zone's
 -- rares) group their rows under expansion headers when they span several
 -- (UI.PopoutGroups). Right-click a window's title for its appearance:
--- opacity, background and text colour, font size and font (saved per
--- window, UI.PopoutStyle; "Apply to all pop-outs" makes it every window's
--- look, new ones too; "Reset appearance"). Windows snapped together move
+-- opacity and font size (sliders, 20-100 % and 8-24), background and text
+-- colour and font (saved per window, UI.PopoutStyle; "Apply to all
+-- pop-outs" makes it every window's look, new ones too; "Reset
+-- appearance"). Windows snapped together move
 -- together: dragging one takes those snapped under it or to its right along
 -- (UI.SnapChain), so the top of a stack moves the whole stack.
 -- Each row carries a small expansion tag (UI.ExpansionBadge). Each
@@ -329,8 +330,10 @@ end
 
 -- Appearance of a window (right-click its title). Saved per window as
 -- { alpha =, bg = { r, g, b }, text = { r, g, b }, size =, font = };
--- missing fields take the defaults (the window's own look).
+-- missing fields take the defaults (the window's own look). Opacity runs
+-- 0.2-1 and the font size 8-24 (whole points): the menu's two sliders.
 UI.POPOUT_STYLE = { alpha = 0.92, bg = { 0.06, 0.06, 0.07 }, text = nil, size = nil, font = nil }
+local ALPHA_MIN, SIZE_MIN, SIZE_MAX = 0.2, 8, 24
 UI.POPOUT_FONTS = {
   { name = "Friz Quadrata", path = "Fonts\\FRIZQT__.TTF" },
   { name = "Arial Narrow", path = "Fonts\\ARIALN.TTF" },
@@ -342,14 +345,26 @@ UI.POPOUT_FONTS = {
 function UI.PopoutStyle(saved)
   local d = UI.POPOUT_STYLE
   saved = type(saved) == "table" and saved or {}
-  local alpha = tonumber(saved.alpha)
+  local alpha, size = tonumber(saved.alpha), tonumber(saved.size)
   return {
-    alpha = alpha and math.max(0.1, math.min(1, alpha)) or d.alpha,
+    alpha = alpha and math.max(ALPHA_MIN, math.min(1, alpha)) or d.alpha,
     bg = type(saved.bg) == "table" and saved.bg or d.bg,
     text = type(saved.text) == "table" and saved.text or d.text,
-    size = tonumber(saved.size) or d.size,
+    size = size and math.max(SIZE_MIN, math.min(SIZE_MAX, math.floor(size + 0.5))) or d.size,
     font = type(saved.font) == "string" and saved.font or d.font,
   }
+end
+
+-- The text size a window has until one is chosen: the small font's own (the
+-- font object's height), held to the slider's range; 11 when it cannot be
+-- read.
+function UI.PopoutDefaultSize()
+  local fo = _G.GameFontHighlightSmall
+  local _, height
+  if type(fo) == "table" and type(fo.GetFont) == "function" then _, height = fo:GetFont() end
+  height = tonumber(height)
+  if not height then return 11 end
+  return math.max(SIZE_MIN, math.min(SIZE_MAX, math.floor(height + 0.5)))
 end
 
 -- The order after moving `key` to position `to` among `keys` (the rows as
@@ -595,6 +610,13 @@ local function sharedStyle()
   return global and type(global.popoutStyle) == "table" and global.popoutStyle or nil
 end
 
+-- The window's own style, else the shared one, over the defaults.
+local function styleOf(w)
+  local db = popoutsDB()
+  local state = db and db[w.key]
+  return UI.PopoutStyle(state and state.style or sharedStyle())
+end
+
 -- The window's background and title in its style.
 local function applyChrome(w, style)
   w.Fill:SetColorTexture(style.bg[1], style.bg[2], style.bg[3], style.alpha)
@@ -618,7 +640,7 @@ local function refreshWindow(w, built)
   local db = popoutsDB()
   local state = db and db[w.key]
   UI.ApplyOrder(rows, state and state.order)
-  local style = UI.PopoutStyle(state and state.style or sharedStyle())
+  local style = styleOf(w)
   applyChrome(w, style)
   local rowHeight = math.max(ROW_HEIGHT, (style.size or 11) + 9)
   local groupHeight = math.max(GROUP_HEIGHT, (style.size or 11) + 7)
@@ -896,8 +918,10 @@ local function build(key, source)
   return w
 end
 
--- Saves `change(style)` into window `w`'s style and redraws.
-local function setStyle(w, change)
+-- Saves `change(style)` into window `w`'s style and redraws. chromeOnly: a
+-- change of the background only (the opacity slider, many times a second):
+-- the windows are repainted without rebuilding their rows.
+local function setStyle(w, change, chromeOnly)
   local db = popoutsDB()
   if not db then return end
   db[w.key] = db[w.key] or {}
@@ -908,7 +932,13 @@ local function setStyle(w, change)
   end
   change(st)
   db[w.key].style = st
-  UI.RefreshPopouts()
+  if chromeOnly then
+    for _, win in pairs(windows) do
+      if win:IsShown() then applyChrome(win, styleOf(win)) end
+    end
+  else
+    UI.RefreshPopouts()
+  end
 end
 
 -- Blizzard's colour picker for a style colour (presets cover most uses).
@@ -935,19 +965,18 @@ local TEXT_PRESETS = {
   { "White", { 1, 1, 1 } }, { "Gold", { 1, 0.82, 0 } }, { "Light grey", { 0.8, 0.8, 0.8 } },
   { "Green", { 0.5, 0.9, 0.5 } }, { "Sky", { 0.55, 0.8, 1 } },
 }
-local SIZES = { { "Small", 10 }, { "Normal", nil }, { "Large", 14 }, { "Huge", 16 } }
-local ALPHAS = { 1, 0.9, 0.75, 0.6, 0.45, 0.3 }
 
 local function same(a, b)
   if a == nil or b == nil then return a == b end
   return math.abs(a[1] - b[1]) < 0.01 and math.abs(a[2] - b[2]) < 0.01 and math.abs(a[3] - b[3]) < 0.01
 end
 
--- The appearance menu of a window (right-click its title): each part opens
--- its own flat menu of choices (the current one ticked; Back returns).
+-- The appearance menu of a window (right-click its title): opacity and font
+-- size are sliders right in it; the colours and the font each open their own
+-- flat menu of choices (the current one ticked; Back returns).
 function UI.ShowPopoutStyleMenu(w, owner)
   local db = popoutsDB()
-  local function current() return UI.PopoutStyle(db and db[w.key] and db[w.key].style or sharedStyle()) end
+  local function current() return styleOf(w) end
   local main
   local function sub(title, choices)
     return function()
@@ -965,14 +994,9 @@ function UI.ShowPopoutStyleMenu(w, owner)
     local s = current()
     return {
       { title = L["Appearance"] },
-      { text = string.format(L["Opacity: %d%%"], math.floor(s.alpha * 100 + 0.5)), submenu = sub(L["Opacity"], function()
-        local out = {}
-        for _, a in ipairs(ALPHAS) do
-          out[#out + 1] = choice(string.format("%d%%", math.floor(a * 100 + 0.5)), math.abs(current().alpha - a) < 0.01,
-            function(st) st.alpha = a end)
-        end
-        return out
-      end) },
+      { slider = true, text = L["Opacity"], min = math.floor(ALPHA_MIN * 100 + 0.5), max = 100, step = 1,
+        value = math.floor(s.alpha * 100 + 0.5), format = "%d%%",
+        onChange = function(pct) setStyle(w, function(st) st.alpha = pct / 100 end, true) end },
       { text = L["Background colour"], submenu = sub(L["Background colour"], function()
         local out = {}
         for _, p in ipairs(BG_PRESETS) do
@@ -989,13 +1013,10 @@ function UI.ShowPopoutStyleMenu(w, owner)
         out[#out + 1] = { text = L["Custom..."], onClick = function() pickColor(w, "text", current().text) end }
         return out
       end) },
-      { text = L["Font size"], submenu = sub(L["Font size"], function()
-        local out = {}
-        for _, p in ipairs(SIZES) do
-          out[#out + 1] = choice(L[p[1]], current().size == p[2], function(st) st.size = p[2] end)
-        end
-        return out
-      end) },
+      { slider = true, text = L["Font size"], min = SIZE_MIN, max = SIZE_MAX, step = 1,
+        value = s.size or UI.PopoutDefaultSize(), format = "%d",
+        onChange = function(size) setStyle(w, function(st) st.size = size end) end },
+      choice(L["Default size"], s.size == nil, function(st) st.size = nil end),
       { text = L["Font"], submenu = sub(L["Font"], function()
         local out = { choice(L["Default"], current().font == nil, function(st) st.font = nil end) }
         for _, f in ipairs(UI.PopoutFonts()) do

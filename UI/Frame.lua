@@ -247,14 +247,36 @@ end
 --   { title = "Text" }                                 a gold heading
 --   { text =, onClick = fn, checked = bool|nil, disabled = bool, keepOpen = bool }
 --   { text =, submenu = items }                        opens another menu in its place (">")
+--   { slider = true, text =, min =, max =, step =, value =, format =, onChange = fn }
+--                                                      a label, the value and a slider (drag, or the
+--                                                      wheel); format: "%d%%" or fn(value) -> text
 --   { separator = true }
 -- A checked / unchecked item shows a small square box (filled gold when
 -- checked). A click runs onClick and closes the menu (keepOpen: stays open
 -- and repaints). A click anywhere else, Escape, or the owner hiding closes
--- it. anchor: "cursor" or below the owner (default).
+-- it. A slider reports each change to onChange (not what painting sets) and
+-- the rest of the menu repaints, so ticks follow. anchor: "cursor" or below
+-- the owner (default). The menu is placed once, when it opens: a keepOpen
+-- click or a sub-menu repaints it where it stands.
 local MENU_WIDTH = 190
 local MENU_ITEM = 18
+local MENU_SLIDER = 36
 local menu, menuCatcher
+local showMenu
+
+-- `value` held to min..max and snapped to the step (whole numbers when none).
+function UI.SnapSliderValue(value, min, max, step)
+  step = (tonumber(step) or 0) > 0 and step or 1
+  value = min + math.floor((value - min) / step + 0.5) * step
+  return math.max(min, math.min(max, value))
+end
+
+local function sliderText(data, value)
+  local fmt = data.format
+  if type(fmt) == "function" then return fmt(value) end
+  if type(fmt) == "string" then return string.format(fmt, value) end
+  return tostring(value)
+end
 
 local function buildMenu()
   menuCatcher = CreateFrame("Button", "AzerothTrailMenuCatcher", UIParent)
@@ -267,6 +289,7 @@ local function buildMenu()
   menu:SetFrameStrata("FULLSCREEN_DIALOG")
   if menu.SetFrameLevel and menuCatcher.GetFrameLevel then menu:SetFrameLevel(menuCatcher:GetFrameLevel() + 10) end
   menu:SetWidth(MENU_WIDTH)
+  menu:SetClampedToScreen(true)
   menu:EnableMouse(true)
   flatPanel(menu)
   menu:Hide()
@@ -274,6 +297,54 @@ local function buildMenu()
   tinsert(UISpecialFrames, "AzerothTrailMenu")
   menu:SetScript("OnHide", function() if menuCatcher then menuCatcher:Hide() end end)
   return menu
+end
+
+-- A slider row's readout and slider, made when an item first needs them.
+local function sliderParts(it)
+  if it.Slider then return it.Slider end
+  local value = it:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  value:SetPoint("TOPRIGHT", it, "TOPRIGHT", -9, -4)
+  value:SetJustifyH("RIGHT")
+  it.Value = value
+  local s = CreateFrame("Slider", nil, it)
+  s:SetOrientation("HORIZONTAL")
+  s:SetHeight(14)
+  s:SetPoint("TOPLEFT", it, "TOPLEFT", 9, -19)
+  s:SetPoint("TOPRIGHT", it, "TOPRIGHT", -9, -19)
+  s:EnableMouse(true)
+  s:EnableMouseWheel(true)
+  s:SetObeyStepOnDrag(true)
+  local track = s:CreateTexture(nil, "BACKGROUND")
+  track:SetHeight(4)
+  track:SetPoint("LEFT", s, "LEFT", 0, 0)
+  track:SetPoint("RIGHT", s, "RIGHT", 0, 0)
+  track:SetColorTexture(1, 1, 1, 0.15)
+  s:SetThumbTexture("Interface\\Buttons\\WHITE8X8")
+  local thumb = s:GetThumbTexture()
+  thumb:SetSize(8, 14)
+  thumb:SetColorTexture(1, 0.82, 0, 0.9)
+  -- A change the player makes (drag, wheel): the readout and onChange, then
+  -- the rest of the menu repaints (a tick that depends on it). What painting
+  -- sets is remembered first, so it is not taken for a change.
+  s:SetScript("OnValueChanged", function(self, v)
+    local data = self.data
+    if not data then return end
+    v = UI.SnapSliderValue(v, data.min, data.max, data.step)
+    if v == self.last then return end
+    self.last = v
+    data.value = v -- a list that is not rebuilt repaints with it, not the old value
+    it.Value:SetText(sliderText(data, v))
+    if data.onChange then data.onChange(v) end
+    if menu.lastItems then showMenu(menu.owner, menu.lastItems, menu.anchor, true) end
+  end)
+  s:SetScript("OnMouseWheel", function(self, delta)
+    local data = self.data
+    if not data then return end
+    local step = (tonumber(data.step) or 0) > 0 and data.step or 1
+    self:SetValue(UI.SnapSliderValue(self:GetValue() + delta * step, data.min, data.max, data.step))
+  end)
+  it.Slider = s
+  return s
 end
 
 local function menuItem(i)
@@ -314,14 +385,14 @@ local function menuItem(i)
   it.Rule = rule
   it:SetScript("OnClick", function(self)
     local data = self.data
-    if not data or data.title or data.separator or data.disabled then return end
+    if not data or data.title or data.separator or data.disabled or data.slider then return end
     if data.submenu then
-      UI.ShowMenu(menu.owner, data.submenu, menu.anchor)
+      showMenu(menu.owner, data.submenu, menu.anchor, true)
       return
     end
     if data.onClick then data.onClick(data) end
     if data.keepOpen and menu.lastItems then
-      UI.ShowMenu(menu.owner, menu.lastItems, menu.anchor)
+      showMenu(menu.owner, menu.lastItems, menu.anchor, true)
     else
       UI.HideMenu()
     end
@@ -330,8 +401,11 @@ local function menuItem(i)
   return it
 end
 
-function UI.ShowMenu(owner, items, anchor)
+-- inPlace: a repaint of the open menu (a keepOpen click, a sub-menu, a
+-- slider): its place and scale stay as they are.
+function showMenu(owner, items, anchor, inPlace)
   if not menu then buildMenu() end
+  inPlace = inPlace and menu:IsShown()
   menu.owner, menu.lastItems, menu.anchor = owner, items, anchor
   -- items may be a function that builds the list (a keepOpen click
   -- repaints from it, so ticks follow the click).
@@ -347,7 +421,9 @@ function UI.ShowMenu(owner, items, anchor)
     local boxed = data.checked ~= nil
     it.Box:SetShown(boxed)
     for _, t in ipairs(it.BoxEdge.edges) do t:SetShown(boxed) end
-    if boxed then
+    if data.slider then
+      it.Label:SetPoint("TOPLEFT", it, "TOPLEFT", 9, -4)
+    elseif boxed then
       it.Box:SetColorTexture(1, 0.82, 0, data.checked and 0.9 or 0)
       it.Label:SetPoint("LEFT", it.Box, "RIGHT", 6, 0)
     else
@@ -355,8 +431,32 @@ function UI.ShowMenu(owner, items, anchor)
     end
     it.Rule:SetShown(data.separator == true)
     it.Arrow:SetShown(data.submenu ~= nil)
-    it.Highlight:SetShown(not (data.title or data.separator or data.disabled))
-    if data.separator then
+    it.Highlight:SetShown(not (data.title or data.separator or data.disabled or data.slider))
+    if it.Slider then
+      it.Slider:SetShown(data.slider == true)
+      it.Value:SetShown(data.slider == true)
+    end
+    if data.slider then
+      local s = sliderParts(it)
+      local v = UI.SnapSliderValue(tonumber(data.value) or data.min, data.min, data.max, data.step)
+      -- The range is only set when it differs: a repaint while dragging
+      -- must not touch the slider being dragged.
+      local range = data.min .. ":" .. data.max .. ":" .. tostring(data.step)
+      s.data = nil -- while painting: whatever the slider says is not a change
+      if s.range ~= range then
+        s.range = range
+        s:SetMinMaxValues(data.min, data.max)
+        s:SetValueStep(tonumber(data.step) or 1)
+      end
+      s.last = v
+      if s:GetValue() ~= v then s:SetValue(v) end
+      s.data = data
+      it:SetHeight(MENU_SLIDER)
+      it.Label:SetText(data.text or "")
+      it.Label:SetFontObject("GameFontHighlightSmall")
+      it.Value:SetText(sliderText(data, v))
+      y = y + MENU_SLIDER
+    elseif data.separator then
       it:SetHeight(7)
       it.Label:SetText("")
       y = y + 7
@@ -371,23 +471,31 @@ function UI.ShowMenu(owner, items, anchor)
   end
   for i = #(items or {}) + 1, #menu.items do menu.items[i]:Hide() end
   menu:SetHeight(y + 5)
-  local parentScale = UIParent.GetEffectiveScale and UIParent:GetEffectiveScale() or 1
-  local ownerScale = owner and owner.GetEffectiveScale and owner:GetEffectiveScale() or parentScale
-  if menu.SetScale then menu:SetScale(ownerScale / parentScale) end
-  menu:ClearAllPoints()
-  if anchor == "cursor" and type(GetCursorPosition) == "function" then
-    local x, cy = GetCursorPosition()
-    local eff = menu.GetEffectiveScale and menu:GetEffectiveScale() or 1
-    menu:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", x / eff + 4, cy / eff - 4)
-  elseif owner then
-    menu:SetPoint("TOPLEFT", owner, "BOTTOMLEFT", 0, -2)
-  else
-    menu:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+  if not inPlace then
+    -- Placed when it opens only: reading the pointer again on a repaint put
+    -- the menu's corner under the row just clicked, so it crept down.
+    local parentScale = UIParent.GetEffectiveScale and UIParent:GetEffectiveScale() or 1
+    local ownerScale = owner and owner.GetEffectiveScale and owner:GetEffectiveScale() or parentScale
+    if menu.SetScale then menu:SetScale(ownerScale / parentScale) end
+    menu:ClearAllPoints()
+    if anchor == "cursor" and type(GetCursorPosition) == "function" then
+      local x, cy = GetCursorPosition()
+      local eff = menu.GetEffectiveScale and menu:GetEffectiveScale() or 1
+      menu:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", x / eff + 4, cy / eff - 4)
+    elseif owner then
+      menu:SetPoint("TOPLEFT", owner, "BOTTOMLEFT", 0, -2)
+    else
+      menu:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+    end
   end
   menuCatcher:Show()
   menu:Show()
   if UI.HideHint then UI.HideHint() end
   return menu
+end
+
+function UI.ShowMenu(owner, items, anchor)
+  return showMenu(owner, items, anchor, false)
 end
 
 function UI.HideMenu()
