@@ -210,6 +210,8 @@ L["No lockouts left to farm on this character."] = "No lockouts left to farm on 
 L["%d mounts"] = "%d mounts"
 L["Can drop:"] = "Can drop:"
 
+L["Show completed"] = "Show completed"
+
 -- Shared lists (UI\Share.lua)
 L["/mtrail sharetest - check that sharing works on this client"] = "/mtrail sharetest - check that sharing works on this client"
 L["Sharing: addon messages %s, chat filters %d, clicks via %s."] = "Sharing: addon messages %s, chat filters %d, clicks via %s."

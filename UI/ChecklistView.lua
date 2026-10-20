@@ -808,7 +808,32 @@ local function buildHeader(parent)
     top.Chips[i] = chip
     prev = chip
   end
+
+  -- Show completed: done lockouts stay listed, dimmed, after the open ones.
+  local done = CreateFrame("CheckButton", nil, top,
+    UI.TemplateChain("MinimalCheckboxTemplate", "SettingsCheckboxTemplate", "UICheckButtonTemplate"))
+  done:SetSize(20, 20)
+  done:SetPoint("BOTTOMRIGHT", top, "BOTTOMRIGHT", -6, 4)
+  done:SetScript("OnClick", function(self) UI.SetChecklistShowDone(self:GetChecked() and true or false) end)
+  local doneLabel = top:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlightSmall"))
+  doneLabel:SetPoint("RIGHT", done, "LEFT", -2, 0)
+  doneLabel:SetText(L["Show completed"])
+  top.ShowDone, top.ShowDoneLabel = done, doneLabel
   return top
+end
+
+-- Whether Lockouts lists the lockouts already done (account-wide setting).
+function UI.ChecklistShowDone()
+  local global = ns.db and ns.db.global
+  return global ~= nil and type(global.settings) == "table" and global.settings.checklistShowDone == true
+end
+
+function UI.SetChecklistShowDone(on)
+  local global = ns.db and ns.db.global
+  if not global then return end
+  if type(global.settings) ~= "table" then global.settings = {} end
+  global.settings.checklistShowDone = on and true or nil
+  ns.Refresh()
 end
 
 -- The set a chip's right-click pops out: the whole Daily / Weekly / Rare
@@ -917,6 +942,7 @@ function view.Refresh()
     filters = filters,
     label = function(reset) return UI.ChecklistHeaderLabel(reset, untilDaily, untilWeekly) end,
     status = UI.ChecklistStatusOf(statusTexts),
+    showDone = UI.ChecklistShowDone(),
   })
   local sourceText = UI.MemoText(Game.MountSourceText)
   local char = charDB()
@@ -990,6 +1016,7 @@ function view.Refresh()
   paintChips(left, show)
   -- Lockouts left in the categories the Filter menu shows.
   header.Flavour:SetText(UI.RouteFlavour(ns.Checklist.Remaining(built, filters), name))
+  if header.ShowDone then header.ShowDone:SetChecked(UI.ChecklistShowDone()) end
   local filter = header.ChecklistFilter
   if filter and type(filter.ValidateResetState) == "function" then filter:ValidateResetState() end
   return built

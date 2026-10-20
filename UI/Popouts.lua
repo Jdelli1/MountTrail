@@ -792,6 +792,12 @@ local function refreshWindow(w, built)
   })
   local db = popoutsDB()
   local state = db and db[w.key]
+  -- Show completed (the appearance menu, per window): off leaves done rows out.
+  if not (state and state.showDone) then
+    local open = {}
+    for _, row in ipairs(rows) do if not row.done then open[#open + 1] = row end end
+    rows = open
+  end
   UI.ApplyOrder(rows, state and state.order)
   local style = styleOf(w)
   applyChrome(w, style)
@@ -1143,8 +1149,16 @@ function UI.ShowPopoutStyleMenu(w, owner)
   end
   main = function()
     local s = current()
+    local state = db and db[w.key]
     return {
       { title = L["Appearance"] },
+      { text = L["Show completed"], checked = state ~= nil and state.showDone == true, keepOpen = true,
+        onClick = function()
+          if not state then return end
+          state.showDone = not state.showDone or nil
+          UI.RefreshPopouts()
+        end },
+      { separator = true },
       { slider = true, text = L["Opacity"], min = math.floor(ALPHA_MIN * 100 + 0.5), max = 100, step = 1,
         value = math.floor(s.alpha * 100 + 0.5), format = "%d%%",
         onChange = function(pct) setStyle(w, function(st) st.alpha = pct / 100 end, true) end },

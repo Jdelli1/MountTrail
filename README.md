@@ -156,7 +156,9 @@ it can still spend on a mount.
   other / rare spawns (no lockout), saved per character) narrows the list and
   its counts.
 - The Daily, Weekly and Rare Spawns chips at the top: right-click one to pop
-  out that whole group; the Lists chip offers a menu of lists to pop out.
+  out that whole group.
+- `Show completed` (bottom right of the header): lockouts already done stay
+  listed, dimmed, after the open ones (off by default; saved account-wide).
 
 **Rare Spawns (no lockout).** Rare-spawn mounts whose rare has no known kill
 flag (long-respawn rares such as Nok-Karosh, Gorok or the Time-Lost
@@ -249,7 +251,8 @@ In a pop-out:
 - Drag the corner grip to resize (right-click it to fit the rows again).
   Windows snap to each other and to the main window, and a snapped stack moves
   together.
-- Right-click the title for the appearance menu: opacity and font size
+- Right-click the title for the window's menu: `Show completed` (done rows
+  stay listed, dimmed; off by default, saved per window), then opacity and font size
   sliders, background, header and text colour, font, `Apply to all pop-outs`,
   `Reset appearance`.
 - Ctrl-click a window's x to close every pop-out.

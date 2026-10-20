@@ -1026,3 +1026,33 @@ describe("Checklist rare spawns with no lockout (camp specs)", function()
     eq(C.FILTERS, { "raids", "dungeons", "worldbosses", "rares", "holidays", "other", "camp" })
   end)
 end)
+
+describe("Checklist.Rows showDone", function()
+  it("done entries stay (after the open ones) and groups with nothing left keep their headers", function()
+    local C = load()
+    local built = {
+      daily = {
+        { key = "a", id = 1, m = { name = "Open" }, exp = "Cataclysm", expRank = 3, category = "rares", done = false },
+        { key = "b", id = 2, m = { name = "Done" }, exp = "Cataclysm", expRank = 3, category = "rares", done = true },
+        { key = "c", id = 3, m = { name = "Old done" }, exp = "Classic", expRank = 1, category = "rares", done = true },
+      },
+      weekly = {}, camp = {},
+    }
+    local function entryIds(rows)
+      local out = {}
+      for _, r in ipairs(rows) do if not r.header then out[#out + 1] = r.id end end
+      return out
+    end
+    local function headerTexts(rows)
+      local out = {}
+      for _, r in ipairs(rows) do if r.header and r.depth == 2 then out[#out + 1] = r.text end end
+      return out
+    end
+    local hidden = C.Rows(built)
+    eq(entryIds(hidden), { 1 })
+    eq(headerTexts(hidden), { "Cataclysm" }, "Classic has nothing left: no header")
+    local shown = C.Rows(built, { showDone = true })
+    eq(entryIds(shown), { 3, 1, 2 })
+    eq(headerTexts(shown), { "Classic", "Cataclysm" })
+  end)
+end)

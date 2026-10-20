@@ -540,7 +540,9 @@ describe("pop-out windows", function()
     op.Slider:SetValue(5)
     eq(st.alpha, 0.2, "no lower than 20%")
     op.Slider:SetValue(60)
-    ok(menu.items[3].Arrow:IsShown(), "a sub-menu item shows its arrow")
+    local bgItem
+    for _, it in ipairs(menu.items) do if it:IsShown() and it.data.text == "Background colour" then bgItem = it end end
+    ok(bgItem.Arrow:IsShown(), "a sub-menu item shows its arrow")
     click("Background colour")
     ok(menu:IsShown(), "the sub-menu replaces it")
     eq(menu.items[1].data.title, "Background colour")
@@ -890,7 +892,10 @@ describe("custom lists in the pane and the Checklist", function()
     local daily = W["daily|all"]
     ok(daily and daily:IsShown(), "every daily, one window")
     ok(daily.Title:GetText():find("^Dailies"), daily.Title:GetText())
-    eq(#daily.rows, 3, "every expansion's dailies")
+    eq(#daily.rows, 2, "every expansion's dailies still to do")
+    ns.db.global.popouts["daily|all"].showDone = true
+    ns.UI.RefreshPopouts()
+    eq(#daily.rows, 3, "with Show completed: the done one too")
     chip.weekly:RunScript("OnClick", "RightButton")
     ok(W["weekly|all"]:IsShown())
     ok(W["weekly|all"].Title:GetText():find("^Weeklies"))
@@ -1516,5 +1521,43 @@ describe("example lists", function()
     eq(#ns.QuickLists.SeedExamples(other, store2), 0, "a list by that name already: left alone")
     eq(#ns.QuickLists.LISTS, 0, "no longer a quick list")
     ok(ns.QuickLists.Get("mythic"), "still found by key (old pop-outs)")
+  end)
+end)
+
+describe("Show completed", function()
+  it("Lockouts' checkbox saves the setting and lists done lockouts", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    ns.ToggleWindow()
+    ns.UI.SelectTab("checklist")
+    local root
+    for _, c in ipairs(ns.UI.frame.Contents.checklist.children) do if c.Detail then root = c end end
+    local header
+    for _, c in ipairs(root.children) do if c.ShowDone then header = c end end
+    ok(header, "the checkbox is there")
+    eq(header.ShowDone:GetChecked(), false)
+    eq(header.ShowDoneLabel:GetText(), "Show completed")
+    header.ShowDone:SetChecked(true)
+    header.ShowDone:RunScript("OnClick", "LeftButton")
+    eq(ns.db.global.settings.checklistShowDone, true)
+    eq(header.ShowDone:GetChecked(), true, "painted from the setting")
+    eq(ns.UI.ChecklistShowDone(), true)
+  end)
+
+  it("a pop-out's menu toggles its done rows", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    ns.UI.OpenPopout({ kind = "daily", all = true })
+    local w = ns.UI.PopoutWindows["daily|all"]
+    eq(#w.rows, 2)
+    local items
+    ns.UI.ShowMenu = function(_, list) items = type(list) == "function" and list() or list end
+    ns.UI.ShowPopoutStyleMenu(w, w)
+    local item
+    for _, it in ipairs(items) do if it.text == "Show completed" then item = it end end
+    eq(item.checked, false)
+    item.onClick()
+    eq(#w.rows, 3)
+    eq(ns.db.global.popouts["daily|all"].showDone, true)
   end)
 end)

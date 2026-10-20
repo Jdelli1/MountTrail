@@ -185,11 +185,11 @@ created on first use by their owner.
 | --- | --- | --- |
 | `global.filters` | `Logic/Journal.lua`, `UI/List.lua` | `collected` plus hidden sections per view. |
 | `global.collapsed` | `UI/List.lua` and every collapsible list | Collapsed headers, `"<view>|<exp>|<section>"`, `"checklist|..."`, `"alts|..."`, `"nav|..."`. |
-| `global.settings` | `UI/Options.lua` | `showUnobtainable`, `rarityColors`, `windowScale`, `navTextSize`, `textHeader` / `textBody` / `textDetail`, `navHideLists`, `navHideQuick`. |
+| `global.settings` | `UI/Options.lua` | `showUnobtainable`, `rarityColors`, `windowScale`, `navTextSize`, `textHeader` / `textBody` / `textDetail`, `navHideLists`, `navHideQuick`; `checklistShowDone` (Lockouts' Show completed, `UI/ChecklistView.lua`). |
 | `global.window` | `UI/Frame.lua` | Current view (`tab`), position, `width` / `height`, `navWidth`, `paneWidth`, `browse` category. |
 | `global.navOrder`, `global.navFavorites` | `UI/Nav.lua` | Section order per section; favourite stars. |
 | `global.lists`, `global.seededLists` | `Logic/Lists.lua`, `Logic/QuickLists.lua` | Custom lists; which example lists were already seeded. |
-| `global.popouts`, `global.popoutStyle` | `UI/Popouts.lua` | Open pop-outs (position, size, order, collapsed groups, style); the shared style. |
+| `global.popouts`, `global.popoutStyle` | `UI/Popouts.lua` | Open pop-outs (position, size, order, collapsed groups, style, `showDone`); the shared style. |
 | `global.zonePanel` | `UI/ZonePanel.lua` | `open`. |
 | `global.mapTab` | `UI/MapTab.lua` | Whether the map tab was left selected. |
 | `global.altsHidden`, `global.altsWindow` | `UI/AltsWindow.lua` | Hidden characters; window position and size. |
