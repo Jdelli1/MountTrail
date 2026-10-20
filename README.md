@@ -359,6 +359,7 @@ doesn't know are left out.
 | `/mtrail rares` | Show or hide the rare spawns of your zone, in a pop-out that follows you |
 | `/mtrail alts` | Show or hide the alt lockout matrix |
 | `/mtrail import` | Paste a list someone shared |
+| `/mtrail sharetest` | Check that sharing is set up; shows one of your lists as a clickable link (only you see it) |
 | `/mtrail options` | Open the MountTrail page in Options > AddOns |
 | `/mtrail dump` | List saved instances (instance ID, difficulty ID, bosses) for checking `Data/Lockouts.lua` |
 | `/mtrail debug` | Toggle debug mode: errors MountTrail catches around maps and waypoints go to the error handler (off by default) |

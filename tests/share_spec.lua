@@ -187,3 +187,27 @@ describe("Share flow", function()
     eq(#decoded.mounts, 13)
   end)
 end)
+
+describe("Share self test", function()
+  it("/mtrail sharetest reports the setup and shows a clickable line locally", function()
+    reset_ui_stub()
+    local shown
+    DEFAULT_CHAT_FRAME = { AddMessage = function(_, msg) shown = msg end }
+    local files = toc_lua_files()
+    for _, f in ipairs({ "UI/Frame.lua", "UI/Share.lua" }) do files[#files + 1] = f end
+    local ns = load_addon(files)
+    ns.addon:OnInitialize()
+    ns.db.global.lists = {}
+    local store = ns.db.global.lists
+    ns.UI.ListsDB = function() return store end
+    ns.Data.Mounts = { [1] = { name = "A" } }
+    local id = ns.Lists.Create(store, "Loop")
+    ns.Lists.Add(store, id, 1)
+    local said = {}
+    ns.addon.Print = function(_, msg) said[#said + 1] = msg end
+    run_slash(ns.addon, "mtrail", "sharetest")
+    ok(said[1]:find("^Sharing: "), said[1])
+    ok(shown and shown:find("[MountTrail: Loop (1)]", 1, true), tostring(shown))
+    DEFAULT_CHAT_FRAME = nil
+  end)
+end)

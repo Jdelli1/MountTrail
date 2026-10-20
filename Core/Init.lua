@@ -372,6 +372,12 @@ function addon:OnSlash(input)
     else
       self:Print(L["The window is not available yet. Type /mtrail help for commands."])
     end
+  elseif cmd == "sharetest" then
+    if ns.UI and ns.UI.ShareSelfTest then
+      ns.UI.ShareSelfTest()
+    else
+      self:Print(L["Sharing is not loaded: restart the game fully (a /reload does not load new files)."])
+    end
   elseif cmd == "import" then
     if ns.UI and ns.UI.ImportListPrompt then
       ns.UI.ImportListPrompt()
@@ -416,6 +422,7 @@ function addon:OnSlash(input)
     self:Print(L["/mtrail options - open the MountTrail options (Options > AddOns)"])
     self:Print(L["/mtrail alts - show or hide the alt lockout matrix (who is still unsaved)"])
     self:Print(L["/mtrail import - paste a list someone shared"])
+    self:Print(L["/mtrail sharetest - check that sharing works on this client"])
     self:Print(L["/mtrail debug - show or hide caught map and waypoint errors"])
     self:Print(L["/mtrail help - this list"])
   end

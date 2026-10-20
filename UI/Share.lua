@@ -192,7 +192,7 @@ end
 
 -- Wiring ---------------------------------------------------------------------------
 
-ns.Game.RegisterAddonPrefix(PREFIX)
+local status = { prefix = ns.Game.RegisterAddonPrefix(PREFIX), filters = 0, clicks = {} }
 
 local events = CreateFrame("Frame")
 events:RegisterEvent("CHAT_MSG_ADDON")
@@ -262,7 +262,7 @@ for _, event in ipairs({ "CHAT_MSG_SAY", "CHAT_MSG_YELL", "CHAT_MSG_WHISPER", "C
   "CHAT_MSG_RAID", "CHAT_MSG_RAID_LEADER", "CHAT_MSG_RAID_WARNING", "CHAT_MSG_INSTANCE_CHAT",
   "CHAT_MSG_INSTANCE_CHAT_LEADER", "CHAT_MSG_GUILD", "CHAT_MSG_OFFICER", "CHAT_MSG_CHANNEL",
   "CHAT_MSG_COMMUNITIES_CHANNEL" }) do
-  ns.Game.AddChatFilter(event, chatFilter)
+  if ns.Game.AddChatFilter(event, chatFilter) then status.filters = status.filters + 1 end
 end
 
 -- Clicks: the "addon" link type is handed to addons (EventRegistry's
@@ -276,8 +276,28 @@ local function onClick(link)
   UI.OnShareLink(link)
 end
 if type(EventRegistry) == "table" and type(EventRegistry.RegisterCallback) == "function" then
-  pcall(EventRegistry.RegisterCallback, EventRegistry, "SetItemRef", function(_, link) onClick(link) end, UI)
+  if pcall(EventRegistry.RegisterCallback, EventRegistry, "SetItemRef", function(_, link) onClick(link) end, UI) then
+    status.clicks[#status.clicks + 1] = "EventRegistry"
+  end
 end
 if type(hooksecurefunc) == "function" and type(SetItemRef) == "function" then
   hooksecurefunc("SetItemRef", function(link) onClick(link) end)
+  status.clicks[#status.clicks + 1] = "SetItemRef hook"
+end
+
+-- /mtrail sharetest: what sharing could set up on this client, then a list
+-- line shown in the chat window as its link (nothing is sent) to click.
+function UI.ShareSelfTest()
+  say(string.format(L["Sharing: addon messages %s, chat filters %d, clicks via %s."],
+    status.prefix and L["on"] or L["off"], status.filters,
+    #status.clicks > 0 and table.concat(status.clicks, ", ") or L["nothing"]))
+  local s = store()
+  local first = s and ns.Lists.Sorted(s)[1]
+  local text = first and UI.ListShareString(first.id) or ns.Share.Encode("Test", { 1 })
+  local linked = UI.LinkShareStrings(text)
+  local frame = DEFAULT_CHAT_FRAME
+  if frame and frame.AddMessage then
+    frame:AddMessage(L["MountTrail test (only you see this): "] .. (linked or text))
+  end
+  if not linked then say(L["The test line did not turn into a link."]) end
 end
