@@ -83,23 +83,36 @@ end
 -- (normally C_Map.GetBestMapForUnit("player")); a mount matches when
 --   (a) "coords": its coords map is the root (Zone.Root) or a map under it
 --       (micro / dungeon floors, sub-zones; a continent root matches only
---       itself),
---   (b) "source": its source text's "Zone:" equals the zone's name (or, in
---       an instance, the instance's), compared by ctx.key,
+--       itself; inside an instance: any floor of the root's map group),
+--   (b) "source": it has no coords and its source text's "Zone:" equals the
+--       zone's name (or, in an instance, the instance's), compared by
+--       ctx.key, in the zone version of its expansion (ctx.versionOk: TBC
+--       and WoD Nagrand, Uldum and its 8.3 assault version, the Midnight
+--       Eversong Woods... share a name),
 --   (c) "instance": it belongs to a journal instance whose entrance is in
 --       the zone (entrances on the root, the player's own map and the
---       root's zone / micro children; inside an instance: that instance) -
---       its instance sub-group or route
---       instance names the instance, or its coords map is one of the
---       instance's maps.
+--       root's zone / micro children whose instance's own map,
+--       ctx.instanceUiMap, lies in the zone or is unknown: a zone map also
+--       shows a neighbour's entrances near its edge; inside an instance:
+--       that instance) - its coords map is a floor of the instance (that
+--       map or its map group), or it has no coords (inside an instance:
+--       with or without) and its instance sub-group or route instance
+--       names the instance.
+-- A mount's coords decide where it is: a mount with coords never matches by
+-- name in a zone its coords are not in.
 -- Every mount appears once, with the first rule that matched.
 -- ctx: mounts = { [id] = m }, mapInfo(id), and optionally
 --   coords(id, m) -> { m= } (default m.coords; the holiday override),
 --   sourceZone(id) -> "Zone:" value, subGroup(id, m) -> instance name,
 --   routeInstance(id) -> instance name, entrances(mapID) -> { {
 --   journalInstanceID=, name= } }, children(mapID) -> { { mapID=,
---   mapType= } } (every descendant), instanceForMap(mapID) -> journal
---   instance, instanceName(journalInstanceID) -> name (EJ_GetInstanceInfo),
+--   mapType= } } (every descendant), instanceForMap(floor mapID) -> journal
+--   instance (Zone.Root; a UI map, never passed to GetInstanceForGameMap),
+--   instanceUiMap(journalInstanceID) -> the instance's first floor UI map,
+--   mapGroup(mapID) -> map group ID (floors of one instance share it),
+--   versionOk(rootMapID, m) -> false when the root is a same-named zone
+--   version the mount is not in (Zone.VersionOk),
+--   instanceName(journalInstanceID) -> name (EJ_GetInstanceInfo),
 --   key(name) -> comparable key (UI.GroupKey), gate(id, m) -> owned boolean
 --   or nil to leave the mount out (Zone.Gate; default: kept, not owned),
 --   showCollected = true to keep owned mounts, currentInstance = the name
@@ -122,8 +135,8 @@ function Zone.MountsFor(mapID, ctx)
   local rootInfo = root and mapInfo(root) or {}
   local key = ctx.key or defaultKey
 
-  -- Parent lookups and instance lookups, once per map this call.
-  local infoCache, instanceCache = {}, {}
+  -- Parent lookups, once per map this call.
+  local infoCache = {}
   local function info(id)
     local v = infoCache[id]
     if v == nil then
@@ -133,15 +146,11 @@ function Zone.MountsFor(mapID, ctx)
     end
     return v or nil
   end
-  local function instanceOf(id)
-    if not ctx.instanceForMap then return nil end
-    local v = instanceCache[id]
-    if v == nil then
-      v = ctx.instanceForMap(id)
-      if not v or v == 0 then v = false end
-      instanceCache[id] = v
-    end
-    return v or nil
+  local function sameGroup(a, b)
+    if a == b then return true end
+    if not (ctx.mapGroup and a and b) then return false end
+    local ga = ctx.mapGroup(a)
+    return ga ~= nil and ga == ctx.mapGroup(b)
   end
 
   -- (a) Is `id` the root, a map below it, or a Zone-type ancestor below the
@@ -186,14 +195,32 @@ function Zone.MountsFor(mapID, ctx)
   end
   addName(zoneName)
 
-  -- (c) Journal instances of the zone, by ID and by name key.
-  local instances, instanceNames = {}, {}
+  -- (c) Journal instances of the zone, by ID and by name key, and their
+  -- first floors.
+  local instances, instanceNames, floors = {}, {}, {}
   local function addInstance(jid, fallbackName)
-    if not jid or jid == 0 then return end
+    if not jid or jid == 0 or instances[jid] then return end
     instances[jid] = true
+    local floor = ctx.instanceUiMap and ctx.instanceUiMap(jid) or nil
+    if floor then floors[#floors + 1] = floor end
     local name = ctx.instanceName and nonEmpty(ctx.instanceName(jid)) or nonEmpty(fallbackName)
     if name then instanceNames[key(name)] = true end
     return name
+  end
+  -- An entrance listed on the zone's map whose instance lies in another
+  -- zone (its first floor sits under a different Zone map): a neighbour's
+  -- entrance drawn near the map's edge (Karazhan on the Blasted Lands).
+  local function foreign(jid)
+    local floor = ctx.instanceUiMap and ctx.instanceUiMap(jid) or nil
+    if not floor or underRoot(floor) then return false end
+    local current, steps = floor, 0
+    while current and steps < MAX_STEPS do
+      local i = info(current)
+      if not i or type(i.mapType) ~= "number" or i.mapType <= CONTINENT then return false end
+      if i.mapType == ZONE then return true end
+      current, steps = i.parentMapID, steps + 1
+    end
+    return false
   end
   if byName then
     instanceNames[key(byName)] = true
@@ -228,7 +255,10 @@ function Zone.MountsFor(mapID, ctx)
       local list = ctx.entrances(m)
       if type(list) == "table" then
         for _, entrance in ipairs(list) do
-          if type(entrance) == "table" then addInstance(entrance.journalInstanceID, entrance.name) end
+          if type(entrance) == "table" and entrance.journalInstanceID
+            and not foreign(entrance.journalInstanceID) then
+            addInstance(entrance.journalInstanceID, entrance.name)
+          end
         end
       end
     end
@@ -245,16 +275,31 @@ function Zone.MountsFor(mapID, ctx)
     return name ~= nil and set[key(name)] == true
   end
 
+  local inInstance = insideInstance ~= nil or byName ~= nil
+  local function onFloor(cm)
+    for _, floor in ipairs(floors) do
+      if sameGroup(cm, floor) then return true end
+    end
+    return false
+  end
+  local function namesInstance(id, m)
+    if ctx.subGroup and named(ctx.subGroup(id, m), instanceNames) then return true end
+    if ctx.routeInstance and named(ctx.routeInstance(id), instanceNames) then return true end
+    return false
+  end
   local function via(id, m)
     local cm = coordsMap(id, m)
-    if cm and underRoot(cm) then return "coords" end
-    if ctx.sourceZone and named(ctx.sourceZone(id), names) then return "source" end
-    if anyInstance then
-      local jid = cm and instanceOf(cm)
-      if jid and instances[jid] then return "instance" end
-      if ctx.subGroup and named(ctx.subGroup(id, m), instanceNames) then return "instance" end
-      if ctx.routeInstance and named(ctx.routeInstance(id), instanceNames) then return "instance" end
+    if cm then
+      if underRoot(cm) then return "coords" end
+      if insideInstance and root and sameGroup(cm, root) then return "coords" end
+      if anyInstance and (onFloor(cm) or (inInstance and namesInstance(id, m))) then return "instance" end
+      return nil
     end
+    if ctx.sourceZone and named(ctx.sourceZone(id), names)
+      and not (root and ctx.versionOk and ctx.versionOk(root, m) == false) then
+      return "source"
+    end
+    if anyInstance and namesInstance(id, m) then return "instance" end
     return nil
   end
 
@@ -277,6 +322,53 @@ function Zone.MountsFor(mapID, ctx)
   end)
   if byName then return out, { name = zoneName } end
   return out, { mapID = root, name = zoneName, instance = insideInstance }
+end
+
+-- The journal instance of a floor (a UI map finer than a zone: dungeon,
+-- micro, orphan) that is not the player's own: the entrances listed on the
+-- maps above it (ctx.entrances), the one whose instance's first floor
+-- (ctx.instanceUiMap) is this map or in its map group (ctx.mapGroup).
+-- -> journalInstanceID or nil.
+function Zone.InstanceForFloor(mapID, ctx)
+  if not (mapID and ctx.entrances and ctx.instanceUiMap and ctx.mapInfo) then return nil end
+  local group = ctx.mapGroup and ctx.mapGroup(mapID) or nil
+  local current, seen = mapID, { [mapID] = true }
+  for _ = 1, MAX_STEPS do
+    local i = ctx.mapInfo(current)
+    local parent = type(i) == "table" and i.parentMapID or nil
+    if not parent or parent == 0 or seen[parent] then return nil end
+    seen[parent] = true
+    local list = ctx.entrances(parent)
+    if type(list) == "table" then
+      for _, entrance in ipairs(list) do
+        local jid = type(entrance) == "table" and entrance.journalInstanceID or nil
+        local floor = jid and ctx.instanceUiMap(jid) or nil
+        if floor and (floor == mapID or (group ~= nil and ctx.mapGroup(floor) == group)) then return jid end
+      end
+    end
+    local pi = ctx.mapInfo(parent)
+    if type(pi) ~= "table" or type(pi.mapType) ~= "number" or pi.mapType <= CONTINENT then return nil end
+    current = parent
+  end
+  return nil
+end
+
+-- Whether a mount known only by its source text's zone name belongs in the
+-- zone version `rootMapID` (Data.ZoneVersions: zone maps sharing a name ->
+-- { g = name group, e = expansion index }). expIndex: the mount's expansion
+-- (0 Classic ... ; nil: none). A zone without versions, or a mount without
+-- an expansion: true. When a version of the mount's expansion exists, only
+-- that one; else any version not newer than the mount (or of unknown
+-- expansion).
+function Zone.VersionOk(versions, rootMapID, expIndex)
+  local v = type(versions) == "table" and versions[rootMapID] or nil
+  if type(v) ~= "table" or expIndex == nil then return true end
+  for _, other in pairs(versions) do
+    if type(other) == "table" and other.g == v.g and other.e == expIndex then
+      return v.e == expIndex
+    end
+  end
+  return v.e == nil or v.e <= expIndex
 end
 
 -- The Journal's gate (Journal.Gate: known to this client, the player's

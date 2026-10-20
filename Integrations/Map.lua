@@ -193,16 +193,12 @@ local function entranceForInstanceMap(api, on, m, mKey)
 end
 
 -- Finds the entrance of the instance whose dungeon map is m (a map that takes
--- no user waypoint) by walking up the parent maps to the zone that lists it.
--- GetInstanceForGameMap wants a game map ID, so a UI map only works there by
--- chance; the zone's entrance list (matched by the instance's own map, else
--- by name) is the reliable way. -> mapID, x, y (0-1) or nil.
+-- no user waypoint) by walking up the parent maps to the zone that lists it,
+-- matched by the instance's own map, else by name. (GetInstanceForGameMap
+-- wants a game map ID: asked with a UI map it names an unrelated instance,
+-- e.g. UI map 554 Timeless Isle -> game map 554 The Mechanar.)
+-- -> mapID, x, y (0-1) or nil.
 local function findEntrance(api, m)
-  local journalInstance = try(api.C_EncounterJournal, "GetInstanceForGameMap", m)
-  if journalInstance and journalInstance ~= 0 then
-    local em, ex, ey = walkForEntrance(api, m, journalInstance, false)
-    if em then return em, ex, ey end
-  end
   local info = try(api.C_Map, "GetMapInfo", m)
   local mKey = type(info) == "table" and nameKey(info.name) or nil
   local seen = { [m] = true }

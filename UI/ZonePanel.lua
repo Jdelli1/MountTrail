@@ -82,8 +82,10 @@ end
 -- Pure-ish glue ----------------------------------------------------------------
 
 -- Zone.MountsFor's ctx from the live game: map / Encounter Journal lookups
--- (Game.MapInfo, MapChildren, DungeonEntrances, InstanceForMap,
--- JournalInstanceName), the
+-- (Game.MapInfo, MapChildren, DungeonEntrances, InstanceUiMap, MapGroup,
+-- JournalInstanceName; a floor's instance from Game.CurrentJournalInstance
+-- or Zone.InstanceForFloor), the zone versions (Data.ZoneVersions,
+-- Zone.VersionOk), the
 -- holiday-aware coords (Map.CoordsFor), the source "Zone:" (UI.SourceZone),
 -- the instance sub-group of dungeon / raid mounts (UI.SubGroup), the route
 -- instance (UI.RouteEntry), UI.GroupKey, the Journal's gate (other faction,
@@ -95,12 +97,29 @@ function UI.ZoneContext()
   local db = ns.db and ns.db.global
   local filters = (db and db.filters) or ns.Journal.DefaultFilters
   local subGroupCtx = { sourceText = sourceText, mapName = UI.MemoText(game.MapName) }
-  return {
-    mounts = (ns.Data and ns.Data.Mounts) or {},
+  local data = ns.Data or {}
+  local expIndex = {}
+  for i, name in ipairs(data.Expansions or {}) do expIndex[name] = i - 1 end
+  local ctx
+  ctx = {
+    mounts = data.Mounts or {},
     mapInfo = sessionMemo("MapInfo"),
     entrances = sessionMemo("DungeonEntrances"),
     children = sessionMemo("MapChildren"),
-    instanceForMap = sessionMemo("InstanceForMap", true),
+    instanceUiMap = sessionMemo("InstanceUiMap", true),
+    mapGroup = sessionMemo("MapGroup", true),
+    -- A floor's journal instance: the player's own instance (the game map
+    -- they are in), else the entrance above the floor whose instance owns it.
+    instanceForMap = function(mapID)
+      if mapID ~= nil and mapID == game.PlayerMap() and game.CurrentJournalInstance then
+        local jid = game.CurrentJournalInstance()
+        if jid then return jid end
+      end
+      return ns.Zone.InstanceForFloor(mapID, ctx)
+    end,
+    versionOk = function(root, m)
+      return ns.Zone.VersionOk(data.ZoneVersions, root, m and expIndex[m.exp])
+    end,
     instanceName = sessionMemo("JournalInstanceName"),
     coords = function(id, m)
       local map = ns.Map
@@ -123,6 +142,7 @@ function UI.ZoneContext()
     showCollected = filters.collected == true,
     currentInstance = game.CurrentInstanceName and game.CurrentInstanceName() or nil,
   }
+  return ctx
 end
 
 -- Zone.MountsFor for `mapID` (default: the player's map, Game.PlayerMap)

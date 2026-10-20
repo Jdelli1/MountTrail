@@ -135,8 +135,41 @@ function Game.DungeonEntrances(mapID)
   return out
 end
 
+-- The UI map of a journal instance's first floor (EJ_GetInstanceInfo's 7th
+-- return, dungeonAreaMapID), nil when unknown (0) or the API is missing /
+-- errors.
+function Game.InstanceUiMap(journalInstanceID)
+  if type(journalInstanceID) ~= "number" then return nil end
+  local id = select(7, call(_G, "EJ_GetInstanceInfo", journalInstanceID))
+  if type(id) == "number" and id ~= 0 then return id end
+  return nil
+end
+
+-- C_Map.GetMapGroupID(uiMapID): the group of a multi-floor map (every floor
+-- of one dungeon shares it), nil for a map without floors or a missing /
+-- erroring API.
+function Game.MapGroup(uiMapID)
+  if type(uiMapID) ~= "number" then return nil end
+  local id = call(C_Map, "GetMapGroupID", uiMapID)
+  if type(id) == "number" and id ~= 0 then return id end
+  return nil
+end
+
+-- The journal instance the player is in: GetInstanceInfo's 8th return (the
+-- game map ID) through GetInstanceForGameMap, while IsInInstance() says so;
+-- nil outside, when unknown or for a missing / erroring API.
+function Game.CurrentJournalInstance()
+  if not call(_G, "IsInInstance") then return nil end
+  local gameMap = select(8, call(_G, "GetInstanceInfo"))
+  if type(gameMap) ~= "number" then return nil end
+  return Game.InstanceForMap(gameMap)
+end
+
 -- C_EncounterJournal.GetInstanceForGameMap(mapID) -> the journal instance
 -- the map belongs to, nil for none (0), unknown or a missing / erroring API.
+-- mapID is a GAME map ID (GetInstanceInfo's 8th return, a saved instance's
+-- ID, JournalInstance.MapID), never a UI map ID: those are other numbers
+-- (UI map 554 is Timeless Isle, game map 554 The Mechanar).
 function Game.InstanceForMap(mapID)
   if type(mapID) ~= "number" then return nil end
   local id = call(C_EncounterJournal, "GetInstanceForGameMap", mapID)

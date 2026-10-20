@@ -472,6 +472,17 @@ _SECTION_FIXES = {
 }
 
 
+# Coordinates Rarity has that point at one place for a mount the game says drops
+# all over (tools/verify_data.py, build 12.1.5.70448): mountID -> the coords map
+# Rarity gives. The coords are dropped while Rarity still has that map, so the
+# zone panel and map tab do not list the mount in that one zone.
+_COORDS_FIXES = {
+    # Infinite Timereaver: Mount.db2 SourceText "World Event: Timewalking
+    # Dungeons" (any Timewalking dungeon boss); Rarity: UI map 291, The Deadmines.
+    781: 291,
+}
+
+
 def build_mounts(sa, rarity, stats=None):
     """Returns {mountID: mount dict}. Duplicates: a later sighting replaces the kept one only when it
     is stronger (sighting_strength; equal strength keeps the first); tradingNow is kept
@@ -560,7 +571,14 @@ def build_mounts(sa, rarity, stats=None):
         for key in ("chance", "quest", "coords", "stats"):
             if key in r:
                 rec[key] = r[key]
+    fixes = 0
+    for mid, wrong in _COORDS_FIXES.items():
+        rec = mounts.get(mid)
+        if rec is not None and (rec.get("coords") or {}).get("m") == wrong:
+            del rec["coords"]
+            fixes += 1
     if stats is not None:
+        stats["coords_fixes"] = fixes
         stats["joined"] = joined
         stats["rarity_entries"] = len(rarity)
         sa_spells = {rec["spell"] for rec in mounts.values()}
@@ -967,6 +985,7 @@ def generate(sources):
     print("statistics: %d mounts" % sum(1 for r in mounts.values() if r.get("stats")))
     print("item fixes (DB2-checked): %d of %d" % (stats.get("item_fixes", 0), len(_ITEM_FIXES)))
     print("section fixes (DB2-checked): %d of %d" % (stats.get("section_fixes", 0), len(_SECTION_FIXES)))
+    print("coords fixes (DB2-checked): %d of %d" % (stats.get("coords_fixes", 0), len(_COORDS_FIXES)))
     print("unobtainable: %d; faction: %d Alliance, %d Horde" % (
         sum(1 for r in mounts.values() if r.get("unobtainable")),
         sum(1 for r in mounts.values() if r.get("faction") == "Alliance"),

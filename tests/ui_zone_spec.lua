@@ -40,7 +40,11 @@ local function loadUI(over)
       return {}
     end,
     MapChildren = function() return {} end,
-    InstanceForMap = function(id) if id == 325 then return 68 end end,
+    -- Game map IDs only; the panel never asks with a UI map.
+    InstanceForMap = function(id) error("InstanceForMap asked with UI map " .. tostring(id)) end,
+    InstanceUiMap = function(jid) if jid == 68 then return 325 end end,
+    MapGroup = function() return nil end,
+    CurrentJournalInstance = function() return nil end,
     JournalInstanceName = function(id) if id == 68 then return "The Vortex Pinnacle" end end,
     CurrentInstanceName = function() return nil end,
   }
@@ -135,14 +139,36 @@ describe("zone panel glue", function()
     eq(list, {}, "error caught")
   end)
 
-  it("asks GetInstanceForGameMap once per map per session, 'none' included", function()
-    local ns = loadUI()
+  it("asks an instance's own map and a map's group once per argument per session, 'none' included", function()
+    local ns = loadUI({ PlayerMap = function() return 325 end })
     local asked = {}
-    ns.Game.InstanceForMap = function(id) asked[id] = (asked[id] or 0) + 1; if id == 325 then return 68 end end
+    for _, name in ipairs({ "InstanceUiMap", "MapGroup" }) do
+      local real = ns.Game[name]
+      ns.Game[name] = function(id)
+        local k = name .. ":" .. tostring(id)
+        asked[k] = (asked[k] or 0) + 1
+        return real(id)
+      end
+    end
     ns.UI.ZoneMounts()
     ns.UI.ZoneMounts()
-    for id, n in pairs(asked) do eq(n, 1, "map " .. id) end
-    ok(next(asked) ~= nil, "asked at all")
+    for k, n in pairs(asked) do eq(n, 1, k) end
+    ok(asked["InstanceUiMap:68"], "asked for the Vortex Pinnacle's map")
+  end)
+
+  it("standing on a dungeon floor: the instance comes from the entrance above it, never GetInstanceForGameMap", function()
+    local ns = loadUI({ PlayerMap = function() return 325 end })
+    local list, zone = ns.UI.ZoneMounts()
+    eq(zone.instance, 68)
+    eq(zone.name, "The Vortex Pinnacle")
+    ok(#list > 0)
+  end)
+
+  it("the player's own instance from the game map they are in", function()
+    local ns = loadUI({ PlayerMap = function() return 325 end, CurrentJournalInstance = function() return 68 end,
+      DungeonEntrances = function() return {} end })
+    local _, zone = ns.UI.ZoneMounts()
+    eq(zone.instance, 68)
   end)
 
   it("no player map inside an instance: lists the instance's mounts by name", function()

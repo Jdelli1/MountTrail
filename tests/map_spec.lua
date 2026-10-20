@@ -11,7 +11,9 @@ end
 
 -- A fake WoW API. opts.canSet: set of map IDs that take a user waypoint.
 -- opts.parents: map ID -> parent map ID. opts.journal: map ID -> journal
--- instance. opts.entrances: map ID -> list of entrance records. opts.names:
+-- instance whose own map (EJ_GetInstanceInfo, 7th return) it is; opts.games:
+-- game map ID -> journal instance. opts.entrances: map ID -> list of entrance
+-- records. opts.names:
 -- map ID -> GetMapInfo name. TomTom (unless opts.tomtom == false) hands out
 -- uids "uid1", "uid2", ... and records RemoveWaypoint as "TomTomRemove".
 -- opts.combat: InCombat() result. opts.clock: { now = seconds } read by
@@ -36,9 +38,17 @@ local function fakeApi(opts)
     UiMapPoint = { CreateFromCoordinates = function(m, x, y) return { uiMapID = m, x = x, y = y } end },
     C_SuperTrack = { SetSuperTrackedUserWaypoint = function(on) rec("SuperTrack", on) end },
     C_EncounterJournal = {
-      GetInstanceForGameMap = function(m) return (opts.journal or {})[m] end,
+      -- Game map IDs only: a UI map asked here is a bug (opts.games).
+      GetInstanceForGameMap = function(m) return (opts.games or {})[m] end,
       GetDungeonEntrancesForMap = function(m) return (opts.entrances or {})[m] or {} end,
     },
+    -- opts.journal (instance UI map -> journal instance): the instance's own
+    -- map is EJ_GetInstanceInfo's 7th return, as in the game.
+    EJ_GetInstanceInfo = function(jid)
+      for m, j in pairs(opts.journal or {}) do
+        if j == jid then return nil, nil, nil, nil, nil, nil, m end
+      end
+    end,
     OpenWorldMap = function(m) rec("OpenWorldMap", m) end,
     Print = function(msg) rec("Print", msg) end,
     InCombat = function() return opts.combat == true end,

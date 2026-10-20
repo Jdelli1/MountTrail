@@ -129,11 +129,12 @@ def cached_builds(cache=CACHE):
     return sorted(builds, key=key)
 
 
-def fetch_tables(build, cache=CACHE, offline=False):
-    """Make sure every table CSV of `build` is in cache/<build>/; returns that directory."""
+def fetch_tables(build, cache=CACHE, offline=False, tables=TABLES):
+    """Make sure every table CSV of `build` (`tables`, default TABLES) is in
+    cache/<build>/; returns that directory."""
     folder = os.path.join(cache, build)
     os.makedirs(folder, exist_ok=True)
-    for table in TABLES:
+    for table in tables:
         path = os.path.join(folder, table + ".csv")
         if os.path.isfile(path) and os.path.getsize(path) > 0:
             continue

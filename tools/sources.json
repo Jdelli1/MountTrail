@@ -6,5 +6,6 @@
   "rarity": {
     "repo": "WowRarity/Rarity",
     "commit": "af5be85bbee86992621b9372efff92fbf5d5c115"
-  }
+  },
+  "db2build": "12.1.5.70448"
 }
