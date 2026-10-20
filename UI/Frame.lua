@@ -661,8 +661,9 @@ end
 -- The views, by key (each a content frame; views plug in with
 -- UI.RegisterView). The navigation column on the left (UI.NAV) selects them:
 -- Home (the journal's front page), Lockouts (the checklist), Current Zone
--- (the zone's mounts; right-click pops them out), the Alts window, Browse (Holidays, Achievements, Timewalking,
--- Misc), then My lists and the quick lists, one entry each (a list opens as
+-- (the zone's mounts; right-click pops them out), the Alts window, Browse
+-- (by source, Logic/Browse.lua: a browse page per category, or Holidays /
+-- Achievements / Timewalking's own views), then My lists and the quick lists, one entry each (a list opens as
 -- a page of the journal view, UI.ShowListPage). A saved key of an older
 -- version's tab maps to its successor (UI.LEGACY_TABS: the retired Route tab
 -- -> Checklist); any other unknown key falls back to the first view.
@@ -674,6 +675,7 @@ local TABS = {
   { key = "misc", label = "Misc" },
   { key = "checklist", label = "Lockouts" },
   { key = "here", label = "Current Zone" },
+  { key = "browse", label = "Browse" },
 }
 
 UI.LEGACY_TABS = { route = "checklist" }
@@ -686,12 +688,22 @@ UI.NAV = {
   { key = "checklist", label = "Lockouts" },
   { key = "here", label = "Current Zone" },
   { action = "alts", label = "Alts" },
-  { heading = "Browse" },
-  { key = "holidays", label = "Holidays" },
-  { key = "achievements", label = "Achievements" },
-  { key = "timewalking", label = "Timewalking" },
-  { key = "misc", label = "Misc" },
 }
+
+-- The Browse section's entries (Logic/Browse.lua, by source): a category
+-- with its own view is that view's entry (key = the view), the others open
+-- a browse page (key "browse:<category>").
+function UI.NavBrowseEntries(categories)
+  local out = {}
+  for _, c in ipairs(categories or {}) do
+    if c.view then
+      out[#out + 1] = { key = c.view, label = c.label }
+    else
+      out[#out + 1] = { key = "browse:" .. c.key, label = c.label, category = c.key }
+    end
+  end
+  return out
+end
 UI.NAV_WIDTH = 156
 -- The collapse keys of the My lists and Quick lists sections.
 UI.NAV_LISTS_KEY, UI.NAV_QUICK_KEY = "nav|lists", "nav|quick"
@@ -736,7 +748,8 @@ local function showCurrent()
 end
 
 -- Registers a view. key: "journal", "holidays", "achievements",
--- "timewalking", "misc", "checklist" or "here".
+-- "timewalking", "misc" (no navigation entry: Browse splits it by source),
+-- "checklist", "here" or "browse".
 function UI.RegisterView(key, view)
   assert(TAB_INDEX[key], "MountTrail: unknown view key " .. tostring(key))
   assert(type(view) == "table", "MountTrail: view must be a table")
@@ -944,8 +957,10 @@ function UI.NavListEntries(store, quick)
 end
 
 -- The entry that shows as selected: the list page's list when the journal
--- view shows one (UI.CurrentListPage), else the view's key.
-function UI.NavSelected(view, listSource)
+-- view shows one (UI.CurrentListPage), the browse page's category, else the
+-- view's key.
+function UI.NavSelected(view, listSource, browseCategory)
+  if view == "browse" and browseCategory then return "browse:" .. tostring(browseCategory) end
   if view == "journal" and listSource then
     if listSource.kind == "quick" then return "quick:" .. tostring(listSource.key) end
     return "list:" .. tostring(listSource.list)
@@ -1046,6 +1061,10 @@ end
 function UI.NavClick(e)
   if e.action == "alts" then
     if UI.ToggleAltsWindow then UI.ToggleAltsWindow() end
+    return
+  end
+  if e.category then
+    if UI.ShowBrowse then UI.ShowBrowse(e.category) end
     return
   end
   if e.source then
@@ -1173,7 +1192,7 @@ end
 function UI.RefreshNav()
   if not nav then return end
   local listPage = UI.CurrentListPage and UI.CurrentListPage() or nil
-  local selected = UI.NavSelected(current, listPage)
+  local selected = UI.NavSelected(current, listPage, UI.BrowseCategory and UI.BrowseCategory() or nil)
   local cache
   local function built()
     cache = cache or (UI.ChecklistBuild and UI.ChecklistBuild(ns.Game.Now())) or {}
@@ -1222,15 +1241,10 @@ function UI.RefreshNav()
     b:Show()
     y = y + NAV_ROW
   end
-  local under = false -- entries under a heading are indented
-  for _, e in ipairs(UI.NAV) do
-    if e.heading then
-      heading(L[e.heading])
-      under = true
-    else
-      entry(e, under)
-    end
-  end
+  for _, e in ipairs(UI.NAV) do entry(e, false) end
+  y = y + 4
+  heading(L["Browse"])
+  for _, e in ipairs(UI.NavBrowseEntries(ns.Browse and ns.Browse.CATEGORIES)) do entry(e, true) end
   -- My lists (with +) and Quick lists: each its own collapsible section.
   y = y + 4
   local store = UI.ListsDB and UI.ListsDB()

@@ -34,6 +34,7 @@ Logic\Odds.lua
 Logic\Lists.lua
 Logic\QuickLists.lua
 Logic\Search.lua
+Logic\Browse.lua
 Game\API.lua
 Integrations\Map.lua
 Integrations\Rarity.lua
@@ -52,6 +53,7 @@ UI\ChecklistView.lua
 UI\AltsWindow.lua
 UI\Popouts.lua
 UI\HereView.lua
+UI\BrowseView.lua
 UI\ZonePanel.lua
 UI\MapTab.lua
 UI\Options.lua

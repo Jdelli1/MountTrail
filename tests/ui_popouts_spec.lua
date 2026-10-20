@@ -1209,6 +1209,7 @@ end)
 describe("lists in the navigation column", function()
   -- The journal home too, from here on.
   UI_FILES[#UI_FILES + 1] = "UI/JournalHome.lua"
+  UI_FILES[#UI_FILES + 1] = "UI/BrowseView.lua"
 
   local function home(ns)
     ns.ToggleWindow()
@@ -1325,5 +1326,34 @@ describe("lists in the navigation column", function()
     ns.UI.NewListPrompt = function() asked = asked + 1 end
     ns.UI.frame.Nav.AddList:RunScript("OnClick", "LeftButton")
     eq(asked, 1)
+  end)
+end)
+
+describe("Browse in the navigation column", function()
+  it("Drops opens a browse page by expansion; Achievements opens its own view; the choice is saved", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    ns.ToggleWindow()
+    local nav = ns.UI.frame.Nav
+    local function button(label)
+      for i = 1, nav.shown do
+        local b = nav.Buttons[i]
+        if b.Text:GetText() == label then return b end
+      end
+    end
+    button("Drops"):RunScript("OnClick", "LeftButton")
+    eq(ns.UI.CurrentTab(), "browse")
+    local page = ns.UI.frame.Contents.browse.children[2]
+    eq(page.Title:GetText(), "Drops")
+    local rows = page.List.ScrollBox.provider.rows
+    ok(#rows > 0 and rows[1].header, "headers")
+    ok(button("Drops").selected, "Drops marked")
+    button("Professions"):RunScript("OnClick", "LeftButton")
+    eq(page.Title:GetText(), "Professions")
+    eq(ns.db.global.window.browse, "professions")
+    ok(button("Professions").selected and not button("Drops").selected)
+    button("Achievements"):RunScript("OnClick", "LeftButton")
+    eq(ns.UI.CurrentTab(), "achievements", "its own view")
+    ok(button("Achievements").selected)
   end)
 end)

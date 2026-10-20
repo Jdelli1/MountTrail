@@ -420,3 +420,9 @@ L["Browse"] = "Browse"
 L["Opens its own window"] = "Opens its own window"
 L["Click: open. Right-click: pop out"] = "Click: open. Right-click: pop out"
 L["No lists yet: + here, or + List on any mount."] = "No lists yet: + here, or + List on any mount."
+
+-- Browse by source (Logic/Browse.lua)
+L["Drops"] = "Drops"
+L["Vendors & Reputation"] = "Vendors & Reputation"
+L["Quests & Activities"] = "Quests & Activities"
+L["Shop & Trading Post"] = "Shop & Trading Post"

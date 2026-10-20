@@ -57,7 +57,7 @@ describe("ui", function()
     for i = 1, f.Nav.shown do labels[i] = f.Nav.Buttons[i].Text:GetText() end
     eq({ labels[1], labels[2], labels[3] }, { "Home", "Lockouts", "Current Zone" })
     ok(labels[4]:find("^Alts"), labels[4])
-    eq({ labels[5], labels[8] }, { "Holidays", "Misc" })
+    eq({ labels[5], labels[8] }, { "Drops", "Achievements" }, "Browse by source")
     eq(f.Inset.template, nil, "flat content area, no classic inset")
     eq(f.Inset.Fill:GetParent(), f.Inset, "flat fill drawn on the inset")
     eq(f.Inset.Fill.color, { 0, 0, 0, 0.3 })
@@ -110,7 +110,7 @@ describe("ui", function()
   it("navigation entries select their view and move the gold mark; Alts opens its window", function()
     local ns = loadUI()
     local views = {}
-    for _, key in ipairs({ "journal", "holidays", "achievements", "timewalking", "misc", "checklist", "here" }) do
+    for _, key in ipairs({ "journal", "holidays", "achievements", "timewalking", "misc", "checklist", "here", "browse" }) do
       views[key] = countingView()
       ns.UI.RegisterView(key, views[key])
     end
@@ -183,7 +183,7 @@ describe("ui", function()
       n = n + 1
       eq(content:GetParent(), ns.UI.frame.Inset, key .. " content in the inset")
     end
-    eq(n, 7, "one content frame per view")
+    eq(n, 8, "one content frame per view")
     local holidaysContent = contents.holidays
     ok(holidaysContent:IsShown(), "holidays content shown")
     local placeholder = holidaysContent.children[1]
