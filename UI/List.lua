@@ -490,6 +490,13 @@ function UI.RowDescription(mountID, sourceText)
   return UI.SourceLine(mountID)
 end
 
+-- One cache of the search's prepared fields (Search.Prepare by mount ID) for
+-- every search box: a full one holds ~1.7 MB, so the pages share it, and it
+-- goes when the window closes (fresh source text on the next search).
+local searchCache = {}
+function UI.SearchCache() return searchCache end
+function UI.ClearSearchCache() searchCache = {} end
+
 -- The home page's search (Search.Select over UI.SearchFields: typos, short
 -- names such as tbc / icc, bosses, zones, achievements, expansions) for
 -- any list's search box: the mounts of `ids` (a list of mount IDs) that
@@ -501,6 +508,7 @@ end
 -- result is then that expansion (m.exp).
 function UI.SearchMatches(ids, search, sourceText, cache, noFallback)
   if type(search) ~= "string" or not string.find(search, "%S") or not ns.Search then return nil end
+  cache = cache or UI.SearchCache()
   local mounts = (ns.Data and ns.Data.Mounts) or {}
   local subset = {}
   for _, id in ipairs(ids or {}) do
@@ -526,6 +534,7 @@ end
 -- m.exp, or nil.
 function UI.SearchExpansion(search, sourceText, cache)
   if not ns.Search then return nil end
+  cache = cache or UI.SearchCache()
   local mounts = (ns.Data and ns.Data.Mounts) or {}
   local ctx = { sourceText = sourceText, mapName = ns.Game and ns.Game.MapName }
   local counts, total = {}, 0
@@ -2005,10 +2014,9 @@ function UI.List(parent, getQuery, opts)
     local select = (opts and opts.select) or ns.Journal.Select
     if not (opts and opts.select) and UI.SearchMatches then
       -- The home page's fuzzy search on the views' own pages too.
-      self.searchCache = self.searchCache or {}
       local ids = {}
       for id in pairs((ns.Data and ns.Data.Mounts) or {}) do ids[#ids + 1] = id end
-      query.match = UI.SearchMatches(ids, query.search, query.sourceText, self.searchCache)
+      query.match = UI.SearchMatches(ids, query.search, query.sourceText)
     end
     local selected = select((ns.Data and ns.Data.Mounts) or {}, query)
     local rows = UI.ListRows(selected, query.isOwned, {

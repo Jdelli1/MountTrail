@@ -73,7 +73,6 @@ local CHECK_TEXTURE = "Interface\\Scenarios\\ScenarioIcon-Check"
 
 local home, listPage, list, title
 local searchPage, searchList
-local searchCache = {} -- Search.Prepare output by mount ID, reset per visit
 local cards = {}
 local currentExp
 
@@ -208,12 +207,12 @@ local function showHome()
 end
 
 -- Search.Select over every mount through the list gate, with each mount's
--- UI.SearchFields (memoised per visit in searchCache).
+-- UI.SearchFields (memoised in the shared UI.SearchCache, reset per visit).
 local function searchSelect(mounts, query)
   local ctx = { sourceText = query.sourceText, mapName = ns.Game.MapName }
   return ns.Search.Select(mounts, {
     search = query.search,
-    cache = searchCache,
+    cache = UI.SearchCache(),
     gate = function(id, m)
       return ns.Journal.Gate(id, m, query.isOwned, query.exists, query.faction, query.showUnobtainable)
     end,
@@ -224,7 +223,7 @@ end
 -- Opens the search page with `text` in its box (focused, so typing goes on
 -- there) and clears the home box.
 local function showSearch(text)
-  searchCache = {}
+  UI.ClearSearchCache()
   home:Hide()
   listPage:Hide()
   myListPage:Hide()
@@ -495,7 +494,7 @@ local function myListSelect(mounts, query)
   local ids = currentList and listMounts(currentList) or {}
   local needle = query.search and string.lower(query.search) or ""
   -- The home page's fuzzy search (tbc, a boss, a zone...).
-  local match = UI.SearchMatches and UI.SearchMatches(ids, query.search, query.sourceText, searchCache) or nil
+  local match = UI.SearchMatches and UI.SearchMatches(ids, query.search, query.sourceText) or nil
   local out = {}
   for _, id in ipairs(ids) do
     local m = mounts[id]

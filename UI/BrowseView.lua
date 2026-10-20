@@ -16,7 +16,6 @@ UI.BrowseView = view
 
 local root, list, title
 local current = "drops"
-view.searchCache = {} -- the search's prepared fields, by mount ID
 
 local function windowDB()
   local global = ns.db and ns.db.global
@@ -74,7 +73,7 @@ function view.Build(parent)
       local key = UI.BrowseCategory()
       -- The home page's fuzzy search (tbc, icc, a boss, a zone...).
       query.match = UI.SearchMatches and UI.SearchMatches(ns.Browse.Ids(key, mounts, query.sourceText),
-        query.search, query.sourceText, view.searchCache)
+        query.search, query.sourceText)
       return ns.Browse.Select(key, mounts, query, ns.Data and ns.Data.Expansions)
     end,
   })

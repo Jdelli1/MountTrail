@@ -269,6 +269,23 @@ function addon:OnEnable()
   self:RegisterEvent("CONTRIBUTION_COLLECTOR_UPDATE", "OnEventStatus")
 end
 
+-- Game events often come several in one frame (lockouts, LFG, quests): one
+-- ns.Refresh on the next frame for the lot (at once without C_Timer).
+local refreshPending = false
+function ns.RefreshSoon()
+  if refreshPending then return end
+  local timer = C_Timer
+  if type(timer) ~= "table" or type(timer.After) ~= "function" then
+    ns.Refresh()
+    return
+  end
+  refreshPending = true
+  timer.After(0, function()
+    refreshPending = false
+    ns.Refresh()
+  end)
+end
+
 function addon:OnEnteringWorld()
   -- A column in the alt lockout matrix from the first login on, whatever
   -- happens to the lockout data after.
@@ -276,7 +293,7 @@ function addon:OnEnteringWorld()
   ns.Game.RequestLockouts()
   ns.Resets.Prune(ns.db.char.ticks, ns.Game.Now())
   ns.UpdateStats()
-  ns.Refresh()
+  ns.RefreshSoon()
 end
 
 function addon:OnLockoutEvent(event)
@@ -284,7 +301,7 @@ function addon:OnLockoutEvent(event)
   if event == "LFG_UPDATE_RANDOM_INFO" then ready.lfg = true end
   ns.UpdateAttempts(event == "UPDATE_INSTANCE_INFO")
   if event == "UPDATE_INSTANCE_INFO" then ns.UpdateStats() end
-  ns.Refresh()
+  ns.RefreshSoon()
 end
 
 -- Reads the kill statistics a combat-time event had to skip, then refreshes.
@@ -298,7 +315,7 @@ end
 
 function addon:OnCalendarUpdate()
   ns.Game.CalendarChanged()
-  ns.Refresh()
+  ns.RefreshSoon()
 end
 
 function addon:OnEventStatus()

@@ -92,8 +92,18 @@ function UI.ChecklistContext(now)
 end
 
 -- This character's checklist at `now` (Checklist.Build).
+-- Inside one ns.Refresh (UI.refreshing) the build is made once per `now` and
+-- shared: nothing changes the lockouts mid-refresh.
+local sharedBuild = {}
 function UI.ChecklistBuild(now)
-  return ns.Checklist.Build(UI.ChecklistContext(now))
+  if UI.refreshing and sharedBuild.built and sharedBuild.now == now then return sharedBuild.built end
+  local built = ns.Checklist.Build(UI.ChecklistContext(now))
+  if UI.refreshing then sharedBuild.now, sharedBuild.built = now, built end
+  return built
+end
+
+function UI.ForgetChecklistBuild()
+  sharedBuild.now, sharedBuild.built = nil, nil
 end
 
 -- Lockouts this character has left at `now` in the categories its Filter

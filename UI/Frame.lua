@@ -1913,6 +1913,8 @@ local function createWindow()
   end
 
   frame:HookScript("OnShow", showCurrent)
+  -- Closed: let the search's prepared fields go.
+  frame:HookScript("OnHide", function() if UI.ClearSearchCache then UI.ClearSearchCache() end end)
 
   -- Esc closes the window.
   tinsert(UISpecialFrames, frame:GetName())
@@ -1968,13 +1970,21 @@ end
 
 -- Runs the refresh hooks, then re-renders the visible tab (nothing more while
 -- the window is closed).
+-- The views, the navigation and the pop-outs share one Checklist build
+-- (UI.ChecklistBuild) while it runs.
 ns.Refresh = function()
-  for _, fn in ipairs(refreshHooks) do fn() end
-  local frame = UI.frame
-  if not (frame and frame:IsShown()) then return end
-  local view = views[current]
-  if view and built[current] and view.Refresh then view.Refresh() end
-  UI.RefreshNav()
+  UI.refreshing = true
+  local good, err = pcall(function()
+    for _, fn in ipairs(refreshHooks) do fn() end
+    local frame = UI.frame
+    if not (frame and frame:IsShown()) then return end
+    local view = views[current]
+    if view and built[current] and view.Refresh then view.Refresh() end
+    UI.RefreshNav()
+  end)
+  UI.refreshing = false
+  if UI.ForgetChecklistBuild then UI.ForgetChecklistBuild() end
+  if not good then error(err, 0) end
 end
 
 -- Minimap button ----------------------------------------------------------------

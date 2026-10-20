@@ -1447,3 +1447,46 @@ describe("Browse in the navigation column", function()
     ok(button("Achievements").selected)
   end)
 end)
+
+describe("refresh cost", function()
+  it("one Checklist build per ns.Refresh, fresh again after it", function()
+    local ns = loadUI()
+    local calls = 0
+    local old = ns.Checklist.Build
+    ns.Checklist.Build = function(...) calls = calls + 1 return old(...) end
+    ns.ToggleWindow()
+    ns.UI.SelectTab("checklist")
+    calls = 0
+    ns.Refresh()
+    eq(calls, 1, "view and navigation share it")
+    ns.UI.ChecklistBuild(ns.Game.Now())
+    eq(calls, 2, "outside a refresh: built anew")
+  end)
+
+  it("game events in one frame refresh once (ns.RefreshSoon)", function()
+    local ns = loadUI()
+    local timers, n = {}, 0
+    C_Timer = { After = function(_, fn) timers[#timers + 1] = fn end }
+    local old = ns.Refresh
+    ns.Refresh = function() n = n + 1 end
+    ns.RefreshSoon()
+    ns.RefreshSoon()
+    ns.RefreshSoon()
+    eq(#timers, 1)
+    timers[1]()
+    eq(n, 1)
+    ns.RefreshSoon()
+    eq(#timers, 2, "a later burst schedules again")
+    C_Timer = nil
+    ns.Refresh = old
+  end)
+
+  it("the search pages share one cache, dropped when the window closes", function()
+    local ns = loadUI()
+    ns.ToggleWindow()
+    ns.UI.SearchMatches({ 1, 2 }, "alpha")
+    ok(next(ns.UI.SearchCache()), "filled")
+    ns.ToggleWindow()
+    eq(next(ns.UI.SearchCache()), nil, "closed: emptied")
+  end)
+end)
