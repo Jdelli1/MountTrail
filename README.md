@@ -333,6 +333,16 @@ window's title bar has the same settings, plus `Reset text sizes` and
 | `Show minimap button` | Shows or hides the minimap button. |
 | Debug messages | The same as `/mtrail debug`. |
 
+## Your lists
+
+- **Add a mount**: select it, then `+ List` in the detail pane and tick a
+  list (or `New list...` to start one with it). The button reads `Lists (2)`
+  once the mount is on some of your lists.
+- **Remove a mount**: the same menu, untick the list. On a list's own page the
+  menu starts with `Remove from <list>`. In a list's pop-out, right-click the
+  mount's row.
+- `+` next to My lists starts an empty list or imports one.
+
 ## Guides
 
 Step-by-step directions for a mount, like a leveling guide: what to do, where

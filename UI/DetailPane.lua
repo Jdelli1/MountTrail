@@ -248,6 +248,13 @@ local function paint(pane)
   pane.Empty:SetShown(not has)
   pane.AddList:SetShown(has)
   pane.Wowhead:SetShown(has)
+  -- "+ List" while the mount is on none of your lists, else "Lists (n)".
+  local store = has and UI.ListsDB and UI.ListsDB()
+  local on = 0
+  for _, l in ipairs(store and ns.Lists.Sorted(store) or {}) do
+    if ns.Lists.Has(store, l.id, id) then on = on + 1 end
+  end
+  UI.FlatButtonSetText(pane.AddList, on > 0 and string.format(L["Lists (%d)"], on) or L["+ List"])
   local guides = has and UI.GuidesForMount and UI.GuidesForMount(id) or {}
   if #guides > 0 then
     UI.FlatButtonSetText(pane.Guide, L["Guide"])
@@ -340,7 +347,9 @@ local function build(parent)
   addList:SetScript("OnClick", function(self)
     if pane.mountID then UI.ShowListMenu(self, pane.mountID) end
   end)
-  addList:SetScript("OnEnter", function(self) UI.ShowHint(self, L["Add to a custom list"]) end)
+  addList:SetScript("OnEnter", function(self)
+    UI.ShowHint(self, L["Your lists"], L["Tick a list to add this mount to it, untick to remove it."])
+  end)
   addList:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   pane.AddList = addList
   -- "Wowhead": the mount's page (guides, comments) in a box to copy.
@@ -463,7 +472,17 @@ function UI.ShowListMenu(owner, mountID)
   local store = UI.ListsDB and UI.ListsDB()
   if not store then return end
   UI.ShowMenu(owner, function()
-    local items = { { title = L["Add to list"] } }
+    local items = { { title = L["Your lists"] } }
+    -- On one of your list's pages: removing it from that list comes first.
+    local page = UI.CurrentListPage and UI.CurrentListPage()
+    local here = page and page.kind == "list" and ns.Lists.Get(store, page.list)
+    if here and ns.Lists.Has(store, page.list, mountID) then
+      items[#items + 1] = { text = string.format(L["Remove from %s"], here.name), onClick = function()
+        ns.Lists.Remove(store, page.list, mountID)
+        ns.Refresh()
+      end }
+      items[#items + 1] = { separator = true }
+    end
     for _, l in ipairs(ns.Lists.Sorted(store)) do
       items[#items + 1] = {
         text = l.name, checked = ns.Lists.Has(store, l.id, mountID), keepOpen = true,
