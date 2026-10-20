@@ -52,7 +52,7 @@ describe("ui", function()
     eq(f.Tabs, nil, "no tab buttons")
     eq({ f.Nav:GetPoint(1) }, { "TOPLEFT", f, "TOPLEFT", 6, -60 }, "under the portrait")
     eq(f.Nav.width, ns.UI.NAV_WIDTH)
-    eq({ f.Inset:GetPoint(1) }, { "TOPLEFT", f, "TOPLEFT", 6 + ns.UI.NAV_WIDTH + 4, -28 }, "views right of it")
+    eq({ f.Inset:GetPoint(1) }, { "TOPLEFT", f, "TOPLEFT", 6 + ns.UI.NAV_WIDTH + 4, -34 }, "views right of it, clear of the title bar")
     local labels = {}
     for i = 1, f.Nav.shown do labels[i] = f.Nav.Buttons[i].Text:GetText() end
     eq({ labels[1], labels[2], labels[3] }, { "Home", "Today", "Here" })

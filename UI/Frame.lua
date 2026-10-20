@@ -693,6 +693,8 @@ UI.NAV = {
   { key = "misc", label = "Misc" },
 }
 UI.NAV_WIDTH = 156
+-- The quick lists' mark: the Auction House's favourite star, inline.
+UI.NAV_STAR = "|A:auctionhouse-icon-favorite:12:12|a"
 local TAB_INDEX = {}
 for i, tab in ipairs(TABS) do TAB_INDEX[tab.key] = i end
 
@@ -905,7 +907,7 @@ end
 local TITLE_HEIGHT = 24 -- title bar of the portrait frame
 local PORTRAIT_RIGHT = 60 -- the portrait covers the top-left corner up to here
 local CONTENT_TOP = -60 -- the navigation column starts below the portrait
-local VIEW_TOP = -28 -- the view area starts under the title bar (right of the portrait)
+local VIEW_TOP = -34 -- the view area starts clear of the title bar and its border (right of the portrait)
 local TITLE_BUTTONS_RIGHT = 52 -- close button + one 20 px title-bar button
 
 local NAV_ROW, NAV_HEADING = 22, 24
@@ -1117,8 +1119,8 @@ function UI.RefreshNav()
     b:SetPoint("RIGHT", nav.Content, "RIGHT", 0, 0)
     b.Text:SetPoint("LEFT", b, "LEFT", indent and 18 or 12, 0)
     local label = L[e.label] or e.label
-    if e.builtIn then label = label .. " |cff808080\226\152\133|r" end -- ★
-    if e.action == "alts" then label = label .. " |cff808080\226\135\177|r" end -- ⇱
+    -- A quick list: the game's favourite star (the font has no star glyph).
+    if e.builtIn then label = label .. " " .. UI.NAV_STAR end
     b.Text:SetText(label)
     local badge, green = UI.NavBadge(e, built)
     b.Badge:SetText(badge and ((green and "|cff40c040" or "") .. badge .. (green and "|r" or "")) or "")

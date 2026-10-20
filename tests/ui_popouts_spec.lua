@@ -1250,7 +1250,8 @@ describe("lists in the navigation column", function()
     local b = navButton(ns, "Loop")
     ok(b, "the list's entry")
     ok(b.Badge:GetText():find("1", 1, true), "its open lockout: " .. tostring(b.Badge:GetText()))
-    ok(navButton(ns, "Mythic Mounts").Text:GetText():find("\226\152\133", 1, true), "built-in mark")
+    ok(navButton(ns, "Mythic Mounts").Text:GetText():find(ns.UI.NAV_STAR, 1, true), "built-in mark: the star atlas")
+    ok(not navButton(ns, "Mythic Mounts").Text:GetText():find("\226", 1, true), "no glyph the font lacks")
     b:RunScript("OnClick", "LeftButton")
     local journal = ns.UI.frame.Contents.journal
     local page

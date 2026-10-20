@@ -312,9 +312,9 @@ describe("journal home", function()
     eq(G.cols, 4)
     ok(G.gap >= 10 and G.gap <= 12, "10-12 px gaps")
     -- Window 900 x 560: the navigation column (6 + NAV_WIDTH + 4) on the left,
-    -- 6 px right; views from 28 px down to 6 px from the bottom; 4 px inside.
+    -- 6 px right; views from 34 px down to 6 px from the bottom; 4 px inside.
     local contentW = 900 - (6 + ns.UI.NAV_WIDTH + 4) - 6 - 8
-    local contentH = 560 - 28 - 6 - 8
+    local contentH = 560 - 34 - 6 - 8
     local rows = math.ceil(#ns.Data.Expansions / G.cols)
     eq(rows, 3)
     local right = G.left + G.cols * G.tileW + (G.cols - 1) * G.gap

@@ -803,18 +803,6 @@ local function buildHeader(parent)
     top.ChecklistFilter = filter
   end
 
-  -- Alts: the alt lockout matrix (UI/AltsWindow.lua), left of the Filter button.
-  local alts = UI.FlatButton(top, L["Alts"], "plain", 18)
-  if filter then
-    alts:SetPoint("RIGHT", filter, "LEFT", -6, 0)
-  else
-    alts:SetPoint("TOPRIGHT", top, "TOPRIGHT", -8, -6)
-  end
-  alts:SetScript("OnClick", function() if UI.ToggleAltsWindow then UI.ToggleAltsWindow() end end)
-  alts:SetScript("OnEnter", function(self) UI.ShowHint(self, L["Alt lockouts: which characters are still unsaved"]) end)
-  alts:SetScript("OnLeave", function(self) UI.HideHint(self) end)
-  top.AltsButton = alts
-
   -- Chips: All / Daily / Weekly / Rare spawns.
   top.Chips = {}
   local prev

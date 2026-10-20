@@ -1679,15 +1679,14 @@ describe("ui build", function()
     -- Closed: the refresh hook leaves it alone; the slash toggles.
     run_slash(ns.addon, "mtrail", "alts")
     ok(not w:IsShown(), "closed")
-    -- The Checklist header's Alts button opens it again.
+    -- The navigation column's Alts entry opens it again (the Checklist
+    -- header has no Alts button any more).
     ns.ToggleWindow()
     ns.UI.SelectTab("checklist")
     local header = content(ns, "checklist").children[2].children[1]
-    ok(header.AltsButton, "Alts button")
-    eq(header.AltsButton:GetPoint(1), "RIGHT")
-    eq(select(2, header.AltsButton:GetPoint(1)), header.ChecklistFilter, "left of the Filter button")
-    header.AltsButton:RunScript("OnClick", "LeftButton")
-    ok(w:IsShown(), "opened from the Checklist")
+    eq(header.AltsButton, nil, "no Alts button on the Checklist")
+    ns.UI.NavClick({ action = "alts" })
+    ok(w:IsShown(), "opened from the navigation")
     run_slash(ns.addon, "mtrail", "help")
     local found = false
     for _, line in ipairs(ns.addon.printed) do if line:find("^/mtrail alts") then found = true end end
