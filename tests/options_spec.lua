@@ -44,6 +44,17 @@ local function fakeSettings()
     S.controls[#S.controls + 1] = { kind = "checkbox", category = category, setting = setting, tooltip = tooltip }
     return {}
   end
+  function S.CreateSliderOptions(min, max, step)
+    local o = { min = min, max = max, step = step }
+    function o:SetLabelFormatter(where, fn) self.format = fn end
+    return o
+  end
+  function S.CreateSlider(category, setting, options, tooltip)
+    rec("Slider", setting.variable)
+    S.controls[#S.controls + 1] = { kind = "slider", category = category, setting = setting,
+      options = options, tooltip = tooltip }
+    return {}
+  end
   function S.CreateControlTextContainer()
     local container = { data = {} }
     function container:Add(value, label, tooltip)
@@ -108,6 +119,10 @@ describe("options", function()
         { "Checkbox", "MOUNTTRAIL_UNOBTAINABLE" },
         { "Setting", "MOUNTTRAIL_RARITY_COLORS" },
         { "Checkbox", "MOUNTTRAIL_RARITY_COLORS" },
+        { "Setting", "MOUNTTRAIL_WINDOW_SCALE" },
+        { "Slider", "MOUNTTRAIL_WINDOW_SCALE" },
+        { "Setting", "MOUNTTRAIL_NAV_TEXT" },
+        { "Slider", "MOUNTTRAIL_NAV_TEXT" },
         { "Setting", "MOUNTTRAIL_MINIMAP" },
         { "Checkbox", "MOUNTTRAIL_MINIMAP" },
         { "Setting", "MOUNTTRAIL_DEBUG" },
@@ -192,7 +207,44 @@ describe("options", function()
       eq(ns.db.global.settings.rarityColors, true)
       eq(ns.Options.RarityColors(), true)
       eq(refreshed, 1)
-      ok(S.controls[2].tooltip:find("Mount Journal Enhanced", 1, true), "says where the data comes from")
+      local rcTip
+      for _, c in ipairs(S.controls) do if c.setting == rc then rcTip = c.tooltip end end
+      ok(rcTip:find("Mount Journal Enhanced", 1, true), "says where the data comes from")
+    end)
+  end)
+
+  describe("text size sliders", function()
+    it("window scale 80-150 % in 5 % steps and navigation text +0 to +6, saved and applied", function()
+      local ns = loadOptions()
+      local applied, navs = 0, 0
+      ns.UI = ns.UI or {}
+      ns.UI.ApplyWindowScale = function() applied = applied + 1 end
+      ns.UI.RefreshNav = function() navs = navs + 1 end
+      local S = fakeSettings()
+      ns.Options.Register(S)
+      local scale, nav = S.settings.MOUNTTRAIL_WINDOW_SCALE, S.settings.MOUNTTRAIL_NAV_TEXT
+      eq({ scale.default, nav.default }, { 100, 2 })
+      eq(scale.get(), 100)
+      scale.set(123)
+      eq(ns.db.global.settings.windowScale, 125, "to the 5 % step")
+      eq(applied, 1)
+      scale.set(500)
+      eq(scale.get(), 150, "no more than 150 %")
+      nav.set(9)
+      eq(nav.get(), 6)
+      eq(navs, 1)
+      local slider
+      for _, c in ipairs(S.controls) do if c.kind == "slider" and c.setting == scale then slider = c end end
+      eq({ slider.options.min, slider.options.max, slider.options.step }, { 80, 150, 5 })
+    end)
+
+    it("no sliders (and no such settings) on clients without Settings.CreateSlider", function()
+      local ns = loadOptions()
+      local S = fakeSettings()
+      S.CreateSlider = nil
+      ns.Options.Register(S)
+      eq(S.settings.MOUNTTRAIL_WINDOW_SCALE, nil)
+      eq(ns.Options.WindowScale(), 100)
     end)
   end)
 

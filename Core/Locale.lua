@@ -426,3 +426,9 @@ L["Drops"] = "Drops"
 L["Vendors & Reputation"] = "Vendors & Reputation"
 L["Quests & Activities"] = "Quests & Activities"
 L["Shop & Trading Post"] = "Shop & Trading Post"
+
+-- Text size settings (UI/Options.lua)
+L["Window scale"] = "Window scale"
+L["Size of the MountTrail window and everything in it, text included."] = "Size of the MountTrail window and everything in it, text included."
+L["Navigation text size"] = "Navigation text size"
+L["Points added to the text of the window's left column."] = "Points added to the text of the window's left column."

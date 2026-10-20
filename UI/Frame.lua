@@ -867,9 +867,21 @@ local function createSizeGrip(frame)
   return grip
 end
 
+-- The window's scale: Options' "Window scale" (80-150 %, default 100).
+function UI.WindowScale()
+  local options = ns.Options
+  local pct = options and options.WindowScale and options.WindowScale() or 100
+  return pct / 100
+end
+
+-- Applies the scale setting to the window (when built).
+function UI.ApplyWindowScale()
+  if UI.frame then UI.frame:SetScale(UI.WindowScale()) end
+end
+
 local function restorePosition(frame)
   local db = windowDB()
-  frame:SetScale(1)
+  frame:SetScale(UI.WindowScale())
   if db then db.scale = nil end
   local maxW, maxH = screenSize()
   frame:SetSize(UI.ClampSize(db and db.width or WIDTH, db and db.height or HEIGHT, maxW, maxH))
@@ -928,8 +940,15 @@ local TITLE_BUTTONS_RIGHT = 52 -- close button + one 20 px title-bar button
 
 local NAV_ROW, NAV_HEADING = 24, 26
 -- Points added to the navigation's fonts (the game's small fonts read tiny
--- at high resolutions with a small UI scale).
+-- at high resolutions with a small UI scale): Options' "Navigation text
+-- size" (default 2).
 UI.NAV_FONT_BONUS = 2
+
+function UI.NavFontBonus()
+  local options = ns.Options
+  if options and options.NavTextSize then return options.NavTextSize() end
+  return UI.NAV_FONT_BONUS
+end
 
 -- `fs` in `fontObject`, UI.NAV_FONT_BONUS points larger. The size comes
 -- from the font object itself, never from `fs`: a font string keeps a size
@@ -940,7 +959,7 @@ local function navFont(fs, fontObject)
   local fo = _G[fontObject]
   if not (fs.SetFont and type(fo) == "table" and type(fo.GetFont) == "function") then return end
   local path, size, flags = fo:GetFont()
-  if path and size then fs:SetFont(path, size + UI.NAV_FONT_BONUS, flags or "") end
+  if path and size then fs:SetFont(path, size + UI.NavFontBonus(), flags or "") end
 end
 local NAV_GOLD = { 1, 0.82, 0 }
 

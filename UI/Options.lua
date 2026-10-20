@@ -12,6 +12,11 @@ local ADDON, ns = ...
 --   "Colour pop-out names by rarity" (ns.db.global.settings.rarityColors: off
 --                by default; pop-out rows take the quality colour of how many
 --                characters own the mount, Integrations/MountsRarity.lua),
+--   "Window scale" (ns.db.global.settings.windowScale, 80-150 %: everything in
+--                the main window, text included, UI.ApplyWindowScale) and
+--                "Navigation text size" (settings.navTextSize, points added to
+--                the navigation column's fonts, 0-6, default 2): sliders,
+--                when the client has Settings.CreateSlider,
 --   "Show minimap button" (ns.db.global.minimap.hide, LibDBIcon Show / Hide),
 --   "Debug messages" (ns.db.global.debug, the same flag as /mtrail debug).
 -- `/mtrail options` opens it (Settings.OpenToCategory(category:GetID())). Every
@@ -26,6 +31,32 @@ ns.Options = Options
 Options.UNOBTAINABLE = "MOUNTTRAIL_UNOBTAINABLE"
 Options.MINIMAP = "MOUNTTRAIL_MINIMAP"
 Options.RARITY_COLORS = "MOUNTTRAIL_RARITY_COLORS"
+Options.WINDOW_SCALE = "MOUNTTRAIL_WINDOW_SCALE"
+Options.NAV_TEXT = "MOUNTTRAIL_NAV_TEXT"
+
+-- Slider ranges (whole percent for the scale).
+Options.SCALE_RANGE = { min = 80, max = 150, step = 5 }
+Options.NAV_TEXT_RANGE = { min = 0, max = 6, step = 1 }
+
+local function clamp(v, range, default)
+  v = tonumber(v)
+  if not v then return default end
+  return math.max(range.min, math.min(range.max, math.floor(v / range.step + 0.5) * range.step))
+end
+
+-- The window scale in percent (80-150, default 100).
+function Options.WindowScale()
+  local global = ns.db and ns.db.global
+  local saved = global and type(global.settings) == "table" and global.settings.windowScale or nil
+  return clamp(saved, Options.SCALE_RANGE, 100)
+end
+
+-- Points added to the navigation's fonts (0-6, default 2).
+function Options.NavTextSize()
+  local global = ns.db and ns.db.global
+  local saved = global and type(global.settings) == "table" and global.settings.navTextSize or nil
+  return clamp(saved, Options.NAV_TEXT_RANGE, 2)
+end
 Options.DEBUG = "MOUNTTRAIL_DEBUG"
 
 -- ns.db.global.settings, created when missing.
@@ -63,6 +94,28 @@ end
 local function setRarityColors(on)
   settings().rarityColors = on and true or false
   ns.Refresh()
+end
+
+local function setWindowScale(pct)
+  settings().windowScale = clamp(pct, Options.SCALE_RANGE, 100)
+  if ns.UI and ns.UI.ApplyWindowScale then ns.UI.ApplyWindowScale() end
+end
+
+local function setNavTextSize(points)
+  settings().navTextSize = clamp(points, Options.NAV_TEXT_RANGE, 2)
+  if ns.UI and ns.UI.RefreshNav then ns.UI.RefreshNav() end
+end
+
+-- A slider on `category` (Settings.CreateSliderOptions / CreateSlider) with
+-- `format(value)` as its label; nothing on clients without them.
+local function slider(api, category, setting, range, format, tooltip)
+  if type(api.CreateSlider) ~= "function" or type(api.CreateSliderOptions) ~= "function" then return end
+  local options = api.CreateSliderOptions(range.min, range.max, range.step)
+  local mixin = MinimalSliderWithSteppersMixin
+  if options and options.SetLabelFormatter and type(mixin) == "table" and mixin.Label then
+    options:SetLabelFormatter(mixin.Label.Right, format)
+  end
+  api.CreateSlider(category, setting, options, tooltip)
 end
 
 local function minimapDb()
@@ -114,6 +167,18 @@ local function build(api)
     L["Colour pop-out names by rarity"], false, Options.RarityColors, setRarityColors)
   api.CreateCheckbox(category, rarity,
     L["Colour each pop-out row by how many characters own the mount (legendary under 2 %, epic under 10 %, rare under 20 %, uncommon under 50 %). Needs Mount Journal Enhanced or the MountsRarity add-on."])
+
+  -- The sliders, on clients that have them.
+  if type(api.CreateSlider) == "function" and type(api.CreateSliderOptions) == "function" then
+    local scale = api.RegisterProxySetting(category, Options.WINDOW_SCALE, VarType.Number or "number",
+      L["Window scale"], 100, Options.WindowScale, setWindowScale)
+    slider(api, category, scale, Options.SCALE_RANGE, function(v) return string.format("%d%%", v) end,
+      L["Size of the MountTrail window and everything in it, text included."])
+    local navText = api.RegisterProxySetting(category, Options.NAV_TEXT, VarType.Number or "number",
+      L["Navigation text size"], 2, Options.NavTextSize, setNavTextSize)
+    slider(api, category, navText, Options.NAV_TEXT_RANGE, function(v) return string.format("+%d", v) end,
+      L["Points added to the text of the window's left column."])
+  end
 
   local minimap = api.RegisterProxySetting(category, Options.MINIMAP, VarType.Boolean or "boolean",
     L["Show minimap button"], true, getMinimap, setMinimap)
