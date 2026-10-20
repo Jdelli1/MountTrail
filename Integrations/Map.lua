@@ -686,3 +686,31 @@ function Map.OpenMap(mountID, api, routeBoss)
   openWorldMap(api, target.map)
   return target
 end
+
+-- A waypoint at one spot point (the detail pane's and the rare tracker's
+-- coordinate buttons): the game pin and / or TomTom as the Waypoints setting
+-- says; a map that takes no pin opens instead. `name`: the NPC (chat:
+-- "Waypoint: Luk'hok (Nagrand)"; TomTom's title). -> true when a waypoint
+-- was set.
+function Map.SetWaypointAt(m, x, y, name, api)
+  api = api or realApi()
+  if not (m and x and y) then return false end
+  local where = mapName(api, m)
+  local label = name and where and string.format("%s (%s)", name, where) or name or where or tostring(m)
+  local target = { map = m, x = x, y = y, kind = "pin" }
+  local mode = MODES[api.waypointMode] and api.waypointMode or Map.WaypointMode()
+  local set, tomtom = false, false
+  if mode ~= "tomtom" then set = setUserWaypoint(api, target) end
+  if mode ~= "game" then
+    tomtom = replaceTomTom(api, m, x / 100, y / 100, name or label)
+  else
+    removeTomTom(api)
+  end
+  if mode == "tomtom" and not tomtom then set = setUserWaypoint(api, target) end
+  if set or tomtom then
+    say(api, string.format(L["Waypoint: %s"], label))
+    return true
+  end
+  if openWorldMap(api, m) then say(api, string.format(L["Opened map: %s"], label)) end
+  return false
+end

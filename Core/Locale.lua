@@ -224,6 +224,12 @@ L["/azt options - open the AzerothTrail options (Options > AddOns)"] = "/azt opt
 
 -- Journal home (front page)
 L["Mount Collection"] = "Mount Collection"
+L["Where to find it"] = "Where to find it"
+L["Spawn points"] = "Spawn points"
+L["Vendor"] = "Vendor"
+L["vendor"] = "vendor"
+L["daily"] = "daily"
+L["Set a waypoint here"] = "Set a waypoint here"
 L["Rider"] = "Rider"
 L["Waypoint"] = "Waypoint"
 L["Map"] = "Map"

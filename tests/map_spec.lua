@@ -742,3 +742,26 @@ describe("Map spots (Data.Spots)", function()
     eq({ r.map, r.x, r.spot }, { 70, 5, nil }, "the holiday's own place")
   end)
 end)
+
+describe("Map.SetWaypointAt", function()
+  it("pins one point, names the NPC and the map in chat", function()
+    local Map = loadMap()
+    local api = fakeApi({ canSet = { [550] = true }, names = { [550] = "Nagrand" }, mode = "game" })
+    eq(Map.SetWaypointAt(550, 67.6, 42.6, "Luk'hok", api), true)
+    local set, printed
+    for _, l in ipairs(api.log) do
+      if l[1] == "SetUserWaypoint" then set = l[2] end
+      if l[1] == "Print" then printed = l[2] end
+    end
+    eq(set.uiMapID, 550)
+    ok(near(set.x, 0.676) and near(set.y, 0.426), "point in 0-1")
+    eq(printed, "Waypoint: Luk'hok (Nagrand)")
+  end)
+  it("opens the map when the map takes no pin; nothing without a point", function()
+    local Map = loadMap()
+    local api = fakeApi({ names = { [1] = "Somewhere" }, mode = "game" })
+    eq(Map.SetWaypointAt(1, 5, 5, nil, api), false)
+    eq(api.log[#api.log - 1][1], "OpenWorldMap")
+    eq(Map.SetWaypointAt(nil, 5, 5, "X", api), false)
+  end)
+end)

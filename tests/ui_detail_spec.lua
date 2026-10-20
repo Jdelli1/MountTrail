@@ -107,6 +107,13 @@ local function loadUI(withTemplate)
   }
   ns.Data.Holidays = {}
   ns.Data.Route = {}
+  ns.Data.Spots = {
+    [1] = { { npc = 50981, name = "Luk'hok", kind = "drop", daily = true,
+      pts = { 550, 67.6, 42.6, 550, 72.8, 53.4, 107, 1, 2 } } },
+    [3] = { { npc = 1, name = "Horde Vendor", kind = "vendor", faction = "Horde", pts = { 85, 5, 5 } } },
+  }
+  ns.Data.SpotsExtra = {}
+  ns.Game.MapName = function(m) return ({ [550] = "Nagrand", [107] = "Old Nagrand" })[m] end
   ns.db.global.filters.collected = true
   return ns
 end
@@ -254,5 +261,29 @@ describe("detail pane", function()
     list:Refresh(true)
     eq(list.Detail, nil)
     eq(mountRows(list)[1].onSelect, nil)
+  end)
+
+  it("Where to find it: each NPC's points by map, as buttons that set a waypoint there", function()
+    local ns = loadUI()
+    local spots = ns.UI.DetailSpots(1)
+    eq(#spots, 1)
+    eq(spots[1].name, "Luk'hok")
+    eq(spots[1].daily, true)
+    eq(#spots[1].maps, 2)
+    eq({ spots[1].maps[1].map, spots[1].maps[1].name, #spots[1].maps[1].points }, { 550, "Nagrand", 2 })
+    eq(ns.UI.DetailSpots(3), {}, "the other faction's vendor is left out")
+    local list = makeList(ns)
+    local pane = list.Detail
+    local shown = {}
+    for _, b in ipairs(pane.pointButtons) do
+      if b:IsShown() then shown[#shown + 1] = b.Text:GetText() end
+    end
+    eq(shown, { "67.6, 42.6", "72.8, 53.4", "1.0, 2.0" })
+    local set
+    ns.Map.SetWaypointAt = function(m, x, y, name) set = { m, x, y, name } end
+    pane.pointButtons[2]:RunScript("OnClick", "LeftButton")
+    eq(set, { 550, 72.8, 53.4, "Luk'hok" })
+    list:Select(2)
+    for _, b in ipairs(pane.pointButtons) do ok(not b:IsShown(), "no spots: buttons hidden") end
   end)
 end)

@@ -588,3 +588,4 @@ Every Holidays header shows dates read from the in-game calendar (`C_Calendar`; 
 - [ ] Primordial Direhorns: the nearest Zandalari Warbringer zone point.
 - [ ] A raid mount (Invincible) still goes to the raid entrance; a holiday mount to its holiday place.
 - [ ] Map tab on a zone with a mount vendor (e.g. Iskaara's Tatto in the Azure Span): the vendor's mounts are listed.
+- [ ] Detail pane, a rare with several spawn points (Mottled Meadowstomper / Luk'hok): "Where to find it" lists Luk'hok (daily if it has a kill quest), the map name, and each spawn point as a small gold button; clicking one sets a waypoint there and chat says "Waypoint: Luk'hok (Nagrand)". A vendor mount lists the vendor ("vendor" after the name); the other faction's vendors are not listed.

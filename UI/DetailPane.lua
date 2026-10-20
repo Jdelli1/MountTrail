@@ -6,7 +6,10 @@ local ADDON, ns = ...
 -- shown or not by the Mount Journal's "mountJournalShowPlayer" setting, its
 -- checkbox here too), the name and icon, the client's flavor text, then the
 -- tooltip's lines (UI.TooltipLines without the click hints: source, chance,
--- attempts, lockout, achievement) in a scrolling area, and Waypoint / Map /
+-- attempts, lockout, achievement) and "Where to find it": each NPC behind
+-- the mount (Map.Spots: the vendor, a rare with every spawn point) by name
+-- and map, its coordinates as small buttons that set a waypoint there
+-- (Map.SetWaypointAt) - all in a scrolling area - and Waypoint / Map /
 -- Achievement buttons.
 --   local pane = UI.CreateDetailPane(parent)
 --   pane:SetMount(mountID[, routeBoss])   -- nil: empty
@@ -37,8 +40,36 @@ local function mountData(mountID)
   return mounts and mounts[mountID] or nil
 end
 
+-- The mount's spots for this character (Map.Spots, the other faction's
+-- vendors left out) as the pane lists them -> { { name =, kind =, daily =,
+-- maps = { { map =, name =, points = { { x, y } } } } } }, points grouped by
+-- map in the spot's order.
+function UI.DetailSpots(mountID)
+  local map = ns.Map
+  if not (map and map.Spots) then return {} end
+  local faction = ns.Game.Faction and ns.Game.Faction() or nil
+  local out = {}
+  for _, spot in ipairs(map.Spots(mountID, faction)) do
+    local maps, byMap = {}, {}
+    local pts = spot.pts
+    for i = 1, #pts - 2, 3 do
+      local m = pts[i]
+      local group = byMap[m]
+      if not group then
+        group = { map = m, name = ns.Game.MapName and ns.Game.MapName(m) or nil, points = {} }
+        byMap[m] = group
+        maps[#maps + 1] = group
+      end
+      group.points[#group.points + 1] = { pts[i + 1], pts[i + 2] }
+    end
+    out[#out + 1] = { name = spot.name, kind = spot.kind, daily = spot.daily, maps = maps }
+  end
+  return out
+end
+
 -- Pure: the pane's text for a mount -> { name =, flavor =, lines = UI.TooltipLines
--- without hints, achievement = achievementID or nil, location = bool }.
+-- without hints, achievement = achievementID or nil, location = bool, spots =
+-- UI.DetailSpots }.
 function UI.DetailContent(mountID, routeBoss)
   local m = mountData(mountID) or {}
   local name = ns.Game.MountInfo and ns.Game.MountInfo(mountID) or nil
@@ -49,6 +80,7 @@ function UI.DetailContent(mountID, routeBoss)
     lines = UI.TooltipLines(mountID, routeBoss, { hints = false }),
     achievement = achievementID,
     location = UI.HasLocation(mountID, routeBoss) and true or false,
+    spots = UI.DetailSpots(mountID),
   }
 end
 
@@ -120,6 +152,43 @@ local function lineString(pane, i)
   return fs, pane.rightStrings[i]
 end
 
+-- Coordinate buttons in the info area, reused between mounts.
+local POINT_HEIGHT = 16
+local POINT_GAP = 6
+local function pointButton(pane, i)
+  local b = pane.pointButtons[i]
+  if not b then
+    b = CreateFrame("Button", nil, pane.Info)
+    b:SetHeight(POINT_HEIGHT)
+    local text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    text:SetPoint("LEFT", b, "LEFT", 4, 0)
+    b.Text = text
+    local bg = b:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints(b)
+    bg:SetColorTexture(1, 0.82, 0, 0.12)
+    local hl = b:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetAllPoints(b)
+    hl:SetColorTexture(1, 0.82, 0, 0.25)
+    b:SetScript("OnClick", function(self)
+      if ns.Map and ns.Map.SetWaypointAt then ns.Map.SetWaypointAt(self.m, self.x, self.y, self.npc) end
+    end)
+    b:SetScript("OnEnter", function(self)
+      if not GameTooltip then return end
+      GameTooltip:SetOwner(self, "ANCHOR_TOP")
+      GameTooltip:SetText(L["Set a waypoint here"])
+      GameTooltip:Show()
+    end)
+    b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    pane.pointButtons[i] = b
+  end
+  return b
+end
+
+local function fmt(v)
+  local s = string.format("%.1f", v)
+  return s
+end
+
 local function layoutInfo(pane, content)
   local width = UI.DETAIL_WIDTH - 2 * PAD - 12
   local y = 0
@@ -156,6 +225,40 @@ local function layoutInfo(pane, content)
       place(l.left, l.r, l.g, l.b)
     end
   end
+  -- Where to find it: each NPC, then its coordinates as buttons, wrapped.
+  local used = 0
+  if content.spots and #content.spots > 0 then
+    y = y + 6
+    place(L["Where to find it"], 1, 0.82, 0)
+    for _, spot in ipairs(content.spots) do
+      local label = spot.name or (spot.kind == "vendor" and L["Vendor"]) or L["Spawn points"]
+      if spot.kind == "vendor" and spot.name then label = label .. "  |cff9d9d9d" .. L["vendor"] .. "|r" end
+      if spot.daily then label = label .. "  |cff9d9d9d" .. L["daily"] .. "|r" end
+      place(label, 1, 1, 1)
+      for _, group in ipairs(spot.maps) do
+        place(group.name or tostring(group.map), 0.7, 0.7, 0.7)
+        local x = 0
+        for _, p in ipairs(group.points) do
+          used = used + 1
+          local b = pointButton(pane, used)
+          b.m, b.x, b.y, b.npc = group.map, p[1], p[2], spot.name
+          b.Text:SetText(fmt(p[1]) .. ", " .. fmt(p[2]))
+          local w = (b.Text.GetStringWidth and b.Text:GetStringWidth() or 60) + 8
+          if x > 0 and x + w > width then
+            x = 0
+            y = y + POINT_HEIGHT + 3
+          end
+          b:SetWidth(w)
+          b:ClearAllPoints()
+          b:SetPoint("TOPLEFT", pane.Info, "TOPLEFT", x, -y)
+          b:Show()
+          x = x + w + POINT_GAP
+        end
+        y = y + POINT_HEIGHT + LINE_GAP + 2
+      end
+    end
+  end
+  for i = used + 1, #pane.pointButtons do pane.pointButtons[i]:Hide() end
   for i = n + 1, #pane.lineStrings do
     pane.lineStrings[i]:Hide()
     pane.rightStrings[i]:Hide()
@@ -190,7 +293,7 @@ end
 local function build(parent)
   local pane = CreateFrame("Frame", nil, parent)
   pane:SetWidth(UI.DETAIL_WIDTH)
-  pane.lineStrings, pane.rightStrings = {}, {}
+  pane.lineStrings, pane.rightStrings, pane.pointButtons = {}, {}, {}
 
   local fill = pane:CreateTexture(nil, "BACKGROUND")
   fill:SetAllPoints(pane)
