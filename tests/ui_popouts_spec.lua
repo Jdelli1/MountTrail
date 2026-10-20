@@ -1091,3 +1091,68 @@ describe("zone window and the alt lockouts window", function()
     ok(not alts:IsShown() and not camp:IsShown(), "both closed")
   end)
 end)
+
+describe("the zone's mounts pop-out", function()
+  it("lists every mount still to get in the player's zone, follows the map, opens from /mtrail here", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    local map = 550
+    ns.Game.PlayerMap = function() return map end
+    local zones = {
+      [550] = { { id = 614 }, { id = 7 }, { id = 4242 } }, -- 7 is owned (loadUI's IsOwned)
+      [525] = { { id = 657 } },
+    }
+    local names_ = { [550] = "Nagrand", [525] = "Frostfire Ridge" }
+    ns.UI.ZoneMounts = function() return zones[map] or {}, { name = names_[map] } end
+    ns.Data.Mounts[4242] = { name = "Plain Vendor Mount", exp = WOD }
+    run_slash(ns.addon, "mtrail", "here")
+    local w = ns.UI.PopoutWindows.zonemounts
+    ok(w and w:IsShown(), "opened")
+    ok(w.Title:GetText():find("^Mounts in Nagrand"), w.Title:GetText())
+    local function ids() local out = {} for i, r in ipairs(w.rows) do out[i] = r.id end table.sort(out) return out end
+    eq(ids(), { 614, 4242 }, "the tracked lockout and a plain mount; owned ones left out")
+    for _, r in ipairs(w.rows) do
+      if r.id == 614 then eq(r.entry.reset, "daily", "the Checklist's entry when it tracks the mount") end
+      if r.id == 4242 then eq(r.listOnly, true, "a plain row otherwise") end
+    end
+    map = 525
+    fire_frame_event("ZONE_CHANGED_NEW_AREA")
+    eq(ids(), { 657 })
+    ok(w.Title:GetText():find("^Mounts in Frostfire Ridge"), w.Title:GetText())
+    run_slash(ns.addon, "mtrail", "here")
+    ok(not w:IsShown(), "the slash toggles it")
+  end)
+
+  it("pop-out rows: Shift-click opens the map, Ctrl-click previews, a plain click goes there", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    local got = {}
+    ns.UI.MapAction = function(method, id, boss) got[#got + 1] = { method, id, boss } end
+    ns.UI.PreviewMount = function(id) got[#got + 1] = { "preview", id } end
+    ns.UI.RowGo = function(id, boss) got[#got + 1] = { "go", id, boss } end
+    local w = ns.UI.OpenPopout({ kind = "weekly", exp = WOD })
+    local r = w.rowFrames[1]
+    eq(r.data.id, 10)
+    IsShiftKeyDown = function() return true end
+    r:RunScript("OnClick", "LeftButton")
+    IsShiftKeyDown = nil
+    IsControlKeyDown = function() return true end
+    r:RunScript("OnClick", "LeftButton")
+    IsControlKeyDown = nil
+    r:RunScript("OnClick", "LeftButton")
+    eq(got, { { "OpenMap", 10, "Boss" }, { "preview", 10 }, { "go", 10, "Boss" } })
+  end)
+
+  it("right-clicking the zone panel's title pops the zone's mounts out", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    ns.Game.PlayerMap = function() return 550 end
+    ns.UI.ZoneMounts = function() return { { id = 614 } }, { name = "Nagrand" } end
+    ns.ToggleWindow()
+    ns.UI.SetZonePanelOpen(true)
+    local hit = ns.UI.zonePanel.TitleHit
+    ok(hit, "the title takes a right-click")
+    hit:RunScript("OnClick", "RightButton")
+    ok(ns.UI.PopoutWindows.zonemounts:IsShown())
+  end)
+end)

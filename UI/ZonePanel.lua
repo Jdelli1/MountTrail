@@ -356,6 +356,21 @@ local function buildPanel(frame)
   title:SetWordWrap(false)
   p.Title = title
 
+  -- Right-click the title strip: the zone's mounts as a pop-out that follows
+  -- the player (UI.ToggleZoneMountsPopout, UI\Popouts.lua).
+  local titleHit = CreateFrame("Button", nil, p)
+  titleHit:SetPoint("TOPLEFT", strip, "TOPLEFT", 0, 0)
+  titleHit:SetPoint("BOTTOMRIGHT", strip, "BOTTOMRIGHT", -(BUTTON_SIZE + 10), 0)
+  if titleHit.RegisterForClicks then titleHit:RegisterForClicks("RightButtonUp") end
+  titleHit:SetScript("OnClick", function(_, button)
+    if button == "RightButton" and UI.ToggleZoneMountsPopout then UI.ToggleZoneMountsPopout() end
+  end)
+  titleHit:SetScript("OnEnter", function(self)
+    UI.ShowHint(self, L["Right-click to pop out"], L["The mounts of the zone you are in, in a window that follows you"])
+  end)
+  titleHit:SetScript("OnLeave", function(self) UI.HideHint(self) end)
+  p.TitleHit = titleHit
+
   local scrollBox = CreateFrame("Frame", nil, p, "WowScrollBoxList")
   scrollBox:SetPoint("TOPLEFT", rule, "BOTTOMLEFT", 0, -2)
   scrollBox:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -16, 4)

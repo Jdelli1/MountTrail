@@ -8,15 +8,21 @@ local ADDON, ns = ...
 --   { kind = "daily" | "weekly" | "camp", all = true }   that whole group, every
 --                                            expansion (a Checklist chip's right-click)
 --   { kind = "zone" }                        the rares of the zone the player is in
+--   { kind = "zonemounts" }                  every mount still to get in the zone the
+--                                            player is in (the zone panel's list)
 --   { kind = "list", list = id }             a custom list (Logic/Lists.lua)
 --   { kind = "quick", key = }                a quick list (Logic/QuickLists.lua)
 -- Opened by right-clicking a Checklist header (that set), a custom list's
--- header menu, and /mtrail rares (the zone's rares). Rows come from the
+-- header menu, /mtrail rares (the zone's rares), and /mtrail here or a
+-- right-click on the zone panel's title (the zone's mounts; both zone windows
+-- follow the player). Rows come from the
 -- Checklist (UI.ChecklistBuild), so they match it: a box (a lockout ticked
 -- and dimmed when the game says done; a rare spawn's "last checked" box,
 -- left-click marks, right-click clears), the name (the rare's for rare
 -- rows) and its zone. A click on the row is UI.GoTo: every spawn point of
--- a rare that has several on TomTom, else the waypoint. "Plot all" in the
+-- a rare that has several on TomTom, else the waypoint; Shift-click opens
+-- the world map there and Ctrl-click previews the mount, as in the lists
+-- (UI.RowClickAction). "Plot all" in the
 -- title puts the spawn points of every row whose box is not ticked on
 -- TomTom at once (Map.PlotMounts). Ctrl-click a window's x to close every
 -- pop-out. A custom list's rows are its mounts (ones already known left out);
@@ -76,6 +82,7 @@ function UI.PopoutKey(source)
   if source.kind == "list" then return "list|" .. tostring(source.list) end
   if source.kind == "quick" then return "quick|" .. tostring(source.key) end
   if source.kind == "zone" then return "zone" end
+  if source.kind == "zonemounts" then return "zonemounts" end
   if source.all then return source.kind .. "|all" end
   local key = source.kind .. "|" .. tostring(source.exp)
   if source.category then key = key .. "|" .. source.category end
@@ -90,6 +97,9 @@ function UI.PopoutTitle(source, store)
     return l and l.name or L["List"]
   end
   if source.kind == "zone" then return L["Rare spawns here"] end
+  if source.kind == "zonemounts" then
+    return string.format(L["Mounts in %s"], source.zoneName or L["this zone"])
+  end
   if source.kind == "quick" then
     local q = ns.QuickLists and ns.QuickLists.Get(source.key)
     return q and L[q.name] or L["List"]
@@ -127,7 +137,8 @@ end
 -- =, camp =, checked = (a rare spawn's last check), spots = Map.Spots, listOnly
 -- = (a custom list's mount the Checklist does not track) } - open ones first,
 -- then by name - and how many are left (not done).
--- ctx: { zoneIDs = { [mountID] = true } (kind "zone"), campStore =
+-- ctx: { zoneIDs = { [mountID] = true } (kind "zone"), zoneMounts = the
+-- zone's mount IDs in the zone panel's order (kind "zonemounts"), campStore =
 -- ns.db.char.campChecked, store = the lists store (kind "list"), isOwned =
 -- fn(id) }.
 function UI.PopoutRows(source, built, ctx)
@@ -166,9 +177,11 @@ function UI.PopoutRows(source, built, ctx)
         if ids[e.id] and rareLike(e) then add(e) end
       end
     end
-  elseif kind == "list" or kind == "quick" then
+  elseif kind == "list" or kind == "quick" or kind == "zonemounts" then
     local ids
-    if kind == "quick" then
+    if kind == "zonemounts" then
+      ids = ctx.zoneMounts or {}
+    elseif kind == "quick" then
       ids = ns.QuickLists and ns.QuickLists.Mounts(source.key) or {}
     else
       local l = ctx.store and ns.Lists.Get(ctx.store, source.list)
@@ -195,6 +208,7 @@ function UI.PopoutRows(source, built, ctx)
       if e then
         add(e, { name = mountName })
       elseif not owned then
+        -- A mount the Checklist does not track: a plain row (no box).
         add({ id = id, m = m, key = "list:" .. tostring(id), name = mountName, listOnly = true,
           mounts = { id } }, { name = mountName })
       end
@@ -473,8 +487,16 @@ local function rowFrame(w, i)
       w.justDragged = nil
       return
     end
-    if button == "LeftButton" then
-      UI.PopoutGo(self.data)
+    local action = UI.RowClickAction and UI.RowClickAction(button,
+      type(IsControlKeyDown) == "function" and IsControlKeyDown() and true or false,
+      type(IsShiftKeyDown) == "function" and IsShiftKeyDown() and true or false)
+    local data = self.data
+    if action == "map" and data then
+      if UI.MapAction then UI.MapAction("OpenMap", data.id, data.entry and data.entry.boss) end
+    elseif action == "preview" and data then
+      if UI.PreviewMount then UI.PreviewMount(data.id) end
+    elseif button == "LeftButton" then
+      UI.PopoutGo(data)
     elseif button == "RightButton" and w.source.kind == "list" and self.data then
       local data = self.data
       UI.ShowMenu(self, {
@@ -687,10 +709,20 @@ local function refreshWindow(w, built)
     UI.ClosePopout(w.key) -- the list was deleted
     return
   end
-  -- The zone window remembers the map it shows (its zone events compare).
-  if w.source.kind == "zone" then w.map = ns.Game.PlayerMap() end
+  -- The zone windows remember the map they show (their zone events compare).
+  local follows = w.source.kind == "zone" or w.source.kind == "zonemounts"
+  if follows then w.map = ns.Game.PlayerMap() end
+  local zoneMounts
+  if w.source.kind == "zonemounts" then
+    zoneMounts = {}
+    local list, zone = {}, nil
+    if UI.ZoneMounts then list, zone = UI.ZoneMounts() end
+    for _, entry in ipairs(list or {}) do zoneMounts[#zoneMounts + 1] = entry.id end
+    w.source.zoneName = zone and zone.name or nil
+  end
   local rows, left = UI.PopoutRows(w.source, built, {
     zoneIDs = w.source.kind == "zone" and zoneIDs() or nil,
+    zoneMounts = zoneMounts,
     campStore = char and char.campChecked,
     store = store,
     isOwned = ns.Game.IsOwned,
@@ -1160,6 +1192,18 @@ function UI.CloseAllPopouts()
   end
 end
 
+-- /mtrail here (and the zone panel title's right-click): the mounts of the
+-- player's zone, opened or closed.
+function UI.ToggleZoneMountsPopout()
+  local w = windows.zonemounts
+  if w and w:IsShown() then
+    UI.ClosePopout("zonemounts")
+    return false
+  end
+  UI.OpenPopout({ kind = "zonemounts" })
+  return true
+end
+
 -- /mtrail rares: the zone's rares, opened or closed.
 function UI.ToggleZonePopout()
   local w = windows.zone
@@ -1192,7 +1236,14 @@ events:SetScript("OnEvent", function(_, event)
         UI.OpenPopout(state.source)
       end
     end
-  elseif windows.zone and windows.zone:IsShown() then
-    if ns.Game.PlayerMap() ~= windows.zone.map then UI.RefreshPopouts() end
+  else
+    local map = ns.Game.PlayerMap()
+    for _, key in ipairs({ "zone", "zonemounts" }) do
+      local w = windows[key]
+      if w and w:IsShown() and map ~= w.map then
+        UI.RefreshPopouts()
+        return
+      end
+    end
   end
 end)

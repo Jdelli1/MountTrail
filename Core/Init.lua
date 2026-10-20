@@ -347,6 +347,12 @@ function addon:OnSlash(input)
     else
       self:Print(L["The window is not available yet. Type /mtrail help for commands."])
     end
+  elseif cmd == "here" then
+    if ns.UI and ns.UI.ToggleZoneMountsPopout then
+      ns.UI.ToggleZoneMountsPopout()
+    else
+      self:Print(L["The window is not available yet. Type /mtrail help for commands."])
+    end
   elseif cmd == "alts" then
     if ns.UI and ns.UI.ToggleAltsWindow then
       ns.UI.ToggleAltsWindow()
@@ -381,6 +387,7 @@ function addon:OnSlash(input)
     self:Print(L["/mtrail dump - list saved instances (instance ID, difficulty ID, bosses)"])
     self:Print(L["/mtrail zone - show or hide the zone panel (mounts in your current zone)"])
     self:Print(L["/mtrail rares - show or hide the rare spawns of your zone"])
+    self:Print(L["/mtrail here - show or hide every mount still to get in your zone"])
     self:Print(L["/mtrail options - open the MountTrail options (Options > AddOns)"])
     self:Print(L["/mtrail alts - show or hide the alt lockout matrix (who is still unsaved)"])
     self:Print(L["/mtrail debug - show or hide caught map and waypoint errors"])

@@ -381,3 +381,8 @@ L["Right-click: pop out a list"] = "Right-click: pop out a list"
 -- TomTom is required (Integrations/Map.lua)
 L["MountTrail needs TomTom for waypoints. Install TomTom, then /reload."] = "MountTrail needs TomTom for waypoints. Install TomTom, then /reload."
 L["MountTrail requires the TomTom add-on for its waypoints.\n\nInstall TomTom (CurseForge or Wago), then restart the game."] = "MountTrail requires the TomTom add-on for its waypoints.\n\nInstall TomTom (CurseForge or Wago), then restart the game."
+
+-- The zone's mounts pop-out (UI/Popouts.lua, UI/ZonePanel.lua)
+L["Right-click to pop out"] = "Right-click to pop out"
+L["The mounts of the zone you are in, in a window that follows you"] = "The mounts of the zone you are in, in a window that follows you"
+L["/mtrail here - show or hide every mount still to get in your zone"] = "/mtrail here - show or hide every mount still to get in your zone"
