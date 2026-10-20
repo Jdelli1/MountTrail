@@ -197,6 +197,30 @@ function UI.ZoneRows(list)
   return rows
 end
 
+-- UI.ZoneRows grouped by source (Journal.GroupBySource: Dungeon drops,
+-- Vendors, Achievements, ...): when the zone's mounts come from more than one
+-- source, a header per source { header = true, depth = 2, key =
+-- "zonepanel|<section>", text = UI.SectionLabel, owned =, total =,
+-- collapsed = } over its rows (striped afresh per group); one source: the
+-- rows alone. collapsed = { [key] = true } (ns.db.global.collapsed).
+function UI.ZoneGroupedRows(list, collapsed)
+  collapsed = collapsed or {}
+  local groups = ns.Journal.GroupBySource(list or {}, function(entry) return entry.m and entry.m.section end)
+  if #groups <= 1 then return UI.ZoneRows(list) end
+  local out = {}
+  for _, g in ipairs(groups) do
+    local key = "zonepanel|" .. tostring(g.key)
+    local owned = 0
+    for _, entry in ipairs(g.items) do if entry.owned then owned = owned + 1 end end
+    out[#out + 1] = { header = true, depth = 2, key = key, text = UI.SectionLabel(g.key),
+      owned = owned, total = #g.items, collapsed = collapsed[key] == true }
+    if not collapsed[key] then
+      for _, row in ipairs(UI.ZoneRows(g.items)) do out[#out + 1] = row end
+    end
+  end
+  return out
+end
+
 -- Saved state ------------------------------------------------------------------
 
 local function stateDB()
@@ -217,6 +241,7 @@ end
 local PANEL_WIDTH = 260
 local PANEL_GAP = 2 -- between the window's right edge and the panel
 local HEADER = 34 -- title strip
+local SOURCE_HEADER_HEIGHT = 20 -- a source header (UI/List.lua's sub-header height)
 local BUTTON_SIZE = 20 -- title-bar toggle
 
 local panel   -- the panel frame (UI.zonePanel)
@@ -271,8 +296,10 @@ function UI.RefreshZonePanel(force)
   lastKey, dirty = key, false
   local list, zone = {}, nil
   if ctx then list, zone = UI.ZoneMounts(mapID, ctx) end
-  local rows = UI.ZoneRows(list)
-  panel.Title:SetText(UI.ZoneTitle(zone, #rows))
+  local global = ns.db and ns.db.global
+  if global and type(global.collapsed) ~= "table" then global.collapsed = {} end
+  local rows = UI.ZoneGroupedRows(list, global and global.collapsed)
+  panel.Title:SetText(UI.ZoneTitle(zone, #list))
   -- Same zone (a data refresh): keep the scroll position; a new zone starts
   -- at the top.
   local provider = CreateDataProvider(rows)
@@ -380,8 +407,28 @@ local function buildPanel(frame)
   scrollBar:SetPoint("BOTTOMLEFT", scrollBox, "BOTTOMRIGHT", 4, 0)
   p.ScrollBar = scrollBar
   local view = CreateScrollBoxListLinearView()
-  view:SetElementExtentCalculator(function() return UI.MOUNT_ROW_HEIGHT end)
-  view:SetElementFactory(function(factory) factory("Button", UI.InitMountRow) end)
+  view:SetElementExtentCalculator(function(_, row)
+    if row.header then return SOURCE_HEADER_HEIGHT end
+    return UI.MOUNT_ROW_HEIGHT
+  end)
+  view:SetElementFactory(function(factory, row)
+    if row.header then
+      factory("Frame", function(f, data)
+        -- A source header: click collapses it (saved with the lists' headers).
+        f.onToggle = function(key)
+          local g = ns.db and ns.db.global
+          if not g then return end
+          if type(g.collapsed) ~= "table" then g.collapsed = {} end
+          UI.ToggleCollapsed(g.collapsed, key)
+          UI.RefreshZonePanel(true)
+        end
+        f.onRightClick = nil
+        UI.InitListHeader(f, data)
+      end)
+    else
+      factory("Button", UI.InitMountRow)
+    end
+  end)
   ScrollUtil.InitScrollBoxListWithScrollBar(scrollBox, scrollBar, view)
 
   local empty = p:CreateFontString(nil, "OVERLAY", "GameFontDisable")

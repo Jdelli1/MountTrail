@@ -812,3 +812,26 @@ describe("journal", function()
     end)
   end)
 end)
+
+describe("Journal.GroupBySource", function()
+  it("groups by section in one order across the tabs; other and unknown last; items keep their order", function()
+    local J = load_addon({ "Logic/Journal.lua" }).Journal
+    local items = {
+      { id = 1, s = "vendor" }, { id = 2, s = "achievement" }, { id = 3, s = "dungeon" },
+      { id = 4, s = nil }, { id = 5, s = "vendor" }, { id = 6, s = "brewfest" }, { id = 7, s = "zzz" },
+    }
+    local groups = J.GroupBySource(items, function(it) return it.s end)
+    local keys, members = {}, {}
+    for i, g in ipairs(groups) do
+      keys[i] = g.key
+      local ids = {}
+      for j, it in ipairs(g.items) do ids[j] = it.id end
+      members[g.key] = ids
+    end
+    eq(keys, { "dungeon", "vendor", "achievement", "brewfest", "other", "zzz" })
+    eq(members.vendor, { 1, 5 })
+    eq(members.other, { 4 }, "no section counts as other")
+    eq(J.SOURCE_ORDER[1], "dungeon")
+    eq(J.SOURCE_ORDER[#J.SOURCE_ORDER], "unobtainable")
+  end)
+end)

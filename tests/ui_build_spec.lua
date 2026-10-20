@@ -1062,7 +1062,11 @@ describe("ui build", function()
     ok(frame.ZoneButton.Selected:IsShown(), "toggle shows the open state")
     local title = panel.Title:GetText()
     ok(title:find("^Mounts in Tanaris  "), title)
-    local rows = panel.ScrollBox.provider.rows
+    -- Mount rows (the zone's sources may add a header each).
+    local rows = {}
+    for _, row in ipairs(panel.ScrollBox.provider.rows) do
+      if not row.header then rows[#rows + 1] = row end
+    end
     ok(#rows > 0, "mounts listed")
     ok(title:find("(" .. #rows .. ")", 1, true), "count in the title")
     ok(not panel.Empty:IsShown(), "no empty line")
@@ -1075,13 +1079,23 @@ describe("ui build", function()
     -- Rows are the mount list's rows: tooltip, pin, click dispatch.
     local got = {}
     ns.UI.HandleRowClick = function(id, button) got[#got + 1] = { id, button } end
-    local frames = render(panel.ScrollBox)
+    local all = render(panel.ScrollBox)
+    eq(#all, #panel.ScrollBox.provider.rows)
+    -- Source headers (Dungeon drops, Vendors, ...) when the zone has several.
+    local frames, headers = {}, 0
+    for i, f in ipairs(all) do
+      if panel.ScrollBox.provider.rows[i].header then
+        headers = headers + 1
+        ok(f.Label and f.Label:GetText() ~= "", "a source header")
+      else
+        frames[#frames + 1] = f
+      end
+    end
     eq(#frames, #rows)
     ok(frames[1].Name and frames[1].Pin and frames[1].Source, "mount row look")
     eq(frames[1].clickButtons, { "LeftButtonUp", "RightButtonUp" })
     frames[1]:RunScript("OnClick", "LeftButton")
     eq(got[1], { rows[1].id, "LeftButton" })
-    ok(frames[2] == nil or frames[2].Stripe:IsShown(), "second row striped")
 
     frame.ZoneButton:RunScript("OnClick")
     eq(ns.db.global.zonePanel.open, false)
@@ -1111,7 +1125,9 @@ describe("ui build", function()
     fire_frame_event("ZONE_CHANGED_NEW_AREA")
     eq(computed(), n + 1)
     ok(panel.Title:GetText():find("^Mounts in Uldum"), "new zone")
-    for _, row in ipairs(panel.ScrollBox.provider.rows) do eq(row.id % 11, 0) end
+    for _, row in ipairs(panel.ScrollBox.provider.rows) do
+      if not row.header then eq(row.id % 11, 0) end
+    end
     ns.Refresh()
     eq(computed(), n + 2, "data refresh rebuilds")
     fire_frame_event("PLAYER_ENTERING_WORLD")

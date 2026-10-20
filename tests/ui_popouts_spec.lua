@@ -1156,3 +1156,25 @@ describe("the zone's mounts pop-out", function()
     ok(ns.UI.PopoutWindows.zonemounts:IsShown())
   end)
 end)
+
+describe("the zone's mounts pop-out, by source", function()
+  it("groups its rows under source headers when the zone has several", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    ns.Game.PlayerMap = function() return 550 end
+    ns.Data.Mounts[4242] = { name = "Vendor Mount", exp = WOD, section = "vendor" }
+    ns.Data.Mounts[4343] = { name = "Achievement Mount", exp = WOD, section = "achievement" }
+    ns.UI.ZoneMounts = function() return { { id = 4343 }, { id = 4242 } }, { name = "Nagrand" } end
+    local groups = ns.UI.PopoutGroups({
+      { id = 4242, entry = { m = ns.Data.Mounts[4242] } },
+      { id = 4343, entry = { m = ns.Data.Mounts[4343] }, done = false },
+    }, { kind = "zonemounts" })
+    eq(#groups, 2)
+    eq({ groups[1].label, groups[2].label }, { "Vendors", "Achievements" })
+    local w = ns.UI.OpenPopout({ kind = "zonemounts" })
+    local shown = {}
+    for _, h in ipairs(w.groupFrames) do if h:IsShown() then shown[#shown + 1] = h.Text:GetText() end end
+    ok(shown[1]:find("^Vendors"), shown[1])
+    ok(shown[2]:find("^Achievements"), shown[2])
+  end)
+end)

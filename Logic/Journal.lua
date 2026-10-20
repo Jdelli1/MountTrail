@@ -44,6 +44,50 @@ local RANK, VIEW_RANK = {}, {}
 for tab, list in pairs(ORDER) do RANK[tab] = rankOf(list) end
 for view, list in pairs(VIEW_ORDER) do VIEW_RANK[view] = rankOf(list) end
 
+-- Every source section in one order, for lists that mix the tabs (the
+-- zone's mounts): the Journal's sources, then Misc's, then the holidays',
+-- "other" and "unobtainable" last.
+local SOURCE_ORDER = {}
+do
+  local seen = { other = true, unobtainable = true }
+  for _, tab in ipairs({ "journal", "misc", "holiday" }) do
+    for _, key in ipairs(ORDER[tab]) do
+      if not seen[key] then
+        seen[key] = true
+        SOURCE_ORDER[#SOURCE_ORDER + 1] = key
+      end
+    end
+  end
+  SOURCE_ORDER[#SOURCE_ORDER + 1] = "other"
+  SOURCE_ORDER[#SOURCE_ORDER + 1] = "unobtainable"
+end
+Journal.SOURCE_ORDER = SOURCE_ORDER
+local SOURCE_RANK = rankOf(SOURCE_ORDER)
+
+-- `items` grouped by their source section (sectionOf(item), nil counting as
+-- "other") -> { { key = section, items = { ... } } } in SOURCE_ORDER, unknown
+-- sections after it by name; each group keeps the items' order.
+function Journal.GroupBySource(items, sectionOf)
+  local groups, byKey = {}, {}
+  for _, item in ipairs(items or {}) do
+    local key = sectionOf(item) or "other"
+    local g = byKey[key]
+    if not g then
+      g = { key = key, items = {} }
+      byKey[key] = g
+      groups[#groups + 1] = g
+    end
+    g.items[#g.items + 1] = item
+  end
+  local unknown = #SOURCE_ORDER + 1
+  table.sort(groups, function(a, b)
+    local ra, rb = SOURCE_RANK[a.key] or unknown, SOURCE_RANK[b.key] or unknown
+    if ra ~= rb then return ra < rb end
+    return tostring(a.key) < tostring(b.key)
+  end)
+  return groups
+end
+
 -- The list views, in tab order (UI/Frame.lua's tabs minus Route).
 Journal.Views = { "journal", "holidays", "achievements", "timewalking", "misc" }
 

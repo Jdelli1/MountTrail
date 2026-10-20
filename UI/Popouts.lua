@@ -317,8 +317,27 @@ end
 -- -> list of { exp =, rows = { ... }, left = } in expansion order (Data
 -- order; unknown last), each group's rows in their given order; one group
 -- with exp = nil when the window is a custom list or spans one expansion.
+-- The zone's mounts (kind "zonemounts") split by source instead when they
+-- span several: { source =, label = (UI.SectionLabel), rows =, left = }.
 function UI.PopoutGroups(rows, source, expansions)
   local function expOf(row) return row.entry and (row.entry.exp or (row.entry.m and row.entry.m.exp)) or nil end
+  -- The zone's mounts: by source instead (Journal.GroupBySource; Vendors,
+  -- Achievements, Dungeon drops, ...), each group labelled.
+  if source.kind == "zonemounts" then
+    local groups = ns.Journal.GroupBySource(rows, function(row)
+      local m = row.entry and row.entry.m
+      return m and m.section
+    end)
+    if #groups > 1 then
+      local out = {}
+      for i, g in ipairs(groups) do
+        local left = 0
+        for _, row in ipairs(g.items) do if not row.done then left = left + 1 end end
+        out[i] = { source = g.key, label = UI.SectionLabel and UI.SectionLabel(g.key) or g.key, rows = g.items, left = left }
+      end
+      return out
+    end
+  end
   if source.kind ~= "list" then
     local seen, n = {}, 0
     for _, row in ipairs(rows) do
@@ -745,7 +764,7 @@ local function refreshWindow(w, built)
   local now = ns.Game.Now()
   local n, usedHeaders = 0, 0
   for gi, g in ipairs(groups) do
-    if g.exp ~= nil or #groups > 1 then
+    if g.exp ~= nil or g.label or #groups > 1 then
       usedHeaders = usedHeaders + 1
       local h = groupHeader(w, usedHeaders)
       h:ClearAllPoints()
@@ -753,7 +772,7 @@ local function refreshWindow(w, built)
       h:SetWidth(width)
       h:SetHeight(groupHeight)
       local c = (UI.EXPANSION_COLORS and UI.EXPANSION_COLORS[g.exp]) or { 0.8, 0.8, 0.8 }
-      h.Text:SetText((g.exp and L[g.exp] or L["Other"]) .. "  |cff9d9d9d(" .. string.format(L["%d left"], g.left) .. ")|r")
+      h.Text:SetText((g.label or (g.exp and L[g.exp]) or L["Other"]) .. "  |cff9d9d9d(" .. string.format(L["%d left"], g.left) .. ")|r")
       styleText(h.Text, style, "GameFontNormalSmall", 0, style.header or c)
       h.Rule:SetColorTexture(c[1], c[2], c[3], 0.35)
       h:Show()
