@@ -51,7 +51,7 @@ The junction is created at `<WowPath>\_retail_\Interface\AddOns\MountTrail`. The
 | `/mtrail options` | Open the MountTrail page in Options > AddOns |
 | `/mtrail debug` | Toggle debug mode: errors MountTrail catches around maps and waypoints go to the error handler (off by default) |
 | `/mtrail help` | List the commands |
-| `/mounttrail` | Same as `/mtrail` |
+| `/mounttrail`, `/mtl` | Same as `/mtrail` |
 | `/azt`, `/azerothtrail` | The old name's commands, still the same as `/mtrail` |
 
 ## Development

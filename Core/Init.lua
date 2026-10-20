@@ -232,6 +232,7 @@ function addon:OnInitialize()
   ns.RetireRoute(ns.db)
   self:RegisterChatCommand("mtrail", "OnSlash")
   self:RegisterChatCommand("mounttrail", "OnSlash")
+  self:RegisterChatCommand("mtl", "OnSlash")
   -- The add-on's old name (AzerothTrail): its commands still work.
   self:RegisterChatCommand("azt", "OnSlash")
   self:RegisterChatCommand("azerothtrail", "OnSlash")
