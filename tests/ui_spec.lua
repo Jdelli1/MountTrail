@@ -55,7 +55,7 @@ describe("ui", function()
     eq({ f.Inset:GetPoint(1) }, { "TOPLEFT", f, "TOPLEFT", 6 + ns.UI.NAV_WIDTH + 4, -34 }, "views right of it, clear of the title bar")
     local labels = {}
     for i = 1, f.Nav.shown do labels[i] = f.Nav.Buttons[i].Text:GetText() end
-    eq({ labels[1], labels[2], labels[3] }, { "Home", "Today", "Here" })
+    eq({ labels[1], labels[2], labels[3] }, { "Home", "Lockouts", "Current Zone" })
     ok(labels[4]:find("^Alts"), labels[4])
     eq({ labels[5], labels[8] }, { "Holidays", "Misc" })
     eq(f.Inset.template, nil, "flat content area, no classic inset")
@@ -127,15 +127,27 @@ describe("ui", function()
     eq(views.achievements.builds, 1)
     eq(ns.db.global.window.tab, "achievements")
     ok(button("Achievements").selected and not button("Home").selected, "the mark follows")
-    button("Today"):RunScript("OnClick", "LeftButton")
+    button("Lockouts"):RunScript("OnClick", "LeftButton")
     eq(views.checklist.builds, 1)
-    button("Here"):RunScript("OnClick", "LeftButton")
+    button("Current Zone"):RunScript("OnClick", "LeftButton")
     eq(views.here.builds, 1)
     local alts = 0
     ns.UI.ToggleAltsWindow = function() alts = alts + 1 end
     button("Alts"):RunScript("OnClick", "LeftButton")
     eq(alts, 1)
     eq(ns.UI.CurrentTab(), "here", "Alts is a window, not a view")
+    -- Current Zone: right-click pops the zone's mounts out; both entries explain themselves.
+    local popped = 0
+    ns.UI.ToggleZoneMountsPopout = function() popped = popped + 1 end
+    button("Current Zone"):RunScript("OnClick", "RightButton")
+    eq(popped, 1)
+    eq(ns.UI.CurrentTab(), "here", "a right-click does not switch the view")
+    local hints = {}
+    ns.UI.ShowHint = function(_, title, text) hints[#hints + 1] = { title, text } end
+    button("Current Zone"):RunScript("OnEnter")
+    ok(hints[1][2]:find("Right%-click to pop it out"), hints[1][2])
+    button("Lockouts"):RunScript("OnEnter")
+    eq(hints[2][1], "Lockouts")
     -- Browse entries are indented under their heading.
     local function leftInset(b)
       for i = 1, b.Text:GetNumPoints() do
@@ -144,7 +156,7 @@ describe("ui", function()
       end
     end
     eq(leftInset(button("Holidays")), 18)
-    eq(leftInset(button("Today")), 12)
+    eq(leftInset(button("Lockouts")), 12)
   end)
 
   it("UI.NavSelected / UI.NavListEntries: a list page marks its list; lists then quick lists", function()

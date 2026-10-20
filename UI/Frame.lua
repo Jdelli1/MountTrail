@@ -660,8 +660,8 @@ end
 
 -- The views, by key (each a content frame; views plug in with
 -- UI.RegisterView). The navigation column on the left (UI.NAV) selects them:
--- Home (the journal's front page), Today (the checklist), Here (the zone's
--- mounts), the Alts window, Browse (Holidays, Achievements, Timewalking,
+-- Home (the journal's front page), Lockouts (the checklist), Current Zone
+-- (the zone's mounts; right-click pops them out), the Alts window, Browse (Holidays, Achievements, Timewalking,
 -- Misc), then My lists and the quick lists, one entry each (a list opens as
 -- a page of the journal view, UI.ShowListPage). A saved key of an older
 -- version's tab maps to its successor (UI.LEGACY_TABS: the retired Route tab
@@ -672,8 +672,8 @@ local TABS = {
   { key = "achievements", label = "Achievements" },
   { key = "timewalking", label = "Timewalking" },
   { key = "misc", label = "Misc" },
-  { key = "checklist", label = "Today" },
-  { key = "here", label = "Here" },
+  { key = "checklist", label = "Lockouts" },
+  { key = "here", label = "Current Zone" },
 }
 
 UI.LEGACY_TABS = { route = "checklist" }
@@ -683,8 +683,8 @@ UI.LEGACY_TABS = { route = "checklist" }
 -- UI.NavBadge. The lists follow under "My lists" (UI.NavListEntries).
 UI.NAV = {
   { key = "journal", label = "Home" },
-  { key = "checklist", label = "Today" },
-  { key = "here", label = "Here" },
+  { key = "checklist", label = "Lockouts" },
+  { key = "here", label = "Current Zone" },
   { action = "alts", label = "Alts" },
   { heading = "Browse" },
   { key = "holidays", label = "Holidays" },
@@ -912,7 +912,19 @@ local CONTENT_TOP = -60 -- the navigation column starts below the portrait
 local VIEW_TOP = -34 -- the view area starts clear of the title bar and its border (right of the portrait)
 local TITLE_BUTTONS_RIGHT = 52 -- close button + one 20 px title-bar button
 
-local NAV_ROW, NAV_HEADING = 22, 24
+local NAV_ROW, NAV_HEADING = 24, 26
+-- Points added to the navigation's fonts (the game's small fonts read tiny
+-- at high resolutions with a small UI scale).
+UI.NAV_FONT_BONUS = 2
+
+-- `fs` in `fontObject`, UI.NAV_FONT_BONUS points larger.
+local function navFont(fs, fontObject)
+  fs:SetFontObject(fontObject)
+  if fs.GetFont and fs.SetFont then
+    local path, size, flags = fs:GetFont()
+    if path and size then fs:SetFont(path, size + UI.NAV_FONT_BONUS, flags or "") end
+  end
+end
 local NAV_GOLD = { 1, 0.82, 0 }
 
 -- The entries under "My lists": each custom list ({ list = id }), then each
@@ -997,6 +1009,10 @@ local function navButton(parent)
     local e = self.entry
     if not e then return end
     if button == "RightButton" then
+      if e.key == "here" then
+        if UI.ToggleZoneMountsPopout then UI.ToggleZoneMountsPopout() end
+        return
+      end
       if e.source and e.source.kind == "list" and UI.ShowCustomListMenu then
         UI.ShowCustomListMenu(e.source.list, self)
       elseif e.source and UI.ShowMenu then
@@ -1015,6 +1031,10 @@ local function navButton(parent)
         or L["Click: open. Right-click: pop out"])
     elseif e and e.action == "alts" then
       UI.ShowHint(self, L["Alt lockouts"], L["Opens its own window"])
+    elseif e and e.key == "here" then
+      UI.ShowHint(self, L["Current Zone"], L["Every mount you can still get in the zone you are in. Right-click to pop it out: a small window that follows you."])
+    elseif e and e.key == "checklist" then
+      UI.ShowHint(self, L["Lockouts"], L["Your daily and weekly mount lockouts and rare spawns on this character."])
     end
   end)
   b:SetScript("OnLeave", function(self) UI.HideHint(self) end)
@@ -1079,6 +1099,7 @@ end
 -- indicator (UI.HeaderIcon) with the text after it.
 local function paintHeading(h, text, key)
   h.key = key
+  navFont(h.Text, "GameFontNormalSmall")
   h.Text:SetText(text)
   h.Text:ClearAllPoints()
   if key then
@@ -1195,7 +1216,8 @@ function UI.RefreshNav()
     local on = (e.key ~= nil and e.key == selected)
     b.Selected:SetShown(on)
     b.Bar:SetShown(on)
-    b.Text:SetFontObject(on and "GameFontNormal" or "GameFontHighlight")
+    navFont(b.Text, on and "GameFontNormal" or "GameFontHighlight")
+    navFont(b.Badge, "GameFontDisableSmall")
     b.selected = on
     b:Show()
     y = y + NAV_ROW

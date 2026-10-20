@@ -412,8 +412,10 @@ L["Click: open. Right-click: pop out, rename or delete"] = "Click: open. Right-c
 
 -- The navigation column (UI/Frame.lua)
 L["Home"] = "Home"
-L["Today"] = "Today"
-L["Here"] = "Here"
+L["Lockouts"] = "Lockouts"
+L["Current Zone"] = "Current Zone"
+L["Every mount you can still get in the zone you are in. Right-click to pop it out: a small window that follows you."] = "Every mount you can still get in the zone you are in. Right-click to pop it out: a small window that follows you."
+L["Your daily and weekly mount lockouts and rare spawns on this character."] = "Your daily and weekly mount lockouts and rare spawns on this character."
 L["Browse"] = "Browse"
 L["Opens its own window"] = "Opens its own window"
 L["Click: open. Right-click: pop out"] = "Click: open. Right-click: pop out"
