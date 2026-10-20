@@ -220,7 +220,8 @@ function addon:OnInitialize()
       zonePanel = { open = false }, -- zone side panel shown with the window (UI\ZonePanel.lua)
       -- Options > AddOns > MountTrail (UI\Options.lua): showUnobtainable: not-owned
       -- unobtainable mounts on Misc (UI\List.lua)
-      settings = { showUnobtainable = false },
+      -- rarityColors: pop-out names in their rarity colour (UI\Popouts.lua)
+      settings = { showUnobtainable = false, rarityColors = false },
       collapsed = {}, -- list headers the player collapsed: { ["<view>|<exp>|<section>[|<sub-group>]"] = true } (UI\List.lua)
       altsHidden = {}, -- alt lockout matrix: characters hidden from it, { ["Name - Realm"] = true } (UI\AltsWindow.lua)
       altsWindow = {}, -- alt lockout matrix window position (UI\AltsWindow.lua)

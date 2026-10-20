@@ -9,6 +9,9 @@ local ADDON, ns = ...
 --   "Show unobtainable mounts" (ns.db.global.settings.showUnobtainable: off by
 --                default; on lists not-owned unobtainable mounts on the Misc
 --                tab under "Unobtainable"; a change refreshes the window),
+--   "Colour pop-out names by rarity" (ns.db.global.settings.rarityColors: off
+--                by default; pop-out rows take the quality colour of how many
+--                characters own the mount, Integrations/MountsRarity.lua),
 --   "Show minimap button" (ns.db.global.minimap.hide, LibDBIcon Show / Hide),
 --   "Debug messages" (ns.db.global.debug, the same flag as /mtrail debug).
 -- `/mtrail options` opens it (Settings.OpenToCategory(category:GetID())). Every
@@ -22,6 +25,7 @@ ns.Options = Options
 -- Proxy setting variable names: global to the settings system, so prefixed.
 Options.UNOBTAINABLE = "MOUNTTRAIL_UNOBTAINABLE"
 Options.MINIMAP = "MOUNTTRAIL_MINIMAP"
+Options.RARITY_COLORS = "MOUNTTRAIL_RARITY_COLORS"
 Options.DEBUG = "MOUNTTRAIL_DEBUG"
 
 -- ns.db.global.settings, created when missing.
@@ -45,6 +49,19 @@ end
 -- Saves the choice and redraws the open window (UI\List.lua reads it).
 local function setUnobtainable(on)
   settings().showUnobtainable = on and true or false
+  ns.Refresh()
+end
+
+-- Whether pop-out names take their rarity colour (UI/Popouts.lua reads it).
+function Options.RarityColors()
+  local global = ns.db and ns.db.global
+  local saved = global and global.settings
+  return type(saved) == "table" and saved.rarityColors == true
+end
+
+-- Saves the choice and redraws the pop-outs.
+local function setRarityColors(on)
+  settings().rarityColors = on and true or false
   ns.Refresh()
 end
 
@@ -92,6 +109,11 @@ local function build(api)
     L["Show unobtainable mounts"], false, Options.ShowUnobtainable, setUnobtainable)
   api.CreateCheckbox(category, unobtainable,
     L["List mounts you can no longer get on the Misc tab, under Unobtainable. Collected ones stay where they are."])
+
+  local rarity = api.RegisterProxySetting(category, Options.RARITY_COLORS, VarType.Boolean or "boolean",
+    L["Colour pop-out names by rarity"], false, Options.RarityColors, setRarityColors)
+  api.CreateCheckbox(category, rarity,
+    L["Colour each pop-out row by how many characters own the mount (legendary under 2 %, epic under 10 %, rare under 20 %, uncommon under 50 %). Needs Mount Journal Enhanced or the MountsRarity add-on."])
 
   local minimap = api.RegisterProxySetting(category, Options.MINIMAP, VarType.Boolean or "boolean",
     L["Show minimap button"], true, getMinimap, setMinimap)

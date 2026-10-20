@@ -38,6 +38,7 @@ Game\API.lua
 Integrations\Map.lua
 Integrations\Rarity.lua
 Integrations\AchievementScan.lua
+Integrations\MountsRarity.lua
 Core\Init.lua
 UI\Frame.lua
 UI\Tooltip.lua

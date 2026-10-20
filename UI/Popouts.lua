@@ -425,6 +425,17 @@ function UI.MoveKey(keys, key, to)
   return out
 end
 
+-- The name colour of an open row when "Colour pop-out names by rarity" is on
+-- and MountsRarity-2.0 knows the mount (ns.Owners), else nil (the style's).
+function UI.PopoutRarityColor(mountID)
+  local global = ns.db and ns.db.global
+  local settings = global and global.settings
+  local owners = ns.Owners
+  if not (type(settings) == "table" and settings.rarityColors == true and owners) then return nil end
+  local pct = owners.Percent(mountID)
+  return pct and owners.Color(pct) or nil
+end
+
 -- A row's click (the row or its pin): UI.GoTo for its mount and boss.
 function UI.PopoutGo(row)
   if row then UI.RowGo(row.id, row.entry and row.entry.boss) end
@@ -833,7 +844,7 @@ local function refreshWindow(w, built)
       r.Name:SetText(row.name)
       UI.SetExpansionBadge(r.Badge, row.entry and (row.entry.exp or (row.entry.m and row.entry.m.exp)))
       styleText(r.Name, style, row.done and "GameFontDisableSmall" or "GameFontHighlightSmall", 0,
-        row.done and { 0.5, 0.5, 0.5 } or nil)
+        row.done and { 0.5, 0.5, 0.5 } or UI.PopoutRarityColor(row.id))
       styleText(r.Zone, style, "GameFontDisableSmall", -1, { 0.55, 0.55, 0.55 })
       local zoneText = row.zone or ""
       if row.camp and row.checked then

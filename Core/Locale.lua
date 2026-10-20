@@ -392,3 +392,9 @@ L["Click: collapse or expand"] = "Click: collapse or expand"
 L["Shift-click: all groups at once"] = "Shift-click: all groups at once"
 L["Click: collapse or expand. Shift-click: all at once"] = "Click: collapse or expand. Shift-click: all at once"
 L["Shift-click: collapse or expand all"] = "Shift-click: collapse or expand all"
+
+-- How many characters own a mount (Integrations/MountsRarity.lua)
+L["Rarity"] = "Rarity"
+L["%s of characters"] = "%s of characters"
+L["Colour pop-out names by rarity"] = "Colour pop-out names by rarity"
+L["Colour each pop-out row by how many characters own the mount (legendary under 2 %, epic under 10 %, rare under 20 %, uncommon under 50 %). Needs Mount Journal Enhanced or the MountsRarity add-on."] = "Colour each pop-out row by how many characters own the mount (legendary under 2 %, epic under 10 %, rare under 20 %, uncommon under 50 %). Needs Mount Journal Enhanced or the MountsRarity add-on."

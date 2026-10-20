@@ -91,11 +91,11 @@ describe("options", function()
 
   it("db default: unobtainable mounts hidden; no Waypoints setting (TomTom is required)", function()
     local ns = loadOptions()
-    eq(ns.db.global.settings, { showUnobtainable = false })
+    eq(ns.db.global.settings, { showUnobtainable = false, rarityColors = false })
   end)
 
   describe("Register", function()
-    it("registers a vertical-layout AddOns category with the three controls", function()
+    it("registers a vertical-layout AddOns category with the four controls", function()
       local ns = loadOptions()
       local S = fakeSettings()
       local category = ns.Options.Register(S)
@@ -106,6 +106,8 @@ describe("options", function()
         { "Category", "MountTrail" },
         { "Setting", "MOUNTTRAIL_UNOBTAINABLE" },
         { "Checkbox", "MOUNTTRAIL_UNOBTAINABLE" },
+        { "Setting", "MOUNTTRAIL_RARITY_COLORS" },
+        { "Checkbox", "MOUNTTRAIL_RARITY_COLORS" },
         { "Setting", "MOUNTTRAIL_MINIMAP" },
         { "Checkbox", "MOUNTTRAIL_MINIMAP" },
         { "Setting", "MOUNTTRAIL_DEBUG" },
@@ -174,6 +176,24 @@ describe("options", function()
     ok(good, tostring(err))
     eq(ns.db.global.settings.waypoints, nil)
     eq(ns.db.global.settings.showUnobtainable, false)
+  end)
+
+  describe("rarity colours checkbox", function()
+    it("reads and writes ns.db.global.settings.rarityColors and refreshes", function()
+      local ns = loadOptions()
+      local refreshed = 0
+      ns.Refresh = function() refreshed = refreshed + 1 end
+      local S = fakeSettings()
+      ns.Options.Register(S)
+      local rc = S.settings.MOUNTTRAIL_RARITY_COLORS
+      eq({ rc.varType, rc.name, rc.default }, { "boolean", "Colour pop-out names by rarity", false })
+      eq(rc.get(), false)
+      rc.set(true)
+      eq(ns.db.global.settings.rarityColors, true)
+      eq(ns.Options.RarityColors(), true)
+      eq(refreshed, 1)
+      ok(S.controls[2].tooltip:find("Mount Journal Enhanced", 1, true), "says where the data comes from")
+    end)
   end)
 
   describe("unobtainable checkbox", function()
