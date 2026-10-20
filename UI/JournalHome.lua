@@ -49,6 +49,22 @@ local EDGE = { 1, 1, 1, 0.1 }
 local EDGE_HOVER = { 1, 0.82, 0, 0.6 }
 local GOLD = { 1, 0.82, 0, 1 }
 local GREEN = { 0.25, 0.78, 0.35, 1 }
+
+-- Progress colours (tiles and the summary bar): red under 25 %, yellow
+-- under 75 %, green below complete, blue once complete.
+local RED = { 0.85, 0.22, 0.2, 1 }
+local BLUE = { 0.25, 0.6, 1, 1 }
+UI.PROGRESS_STEPS = { yellow = 25, green = 75 }
+
+-- The bar colour of `have` out of `total` -> { r, g, b, a }; nothing to
+-- collect counts as red (0 %).
+function UI.ProgressColor(have, total)
+  if total and total > 0 and (have or 0) >= total then return BLUE end
+  local pct = UI.HomePercent(have, total)
+  if pct >= UI.PROGRESS_STEPS.green then return GREEN end
+  if pct >= UI.PROGRESS_STEPS.yellow then return GOLD end
+  return RED
+end
 local TRACK = { 0, 0, 0, 0.5 }
 -- The Great Vault's completed-activity check (Blizzard_WeeklyRewards.xml,
 -- CompletedIcon); GreenCheckMarkTemplate's texture where the atlas is missing.
@@ -125,7 +141,7 @@ local function paintTile(card, have, total)
   card.Bar:SetMinMaxValues(0, math.max(total, 1))
   card.Bar:SetValue(have)
   local complete = total > 0 and have >= total
-  card.Bar:SetStatusBarColor(unpack(complete and GREEN or GOLD))
+  card.Bar:SetStatusBarColor(unpack(UI.ProgressColor(have, total)))
   card.Check:SetShown(complete)
 end
 
@@ -169,6 +185,7 @@ local function refreshHome()
     UI.HomePercent(sumHave, sumTotal)))
   s.Bar:SetMinMaxValues(0, math.max(sumTotal, 1))
   s.Bar:SetValue(sumHave)
+  s.Bar:SetStatusBarColor(unpack(UI.ProgressColor(sumHave, sumTotal)))
   for _, chip in ipairs(s.Chips) do
     local c = counts[chip.key]
     chip.have, chip.total = c.have, c.total
