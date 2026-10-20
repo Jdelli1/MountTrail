@@ -15,8 +15,9 @@ local ADDON, ns = ...
 -- left-click marks, right-click clears), the name (the rare's for rare
 -- rows) and its zone. A click on the row is UI.GoTo: every spawn point of
 -- a rare that has several on TomTom, else the waypoint. "Plot all" in the
--- title puts every open row's spawn points on TomTom at once
--- (Map.PlotMounts). A custom list's rows are its mounts (collected ones ticked);
+-- title puts the spawn points of every row whose box is not ticked on
+-- TomTom at once (Map.PlotMounts). Ctrl-click a window's x to close every
+-- pop-out. A custom list's rows are its mounts (collected ones ticked);
 -- right-click one to take it off the list. Each window's position and open
 -- state are saved by its set (ns.db.global.popouts) and come back after
 -- /reload.
@@ -178,6 +179,16 @@ function UI.PopoutRows(source, built, ctx)
     return tostring(a.key) < tostring(b.key)
   end)
   return rows, left
+end
+
+-- The mounts "Plot all" plots: rows whose box is not ticked (not done,
+-- and a rare spawn not marked checked).
+function UI.PopoutPlotIDs(rows)
+  local ids = {}
+  for _, row in ipairs(rows or {}) do
+    if not (row.done or (row.camp and row.checked ~= nil)) then ids[#ids + 1] = row.id end
+  end
+  return ids
 end
 
 -- A row's click (the row or its pin): UI.GoTo for its mount and boss.
@@ -397,8 +408,14 @@ local function build(key, source)
   local close = UI.FlatButton(strip, "x", "plain", 18)
   close:SetWidth(18)
   close:SetPoint("RIGHT", strip, "RIGHT", -4, 0)
-  close:SetScript("OnClick", function() UI.ClosePopout(key) end)
-  close:SetScript("OnEnter", function(self) UI.ShowHint(self, L["Close"]) end)
+  close:SetScript("OnClick", function()
+    if type(IsControlKeyDown) == "function" and IsControlKeyDown() then
+      UI.CloseAllPopouts()
+    else
+      UI.ClosePopout(key)
+    end
+  end)
+  close:SetScript("OnEnter", function(self) UI.ShowHint(self, L["Close"], L["Ctrl-click: close every pop-out"]) end)
   close:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   w.Close = close
 
@@ -406,13 +423,11 @@ local function build(key, source)
   local plot = UI.FlatButton(strip, L["Plot all"], "green", 16)
   plot:SetPoint("RIGHT", close, "LEFT", -4, 0)
   plot:SetScript("OnClick", function()
-    local ids = {}
-    for _, row in ipairs(w.rows or {}) do
-      if not row.done then ids[#ids + 1] = row.id end
+    if ns.Map and ns.Map.PlotMounts then
+      ns.Map.PlotMounts(UI.PopoutPlotIDs(w.rows), UI.PopoutTitle(w.source, listsDB()))
     end
-    if ns.Map and ns.Map.PlotMounts then ns.Map.PlotMounts(ids, UI.PopoutTitle(w.source, listsDB())) end
   end)
-  plot:SetScript("OnEnter", function(self) UI.ShowHint(self, L["Plot every open row on TomTom"]) end)
+  plot:SetScript("OnEnter", function(self) UI.ShowHint(self, L["Plot every unticked row on TomTom"]) end)
   plot:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   w.PlotAll = plot
 
@@ -470,6 +485,13 @@ function UI.ClosePopout(key)
   local db = popoutsDB()
   if db and db[key] then db[key].open = false end
   stopTickerIfIdle()
+end
+
+-- Closes every open pop-out (Ctrl-click on any pop-out's x).
+function UI.CloseAllPopouts()
+  for key, w in pairs(windows) do
+    if w:IsShown() then UI.ClosePopout(key) end
+  end
 end
 
 -- /azt rares: the zone's rares, opened or closed.

@@ -248,6 +248,29 @@ describe("pop-out windows", function()
     eq(ns.db.char.campChecked["657"], 1700000000)
   end)
 
+  it("Plot all skips ticked rows (done, or a rare spawn marked checked); Ctrl-click x closes every pop-out", function()
+    local ns = loadUI()
+    setup(ns)
+    local w = ns.UI.OpenPopout({ kind = "camp", exp = WOD })
+    local daily = ns.UI.OpenPopout({ kind = "daily", exp = WOD })
+    local plotted
+    ns.Map.PlotMounts = function(ids) plotted = table.concat(ids, ",") end
+    w.PlotAll:RunScript("OnClick", "LeftButton")
+    eq(plotted, "657")
+    ns.db.char.campChecked = { ["657"] = 1699990000 }
+    ns.Refresh()
+    plotted = nil
+    w.PlotAll:RunScript("OnClick", "LeftButton")
+    eq(plotted, "", "the checked rare is left out")
+    eq(ns.UI.PopoutPlotIDs({ { id = 1 }, { id = 2, done = true }, { id = 3, camp = true, checked = 5 }, { id = 4, camp = true } }),
+      { 1, 4 })
+    IsControlKeyDown = function() return true end
+    w.Close:RunScript("OnClick", "LeftButton")
+    IsControlKeyDown = nil
+    ok(not w:IsShown() and not daily:IsShown(), "all closed")
+    eq(ns.db.global.popouts["daily|" .. WOD].open, false)
+  end)
+
   it("a list's window: right-click a row to take it off; a deleted list's window closes", function()
     local ns = loadUI()
     setup(ns)

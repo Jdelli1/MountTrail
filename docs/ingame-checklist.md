@@ -636,3 +636,6 @@ Ready-made lists AzerothTrail works out from its data (Logic/QuickLists.lua), sh
 
 - [ ] Checklist > Lists: "Quick lists" with "Mythic Mounts (n left)" and its mounts (the Checklist's weekly lockout rows: ticked when this character is saved); owned mounts ticked. Right-click Mythic Mounts: its pop-out.
 - [ ] Filter > Show quick lists off: they leave All (still on the Lists chip).
+
+- [ ] Pop-out "Plot all" skips ticked rows: rares killed today (done) and rare spawns whose box you ticked ("checked 3 hr ago"); right-click a box to clear it and it is plotted again.
+- [ ] Ctrl-click any pop-out's x: every pop-out closes (hover the x for the hint); /reload keeps them closed.
