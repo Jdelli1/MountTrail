@@ -32,7 +32,10 @@ local ADDON, ns = ...
 -- a row to move it: the order is saved per window (done rows stay last).
 -- Windows that are not the player's own list (quick lists, the zone's
 -- rares) group their rows under expansion headers when they span several
--- (UI.PopoutGroups). Right-click a window's title for its appearance:
+-- (UI.PopoutGroups); click a group header to collapse it, Shift-click to
+-- collapse (or, on a collapsed one, expand) every group of the window
+-- (saved per window as ns.db.global.popouts[key].collapsed, UI.ToggleAllCollapsed).
+-- Right-click a window's title for its appearance:
 -- opacity and font size (sliders, 20-100 % and 8-24), background and text
 -- colour and font (saved per window, UI.PopoutStyle; "Apply to all
 -- pop-outs" makes it every window's look, new ones too; "Reset
@@ -619,11 +622,41 @@ end
 
 -- Expansion group headers in a window, reused between refreshes.
 local GROUP_HEIGHT = 18
+-- The window's collapsed groups ({ [group key] = true }), created on demand.
+local function collapsedOf(w)
+  local db = popoutsDB()
+  if not db then return {} end
+  db[w.key] = db[w.key] or {}
+  if type(db[w.key].collapsed) ~= "table" then db[w.key].collapsed = {} end
+  return db[w.key].collapsed
+end
+
+-- The key a group header collapses under: its source or expansion.
+function UI.PopoutGroupKey(g)
+  return tostring(g.source or g.exp or "?")
+end
+
 local function groupHeader(w, i)
   local h = w.groupFrames[i]
   if h then return h end
   h = CreateFrame("Frame", nil, w.Content)
   h:SetHeight(GROUP_HEIGHT)
+  h:EnableMouse(true)
+  -- Click: collapse / expand this group; Shift-click: every group at once.
+  h:SetScript("OnMouseUp", function(self, button)
+    if button ~= "LeftButton" or not self.groupKey then return end
+    local store = collapsedOf(w)
+    if UI.ShiftDown and UI.ShiftDown() then
+      UI.ToggleAllCollapsed(store, w.groupRows, { collapsed = store[self.groupKey] == true })
+    else
+      UI.ToggleCollapsed(store, self.groupKey)
+    end
+    UI.RefreshPopouts()
+  end)
+  h:SetScript("OnEnter", function(self)
+    UI.ShowHint(self, L["Click: collapse or expand"], L["Shift-click: all groups at once"])
+  end)
+  h:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   local text = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   text:SetPoint("LEFT", h, "LEFT", 2, 0)
   h.Text = text
@@ -763,8 +796,14 @@ local function refreshWindow(w, built)
   local y = 0
   local now = ns.Game.Now()
   local n, usedHeaders = 0, 0
+  local collapsed = collapsedOf(w)
+  w.groupRows = {} -- the headers shown, as rows (a Shift-click's UI.ToggleAllCollapsed)
   for gi, g in ipairs(groups) do
-    if g.exp ~= nil or g.label or #groups > 1 then
+    local gkey = UI.PopoutGroupKey(g)
+    local hasHeader = g.exp ~= nil or g.label ~= nil or #groups > 1
+    local isCollapsed = hasHeader and collapsed[gkey] == true
+    if hasHeader then
+      w.groupRows[#w.groupRows + 1] = { header = true, key = gkey, collapsed = isCollapsed }
       usedHeaders = usedHeaders + 1
       local h = groupHeader(w, usedHeaders)
       h:ClearAllPoints()
@@ -772,13 +811,16 @@ local function refreshWindow(w, built)
       h:SetWidth(width)
       h:SetHeight(groupHeight)
       local c = (UI.EXPANSION_COLORS and UI.EXPANSION_COLORS[g.exp]) or { 0.8, 0.8, 0.8 }
-      h.Text:SetText((g.label or (g.exp and L[g.exp]) or L["Other"]) .. "  |cff9d9d9d(" .. string.format(L["%d left"], g.left) .. ")|r")
+      h.groupKey = gkey
+      h.Text:SetText((isCollapsed and "+ " or "- ") .. (g.label or (g.exp and L[g.exp]) or L["Other"])
+        .. "  |cff9d9d9d(" .. string.format(L["%d left"], g.left) .. ")|r")
       styleText(h.Text, style, "GameFontNormalSmall", 0, style.header or c)
       h.Rule:SetColorTexture(c[1], c[2], c[3], 0.35)
       h:Show()
       y = y + groupHeight + 2
     end
-    for _, row in ipairs(g.rows) do
+    -- A collapsed group shows its header only.
+    for _, row in ipairs(isCollapsed and {} or g.rows) do
       n = n + 1
       w.rows[n] = row
       local r = rowFrame(w, n)

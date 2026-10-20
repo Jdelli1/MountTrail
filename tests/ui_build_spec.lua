@@ -858,6 +858,39 @@ describe("ui build", function()
     return shown
   end
 
+  it("Shift-click a header: every header of the list collapses; on a collapsed one, all expand (nested too)", function()
+    local ns = loadUI()
+    local list = openJournalList(ns)
+    local rows = list.ScrollBox.provider.rows
+    local before = #rows
+    local tops = 0
+    for _, r in ipairs(rows) do if r.header and r.depth == 1 then tops = tops + 1 end end
+    ok(tops >= 2, "several sections")
+    -- A sub-header collapsed earlier, to see Expand all reach it.
+    local sub
+    for _, r in ipairs(rows) do if r.header and r.depth == 2 then sub = r.key break end end
+    ns.db.global.collapsed[sub or "journal|Classic|x|y"] = true
+    IsShiftKeyDown = function() return true end
+    render(list.ScrollBox)[1]:RunScript("OnMouseUp", "LeftButton")
+    rows = list.ScrollBox.provider.rows
+    for _, r in ipairs(rows) do ok(r.header and r.collapsed, "only collapsed headers left") end
+    eq(#rows, tops)
+    render(list.ScrollBox)[1]:RunScript("OnMouseUp", "LeftButton")
+    IsShiftKeyDown = nil
+    eq(ns.db.global.collapsed, {}, "all expanded, the nested one too")
+    eq(#list.ScrollBox.provider.rows, before)
+  end)
+
+  it("UI.ToggleAllCollapsed: collapse every shown header; expand them and the keys under them", function()
+    local ns = loadUI()
+    local store = { ["c|a|x"] = true, ["other|z"] = true }
+    local rows = { { header = true, key = "c|a" }, { id = 1 }, { header = true, key = "c|b", collapsed = true } }
+    eq(ns.UI.ToggleAllCollapsed(store, rows, rows[1]), true)
+    eq(store, { ["c|a"] = true, ["c|b"] = true, ["c|a|x"] = true, ["other|z"] = true })
+    eq(ns.UI.ToggleAllCollapsed(store, rows, rows[3]), false)
+    eq(store, { ["other|z"] = true }, "another list's keys stay")
+  end)
+
   it("section headers collapse on left-click, saved per view and expansion", function()
     local ns = loadUI()
     eq(ns.db.global.collapsed, {}, "AceDB default")

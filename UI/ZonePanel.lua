@@ -302,6 +302,7 @@ function UI.RefreshZonePanel(force)
   panel.Title:SetText(UI.ZoneTitle(zone, #list))
   -- Same zone (a data refresh): keep the scroll position; a new zone starts
   -- at the top.
+  panel.ScrollBox.rowsShown = rows
   local provider = CreateDataProvider(rows)
   if sameZone and ScrollBoxConstants then
     panel.ScrollBox:SetDataProvider(provider, ScrollBoxConstants.RetainScrollPosition)
@@ -420,6 +421,13 @@ local function buildPanel(frame)
           if not g then return end
           if type(g.collapsed) ~= "table" then g.collapsed = {} end
           UI.ToggleCollapsed(g.collapsed, key)
+          UI.RefreshZonePanel(true)
+        end
+        f.onToggleAll = function(clicked)
+          local g = ns.db and ns.db.global
+          if not g then return end
+          if type(g.collapsed) ~= "table" then g.collapsed = {} end
+          UI.ToggleAllCollapsed(g.collapsed, panel.ScrollBox.rowsShown, clicked)
           UI.RefreshZonePanel(true)
         end
         f.onRightClick = nil

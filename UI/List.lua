@@ -42,6 +42,7 @@ local ADDON, ns = ...
 -- The pure helpers above the widget code (SourceLine, RowDescription,
 -- StripMarkup, SourcePairs, MountIcon, SectionLabel,
 -- ListRows, SubGroup, SourceZone, InstanceName, CollapseKey, ToggleCollapsed,
+-- ToggleAllCollapsed,
 -- HeaderIcon, PreviewMount, RowClickAction, HasLocation, PinIcon,
 -- the filter menu helpers) are unit-tested; the widget
 -- code is built under a stub by tests/ui_build_spec.lua.
@@ -617,6 +618,35 @@ function UI.ToggleCollapsed(store, key)
   end
   store[key] = true
   return true
+end
+
+-- Shift-click on a header: every header of that list at once. `rows`: the
+-- list's rows as shown; `clicked`: the header's row. A collapsed header
+-- expands them all: each shown header and every saved key under one
+-- ("<key>|..."), so headers nested inside collapsed ones open too. An open
+-- header collapses every shown header. -> true when collapsed.
+function UI.ToggleAllCollapsed(store, rows, clicked)
+  local collapse = not (clicked and clicked.collapsed)
+  for _, row in ipairs(rows or {}) do
+    if row.header and row.key ~= nil then
+      local key = tostring(row.key)
+      if collapse then
+        store[key] = true
+      else
+        store[key] = nil
+        local prefix = key .. "|"
+        for k in pairs(store) do
+          if type(k) == "string" and string.sub(k, 1, #prefix) == prefix then store[k] = nil end
+        end
+      end
+    end
+  end
+  return collapse
+end
+
+-- Whether Shift is held (a header's Shift-click: all headers at once).
+function UI.ShiftDown()
+  return type(IsShiftKeyDown) == "function" and IsShiftKeyDown() and true or false
 end
 
 local function groupOrder(a, b)
@@ -1251,7 +1281,14 @@ local function initHeader(frame, data)
         self.onRightClick(self.data, self)
         return
       end
-      if button ~= "LeftButton" or not (self.key and self.onToggle) then return end
+      if button ~= "LeftButton" then return end
+      -- Shift-click: every header of the list collapses (or, on a collapsed
+      -- one, expands) at once.
+      if UI.ShiftDown() and self.onToggleAll and self.data then
+        self.onToggleAll(self.data, self)
+        return
+      end
+      if not (self.key and self.onToggle) then return end
       self.onToggle(self.key)
     end)
   end
@@ -1759,8 +1796,15 @@ function UI.List(parent, getQuery, opts)
     UI.ToggleCollapsed(store, key)
     list:Refresh()
   end
+  local function toggleAll(data)
+    local store = collapsedDB()
+    if not store then return end
+    UI.ToggleAllCollapsed(store, scrollBox.rowsShown, data)
+    list:Refresh()
+  end
   local function initListHeader(frame, data)
     frame.onToggle = toggle
+    frame.onToggleAll = toggleAll
     initHeader(frame, data)
   end
   view:SetElementFactory(function(factory, elementData)
@@ -1867,6 +1911,7 @@ function UI.List(parent, getQuery, opts)
       end
     end
     if pane then pane:SetMount(selectedID) end
+    scrollBox.rowsShown = rows -- a header's Shift-click (UI.ToggleAllCollapsed)
     local provider = CreateDataProvider(rows)
     if resetScroll or not ScrollBoxConstants then
       scrollBox:SetDataProvider(provider)

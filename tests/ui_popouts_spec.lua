@@ -439,8 +439,8 @@ describe("pop-out windows", function()
     local heads = {}
     for _, h in ipairs(q.groupFrames) do if h:IsShown() then heads[#heads + 1] = h.Text:GetText() end end
     eq(#heads, 2)
-    ok(heads[1]:find("^Classic"), heads[1])
-    ok(heads[2]:find("^" .. WOD), heads[2])
+    ok(heads[1]:find("^%- Classic"), heads[1])
+    ok(heads[2]:find("^%- " .. WOD), heads[2])
     eq({ q.rows[1].id, q.rows[2].id }, { 1, 614 })
     local store = ns.UI.ListsDB()
     local id = ns.Lists.Create(store, "Mine")
@@ -1174,7 +1174,34 @@ describe("the zone's mounts pop-out, by source", function()
     local w = ns.UI.OpenPopout({ kind = "zonemounts" })
     local shown = {}
     for _, h in ipairs(w.groupFrames) do if h:IsShown() then shown[#shown + 1] = h.Text:GetText() end end
-    ok(shown[1]:find("^Vendors"), shown[1])
-    ok(shown[2]:find("^Achievements"), shown[2])
+    ok(shown[1]:find("^%- Vendors"), shown[1])
+    ok(shown[2]:find("^%- Achievements"), shown[2])
+  end)
+end)
+
+describe("pop-out group headers", function()
+  it("click collapses a group (saved per window); Shift-click collapses or expands them all", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    local w = ns.UI.OpenPopout({ kind = "camp", all = true })
+    local function shownHeads()
+      local out = {}
+      for _, h in ipairs(w.groupFrames) do if h:IsShown() then out[#out + 1] = h end end
+      return out
+    end
+    local heads = shownHeads()
+    eq(#heads, 2, "two expansions")
+    eq(#w.rows, 2)
+    heads[1]:RunScript("OnMouseUp", "LeftButton")
+    eq(ns.db.global.popouts["camp|all"].collapsed[heads[1].groupKey], true)
+    eq(#w.rows, 1, "its rows hidden")
+    ok(shownHeads()[1].Text:GetText():find("^%+ "), "a collapsed header shows +")
+    IsShiftKeyDown = function() return true end
+    shownHeads()[2]:RunScript("OnMouseUp", "LeftButton")
+    eq(#w.rows, 0, "every group collapsed")
+    shownHeads()[1]:RunScript("OnMouseUp", "LeftButton")
+    IsShiftKeyDown = nil
+    eq(#w.rows, 2, "a collapsed header's Shift-click expands them all")
+    eq(ns.db.global.popouts["camp|all"].collapsed, {})
   end)
 end)

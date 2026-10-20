@@ -643,8 +643,17 @@ local function listsMenu(data, owner)
   }, "cursor")
 end
 
+-- Shift-click on a header: every header of the checklist at once.
+local function toggleAllHeaders(data)
+  local store = collapsedDB()
+  if not (store and scrollBox) then return end
+  UI.ToggleAllCollapsed(store, scrollBox.rowsShown, data)
+  ns.Refresh()
+end
+
 local function initHeader(f, data)
   f.onToggle = toggleHeader
+  f.onToggleAll = toggleAllHeaders
   -- Recycled frames: set (or clear) the right-click and its hint every time.
   if data.popout then
     f.onRightClick = popOut
@@ -1037,6 +1046,7 @@ function view.Refresh()
     local se = selectedRow and selectedRow.entry
     pane:SetMount(se and se.id or nil, se and se.boss or nil)
   end
+  scrollBox.rowsShown = rows
   if ScrollBoxConstants then
     scrollBox:SetDataProvider(CreateDataProvider(rows), ScrollBoxConstants.RetainScrollPosition)
   else

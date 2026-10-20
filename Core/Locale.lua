@@ -386,3 +386,7 @@ L["MountTrail requires the TomTom add-on for its waypoints.\n\nInstall TomTom (C
 L["Right-click to pop out"] = "Right-click to pop out"
 L["The mounts of the zone you are in, in a window that follows you"] = "The mounts of the zone you are in, in a window that follows you"
 L["/mtrail here - show or hide every mount still to get in your zone"] = "/mtrail here - show or hide every mount still to get in your zone"
+
+-- Collapsing headers (UI/List.lua, UI/Popouts.lua)
+L["Click: collapse or expand"] = "Click: collapse or expand"
+L["Shift-click: all groups at once"] = "Shift-click: all groups at once"

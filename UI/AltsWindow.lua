@@ -300,7 +300,16 @@ local function initElement(f, data)
     end
     name.Text:SetText((data.collapsed and "+ " or "- ") .. (data.text or "")
       .. "  " .. GREY .. string.format(L["%d open"], data.open or 0) .. "|r")
-    name:SetScript("OnClick", function() toggleHeader(data.key) end)
+    name:SetScript("OnClick", function()
+      -- Shift-click: every header at once (UI.ToggleAllCollapsed).
+      local store = collapsedDB()
+      if store and UI.ShiftDown and UI.ShiftDown() and UI.ToggleAllCollapsed then
+        UI.ToggleAllCollapsed(store, w and w.ScrollBox.rowsShown, data)
+        ns.Refresh()
+        return
+      end
+      toggleHeader(data.key)
+    end)
     name:SetScript("OnEnter", nil)
     name:SetScript("OnLeave", nil)
     for _, c in ipairs(f.Cells or {}) do c:Hide() end
@@ -612,6 +621,7 @@ function UI.RefreshAltsWindow()
       data.alt = n % 2 == 0
     end
   end
+  w.ScrollBox.rowsShown = display
   if ScrollBoxConstants then
     w.ScrollBox:SetDataProvider(CreateDataProvider(display), ScrollBoxConstants.RetainScrollPosition)
   else
