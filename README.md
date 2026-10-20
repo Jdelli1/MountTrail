@@ -333,7 +333,7 @@ window's title bar has the same settings, plus `Reset text sizes` and
 
 Shift-right-click one of your lists in the navigation column for:
 
-- **Share in chat**: puts the list's line (`!MT1!...`) in the chat box. Anyone
+- **Share in chat**: puts the list's line (`MountTrail: !MT1!...`) in the chat box. Anyone
   with MountTrail sees it as a link, `[MountTrail: Mythic Mounts (13)]`, and
   clicking it offers the import; players without MountTrail see the text.
   The same works for a line pasted by hand into any chat: say, party, raid,
@@ -341,7 +341,7 @@ Shift-right-click one of your lists in the navigation column for:
   a link that asks your MountTrail for it instead (you need to be online).
 - **Send to player...**: sends the list straight to a player by name
   (`Name-Realm` for another realm). They are asked whether to import it.
-- **Export...**: the list as one line of text (`!MT1!...`) to copy with
+- **Export...**: the list as one line of text (`MountTrail: !MT1!...`) to copy with
   Ctrl+C and paste anywhere: Discord, a guide, a forum post.
 
 To import a pasted line, click `+` next to My lists and pick `Import list...`

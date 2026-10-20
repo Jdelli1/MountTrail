@@ -3,8 +3,10 @@ local ADDON, ns = ...
 -- Shared lists: a custom list (Logic/Lists.lua) as one line of text to copy,
 -- paste, whisper or send addon to addon (UI/Share.lua). Pure Lua.
 --
---   !MT1!<name>!<mount ids>!<check>
+--   MountTrail: !MT1!<name>!<mount ids>!<check>
 --
+-- "MountTrail: " is only a label so people reading the line know what it is;
+-- decoding takes the line with or without it.
 -- The name is percent-encoded (anything but letters, digits, space, - _ '),
 -- the mount IDs are base 36 joined by dots, and the check is a base-36 sum
 -- that catches a cut-off paste. Decoding keeps only mounts the data knows.
@@ -14,6 +16,7 @@ local Share = {}
 ns.Share = Share
 
 Share.PREFIX = "!MT1!"
+Share.LABEL = "MountTrail: "
 Share.MAX_MOUNTS = 2000 -- more than the game has: anything above is not a list
 Share.MAX_TEXT = 20000
 
@@ -51,7 +54,7 @@ function Share.Encode(name, mounts)
     if type(id) == "number" and id >= 0 and id == math.floor(id) then ids[#ids + 1] = toBase36(id) end
   end
   local body = escape(tostring(name or "")) .. "!" .. table.concat(ids, ".")
-  return Share.PREFIX .. body .. "!" .. checksum(body)
+  return Share.LABEL .. Share.PREFIX .. body .. "!" .. checksum(body)
 end
 
 -- A share string (spaces around it are fine) -> { name =, mounts = { id, ... } },
@@ -61,6 +64,7 @@ end
 function Share.Decode(text, known)
   if type(text) ~= "string" or #text > Share.MAX_TEXT then return nil, "format" end
   text = string.match(text, "^%s*(.-)%s*$")
+  text = string.gsub(text, "^[Mm][Oo][Uu][Nn][Tt][Tt][Rr][Aa][Ii][Ll]:%s*", "")
   if string.sub(text, 1, #Share.PREFIX) ~= Share.PREFIX then return nil, "format" end
   local body, check = string.match(string.sub(text, #Share.PREFIX + 1), "^(.*)!([%w]+)$")
   if not body then return nil, "format" end
@@ -176,7 +180,8 @@ end
 Share.CHAT_MAX = 255 -- a chat message's length limit
 local FIND = "!MT1![^!]*![%w%.]*![%w]+"
 
--- Every share string in a chat message -> { { first =, last =, text = } } in order.
+-- Every share string in a chat message -> { { first =, last =, text = } } in
+-- order; `first` takes in a "MountTrail:" label right before it.
 function Share.Find(msg)
   local out = {}
   if type(msg) ~= "string" then return out end
@@ -184,7 +189,10 @@ function Share.Find(msg)
   while true do
     local first, last = string.find(msg, FIND, from)
     if not first then break end
-    out[#out + 1] = { first = first, last = last, text = string.sub(msg, first, last) }
+    local text = string.sub(msg, first, last)
+    local labelFirst = string.find(string.sub(msg, 1, first - 1), "[Mm][Oo][Uu][Nn][Tt][Tt][Rr][Aa][Ii][Ll]:%s*$")
+    if labelFirst and labelFirst >= from then first = labelFirst end
+    out[#out + 1] = { first = first, last = last, text = text }
     from = last + 1
   end
   return out

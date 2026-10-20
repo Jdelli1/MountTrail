@@ -99,7 +99,7 @@ function UI.ImportListPrompt()
     end
     -- After this prompt closes: the question reuses the same box.
     later(0, function() UI.OfferImport(decoded) end)
-  end, { okLabel = L["Next"], hint = L["Paste a MountTrail list (!MT1!...)."], long = true })
+  end, { okLabel = L["Next"], hint = L["Paste a MountTrail list (MountTrail: !MT1!...)."], long = true })
 end
 
 -- Whispers list `id` to `target` in chunks ("D" answers a link, "O" offers).
