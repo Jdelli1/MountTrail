@@ -92,7 +92,7 @@ end
 
 -- Pure: the pane's text for a mount -> { name =, flavor =, lines = UI.TooltipLines
 -- without hints, achievement = achievementID or nil, location = bool, spots =
--- UI.DetailSpots }.
+-- UI.DetailSpots, notes = ATT's description (Notes.Description) or nil }.
 function UI.DetailContent(mountID, routeBoss)
   local m = mountData(mountID) or {}
   local name = ns.Game.MountInfo and ns.Game.MountInfo(mountID) or nil
@@ -104,6 +104,7 @@ function UI.DetailContent(mountID, routeBoss)
     achievement = achievementID,
     location = UI.HasLocation(mountID, routeBoss) and true or false,
     spots = UI.DetailSpots(mountID),
+    notes = ns.Notes and ns.Notes.Description(mountID) or nil,
   }
 end
 
@@ -204,6 +205,12 @@ local function layoutInfo(pane, content)
       place(l.left, l.r, l.g, l.b)
     end
   end
+  -- How to get it, in words (AllTheThings, when loaded).
+  if content.notes then
+    y = y + 6
+    place(L["How to get it"], 1, 0.82, 0)
+    place(content.notes, 0.9, 0.9, 0.9)
+  end
   -- Where to find it: each NPC, its zones and how many spawn points (a
   -- right-click on the row plots them all).
   if content.spots and #content.spots > 0 then
@@ -219,7 +226,7 @@ local function layoutInfo(pane, content)
         count = count + #group.points
       end
       local line = table.concat(where, ", ")
-      if count > 1 then line = line .. " 9483 " .. string.format(L["%d spawn points"], count) end
+      if count > 1 then line = line .. " \194\183 " .. string.format(L["%d spawn points"], count) end
       place(label, 1, 1, 1, line, 0.7, 0.7, 0.7)
     end
   end
@@ -240,6 +247,7 @@ local function paint(pane)
   pane.Info:SetShown(has)
   pane.Empty:SetShown(not has)
   pane.AddList:SetShown(has)
+  pane.Wowhead:SetShown(has)
   if not has then return end
   local content = UI.DetailContent(id, pane.routeBoss)
   pane.content = content
@@ -327,10 +335,22 @@ local function build(parent)
   addList:SetScript("OnEnter", function(self) UI.ShowHint(self, L["Add to a custom list"]) end)
   addList:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   pane.AddList = addList
+  -- "Wowhead": the mount's page (guides, comments) in a box to copy.
+  local wowhead = UI.FlatButton(pane, L["Wowhead"], "plain", 18)
+  wowhead:SetPoint("RIGHT", addList, "LEFT", -4, 0)
+  wowhead:SetScript("OnClick", function()
+    local url = pane.mountID and ns.Notes and ns.Notes.WowheadURL(pane.mountID)
+    if url then UI.ShowCopyText(L["Wowhead"], url, L["Ctrl+C to copy, then paste it into your browser"]) end
+  end)
+  wowhead:SetScript("OnEnter", function(self)
+    UI.ShowHint(self, L["Wowhead"], L["The mount's Wowhead page: guides and comments (a link to copy)"])
+  end)
+  wowhead:SetScript("OnLeave", function(self) UI.HideHint(self) end)
+  pane.Wowhead = wowhead
 
   local name = pane:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalLarge"))
   name:SetPoint("LEFT", icon, "RIGHT", 8, 0)
-  name:SetPoint("RIGHT", addList, "LEFT", -22, 0)
+  name:SetPoint("RIGHT", wowhead, "LEFT", -22, 0)
   name:SetJustifyH("LEFT")
   name:SetWordWrap(true)
   if name.SetMaxLines then name:SetMaxLines(2) end

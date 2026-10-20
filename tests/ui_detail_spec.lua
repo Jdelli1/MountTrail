@@ -326,7 +326,7 @@ describe("detail pane", function()
     end
     ok(heading, "heading")
     ok(label and label:find("daily", 1, true), tostring(label))
-    eq(rights[label], "Nagrand, Old Nagrand 9483 3 spawn points")
+    eq(rights[label], "Nagrand, Old Nagrand \194\183 3 spawn points")
     eq(pane.pointButtons, nil, "no coordinate buttons")
     eq(pane.PlotAll, nil, "no Plot all")
     local went
@@ -374,5 +374,35 @@ describe("detail pane width", function()
     a.Splitter:RunScript("OnClick", "RightButton")
     eq(b.width, ns.UI.DETAIL_WIDTH)
     eq(ns.UI.CreateDetailPane(UIParent).width, ns.UI.DETAIL_WIDTH, "new panes take the saved width")
+  end)
+
+  it("How to get it: AllTheThings' description of the item, else of the NPC behind it", function()
+    local ns = loadUI()
+    ns.Data.Mounts[1].item, ns.Data.Mounts[1].spell = 900, 132036
+    local db = {
+      itemID = { [900] = { { parent = { npcID = 50981, description = "Collect ten Skyshards first." } } } },
+    }
+    ns.Notes.app = { SearchForField = function(field, id) return (db[field] or {})[id] end }
+    eq(ns.Notes.Description(1), "Collect ten Skyshards first.", "the dropping NPC's note")
+    db.npcID = { [1] = { { description = "Sells it." } } }
+    eq(ns.Notes.Description(3), nil, "a Horde vendor's spot only: not this character's")
+    ns.Notes.app = false
+    eq(ns.Notes.Description(2), nil, "no ATT: nothing")
+    eq(ns.Notes.WowheadURL(1), "https://www.wowhead.com/spell=132036")
+    ns.Notes.app = { SearchForField = function(field, id) return (db[field] or {})[id] end }
+    local list = makeList(ns)
+    local texts = {}
+    for _, fs in ipairs(list.Detail.lineStrings) do if fs:IsShown() then texts[fs:GetText()] = true end end
+    ok(texts["How to get it"] and texts["Collect ten Skyshards first."], "in the pane")
+  end)
+
+  it("the Wowhead button opens the mount's page in a box to copy", function()
+    local ns = loadUI()
+    ns.Data.Mounts[1].spell = 132036
+    local list = makeList(ns)
+    local shown
+    ns.UI.ShowCopyText = function(title, text) shown = text end
+    list.Detail.Wowhead:RunScript("OnClick", "LeftButton")
+    eq(shown, "https://www.wowhead.com/spell=132036")
   end)
 end)

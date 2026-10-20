@@ -4,7 +4,7 @@
 ## Author: James
 ## Version: @project-version@
 ## SavedVariables: MountTrailDB, AzerothTrailDB
-## OptionalDeps: TomTom, Rarity
+## OptionalDeps: TomTom, Rarity, AllTheThings
 # TomTom is required, but listed under OptionalDeps (not Dependencies) so MountTrail still loads without it and can say so.
 ## IconTexture: 132261
 
@@ -40,6 +40,7 @@ Integrations\Map.lua
 Integrations\Rarity.lua
 Integrations\AchievementScan.lua
 Integrations\MountsRarity.lua
+Integrations\Notes.lua
 Core\Init.lua
 UI\Frame.lua
 UI\Tooltip.lua

@@ -678,9 +678,10 @@ local function buildPrompt()
   edit:SetPoint("BOTTOMRIGHT", boxFrame, "BOTTOMRIGHT", -6, 0)
   if edit.SetFontObject then edit:SetFontObject("GameFontHighlight") end
   if edit.SetAutoFocus then edit:SetAutoFocus(false) end
-  if edit.SetMaxLetters then edit:SetMaxLetters(40) end
+  if edit.SetMaxLetters then edit:SetMaxLetters(200) end
   prompt.Edit = edit
   local function accept()
+    if prompt.copy then prompt:Hide() return end
     local text = string.match(edit:GetText() or "", "^%s*(.-)%s*$")
     if not UI.PromptMatches(text, prompt.match) then return end
     local fn = prompt.onAccept
@@ -703,12 +704,20 @@ local function buildPrompt()
   return prompt
 end
 
+-- A box with `text` selected to copy (Ctrl+C); Enter, Esc or Close shut it.
+function UI.ShowCopyText(title, text, hint)
+  return UI.AskText(title, text, nil, { copy = true, hint = hint, okLabel = L["Close"] })
+end
+
 function UI.AskText(title, default, onAccept, opts)
   if not prompt then buildPrompt() end
   opts = opts or {}
   UI.HideMenu()
   prompt.Title:SetText(title or "")
   prompt.onAccept = onAccept
+  prompt.copy = opts.copy == true
+  prompt.Cancel:SetShown(not prompt.copy)
+  if prompt.Edit.SetMaxLetters then prompt.Edit:SetMaxLetters(opts.copy and 200 or 40) end
   prompt.match = opts.match
   prompt.Hint:SetText(opts.hint or "")
   prompt.Hint:SetShown(opts.hint ~= nil)
