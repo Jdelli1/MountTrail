@@ -617,8 +617,7 @@ local function listsMenu(data, owner)
   if items then UI.ShowMenu(owner, items, "cursor") end
 end
 
--- A custom list's menu items: its name, `extra` items (the navigation's Move
--- up / Move down), pop out, rename, delete (typing the name to confirm).
+-- A custom list's menu items: its name, `extra` items, pop out, rename, delete (typing the name to confirm).
 -- nil for an unknown list.
 function UI.CustomListMenuItems(id, extra)
   local store = UI.ListsDB and UI.ListsDB()

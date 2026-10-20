@@ -1309,7 +1309,7 @@ describe("lists in the navigation column", function()
     ok(not navButton(ns, "Lockouts").Star:IsShown(), "views have no star")
   end)
 
-  it("Move up / Move down from the right-click menu: lists, quick lists and Browse; favourites stay on top", function()
+  it("Alt-drag reorders lists, quick lists and Browse; favourites stay on top; right-click pops out", function()
     local ns = loadUI()
     ns.UI.ChecklistBuild = function() return built() end
     local store = ns.UI.ListsDB()
@@ -1326,27 +1326,47 @@ describe("lists in the navigation column", function()
       end
       return out
     end
-    local function menuOf(label)
-      local items
-      ns.UI.ShowMenu = function(_, list) items = type(list) == "function" and list() or list end
-      navButton(ns, label):RunScript("OnClick", "RightButton")
-      local by = {}
-      for _, it in ipairs(items or {}) do if it.text then by[it.text] = it end end
-      return by
+    -- Lay the buttons out 20 px apart, top to bottom.
+    local function layout()
+      for i = 1, nav.shown do
+        local b = nav.Buttons[i]
+        b.top, b.bottom = 1000 - i * 20, 1000 - i * 20 - 20
+      end
     end
-    menuOf("Gamma")["Move up"].onClick()
-    eq(order({ "Alpha", "Beta", "Gamma" }), { "Alpha", "Gamma", "Beta" })
-    ok(menuOf("Gamma")["Rename..."], "a custom list keeps rename / delete")
+    local function drag(label, onto)
+      layout()
+      local b, target = navButton(ns, label), navButton(ns, onto)
+      IsAltKeyDown = function() return true end
+      b:RunScript("OnDragStart", "LeftButton")
+      IsAltKeyDown = nil
+      STUB_CURSOR[2] = target.top - 2
+      b:RunScript("OnDragStop")
+      return b
+    end
+    local b = drag("Gamma", "Alpha")
+    eq(order({ "Alpha", "Beta", "Gamma" }), { "Gamma", "Alpha", "Beta" })
+    ok(b.justDragged, "the drop's click is swallowed")
+    b:RunScript("OnMouseDown", "LeftButton")
+    eq(b.justDragged, nil, "the next press clicks again")
     navButton(ns, "Alpha").Star:RunScript("OnClick", "LeftButton")
-    eq(menuOf("Gamma")["Move up"].disabled, true, "cannot pass the favourite")
-    eq(menuOf("Alpha")["Move down"].disabled, true, "a favourite stays above the rest")
-    menuOf("Beta")["Move up"].onClick()
-    eq(order({ "Alpha", "Beta", "Gamma" }), { "Alpha", "Beta", "Gamma" })
-    menuOf("Mythic Mounts")["Move up"].onClick()
-    eq(order({ "Rare spawns", "Mythic Mounts" }), { "Mythic Mounts", "Rare spawns" }, "quick lists")
-    menuOf("PvP")["Move up"].onClick()
-    eq(order({ "Trading Post", "PvP" }), { "PvP", "Trading Post" }, "Browse")
+    drag("Beta", "Alpha")
+    eq(order({ "Alpha", "Beta", "Gamma" }), { "Alpha", "Beta", "Gamma" }, "cannot pass the favourite")
+    drag("Mythic Mounts", "Daily lockouts")
+    eq(order({ "Daily lockouts", "Mythic Mounts" }), { "Mythic Mounts", "Daily lockouts" }, "quick lists")
+    drag("PvP", "Drops")
+    eq(order({ "Drops", "PvP" }), { "PvP", "Drops" }, "Browse")
     ok(ns.db.global.navOrder.browse and ns.db.global.navOrder.lists, "saved")
+    local without = navButton(ns, "Beta")
+    IsAltKeyDown = function() return false end
+    without:RunScript("OnDragStart", "LeftButton")
+    IsAltKeyDown = nil
+    ok(not without.dragging, "no Alt: no drag")
+    local popped, menu
+    ns.UI.OpenPopout = function(src) popped = src end
+    ns.UI.ShowMenu = function() menu = true end
+    navButton(ns, "Mythic Mounts"):RunScript("OnClick", "RightButton")
+    ok(popped and popped.kind, "right-click pops out")
+    eq(menu, nil, "no menu")
   end)
 
   it("Options can hide My lists and Quick lists from the navigation", function()
@@ -1365,16 +1385,22 @@ describe("lists in the navigation column", function()
     ok(navButton(ns, "Drops"), "Browse stays")
   end)
 
-  it("right-click a list entry opens its menu; + starts a list", function()
+  it("right-click a list entry pops it out, Shift-right-click opens its menu; + starts a list", function()
     local ns = loadUI()
     ns.UI.ChecklistBuild = function() return built() end
     local store = ns.UI.ListsDB()
     local id = ns.Lists.Create(store, "Loop")
     home(ns)
-    local menuFor
+    local menuFor, popped
     ns.UI.ShowCustomListMenu = function(listID) menuFor = listID end
+    ns.UI.OpenPopout = function(src) popped = src end
     navButton(ns, "Loop"):RunScript("OnClick", "RightButton")
-    eq(menuFor, id)
+    eq(menuFor, nil)
+    eq(popped and popped.list, id, "right-click pops it out")
+    IsShiftKeyDown = function() return true end
+    navButton(ns, "Loop"):RunScript("OnClick", "RightButton")
+    IsShiftKeyDown = nil
+    eq(menuFor, id, "Shift-right-click: rename / delete")
     local asked = 0
     ns.UI.NewListPrompt = function() asked = asked + 1 end
     ns.UI.frame.Nav.AddList:RunScript("OnClick", "LeftButton")

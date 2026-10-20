@@ -1421,16 +1421,13 @@ local function navButton(parent)
         if UI.ToggleZoneMountsPopout then UI.ToggleZoneMountsPopout() end
         return
       end
-      local moves = UI.NavMoveItems(e)
-      if e.source and e.source.kind == "list" and UI.ShowCustomListMenu then
-        UI.ShowCustomListMenu(e.source.list, self, moves)
-      elseif UI.ShowMenu and (e.source or e.section) then
-        local items = { { title = L[e.label] or e.label } }
-        for _, it in ipairs(moves) do items[#items + 1] = it end
-        if e.source then
-          items[#items + 1] = { text = L["Pop out"], onClick = function() UI.OpenPopout(e.source) end }
-        end
-        UI.ShowMenu(self, items, "cursor")
+      -- Right-click pops a list out; Shift-right-click: a custom list's
+      -- rename / delete menu.
+      local shift = type(IsShiftKeyDown) == "function" and IsShiftKeyDown()
+      if shift and e.source and e.source.kind == "list" and UI.ShowCustomListMenu then
+        UI.ShowCustomListMenu(e.source.list, self)
+      elseif e.source and UI.OpenPopout then
+        UI.OpenPopout(e.source)
       end
       return
     end
@@ -1442,6 +1439,8 @@ local function navButton(parent)
     UI.NavClick(e)
   end)
   -- Alt-drag: reorder the entry's section (a gold line shows where it lands).
+  -- A new press clears the drag's click guard (the drop may not click).
+  b:SetScript("OnMouseDown", function(self) if not self.dragging then self.justDragged = nil end end)
   b:RegisterForDrag("LeftButton")
   b:SetScript("OnDragStart", function(self)
     local e = self.entry
@@ -1451,12 +1450,12 @@ local function navButton(parent)
   b:SetScript("OnDragStop", function(self) UI.NavDragStop(self) end)
   b:SetScript("OnEnter", function(self)
     local e = self.entry
-    local reorder = e and e.section and ("\n" .. L["Alt-drag (or right-click: Move up / down) to reorder."]) or ""
+    local reorder = e and e.section and ("\n" .. L["Alt-drag to reorder."]) or ""
     if e and e.source then
-      UI.ShowHint(self, e.label, (e.source.kind == "list" and L["Click: open. Right-click: pop out, rename or delete"]
+      UI.ShowHint(self, e.label, (e.source.kind == "list" and L["Click: open. Right-click: pop out. Shift-right-click: rename or delete"]
         or L["Click: open. Right-click: pop out"]) .. reorder)
     elseif e and e.section then
-      UI.ShowHint(self, L[e.label] or e.label, L["Alt-drag (or right-click: Move up / down) to reorder."])
+      UI.ShowHint(self, L[e.label] or e.label, L["Alt-drag to reorder."])
     elseif e and e.action == "alts" then
       UI.ShowHint(self, L["Alt lockouts"], L["Opens its own window"])
     elseif e and e.key == "here" then
@@ -1482,7 +1481,8 @@ local function dragTarget(b)
     if not (top and bottom) then return nil, rows end
     rects[i] = { top = top, bottom = bottom }
   end
-  local x, y = GetCursorPosition and GetCursorPosition()
+  if type(GetCursorPosition) ~= "function" then return nil, rows end
+  local _, y = GetCursorPosition()
   local scale = b.GetEffectiveScale and b:GetEffectiveScale() or 1
   if type(y) ~= "number" or #rects == 0 then return nil, rows end
   return UI.NavDropIndex(rects, y / scale), rows
@@ -1520,21 +1520,6 @@ function UI.NavDragStop(b)
     navOrders()[e.section] = moved
     UI.RefreshNav()
   end
-end
-
--- Move up / Move down for an entry of a reorderable section (lists, quick
--- lists, Browse); greyed where it cannot move (an end, or the favourites'
--- line). {} for other entries.
-function UI.NavMoveItems(e)
-  if not e.section then return {} end
-  local keys = shownSections[e.section] or {}
-  local fav = e.section ~= "browse" and UI.IsNavFavorite or nil
-  local up, down = UI.NavMove(keys, e.key, -1, fav), UI.NavMove(keys, e.key, 1, fav)
-  return {
-    { text = L["Move up"], disabled = up == nil, onClick = function() UI.MoveNavEntry(e.section, e.key, -1) end },
-    { text = L["Move down"], disabled = down == nil, onClick = function() UI.MoveNavEntry(e.section, e.key, 1) end },
-    { separator = true },
-  }
 end
 
 -- An entry's click: a view (Home also leaves a list or expansion page), the

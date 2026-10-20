@@ -417,7 +417,7 @@ L["No lists yet. Click + New, or + List on any mount."] = "No lists yet. Click +
 L["built-in"] = "built-in"
 L["%d open today"] = "%d open today"
 L["Click: open"] = "Click: open"
-L["Click: open. Right-click: pop out, rename or delete"] = "Click: open. Right-click: pop out, rename or delete"
+L["Click: open. Right-click: pop out. Shift-right-click: rename or delete"] = "Click: open. Right-click: pop out. Shift-right-click: rename or delete"
 
 -- The navigation column (UI/Frame.lua)
 L["Home"] = "Home"
@@ -462,4 +462,4 @@ L["Show My lists"] = "Show My lists"
 L["Show Quick lists"] = "Show Quick lists"
 L["Your own lists in the window's left column."] = "Your own lists in the window's left column."
 L["The built-in lists (Daily / Weekly lockouts, Rare spawns, Mythic Mounts) in the window's left column."] = "The built-in lists (Daily / Weekly lockouts, Rare spawns, Mythic Mounts) in the window's left column."
-L["Alt-drag (or right-click: Move up / down) to reorder."] = "Alt-drag (or right-click: Move up / down) to reorder."
+L["Alt-drag to reorder."] = "Alt-drag to reorder."
