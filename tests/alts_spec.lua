@@ -256,3 +256,27 @@ describe("Alts.Rows", function()
     eq(#folded, 5)
   end)
 end)
+
+describe("ns.RecordSeen", function()
+  it("login stamps who the character is; only an observation moves the reset times", function()
+    local ns = load_addon(toc_lua_files())
+    ns.addon:OnInitialize()
+    ns.Game.PlayerName = function() return "Tester" end
+    ns.Game.ClassFile = function() return "MAGE" end
+    ns.Game.Level = function() return 80 end
+    ns.Game.Faction = function() return "Horde" end
+    ns.Game.UntilDaily = function() return 100 end
+    ns.Game.UntilWeekly = function() return 1000 end
+    local char = {}
+    ns.RecordSeen(char, 5000)
+    eq(char.seen.name, "Tester")
+    eq(char.seen.class, "MAGE")
+    eq(char.seen.faction, "Horde")
+    eq(char.seen.dailyReset, nil, "no observation yet: no reset times")
+    ns.RecordSeen(char, 6000, true)
+    eq({ char.seen.at, char.seen.dailyReset, char.seen.weeklyReset }, { 6000, 6100, 7000 })
+    ns.RecordSeen(char, 9000)
+    eq({ char.seen.at, char.seen.dailyReset, char.seen.weeklyReset }, { 6000, 6100, 7000 },
+      "a later login keeps the last observation's times")
+  end)
+end)

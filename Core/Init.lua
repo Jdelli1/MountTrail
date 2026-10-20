@@ -111,25 +111,31 @@ function ns.UpdateAttempts(freshInstances)
     ns.Attempts.AddForChar(global.attemptsByChar, charKey, mountID)
   end
   char.last = curr
-  ns.RecordSeen(char, ns.Game.Now())
+  ns.RecordSeen(char, ns.Game.Now(), true)
   return newly
 end
 
--- Stamps `char` (this character's AceDB section) with who it is and when its
--- stored observation (char.last) stops being true: the daily / weekly reset
--- after `now`. The alt lockout matrix (Logic\Alts.lua) reads every
--- character's section and treats a lockout as fresh once its reset has passed.
-function ns.RecordSeen(char, now)
+-- Stamps `char` (this character's AceDB section) with who it is, so the alt
+-- lockout matrix (Logic\Alts.lua), which reads every character's section,
+-- gives it a column. `observed`: char.last was just stored, so the stamp
+-- also says when that observation stops being true (the daily / weekly
+-- reset after `now`; the matrix counts a lockout fresh once it has passed).
+-- Without it the reset times stay those of the last observation, so a
+-- login whose lockout data never arrives cannot make old lockouts look
+-- current. Called at login (identity only) and after each observation.
+function ns.RecordSeen(char, now, observed)
   local Game = ns.Game
+  local old = type(char.seen) == "table" and char.seen or {}
+  local name = Game.PlayerName()
   char.seen = {
-    name = Game.PlayerName(),
-    realm = (GetNormalizedRealmName and GetNormalizedRealmName()) or (GetRealmName and GetRealmName()) or nil,
-    class = Game.ClassFile(),
-    level = Game.Level(),
+    name = name or old.name,
+    realm = (GetNormalizedRealmName and GetNormalizedRealmName()) or (GetRealmName and GetRealmName()) or old.realm,
+    class = Game.ClassFile() or old.class,
+    level = Game.Level() or old.level,
     faction = Game.Faction(),
-    at = now,
-    dailyReset = now + (Game.UntilDaily() or 0),
-    weeklyReset = now + (Game.UntilWeekly() or 0),
+    at = observed and now or old.at,
+    dailyReset = observed and (now + (Game.UntilDaily() or 0)) or old.dailyReset,
+    weeklyReset = observed and (now + (Game.UntilWeekly() or 0)) or old.weeklyReset,
   }
 end
 
@@ -259,6 +265,9 @@ function addon:OnEnable()
 end
 
 function addon:OnEnteringWorld()
+  -- A column in the alt lockout matrix from the first login on, whatever
+  -- happens to the lockout data after.
+  ns.RecordSeen(ns.db.char, ns.Game.Now())
   ns.Game.RequestLockouts()
   ns.Resets.Prune(ns.db.char.ticks, ns.Game.Now())
   ns.UpdateStats()
