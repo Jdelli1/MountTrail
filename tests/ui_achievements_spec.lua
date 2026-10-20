@@ -217,7 +217,7 @@ describe("ui achievements", function()
       eq(addLines(calls), {
         "Mount", "Achievement reward", "Lockout: —",
         "Achievement: Glory of the Hero", "Heroic feats.", "  Done one", "  Open one",
-        "Click: waypoint · Shift-click: map · Ctrl-click: preview", "Shift-right-click to open the achievement",
+        "Click to set waypoint",
       })
       local byText = {}
       for _, c in ipairs(calls) do if c[1] == "AddLine" then byText[c[2]] = c end end
@@ -234,7 +234,7 @@ describe("ui achievements", function()
       GameTooltip = tip
       ns.UI.ShowMountTooltip({}, 20)
       GameTooltip = old
-      eq(addLines(calls), { "Mount", "Lockout: —", "Click: waypoint · Shift-click: map · Ctrl-click: preview" })
+      eq(addLines(calls), { "Mount", "Lockout: —", "Click to set waypoint" })
     end)
 
     it("repaints the open tooltip when the scan finishes", function()
@@ -251,9 +251,17 @@ describe("ui achievements", function()
       ns.UI.ShowMountTooltip(owner, 262)
       ok(addLines(calls)[4] == "Achievement: looking up...", "pending line")
       status = "ready"
+      local first = #calls
       ns.UI.OnAchievementsReady()
-      local lines = addLines(calls)
-      eq(lines[#lines], "Shift-right-click to open the achievement", "repainted with the achievement")
+      local repainted = {}
+      for i = first + 1, #calls do repainted[#repainted + 1] = calls[i] end
+      local lines = addLines(repainted)
+      eq(lines[#lines], "Click to set waypoint", "repainted")
+      local found = false
+      for _, l in ipairs(lines) do
+        if l == "Achievement: looking up..." then found = true end
+      end
+      eq(found, false, "repainted with the achievement, no longer looking up")
       -- A recycled row now shows another mount: the repaint follows the row.
       owner.mountID = 20
       local before = #calls
@@ -261,7 +269,7 @@ describe("ui achievements", function()
       local slice = {}
       for i = before + 1, #calls do slice[#slice + 1] = calls[i] end
       local after = addLines(slice)
-      eq(after, { "Mount", "Lockout: —", "Click: waypoint · Shift-click: map · Ctrl-click: preview" }, "repainted for mount 20")
+      eq(after, { "Mount", "Lockout: —", "Click to set waypoint" }, "repainted for mount 20")
       -- Once hidden (or owned by something else) nothing is repainted.
       local n = #calls
       ns.UI.HideMountTooltip()

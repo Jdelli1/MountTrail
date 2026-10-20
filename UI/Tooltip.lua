@@ -202,10 +202,7 @@ function UI.TooltipLines(mountID, routeBoss, opts)
     lines[#lines + 1] = { left = a.text, r = a.r, g = a.g, b = a.b, wrap = a.wrap }
   end
   if opts and opts.hints == false then return lines end
-  lines[#lines + 1] = line(L["Click: waypoint · Shift-click: map · Ctrl-click: preview"], HINT)
-  if achievementID then
-    lines[#lines + 1] = line(L["Shift-right-click to open the achievement"], HINT)
-  end
+  lines[#lines + 1] = line(L["Click to set waypoint"], HINT)
   return lines
 end
 

@@ -426,7 +426,7 @@ describe("ui journal", function()
         double("Total attempts", "30"),
         double("Chance so far", "26.03%"),
         line("Lockout: —", GOLD),
-        line("Click: waypoint · Shift-click: map · Ctrl-click: preview", HINT),
+        line("Click to set waypoint", HINT),
       })
     end)
 
@@ -482,7 +482,7 @@ describe("ui journal", function()
       local rarity = 42
       ns.RarityBridge.Attempts = function(item) if item == 5555 then return rarity end end
       eq(lefts(ns.UI.TooltipLines(10)), { "Mount", "Attempts (this character)=2", "Total attempts=42",
-        "Lockout: Available", "Click: waypoint · Shift-click: map · Ctrl-click: preview" },
+        "Lockout: Available", "Click to set waypoint" },
         "no chance: the two Attempts lines only")
       rarity = 3
       eq(lefts(ns.UI.TooltipLines(10))[3], "Total attempts=7")
@@ -505,7 +505,7 @@ describe("ui journal", function()
       ns.db.global.stats = { ["Me-Realm"] = { [40] = 3 } }
       eq(lefts(ns.UI.TooltipLines(40)), { "Mount", "1 in 20 chance", "Lucky if you obtain in 14 or less",
         "Attempts (this character)=3", "Total attempts=3", "Chance so far=14.26%", "Lockout: —",
-        "Click: waypoint · Shift-click: map · Ctrl-click: preview" })
+        "Click to set waypoint" })
       ns.db.global.stats = { ["Me-Realm"] = { [40] = 3 }, ["Alt-Realm"] = { [40] = 4 } }
       eq(lefts(ns.UI.TooltipLines(40))[5], "Total attempts=7")
       eq(lefts(ns.UI.TooltipLines(40))[6], "Chance so far=30.17%", "the total, not this character's")
@@ -540,7 +540,7 @@ describe("ui journal", function()
       ns.Data.Route = { { title = "Kill Galleon", bosses = { { mount = 21, boss = "Galleon" } } } }
       ns.db.global.attempts[20] = 3
       ns.RarityBridge.Attempts = function() return 8 end
-      eq(lefts(ns.UI.TooltipLines(20)), { "Mount", "In-game shop", "Lockout: —", "Click: waypoint · Shift-click: map · Ctrl-click: preview" })
+      eq(lefts(ns.UI.TooltipLines(20)), { "Mount", "In-game shop", "Lockout: —", "Click to set waypoint" })
       eq(lefts(ns.UI.TooltipLines(21))[4], "Attempts (this character)=0", "route boss with a BossLockouts spec")
       eq(lefts(ns.UI.TooltipLines(21))[5], "Total attempts=0")
       eq(lefts(ns.UI.TooltipLines(22))[3], "Attempts (this character)=0", "own lockout spec")
@@ -549,7 +549,7 @@ describe("ui journal", function()
     it("a chance with no attempts yet shows 0.00%", function()
       local ns = loadUI(nil, { Mounts = { [30] = { name = "A", chance = 33.4 } } })
       eq(lefts(ns.UI.TooltipLines(30)), { "Mount", "1 in 33 chance", "Lucky if you obtain in 23 or less",
-        "Attempts (this character)=0", "Total attempts=0", "Chance so far=0.00%", "Lockout: —", "Click: waypoint · Shift-click: map · Ctrl-click: preview" })
+        "Attempts (this character)=0", "Total attempts=0", "Chance so far=0.00%", "Lockout: —", "Click to set waypoint" })
     end)
 
     it("expansion badges", function()
@@ -668,7 +668,7 @@ describe("ui journal", function()
         { "AddDoubleLine", "Total attempts", "0", 1, 0.82, 0, 1, 1, 1 },
         { "AddDoubleLine", "Chance so far", "0.00%", 1, 0.82, 0, 1, 1, 1 },
         { "AddLine", "Lockout: —", 1, 0.82, 0 },
-        { "AddLine", "Click: waypoint · Shift-click: map · Ctrl-click: preview", 0.5, 0.9, 0.5 },
+        { "AddLine", "Click to set waypoint", 0.5, 0.9, 0.5 },
         { "Show" },
       })
     end)
@@ -688,7 +688,7 @@ describe("ui journal", function()
         { "AddLine", " " },
         { "AddLine", "Mount", 1, 1, 1 },
         { "AddLine", "Lockout: —", 1, 0.82, 0 },
-        { "AddLine", "Click: waypoint · Shift-click: map · Ctrl-click: preview", 0.5, 0.9, 0.5 },
+        { "AddLine", "Click to set waypoint", 0.5, 0.9, 0.5 },
         { "Show" },
       })
     end)
@@ -736,7 +736,7 @@ describe("ui journal", function()
       eq(#waiting, 1)
       timers[1].fn()
       eq(count("SetItemByID", 87771), 4, "repainted once, a frame later")
-      eq(count("AddLine", "Click: waypoint · Shift-click: map · Ctrl-click: preview"), 4, "our block painted again")
+      eq(count("AddLine", "Click to set waypoint"), 4, "our block painted again")
       eq(#waiting, 1, "cached now: no new callback")
 
       -- Hidden (or owned by something else) before the data arrives: no repaint.

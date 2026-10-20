@@ -300,7 +300,7 @@ describe("checklist lockout groups", function()
     local lines = ns.UI.ChecklistGroupLines(hoardEntry(ns.UI.ChecklistBuild(NOW)))
     eq(texts(lines), {
       "Grand Hoarder", "Hoard Vault", "Can drop:", "Legacy 1", "Legacy 2", "Legacy 3",
-      "Click: waypoint · Shift-click: map · Ctrl-click: preview",
+      "Click to set waypoint",
     })
     eq({ lines[4].r, lines[4].g, lines[4].b }, { 1, 1, 1 }, "mount names in white")
   end)
