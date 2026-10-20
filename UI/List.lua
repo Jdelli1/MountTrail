@@ -1162,7 +1162,7 @@ end
 -- DEPTH_STEP further in). A plain Frame (not a Button) so the ScrollBox pools it apart
 -- from the mount rows; left-click (OnMouseUp) calls frame.onToggle(key), a
 -- right-click frame.onRightClick(data) when the caller set one, and hovering
--- shows frame.hint (a one-line tooltip) when set.
+-- shows frame.hint (UI.ShowHint, beside the cursor) when set.
 local function initHeader(frame, data)
   if not frame.Label then
     frame:EnableMouse(true)
@@ -1193,17 +1193,11 @@ local function initHeader(frame, data)
     frame.Label = label
     frame:SetScript("OnEnter", function(self)
       self.Hover:Show()
-      if self.hint and GameTooltip then
-        GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
-        GameTooltip:SetText(self.hint, 0.5, 0.9, 0.5)
-        GameTooltip:Show()
-        self.hintShown = true
-      end
+      if self.hint and UI.ShowHint then UI.ShowHint(self, self.hint, nil, "cursor") end
     end)
     frame:SetScript("OnLeave", function(self)
       self.Hover:Hide()
-      if self.hintShown and GameTooltip then GameTooltip:Hide() end
-      self.hintShown = nil
+      if UI.HideHint then UI.HideHint(self) end
     end)
     frame:SetScript("OnMouseUp", function(self, button)
       -- Only a release over the header counts (pressing, then dragging off

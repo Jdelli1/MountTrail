@@ -105,6 +105,93 @@ function UI.FlatBorder(frame, r, g, b, a, layer)
   return border
 end
 
+-- Hints ----------------------------------------------------------------------------
+-- A small hint in the window's own look (instead of the game tooltip): a
+-- flat dark panel, slightly see-through, a faint 1 px edge and a thin gold
+-- rule on top, a gold title line and an optional grey line under it, in the
+-- small font. Follows the owner's scale (the window's size grip). anchor:
+-- "cursor" (beside the mouse, for wide rows such as headers), "right", or
+-- "above" (default).
+local HINT_WIDTH = 260
+local hintFrame
+
+local function buildHint()
+  local h = CreateFrame("Frame", "AzerothTrailHint", UIParent)
+  h:SetFrameStrata("TOOLTIP")
+  h:Hide()
+  local fill = h:CreateTexture(nil, "BACKGROUND")
+  fill:SetAllPoints(h)
+  fill:SetColorTexture(0.05, 0.05, 0.06, 0.85)
+  h.Fill = fill
+  h.Edge = UI.FlatBorder(h, 1, 1, 1, 0.12)
+  local rule = h:CreateTexture(nil, "ARTWORK")
+  rule:SetHeight(1)
+  rule:SetPoint("TOPLEFT", h, "TOPLEFT", 1, -1)
+  rule:SetPoint("TOPRIGHT", h, "TOPRIGHT", -1, -1)
+  rule:SetColorTexture(1, 0.82, 0, 0.35)
+  local title = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  title:SetPoint("TOPLEFT", h, "TOPLEFT", 8, -7)
+  title:SetJustifyH("LEFT")
+  h.Title = title
+  local body = h:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  body:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -3)
+  body:SetJustifyH("LEFT")
+  body:SetWordWrap(true)
+  h.Body = body
+  return h
+end
+
+local function measure(fs)
+  local w = fs.GetStringWidth and fs:GetStringWidth() or 0
+  local hgt = fs.GetStringHeight and fs:GetStringHeight() or 12
+  return tonumber(w) or 0, math.max(tonumber(hgt) or 12, 10)
+end
+
+function UI.ShowHint(owner, title, text, anchor)
+  if not owner then return end
+  hintFrame = hintFrame or buildHint()
+  local h = hintFrame
+  h.owner = owner
+  h.Title:SetText(title or "")
+  h.Title:SetWidth(0)
+  local tw, th = measure(h.Title)
+  local width, height = tw, th
+  if text and text ~= "" then
+    h.Body:SetWidth(HINT_WIDTH - 16)
+    h.Body:SetText(text)
+    h.Body:Show()
+    local bw, bh = measure(h.Body)
+    width = math.max(width, math.min(bw, HINT_WIDTH - 16))
+    height = height + 3 + bh
+  else
+    h.Body:Hide()
+  end
+  h:SetSize(math.min(HINT_WIDTH, width + 16), height + 14)
+  -- The owner's scale (the main window can be scaled with its grip).
+  local parentScale = UIParent.GetEffectiveScale and UIParent:GetEffectiveScale() or 1
+  local ownerScale = owner.GetEffectiveScale and owner:GetEffectiveScale() or parentScale
+  if h.SetScale then h:SetScale(ownerScale / parentScale) end
+  h:ClearAllPoints()
+  if anchor == "cursor" and type(GetCursorPosition) == "function" then
+    local x, y = GetCursorPosition()
+    local eff = h.GetEffectiveScale and h:GetEffectiveScale() or 1
+    h:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", x / eff + 12, y / eff + 10)
+  elseif anchor == "right" then
+    h:SetPoint("LEFT", owner, "RIGHT", 6, 0)
+  else
+    h:SetPoint("BOTTOM", owner, "TOP", 0, 4)
+  end
+  h:Show()
+end
+
+-- Hides the hint (only when `owner` still owns it, when given).
+function UI.HideHint(owner)
+  if hintFrame and (owner == nil or hintFrame.owner == owner) then
+    hintFrame:Hide()
+    hintFrame.owner = nil
+  end
+end
+
 -- Tab order is fixed; views plug in by key. A saved key of an older
 -- version's tab maps to its successor (UI.LEGACY_TABS: the retired Route tab
 -- -> Checklist); any other unknown key falls back to the first tab.
@@ -255,13 +342,10 @@ local function createScaleGrip(frame)
     if button == "RightButton" then UI.SetWindowScale(frame, 1) end
   end)
   grip:SetScript("OnEnter", function(self)
-    if not GameTooltip then return end
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText(string.format(L["Window size: %d%%"], math.floor(frame:GetScale() * 100 + 0.5)))
-    GameTooltip:AddLine(L["Drag to make the window bigger or smaller. Right-click: back to 100%."], 1, 1, 1, true)
-    GameTooltip:Show()
+    UI.ShowHint(self, string.format(L["Window size: %d%%"], math.floor(frame:GetScale() * 100 + 0.5)),
+      L["Drag to make the window bigger or smaller. Right-click: back to 100%."], "right")
   end)
-  grip:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  grip:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   frame.ScaleGrip = grip
   return grip
 end

@@ -182,13 +182,9 @@ local function rowFrame(i)
     end
   end)
   go:SetScript("OnEnter", function(self)
-    if not GameTooltip then return end
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText(L["Click: waypoint to the nearest spawn"], 1, 1, 1)
-    GameTooltip:AddLine(L["Right-click: plot every spawn on TomTom"], 0.5, 0.9, 0.5)
-    GameTooltip:Show()
+    UI.ShowHint(self, L["Click: waypoint to the nearest spawn"], L["Right-click: plot every spawn on TomTom"], "right")
   end)
-  go:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  go:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   r.Go = go
   local zone = r:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
   zone:SetPoint("RIGHT", go, "LEFT", -4, 0)
@@ -366,13 +362,8 @@ local function build()
     savePosition()
   end)
   strip:SetScript("OnClick", function(self) openMenu(self) end)
-  strip:SetScript("OnEnter", function(self)
-    if not GameTooltip then return end
-    GameTooltip:SetOwner(self, "ANCHOR_TOP")
-    GameTooltip:SetText(L["Click to choose the expansion; drag to move"], 0.5, 0.9, 0.5)
-    GameTooltip:Show()
-  end)
-  strip:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  strip:SetScript("OnEnter", function(self) UI.ShowHint(self, L["Click to choose the expansion; drag to move"]) end)
+  strip:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   local stripBg = strip:CreateTexture(nil, "BACKGROUND")
   stripBg:SetAllPoints(strip)
   stripBg:SetColorTexture(1, 1, 1, 0.05)
@@ -410,13 +401,8 @@ local function build()
     end
     if ns.Map and ns.Map.PlotMounts then ns.Map.PlotMounts(ids, frame.Title:GetText()) end
   end)
-  plot:SetScript("OnEnter", function(self)
-    if not GameTooltip then return end
-    GameTooltip:SetOwner(self, "ANCHOR_TOP")
-    GameTooltip:SetText(L["Plot every open rare's spawn points on TomTom"])
-    GameTooltip:Show()
-  end)
-  plot:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  plot:SetScript("OnEnter", function(self) UI.ShowHint(self, L["Plot every open rare's spawn points on TomTom"]) end)
+  plot:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   frame.PlotAll = plot
 
   -- A small down arrow: the title opens a menu.

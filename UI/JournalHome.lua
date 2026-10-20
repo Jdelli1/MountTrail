@@ -358,13 +358,10 @@ local function createSummary()
     if hint.SetMaxLines then hint:SetMaxLines(1) end
   end
   search:HookScript("OnEnter", function(self)
-    if not GameTooltip then return end
-    GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-    GameTooltip:SetText(L["Search all mounts"])
-    GameTooltip:AddLine(L["Mount, boss or rare, dungeon or raid, zone, achievement or expansion. Typos and short names (icc, cata, bfa) work."], 1, 1, 1, true)
-    GameTooltip:Show()
+    UI.ShowHint(self, L["Search all mounts"],
+      L["Mount, boss or rare, dungeon or raid, zone, achievement or expansion. Typos and short names (icc, cata, bfa) work."])
   end)
-  search:HookScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  search:HookScript("OnLeave", function(self) UI.HideHint(self) end)
   search:HookScript("OnTextChanged", function(self, userInput)
     local text = self:GetText() or ""
     if userInput and string.find(text, "%S") then showSearch(text) end

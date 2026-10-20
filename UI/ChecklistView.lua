@@ -31,7 +31,7 @@ local ADDON, ns = ...
 -- (UI/DetailPane.lua) on the right showing the selected row's mount (a plain
 -- left-click selects; modifier clicks and the tick boxes keep their
 -- actions; no hover tooltip, no location icon). The header strip: the
--- character's name, a summary line ("Daily: 6 left, resets in 9 hr" ...),
+-- character's name, the reset timers ("Daily reset in 9 hr ..."),
 -- the flavour line, then chips All / Daily / Weekly / Rare spawns (with
 -- what is left) that show one group or all (ns.db.char.checklistShow).
 -- Right-clicking a rare header (an expansion or zone of the rare spawns, a
@@ -606,11 +606,11 @@ function UI.ChecklistPopout(row)
   return nil
 end
 
--- The summary line: what is left per group and when it resets.
-function UI.ChecklistSummary(left, untilDaily, untilWeekly)
-  return string.format(L["Daily: %d left, reset in %s"], left.daily, UI.FormatDuration(untilDaily))
-    .. "    " .. string.format(L["Weekly: %d left, reset in %s"], left.weekly, UI.FormatDuration(untilWeekly))
-    .. "    " .. string.format(L["Rare spawns: %d"], left.camp)
+-- The summary line: when the dailies and the weeklies reset (the chips
+-- carry what is left).
+function UI.ChecklistSummary(untilDaily, untilWeekly)
+  return string.format(L["Daily reset in %s"], UI.FormatDuration(untilDaily))
+    .. "    " .. string.format(L["Weekly reset in %s"], UI.FormatDuration(untilWeekly))
 end
 
 -- The flat header strip: name, reset timers, flavour line, and the Filter
@@ -850,7 +850,7 @@ function view.Refresh()
   local name = Game.PlayerName()
   header.Name:SetText(name or "")
   local left = UI.ChecklistLeft(built, filters)
-  header.Resets:SetText(UI.ChecklistSummary(left, untilDaily, untilWeekly))
+  header.Resets:SetText(UI.ChecklistSummary(untilDaily, untilWeekly))
   paintChips(left, show)
   -- Lockouts left in the categories the Filter menu shows.
   header.Flavour:SetText(UI.RouteFlavour(ns.Checklist.Remaining(built, filters), name))

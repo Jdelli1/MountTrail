@@ -172,13 +172,8 @@ local function pointButton(pane, i)
     b:SetScript("OnClick", function(self)
       if ns.Map and ns.Map.SetWaypointAt then ns.Map.SetWaypointAt(self.m, self.x, self.y, self.npc) end
     end)
-    b:SetScript("OnEnter", function(self)
-      if not GameTooltip then return end
-      GameTooltip:SetOwner(self, "ANCHOR_TOP")
-      GameTooltip:SetText(L["Set a waypoint here"])
-      GameTooltip:Show()
-    end)
-    b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    b:SetScript("OnEnter", function(self) UI.ShowHint(self, L["Set a waypoint here"]) end)
+    b:SetScript("OnLeave", function(self) UI.HideHint(self) end)
     pane.pointButtons[i] = b
   end
   return b
@@ -440,13 +435,8 @@ local function build(parent)
       ns.Map.PlotMounts({ pane.mountID }, pane.content and pane.content.name)
     end
   end)
-  plotAll:SetScript("OnEnter", function(self)
-    if not GameTooltip then return end
-    GameTooltip:SetOwner(self, "ANCHOR_TOP")
-    GameTooltip:SetText(L["Plot every point on TomTom"])
-    GameTooltip:Show()
-  end)
-  plotAll:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  plotAll:SetScript("OnEnter", function(self) UI.ShowHint(self, L["Plot every point on TomTom"]) end)
+  plotAll:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   plotAll:Hide()
   pane.PlotAll = plotAll
 

@@ -592,7 +592,7 @@ Every Holidays header shows dates read from the in-game calendar (`C_Calendar`; 
 
 ## Checklist: list + detail pane, summary and chips
 
-The Checklist follows the other tabs: its list on the left, the detail pane on the right showing the selected entry's mount (a plain left-click selects; Shift / Ctrl / Shift-right-click and the tick boxes keep their actions; no hover tooltip, no location icon on rows). The header: your name with Filter on the right, the summary line ("Daily: 6 left, reset in 9h 0m    Weekly: 11 left, reset in 3d 0h    Rare spawns: 37"), the Oregon line, then chips All / Daily (n) / Weekly (n) / Rare spawns (n): a chip shows that group only (gold while chosen), All shows everything; the choice is saved per character.
+The Checklist follows the other tabs: its list on the left, the detail pane on the right showing the selected entry's mount (a plain left-click selects; Shift / Ctrl / Shift-right-click and the tick boxes keep their actions; no hover tooltip, no location icon on rows). The header: your name with Filter on the right, the reset timers ("Daily reset in 9h 0m    Weekly reset in 3d 0h"; the chips carry the counts), the Oregon line, then chips All / Daily (n) / Weekly (n) / Rare spawns (n): a chip shows that group only (gold while chosen), All shows everything; the choice is saved per character.
 
 - [ ] Checklist: the pane shows the first entry; click another row: it turns gold and the pane follows (model, lockout line, spawn points / vendor).
 - [ ] Tick boxes (manual lockouts, rare spawn "last checked") still tick without changing the selection; Shift-click still opens the map.
@@ -617,3 +617,11 @@ The game's map holds one pin, so plotting many points uses TomTom (when installe
 - [ ] Detail pane of a rare with several spawn points: "Plot all (n)" (green) on the "Where to find it" line; click: n TomTom waypoints named after the rare, chat "Plotted n points on TomTom: <mount>".
 - [ ] Rare tracker: right-click a row's pin: that rare's spawn points plotted (hover the pin for the hint). "Plot all" in the title: every open rare's spawn points of the list at once; plotting again replaces the previous plot (no pile-up).
 - [ ] Without TomTom: the nearest point is pinned and chat says to install TomTom.
+
+## Hints in the window's style
+
+Short hints (a rare header's right-click, the tracker's title / pin / Plot all, the pane's coordinate and Plot all buttons, the size grip, the zone panel button, the home search box) use AzerothTrail's own hint: a small flat dark panel, slightly see-through, faint edge, thin gold rule on top, small gold title and grey second line. Mount tooltips keep the game tooltip (item details).
+
+- [ ] Hover a rare header in the Checklist: the hint appears beside the cursor in the window's style (not the big game tooltip), and goes away when the mouse leaves.
+- [ ] Scale the window up (size grip): hints grow with it.
+- [ ] The Checklist's reset line fits on one line.

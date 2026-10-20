@@ -405,13 +405,9 @@ local function buildButton(frame)
   highlight:SetColorTexture(1, 1, 1, 0.12)
   b:SetScript("OnClick", function() UI.SetZonePanelOpen(not UI.ZonePanelOpen()) end)
   b:SetScript("OnEnter", function(self)
-    if not GameTooltip then return end
-    GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-    GameTooltip:SetText(L["Zone panel"], 1, 1, 1)
-    GameTooltip:AddLine(L["Mounts you can still get in your current zone"], nil, nil, nil, true)
-    GameTooltip:Show()
+    UI.ShowHint(self, L["Zone panel"], L["Mounts you can still get in your current zone"])
   end)
-  b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  b:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   return b
 end
 
