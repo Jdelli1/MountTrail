@@ -1016,7 +1016,6 @@ function UI.ShowPopoutStyleMenu(w, owner)
       { slider = true, text = L["Font size"], min = SIZE_MIN, max = SIZE_MAX, step = 1,
         value = s.size or UI.PopoutDefaultSize(), format = "%d",
         onChange = function(size) setStyle(w, function(st) st.size = size end) end },
-      choice(L["Default size"], s.size == nil, function(st) st.size = nil end),
       { text = L["Font"], submenu = sub(L["Font"], function()
         local out = { choice(L["Default"], current().font == nil, function(st) st.font = nil end) }
         for _, f in ipairs(UI.PopoutFonts()) do
