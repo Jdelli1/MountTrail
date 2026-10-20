@@ -1,0 +1,3 @@
+local ADDON, ns = ...
+
+-- The navigation column (split out of UI/Frame.lua).

@@ -1,0 +1,3 @@
+local ADDON, ns = ...
+
+-- Shared widgets (split out of UI/Frame.lua).

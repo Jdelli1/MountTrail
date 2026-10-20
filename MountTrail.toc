@@ -43,8 +43,11 @@ Integrations\MountsRarity.lua
 Integrations\Notes.lua
 Core\Init.lua
 UI\Frame.lua
+UI\Widgets.lua
+UI\Nav.lua
 UI\Tooltip.lua
 UI\List.lua
+UI\Search.lua
 UI\DetailPane.lua
 UI\JournalHome.lua
 UI\Tabs.lua

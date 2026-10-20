@@ -1,0 +1,3 @@
+local ADDON, ns = ...
+
+-- Search helpers for the lists (split out of UI/List.lua).
