@@ -159,6 +159,28 @@ describe("ui", function()
     eq(leftInset(button("Lockouts")), 12)
   end)
 
+  it("the navigation's text is the font object's size plus the bonus, however often it repaints", function()
+    local ns = loadUI()
+    -- As in the game: a size set with SetFont survives SetFontObject.
+    local probe = CreateFrame("Frame")
+    local RegionMT = getmetatable(getmetatable(probe).__index).__index or getmetatable(probe).__index
+    local mt = getmetatable(probe:CreateFontString(nil, "OVERLAY", "GameFontHighlight")).__index
+    local savedSet, savedGet = mt.SetFont, mt.GetFont
+    mt.SetFont = function(self, path, size) self.fontPath, self.fontSize = path, size end
+    mt.GetFont = function(self) return self.fontPath or "Fonts\\FRIZQT__.TTF", self.fontSize or 12, "" end
+    local fonts = { "GameFontHighlight", "GameFontNormal", "GameFontNormalSmall", "GameFontDisableSmall" }
+    for _, name in ipairs(fonts) do
+      _G[name] = { GetFont = function() return "Fonts\\FRIZQT__.TTF", 12, "" end }
+    end
+    ns.ToggleWindow()
+    for _ = 1, 5 do ns.UI.RefreshNav() end
+    local nav = ns.UI.frame.Nav
+    eq(nav.Buttons[2].Text.fontSize, 12 + ns.UI.NAV_FONT_BONUS, "no growth")
+    eq(nav.Headings[1].Text.fontSize, 12 + ns.UI.NAV_FONT_BONUS)
+    for _, name in ipairs(fonts) do _G[name] = nil end
+    mt.SetFont, mt.GetFont = savedSet, savedGet
+  end)
+
   it("UI.NavSelected / UI.NavListEntries: a list page marks its list; lists then quick lists", function()
     local ns = loadUI()
     eq(ns.UI.NavSelected("checklist", nil), "checklist")

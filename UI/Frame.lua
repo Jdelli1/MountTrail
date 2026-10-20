@@ -930,13 +930,16 @@ local NAV_ROW, NAV_HEADING = 24, 26
 -- at high resolutions with a small UI scale).
 UI.NAV_FONT_BONUS = 2
 
--- `fs` in `fontObject`, UI.NAV_FONT_BONUS points larger.
+-- `fs` in `fontObject`, UI.NAV_FONT_BONUS points larger. The size comes
+-- from the font object itself, never from `fs`: a font string keeps a size
+-- set with SetFont through SetFontObject, so reading it back would grow the
+-- text on every repaint.
 local function navFont(fs, fontObject)
   fs:SetFontObject(fontObject)
-  if fs.GetFont and fs.SetFont then
-    local path, size, flags = fs:GetFont()
-    if path and size then fs:SetFont(path, size + UI.NAV_FONT_BONUS, flags or "") end
-  end
+  local fo = _G[fontObject]
+  if not (fs.SetFont and type(fo) == "table" and type(fo.GetFont) == "function") then return end
+  local path, size, flags = fo:GetFont()
+  if path and size then fs:SetFont(path, size + UI.NAV_FONT_BONUS, flags or "") end
 end
 local NAV_GOLD = { 1, 0.82, 0 }
 
