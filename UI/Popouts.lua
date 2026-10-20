@@ -1153,12 +1153,12 @@ function UI.ShowPopoutStyleMenu(w, owner)
     return {
       { title = L["Appearance"] },
       { text = L["Show completed"], checked = state ~= nil and state.showDone == true, keepOpen = true,
-        onClick = function()
+        popoutOnly = true, onClick = function()
           if not state then return end
           state.showDone = not state.showDone or nil
           UI.RefreshPopouts()
         end },
-      { separator = true },
+      { separator = true, popoutOnly = true },
       { slider = true, text = L["Opacity"], min = math.floor(ALPHA_MIN * 100 + 0.5), max = 100, step = 1,
         value = math.floor(s.alpha * 100 + 0.5), format = "%d%%",
         onChange = function(pct) setStyle(w, function(st) st.alpha = pct / 100 end, true) end },
@@ -1215,6 +1215,16 @@ function UI.ShowPopoutStyleMenu(w, owner)
         repaintAll()
       end },
     }
+  end
+  -- Show completed is a pop-out's own (the Alts and guide windows list no
+  -- lockouts to complete).
+  local build = main
+  main = function()
+    local out = {}
+    for _, it in ipairs(build()) do
+      if not it.popoutOnly or windows[w.key] == w then out[#out + 1] = it end
+    end
+    return out
   end
   UI.ShowMenu(owner, main, "cursor")
 end

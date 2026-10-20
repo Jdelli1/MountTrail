@@ -5,7 +5,8 @@ local ADDON, ns = ...
 -- and what finishes it) or every step (click one to jump there). Back / Next
 -- move through it; right-click the title for the mode, Edit, Export, Reset
 -- and Close. Its authors show under the title (credits on hover), and a step
--- with a macro gets Copy macro / Make macro buttons. Its position and mode are saved (ns.db.global.guideWindow).
+-- with a macro gets Copy macro / Make macro buttons. Its look is set like a
+-- pop-out's (the same Appearance menu, UI.AddStyledWindow; slot "guide"). Its position and mode are saved (ns.db.global.guideWindow).
 
 local L = ns.L
 
@@ -49,6 +50,11 @@ local function enableLinks(frame)
   if not frame.SetHyperlinksEnabled then return end
   frame:SetHyperlinksEnabled(true)
   frame:SetScript("OnHyperlinkEnter", function(self, link)
+    local mountID = tonumber(string.match(link or "", "^addon:MountTrail:mount:(%d+)"))
+    if mountID and UI.ShowMountTooltip then
+      UI.ShowMountTooltip(self, mountID)
+      return
+    end
     local tip = GameTooltip
     if not tip then return end
     tip:SetOwner(self, "ANCHOR_CURSOR")
@@ -56,9 +62,14 @@ local function enableLinks(frame)
   end)
   frame:SetScript("OnHyperlinkLeave", function() if GameTooltip then GameTooltip:Hide() end end)
   frame:SetScript("OnHyperlinkClick", function(_, link, text)
-    if type(IsShiftKeyDown) == "function" and IsShiftKeyDown() and ns.Game.InsertChatLink then
-      ns.Game.InsertChatLink(text or link)
+    if not (type(IsShiftKeyDown) == "function" and IsShiftKeyDown() and ns.Game.InsertChatLink) then return end
+    -- A mount: its real link for chat (our own link means nothing there).
+    local mountID = tonumber(string.match(link or "", "^addon:MountTrail:mount:(%d+)"))
+    local m = mountID and ns.Data and ns.Data.Mounts and ns.Data.Mounts[mountID]
+    if m then
+      text = (m.item and ns.Game.ItemLink(m.item)) or (m.name and ("[" .. m.name .. "]"))
     end
+    if text then ns.Game.InsertChatLink(text) end
   end)
 end
 
@@ -88,6 +99,9 @@ local function showMenu(owner)
   local compact = UI.GuideWindowCompact()
   UI.ShowMenu(owner, {
     { title = entry.title },
+    { text = L["Appearance..."], onClick = function()
+      if UI.ShowPopoutStyleMenu then UI.ShowPopoutStyleMenu(w, owner) end
+    end },
     { text = compact and L["Show every step"] or L["Current step only"], onClick = function()
       db().full = compact or nil
       UI.RefreshGuideWindow()
@@ -103,6 +117,7 @@ end
 
 local function build()
   w = CreateFrame("Frame", "MountTrailGuide", UIParent)
+  w.key = "guide" -- its style's slot in ns.db.global.popouts (UI.ShowPopoutStyleMenu)
   w:SetSize(WIDTH, 160)
   w:SetFrameStrata("MEDIUM")
   w:SetClampedToScreen(true)
@@ -233,8 +248,35 @@ local function build()
     if self.finish then UI.FinishGuide() else UI.GuideGo(1) end
   end)
   w.Next = nextButton
+  -- The pop-outs' Appearance menu repaints it.
+  w.Restyle = function(chromeOnly)
+    if chromeOnly then
+      local style = UI.PopoutStyleOf(w)
+      w.Fill:SetColorTexture(style.bg[1], style.bg[2], style.bg[3], style.alpha)
+    else
+      UI.RefreshGuideWindow()
+    end
+  end
+  w.CloseWindow = function() UI.StopGuide() end
+  if UI.AddStyledWindow then UI.AddStyledWindow(w) end
   w:Hide()
   return w
+end
+
+-- The window's style (UI/Popouts.lua), or nil without the pop-outs loaded.
+local function style()
+  return UI.PopoutStyleOf and UI.PopoutStyleOf(w) or nil
+end
+
+-- A font string in the window's style: its font and size, the style's text
+-- colour unless `color` keeps the line's own.
+local function styled(fs, fontObject, color, sizeDelta)
+  local st = style()
+  if st and UI.PopoutStyleText then
+    UI.PopoutStyleText(fs, st, UI.Font(fontObject), sizeDelta or 0, color)
+  elseif color then
+    fs:SetTextColor(color[1], color[2], color[3])
+  end
 end
 
 local function stepRow(i)
@@ -274,6 +316,10 @@ local function paintCompact(entry, n, step)
     fs:Show()
     y = y + height(fs) + LINE_GAP
   end
+  styled(w.StepText, "GameFontHighlight", nil, 1)
+  styled(w.Notes, "GameFontDisableSmall", { 0.75, 0.75, 0.75 }, -1)
+  styled(w.Place, "GameFontHighlightSmall", { 0.45, 0.8, 1 }, -1)
+  styled(w.Done, "GameFontDisableSmall", { 0.55, 0.85, 0.55 }, -1)
   place(w.StepText, UI.GuideText(step.text))
   place(w.Notes, UI.GuideText(table.concat(step.notes, "\n")))
   place(w.Place, UI.GuidePlaceText(step))
@@ -303,11 +349,11 @@ local function paintFull(entry, n)
     r.Text:SetWidth(width - 8)
     r.Text:SetText(string.format("%d. %s", i, UI.GuideText(step.text)))
     if i < n then
-      r.Text:SetTextColor(0.5, 0.5, 0.5)
+      styled(r.Text, "GameFontHighlightSmall", { 0.5, 0.5, 0.5 })
     elseif i == n then
-      r.Text:SetTextColor(1, 0.82, 0)
+      styled(r.Text, "GameFontHighlightSmall", { 1, 0.82, 0 })
     else
-      r.Text:SetTextColor(0.9, 0.9, 0.9)
+      styled(r.Text, "GameFontHighlightSmall")
     end
     r.Current:SetShown(i == n)
     local h = math.max(STEP_ROW, height(r.Text) + 6)
@@ -331,6 +377,12 @@ function UI.RefreshGuideWindow()
   end
   local steps = entry.guide.steps
   local step = steps[n]
+  local st = style()
+  if st then
+    w.Fill:SetColorTexture(st.bg[1], st.bg[2], st.bg[3], st.alpha)
+    styled(w.Title, "GameFontNormal", st.header, 1)
+    styled(w.Byline, "GameFontDisableSmall", { 0.62, 0.62, 0.62 }, -2)
+  end
   w.Title:SetText(entry.title)
   -- The authors under the title; the views start below them.
   local byline = ns.Guide.Byline(entry.guide)

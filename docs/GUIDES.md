@@ -19,6 +19,7 @@ text editor, or in a Discord message, and share it by copying and pasting.
 - [Highlighting (bold)](#highlighting-bold)
 - [Links with tooltips](#links-with-tooltips)
 - [Macros](#macros)
+- [The window's look](#the-windows-look)
 - [Credits](#credits)
 - [Finding IDs and coordinates](#finding-ids-and-coordinates)
 - [Writing, testing and sharing in game](#writing-testing-and-sharing-in-game)
@@ -147,7 +148,7 @@ it in chat.
 | --- | --- |
 | `[item:86547]` | The item, with its quality colour and tooltip |
 | `[quest:31234]` | The quest and its tooltip |
-| `[mount:517]` | The mount (its spell), with the mount's tooltip |
+| `[mount:517]` | The mount, with MountTrail's mount tooltip (the mount, its drop chance, your attempts); Shift-click puts the mount's real link in chat |
 | `[spell:12345]` | A spell |
 | `[achievement:6]` | An achievement, with your progress in its tooltip |
 
@@ -202,6 +203,13 @@ Give credit where it is due:
   the guide in the Guides list.
 - Editing a copy of someone's guide keeps their lines: add yourself as another
   `#author` rather than replacing them.
+
+## The window's look
+
+Right-click the guide window's title and pick `Appearance...`: the same menu
+as the pop-outs (opacity, background, header and text colour, font and size,
+`Apply to all pop-outs`, `Reset appearance`). The guide window keeps its own
+look, or takes the shared one.
 
 ## Finding IDs and coordinates
 
@@ -297,9 +305,10 @@ step Travel to the **Vale of Eternal Blossoms** in Pandaria
   reach 200
 
 -- 2. The shards: no done line the game can check, so press Next.
-step Kill mobs in the Vale until you have **ten Skyshards**
+step Kill mobs in the Vale until you have **ten** [item:86547]
   note Skyshards are a **rare** drop from any mob in the Vale
-  note Ten of them combine into a Sky Crystal
+  note Ten of them combine into a [item:86546]
+  item 86547 10
 
 -- 3. Finding her: three points on TomTom, the arrow picks the closest.
 step Find **Alani**: she flies a loop around the Vale
@@ -310,13 +319,13 @@ step Find **Alani**: she flies a loop around the Vale
   macro /tar Alani
 
 -- 4. The fight.
-step Use the **Sky Crystal** near Alani to break her shield, then kill her
+step Use the [item:86546] near Alani to break her shield, then kill her
   note She is an **elite**: bring a friend or a strong character
   macro /tar Alani
 
 -- 5. The prize: moves on (and finishes) once the mount is yours.
-step Loot her: [mount:517] is a rare drop
-  note Not this time? She comes back: try again on another day
+step Loot her: [mount:517] drops every time
+  note In a group, make sure the loot goes to you (Master Looter)
   mount 517
 ```
 

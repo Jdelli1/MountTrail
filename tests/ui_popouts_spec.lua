@@ -1580,3 +1580,24 @@ describe("adding and removing a mount from your lists", function()
     eq(items[2].checked, false)
   end)
 end)
+
+describe("the Appearance menu on other windows", function()
+  it("Show completed is a pop-out's own; other styled windows get the rest", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    local items
+    ns.UI.ShowMenu = function(_, list) items = type(list) == "function" and list() or list end
+    local other = CreateFrame("Frame", nil, UIParent)
+    other.key = "guide"
+    ns.UI.ShowPopoutStyleMenu(other, other)
+    local texts = {}
+    for _, it in ipairs(items) do if it.text then texts[it.text] = true end end
+    ok(not texts["Show completed"], "not on the guide window")
+    ok(texts["Background colour"] and texts["Reset appearance"], "the rest is there")
+    ns.UI.OpenPopout({ kind = "daily", all = true })
+    ns.UI.ShowPopoutStyleMenu(ns.UI.PopoutWindows["daily|all"], other)
+    local found
+    for _, it in ipairs(items) do if it.text == "Show completed" then found = true end end
+    ok(found, "still on a pop-out")
+  end)
+end)

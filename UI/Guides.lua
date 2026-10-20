@@ -287,10 +287,11 @@ function UI.GuideLink(kind, id)
     if not name then Game.RequestQuest(id) end
     return string.format("|cffffff00|Hquest:%d:-1|h[%s]|h|r", id, name or (L["quest"] .. " " .. id))
   elseif kind == "mount" then
+    -- The mount itself: a "mount" link of ours (hover: the mount's own
+    -- tooltip, UI.ShowMountTooltip: the mount, its drop chance, attempts).
     local m = ns.Data and ns.Data.Mounts and ns.Data.Mounts[id]
     local name = Game.MountInfo(id) or (m and m.name) or (L["mount"] .. " " .. id)
-    if not (m and m.spell) then return "[" .. name .. "]" end
-    return string.format("|cff71d5ff|Hspell:%d:0|h[%s]|h|r", m.spell, name)
+    return string.format("|cffa335ee|Haddon:MountTrail:mount:%d|h[%s]|h|r", id, name)
   elseif kind == "spell" then
     local name = Game.SpellName(id)
     return string.format("|cff71d5ff|Hspell:%d:0|h[%s]|h|r", id, name or (L["spell"] .. " " .. id))

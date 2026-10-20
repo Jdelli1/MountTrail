@@ -20,9 +20,10 @@ step Travel to the **Vale of Eternal Blossoms** in Pandaria
   reach 200
 
 -- 2. The shards: no done line the game can check, so press Next.
-step Kill mobs in the Vale until you have **ten Skyshards**
+step Kill mobs in the Vale until you have **ten** [item:86547]
   note Skyshards are a **rare** drop from any mob in the Vale
-  note Ten of them combine into a Sky Crystal
+  note Ten of them combine into a [item:86546]
+  item 86547 10
 
 -- 3. Finding her: three points on TomTom, the arrow picks the closest.
 step Find **Alani**: she flies a loop around the Vale
@@ -33,12 +34,12 @@ step Find **Alani**: she flies a loop around the Vale
   macro /tar Alani
 
 -- 4. The fight.
-step Use the **Sky Crystal** near Alani to break her shield, then kill her
+step Use the [item:86546] near Alani to break her shield, then kill her
   note She is an **elite**: bring a friend or a strong character
   macro /tar Alani
 
 -- 5. The prize: moves on (and finishes) once the mount is yours.
-step Loot her: [mount:517] is a rare drop
-  note Not this time? She comes back: try again on another day
+step Loot her: [mount:517] drops every time
+  note In a group, make sure the loot goes to you (Master Looter)
   mount 517
 ]]

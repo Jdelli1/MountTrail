@@ -119,7 +119,7 @@ describe("Following a guide", function()
     ok(w.Place:GetText():find("Vale of Eternal Blossoms: Vale of Eternal Blossoms 56.2, 42.6", 1, true), w.Place:GetText())
     ns.UI.GuideGo(1)
     eq(plots[2], "clear", "step 2 has no points")
-    eq(w.Done:GetText(), "Press Next when done.")
+    ok(w.Done:GetText():find("^Done when: 10 x "), "ten Skyshards finish step 2")
     ns.UI.GuideGo(1)
     eq(#plots[3], 3, "Alani's three spots")
     ns.UI.GuideGo(-1)
@@ -242,7 +242,9 @@ describe("Following a guide", function()
     eq(ns.UI.GuideLink("item", 86547), "|cff1eff00|Hitem:86547|h[Skyshard]|h|r")
     eq(ns.UI.GuideLink("item", 5), "|cffffffff|Hitem:5|h[item 5]|h|r")
     eq(asked, { 5 }, "an unloaded item is asked for")
-    eq(ns.UI.GuideLink("mount", 517), "|cff71d5ff|Hspell:132036:0|h[Thundering Ruby Cloud Serpent]|h|r")
+    eq(ns.UI.GuideLink("mount", 517), "|cffa335ee|Haddon:MountTrail:mount:517|h[Thundering Ruby Cloud Serpent]|h|r")
+    local mountTip
+    ns.UI.ShowMountTooltip = function(_, id) mountTip = id end
     eq(ns.UI.GuideLink("quest", 7), "|cffffff00|Hquest:7:-1|h[quest 7]|h|r")
     ns.UI.SaveGuide("#guide Links\nstep Loot **ten** [item:86547]\n  item 86547 10")
     ns.UI.StartGuide("links")
@@ -256,6 +258,8 @@ describe("Following a guide", function()
     }
     w.Body:GetScript("OnHyperlinkEnter")(w.Body, "item:86547")
     eq(shown, "item:86547", "hovering a link shows the game's tooltip")
+    w.Body:GetScript("OnHyperlinkEnter")(w.Body, "addon:MountTrail:mount:517")
+    eq(mountTip, 517, "a mount link shows the mount's own tooltip")
     GameTooltip = nil
   end)
 
