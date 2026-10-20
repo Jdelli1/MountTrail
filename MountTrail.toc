@@ -21,7 +21,6 @@ Data\SpotsExtra.lua
 Logic\Resets.lua
 Logic\HolidayDates.lua
 Logic\Lockouts.lua
-Logic\Route.lua
 Logic\Checklist.lua
 Logic\Alts.lua
 Logic\Events.lua
@@ -52,7 +51,6 @@ UI\DetailPane.lua
 UI\JournalHome.lua
 UI\Tabs.lua
 UI\LockoutHelpers.lua
-UI\Arrow.lua
 UI\ChecklistView.lua
 UI\AltsWindow.lua
 UI\Popouts.lua

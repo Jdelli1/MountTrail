@@ -4,7 +4,6 @@
 -- stand-ins below, so the widget code runs instead of being compile-checked
 -- only. Checks the Filter dropdown wiring (menu content, writes to
 -- ns.db.global.filters, reset arrow) and its checkbox-panel fallback.
--- UI/Arrow.lua is not loaded.
 
 local UI_FILES = { "UI/Frame.lua", "UI/Tooltip.lua", "UI/List.lua", "UI/JournalHome.lua",
   "UI/Tabs.lua", "UI/LockoutHelpers.lua", "UI/ChecklistView.lua", "UI/AltsWindow.lua", "UI/Popouts.lua", "UI/ZonePanel.lua" }

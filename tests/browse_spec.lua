@@ -62,7 +62,7 @@ end)
 describe("Browse search", function()
   it("a place with no mounts on the page falls back to its expansion (icc on Vendors: Wrath)", function()
     local ns = load_addon({ "Core/Locale.lua", "Data/Mounts.lua", "Data/Holidays.lua", "Data/Route.lua",
-      "Logic/Journal.lua", "Logic/Browse.lua", "Logic/Search.lua", "Logic/Route.lua", "UI/Frame.lua", "UI/List.lua" })
+      "Logic/Journal.lua", "Logic/Browse.lua", "Logic/Search.lua", "UI/Frame.lua", "UI/List.lua" })
     local ids = ns.Browse.Ids("vendors", ns.Data.Mounts)
     local found, exp = ns.UI.SearchMatches(ids, "icc")
     eq(exp, "Wrath of the Lich King")

@@ -163,22 +163,23 @@ end
 
 -- Lifecycle -------------------------------------------------------------------
 
--- The route planner is retired for now (F16): the Route tab became the
--- Checklist tab and the route arrow is parked. On `db` (AceDB: .char,
--- .global): the arrow can't come back on (routeMode forced to "list"), the
--- route list's settings go (routeView, showCompleted) and a saved "route"
--- tab opens the Checklist tab.
+-- Saved state of the removed route planner, its arrow and the farming run
+-- goes; a saved "route" tab opens the Checklist tab. On `db` (AceDB: .char,
+-- .global).
 function ns.RetireRoute(db)
   local char, global = db and db.char, db and db.global
   if type(char) == "table" then
-    char.routeMode = "list"
+    char.routeMode = nil
     char.routeView = nil
     char.showCompleted = nil
     -- The farming run (removed): its saved run and window state.
     char.run = nil
     char.runShown = nil
   end
-  if type(global) == "table" then global.runWindow = nil end
+  if type(global) == "table" then
+    global.runWindow = nil
+    global.arrow = nil
+  end
   local window = type(global) == "table" and global.window or nil
   if type(window) == "table" and window.tab == "route" then window.tab = "checklist" end
 end
@@ -214,7 +215,6 @@ function addon:OnInitialize()
       stats = {}, -- kill statistics: { [charKey] = { [mountID] = kills } } (Logic\Stats.lua)
       minimap = { hide = false },
       window = {},
-      arrow = {}, -- route arrow frame position (UI\Arrow.lua)
       debug = false, -- /mtrail debug: show caught map / waypoint errors
       achievementMap = {}, -- { build=, ids={[mountID]=achievementID|false} } (Integrations\AchievementScan.lua)
       zonePanel = { open = false }, -- zone side panel shown with the window (UI\ZonePanel.lua)
@@ -228,7 +228,6 @@ function addon:OnInitialize()
     },
     char = {
       ticks = {},
-      routeMode = "list", -- the parked route arrow (UI\Arrow.lua): always "list" (ns.RetireRoute)
       checklistHideDone = false, -- Checklist: hide done lockouts
       checklistFilters = {}, -- Checklist Filter menu: { [category] = false } for hidden ones (Logic\Checklist.lua)
       campChecked = {}, -- Checklist rare spawns with no lockout: { [tick key] = time the player last checked the spawn }

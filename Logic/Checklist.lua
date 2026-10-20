@@ -12,7 +12,7 @@ local L = ns.L
 local RESETS = { "daily", "weekly" }
 local LABELS = { daily = "Daily", weekly = "Weekly" }
 
--- Route faction rule (Logic/Route.lua): an `alliance` entry needs an
+-- Faction rule of Data/Route.lua entries: an `alliance` entry needs an
 -- Alliance character, a `horde` entry a Horde one.
 local function factionOk(entry, faction)
   if entry.alliance and faction ~= "Alliance" then return false end

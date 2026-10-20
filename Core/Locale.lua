@@ -210,15 +210,6 @@ L["No lockouts left to farm on this character."] = "No lockouts left to farm on 
 L["%d mounts"] = "%d mounts"
 L["Can drop:"] = "Can drop:"
 
--- Parked route arrow (UI\Arrow.lua)
-L["Skip"] = "Skip"
-L["via: %s"] = "via: %s"
-L["%d yd"] = "%d yd"
-L["Arrow unavailable here"] = "Arrow unavailable here"
-L["Target is on another continent"] = "Target is on another continent"
-L["No waypoint for this step"] = "No waypoint for this step"
-L["Skip this step for this session"] = "Skip this step for this session"
-
 -- Options page (UI\Options.lua)
 L["Show minimap button"] = "Show minimap button"
 L["Show the MountTrail button on the minimap."] = "Show the MountTrail button on the minimap."

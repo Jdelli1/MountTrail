@@ -542,8 +542,7 @@ end
 
 -- uid of the last TomTom waypoint this file added (TomTom:AddWaypoint's
 -- return), removed before the next one is added so MountTrail keeps at most
--- one TomTom waypoint. The route arrow (UI/Arrow.lua) tracks its own. Both add
--- non-persistent waypoints (persistent = false), so /reload clears them along
+-- one TomTom waypoint. It adds non-persistent waypoints (persistent = false), so /reload clears them along
 -- with this session-only uid: nothing is left behind to remove.
 local tomtomUid
 

@@ -591,7 +591,7 @@ function ns.ToggleWindow()
 end
 
 -- Refresh hooks: functions run on every ns.Refresh(), before the window check,
--- so UI that lives outside the main window (the parked route arrow, UI\Arrow.lua)
+-- so UI that lives outside the main window (pop-outs, the zone panel, the Alts window)
 -- stays current while the window is closed. Hooks must not raise errors.
 local refreshHooks = {}
 
