@@ -818,6 +818,22 @@ local function buildHeader(parent)
     top.Chips[i] = chip
     prev = chip
   end
+
+  -- Tonight's run (UI\RunWindow.lua): starts one, or shows / hides the one
+  -- in progress.
+  local run = CreateFrame("Button", nil, top, "UIPanelButtonTemplate")
+  run:SetSize(110, 20)
+  run:SetPoint("BOTTOMRIGHT", top, "BOTTOMRIGHT", -8, 5)
+  run:SetScript("OnClick", function() if UI.ToggleRun then UI.ToggleRun() end end)
+  run:SetScript("OnEnter", function(self)
+    if not GameTooltip then return end
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:SetText(L["Tonight's run"], 1, 1, 1)
+    GameTooltip:AddLine(L["Orders the lockouts left here into a ride (your continent first, nearest stop next) and moves the waypoint on as you clear each one."], 0.9, 0.9, 0.9, true)
+    GameTooltip:Show()
+  end)
+  run:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  top.RunButton = run
   return top
 end
 
@@ -992,6 +1008,13 @@ function view.Refresh()
   local left = UI.ChecklistLeft(built, filters)
   header.Resets:SetText(UI.ChecklistSummary(untilDaily, untilWeekly))
   paintChips(left, show)
+  local run = UI.CurrentRun and UI.CurrentRun(now)
+  if run then
+    local behind, total = ns.Run.Progress(run, UI.RunIsOpen(built))
+    header.RunButton:SetText(string.format(L["Run (%d / %d)"], behind, total))
+  else
+    header.RunButton:SetText(L["Start run"])
+  end
   -- Lockouts left in the categories the Filter menu shows.
   header.Flavour:SetText(UI.RouteFlavour(ns.Checklist.Remaining(built, filters), name))
   local filter = header.ChecklistFilter

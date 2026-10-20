@@ -815,3 +815,49 @@ function Map.PlotCount(mountID, routeBoss)
   end
   return n > 1 and n or 0
 end
+
+-- Farming run (Logic/Run.lua, UI/RunWindow.lua) ---------------------------------
+
+-- UiMapType of a continent map (Enum.UIMapType.Continent).
+local CONTINENT_TYPE = 2
+
+-- The continent map above uiMap `m` (m itself when it is one) -> its map ID,
+-- its name; nil when the walk finds none.
+local function continentOf(api, m)
+  local current, seen = m, {}
+  for _ = 1, MAX_PARENT_STEPS + 1 do
+    if not current or current == 0 or seen[current] then return nil end
+    seen[current] = true
+    local info = try(api.C_Map, "GetMapInfo", current)
+    if type(info) ~= "table" then return nil end
+    if info.mapType == CONTINENT_TYPE then return current, info.name end
+    current = info.parentMapID
+  end
+  return nil
+end
+
+-- Where a lockout's waypoint would go (Map.Resolve), placed for route
+-- planning: { continent = world continent ID (GetWorldPosFromMapPos; points
+-- compare only on the same one), x =, y = (world yards), map = the
+-- waypoint's uiMap, area = its continent's uiMap, areaName = that
+-- continent's name }. A place known only by zone has no x / y (it still
+-- names its continent); nil when nothing is known.
+function Map.Locate(mountID, routeBoss, api)
+  api = api or realApi()
+  local good, target = guarded(Map.Resolve, mountID, api, routeBoss)
+  if not (good and type(target) == "table" and target.map) then return nil end
+  local place = { map = target.map }
+  place.area, place.areaName = continentOf(api, target.map)
+  if target.x and target.y then
+    local continent, wx, wy = worldPos(api, target.map, target.x / 100, target.y / 100)
+    if continent and type(wx) == "number" and type(wy) == "number" then
+      place.continent, place.x, place.y = continent, wx, wy
+    end
+  end
+  return place
+end
+
+-- Where the player stands ({ continent =, x =, y = } in world yards), or nil.
+function Map.PlayerWorld(api)
+  return playerWorld(api or realApi())
+end

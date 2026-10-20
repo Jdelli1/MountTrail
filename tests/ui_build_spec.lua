@@ -7,7 +7,7 @@
 -- UI/Arrow.lua is not loaded.
 
 local UI_FILES = { "UI/Frame.lua", "UI/Tooltip.lua", "UI/List.lua", "UI/JournalHome.lua",
-  "UI/Tabs.lua", "UI/LockoutHelpers.lua", "UI/ChecklistView.lua", "UI/Popouts.lua", "UI/ZonePanel.lua" }
+  "UI/Tabs.lua", "UI/LockoutHelpers.lua", "UI/ChecklistView.lua", "UI/RunWindow.lua", "UI/Popouts.lua", "UI/ZonePanel.lua" }
 
 -- Widget methods the views call that the base stub does not need.
 local probe = CreateFrame("Frame")
@@ -745,6 +745,53 @@ describe("ui build", function()
     ns.Refresh()
     eq(header.Flavour:GetText(), "Tester has reached Oregon. Nothing left to farm until reset.")
     ok(header.Checklist.Empty:IsShown(), "empty line")
+  end)
+
+  it("Tonight's run: Start run plans the open lockouts, the window follows kills, Next skips, Stop ends", function()
+    local ns = loadUI()
+    local waypoints = {}
+    ns.Map.SetWaypoint = function(id, _, boss) waypoints[#waypoints + 1] = { id, boss } end
+    ns.Map.Locate = function() return nil end
+    ns.Map.PlayerWorld = function() return nil end
+    ns.ToggleWindow()
+    ns.UI.SelectTab("checklist")
+    local header = content(ns, "checklist").children[2].children[1]
+    eq(header.RunButton:GetText(), "Start run")
+    header.RunButton:RunScript("OnClick", "LeftButton")
+    local run = ns.db.char.run
+    ok(run and #run.stops == ns.UI.ChecklistRemaining(), "one stop per lockout left")
+    eq(ns.db.char.runShown, true)
+    local w = _G.MountTrailRunWindow
+    ok(w and w:IsShown(), "the run window is open")
+    ok(w.Title:GetText():find("^Tonight's run \194\183 0 / %d+$"), w.Title:GetText())
+    eq(#waypoints, 1, "points at the first stop")
+    eq(waypoints[1][1], run.stops[1].id)
+    ok(header.RunButton:GetText():find("^Run %(0 / %d+%)$"), header.RunButton:GetText())
+    -- Next: skipped, the waypoint moves on.
+    w.NextButton:RunScript("OnClick", "LeftButton")
+    eq(run.skipped[run.stops[1].key], true)
+    eq(#waypoints, 2)
+    eq(waypoints[2][1], run.stops[2].id)
+    ok(w.Title:GetText():find("1 / ", 1, true), w.Title:GetText())
+    -- The run button hides and shows the window while the run goes on.
+    header.RunButton:RunScript("OnClick", "LeftButton")
+    ok(not w:IsShown(), "hidden")
+    header.RunButton:RunScript("OnClick", "LeftButton")
+    ok(w:IsShown(), "shown again")
+    -- Past the daily reset the run is gone.
+    local now = ns.Game.Now
+    ns.Game.Now = function() return now() + 3601 end
+    ns.Refresh()
+    eq(ns.db.char.run, nil)
+    ok(not w:IsShown(), "closed at the reset")
+    ns.Game.Now = now
+    -- Stop ends a run.
+    header.RunButton:RunScript("OnClick", "LeftButton")
+    ok(ns.db.char.run, "a new run")
+    w.StopButton:RunScript("OnClick", "LeftButton")
+    eq(ns.db.char.run, nil)
+    ok(not w:IsShown(), "stopped")
+    eq(header.RunButton:GetText(), "Start run")
   end)
 
   it("Checklist: right-clicking a rare header pops that expansion out; hovering says so", function()

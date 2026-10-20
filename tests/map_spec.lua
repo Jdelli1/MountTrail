@@ -31,7 +31,7 @@ local function fakeApi(opts)
       GetMapInfo = function(m)
         local parent, name = (opts.parents or {})[m], (opts.names or {})[m]
         if parent == nil and name == nil then return nil end
-        return { mapID = m, parentMapID = parent, name = name }
+        return { mapID = m, parentMapID = parent, name = name, mapType = (opts.types or {})[m] }
       end,
       SetUserWaypoint = function(point) rec("SetUserWaypoint", point) end,
     },
@@ -836,5 +836,32 @@ describe("Map.PlotCount", function()
     eq(Map.PlotCount(3), 0, "raid: the entrance")
     eq(Map.PlotCount(4), 0, "holiday: its place")
     eq(Map.PlotCount(1, "Boss"), 0, "a route boss's instance")
+  end)
+end)
+
+describe("Map.Locate", function()
+  local function locateApi()
+    local api = fakeApi({
+      canSet = { [379] = true }, parents = { [379] = 424, [424] = 946 },
+      names = { [379] = "Kun-Lai Summit", [424] = "Pandaria", [946] = "Cosmic" },
+      types = { [424] = 2, [946] = 0 },
+    })
+    api.CreateVector2D = function(x, y) return { x = x, y = y } end
+    api.C_Map.GetWorldPosFromMapPos = function(m, v) return 870, { x = v.x * 1000, y = v.y * 1000 } end
+    return api
+  end
+
+  it("places a pinned waypoint in world yards, naming its continent", function()
+    local Map = loadMap({ [517] = { coords = { m = 379, x = 50, y = 25 } } })
+    local place = Map.Locate(517, nil, locateApi())
+    eq(place, { map = 379, area = 424, areaName = "Pandaria", continent = 870, x = 500, y = 250 })
+  end)
+
+  it("a zone-only place keeps its continent but has no position; nothing known -> nil", function()
+    local Map = loadMap({ [16] = { coords = { m = 379 } }, [6] = {} })
+    local api = locateApi()
+    api.C_Map.CanSetUserWaypointOnMap = function() return false end
+    eq(Map.Locate(16, nil, api), { map = 379, area = 424, areaName = "Pandaria" })
+    eq(Map.Locate(6, nil, api), nil)
   end)
 end)
