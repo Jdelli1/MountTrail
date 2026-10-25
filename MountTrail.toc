@@ -1,7 +1,7 @@
 ## Interface: 120105
 ## Title: MountTrail
 ## Notes: A mount-collection guide: tracks the mounts you are missing and the daily / weekly lockouts left to farm them. Requires TomTom.
-## Author: James
+## Author: Jdelli1
 ## Version: @project-version@
 ## SavedVariables: MountTrailDB
 ## OptionalDeps: TomTom, Rarity, AllTheThings
