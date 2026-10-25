@@ -140,7 +140,7 @@ describe("data", function()
     eq(bad, {})
   end)
 
-  it("shared-lockout raids use one difficulty group, split-size raids two (R11)", function()
+  it("legacy raids: one lockout across sizes, so one difficulty group (R11)", function()
     local ns = load_addon(FILES)
     local L = ns.Data.Lockouts
     for _, id in ipairs({ 396, 425, 415, 445, 442, 478, 531, 543 }) do
@@ -148,7 +148,7 @@ describe("data", function()
     end
     eq(L[444].difficulties, { { 5, 6 } }, "mount 444")
     for _, id in ipairs({ 349, 246, 247, 286, 287 }) do
-      eq(L[id].difficulties, { 3, 4 }, "mount " .. id)
+      eq(L[id].difficulties, { { 3, 4 } }, "mount " .. id)
     end
     eq(L[363].difficulties, { 6 }, "mount 363")
     eq(L[781], { manual = true, reset = "daily", repeatable = true }, "mount 781")

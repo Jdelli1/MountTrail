@@ -129,6 +129,21 @@ local function groupSatisfied(snap, spec, group)
   return killedOn(snap, spec.instance, group, spec.boss)
 end
 
+-- Raids up to Throne of Thunder save one lockout per boss across all four
+-- 10 / 25 Normal / Heroic sizes: a kill on any of them (or on the size-free
+-- Normal / Heroic a converted raid reports) spends the week. A spec whose
+-- difficulties are all legacy sizes is such a raid; its difficulties still
+-- say where the mount drops (attempts, the wrong-difficulty warning).
+Lockouts.LEGACY_ANY = { 3, 4, 5, 6, 14, 15 }
+
+function Lockouts.IsLegacySpec(spec)
+  if type(spec) ~= "table" or type(spec.difficulties) ~= "table" or #spec.difficulties == 0 then return false end
+  for d in pairs(Lockouts.DropDifficulties(spec)) do
+    if not Lockouts.LEGACY_AS[d] then return false end
+  end
+  return true
+end
+
 local function isInstanceSpec(spec)
   return spec and not spec.manual and not spec.camp and not spec.quest and not spec.lfg
     and spec.instance and type(spec.difficulties) == "table" and #spec.difficulties > 0
@@ -157,7 +172,7 @@ end
 -- { done = { difficulty IDs }, open = { difficulty IDs } } (a group's first
 -- ID stands for it), else nil. For the checklist row's "Heroic done" line.
 function Lockouts.Progress(spec, snap)
-  if not isInstanceSpec(spec) or #spec.difficulties < 2 then return nil end
+  if not isInstanceSpec(spec) or #spec.difficulties < 2 or Lockouts.IsLegacySpec(spec) then return nil end
   local done, count, by = Lockouts.GroupsDone(spec, snap)
   if count == 0 or count == #spec.difficulties then return nil end
   local out = { done = {}, open = {} }
@@ -189,6 +204,9 @@ function Lockouts.State(spec, snap, isQuestDone, isLfgDone)
     return (isLfgDone and isLfgDone(spec.lfg)) and "done" or "open"
   end
   if spec.instance and spec.difficulties and #spec.difficulties > 0 then
+    if Lockouts.IsLegacySpec(spec) then
+      return groupSatisfied(snap, spec, Lockouts.LEGACY_ANY) and "done" or "open"
+    end
     for _, group in ipairs(spec.difficulties) do
       if not groupSatisfied(snap, spec, group) then return "open" end
     end

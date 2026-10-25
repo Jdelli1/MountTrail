@@ -4,8 +4,11 @@
 
 - Lockouts: a saved kill now prints "Lockout checked off: <mount> (attempt
   n)" in chat, and lockouts are asked for again a few seconds after a kill.
-- Lockouts: old 10 / 25-player raids saved as size-free Normal / Heroic
-  (Firelands: Alysrazor, Ragnaros) tick off; one such kill counts one attempt.
+- Lockouts: old raids up to Throne of Thunder share one lockout across the
+  four 10 / 25 sizes: any kill ticks the row (Onyxia, Malygos and the Vault
+  of Archavon were two rows' worth before). Firelands, Ulduar and Black
+  Temple, now Normal / Heroic only, tick off on those kills (Alysrazor,
+  Ragnaros).
 - Lockouts: a mount with one lockout per difficulty (Felblaze Infernal,
   Antoran Charhound) shows which difficulties are done and which are left.
 - Current Zone: inside a raid, its drops are matched by instance ID (Antorus

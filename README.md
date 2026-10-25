@@ -201,8 +201,11 @@ it can still spend on a mount.
   own lockout (Felblaze Infernal, Antoran Charhound on Normal, Heroic and
   Mythic), stays on the list until all are done, its row reading "Heroic done
   · Normal, Mythic left".
-- Old 10 / 25-player raids that the game now saves as plain Normal or Heroic
-  (Firelands) tick off on those kills too.
+- Old raids up to Throne of Thunder save one lockout per boss across all four
+  10 / 25 Normal / Heroic sizes, so a kill on any size ticks the row off for
+  the week (a 10 Normal Lich King spends your Invincible chance, though only
+  a 25 Heroic kill counts as an attempt). Firelands, Ulduar and Black Temple
+  have no 10 / 25 sizes any more: their Normal / Heroic kills count.
 - The Filter button (Show raids / dungeons / world bosses / rares / holidays /
   other / rare spawns (no lockout), saved per character) narrows the list and
   its counts.

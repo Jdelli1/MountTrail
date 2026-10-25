@@ -242,8 +242,19 @@ describe("lockouts", function()
       eq(L.State(fire, killed(720, 15, "Alysrazor")), "done")
       eq(L.State(fire, killed(720, 16, "Alysrazor")), "open")
       local heroic = { instance = 967, boss = "Deathwing", difficulties = { { 5, 6 } }, reset = "weekly" }
-      eq(L.State(heroic, killed(967, 14, "Deathwing")), "open")
       eq(L.State(heroic, killed(967, 15, "Deathwing")), "done")
+    end)
+
+    it("one lockout across all four sizes: any legacy kill spends the week", function()
+      local L = load().Lockouts
+      local invincible = { instance = 631, boss = "The Lich King", difficulties = { 6 }, reset = "weekly" }
+      eq(L.IsLegacySpec(invincible), true)
+      eq(L.State(invincible, killed(631, 3, "The Lich King")), "done", "10 Normal spends the 25 Heroic chance")
+      eq(L.State(invincible, killed(631, 33, "The Lich King")), "open", "Timewalking is its own lockout")
+      eq((L.GroupsDone(invincible, killed(631, 3, "The Lich King"))), {}, "but it is no attempt")
+      eq((L.GroupsDone(invincible, killed(631, 6, "The Lich King"))), { [1] = true })
+      eq(L.IsLegacySpec({ instance = 1, boss = "B", difficulties = { 14, 15 } }), false)
+      eq(L.Progress({ instance = 1, boss = "B", difficulties = { 3, 4 } }, killed(1, 3, "B")), nil)
     end)
 
     it("one Normal kill meets both size groups, reported on the same difficulty", function()
