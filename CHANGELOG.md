@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Lockouts: a saved kill now prints "Lockout checked off: <mount> (attempt
+  n)" in chat, and lockouts are asked for again a few seconds after a kill.
+- Lockouts: old 10 / 25-player raids saved as size-free Normal / Heroic
+  (Firelands: Alysrazor, Ragnaros) tick off; one such kill counts one attempt.
+- Lockouts: a mount with one lockout per difficulty (Felblaze Infernal,
+  Antoran Charhound) shows which difficulties are done and which are left.
+- Current Zone: inside a raid, its drops are matched by instance ID (Antorus
+  listed none).
+
 ## 0.9.0-beta (first public beta)
 
 The first public release. Highlights:

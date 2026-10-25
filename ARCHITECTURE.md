@@ -47,7 +47,7 @@ unit-tested under plain Lua 5.1.
 | --- | --- |
 | `Resets.lua` | Hand ticks that expire at the daily / weekly reset. |
 | `HolidayDates.lua` | "Active · ends in 6d" / "Starts in 9d" lines. |
-| `Lockouts.lua` | Saved-instance snapshot and a spec's done / open state. |
+| `Lockouts.lua` | Saved-instance snapshot, a spec's done / open state and per-difficulty progress (legacy 10 / 25 sizes also met by size-free Normal / Heroic kills). |
 | `Route.lua` | Filters the route tree for one character (used by the Checklist). |
 | `Checklist.lua` | The daily / weekly / rare-spawn checklist rows and counts. |
 | `Alts.lua` | The alt lockout matrix, one Checklist build per character. |

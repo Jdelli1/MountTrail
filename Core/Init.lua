@@ -109,6 +109,13 @@ function ns.UpdateAttempts(freshInstances)
   local charKey = ns.Game.CharKey()
   for _, mountID in ipairs(newly) do
     ns.Attempts.AddForChar(global.attemptsByChar, charKey, mountID)
+    -- Say so in chat: the kill was seen and the lockout is spent.
+    local m = ns.Data and ns.Data.Mounts and ns.Data.Mounts[mountID]
+    local name = ns.Game.MountInfo(mountID) or (m and m.name) or tostring(mountID)
+    if addon.Print then
+      addon:Print(string.format(L["Lockout checked off: %s (attempt %d)"], name,
+        ns.Attempts.Get(global.attemptsByChar[charKey], mountID)))
+    end
   end
   char.last = curr
   ns.RecordSeen(char, ns.Game.Now(), true)
@@ -267,8 +274,17 @@ function addon:OnCombatEnd()
   if statsPending and ns.UpdateStats() then ns.Refresh() end
 end
 
+-- The server can answer the first request before it has saved the kill: ask
+-- again a few seconds later (an unchanged answer counts nothing).
+local KILL_RECHECK = { 3, 10 }
+
 function addon:OnKill()
   ns.Game.RequestLockouts()
+  if type(C_Timer) == "table" and type(C_Timer.After) == "function" then
+    for _, seconds in ipairs(KILL_RECHECK) do
+      C_Timer.After(seconds, function() ns.Game.RequestLockouts() end)
+    end
+  end
 end
 
 function addon:OnCalendarUpdate()

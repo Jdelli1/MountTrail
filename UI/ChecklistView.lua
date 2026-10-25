@@ -945,6 +945,7 @@ function view.Refresh()
     showDone = UI.ChecklistShowDone(),
   })
   local sourceText = UI.MemoText(Game.MountSourceText)
+  local snap = ns.Lockouts.Snapshot(Game.SavedRows())
   local char = charDB()
   local campStore = char and char.campChecked
   local now = Game.Now()
@@ -971,7 +972,8 @@ function view.Refresh()
       local e = row.entry
       row.owned = false
       row.alt = n % 2 == 0
-      row.desc = UI.ChecklistStatusDesc(UI.ChecklistDescription(e, sourceText(e.id)), row.status)
+      row.desc = UI.ChecklistStatusDesc(UI.ChecklistDescription(e, sourceText(e.id)),
+        row.status or (not e.done and UI.LockoutProgressText(e.spec, snap)) or nil)
       if row.camp then
         row.desc = UI.ChecklistCampDesc(row.desc, UI.CampCheckedText(campStore, e.key, now))
       end

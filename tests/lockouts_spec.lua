@@ -99,7 +99,8 @@ describe("lockouts", function()
       local s = { instance = 1, boss = "B", difficulties = { { 3, 4, 5, 6 } }, reset = "weekly" }
       eq(L.State(s, killed(1, 5, "B")), "done")
       eq(L.State(s, killed(1, 3, "B")), "done")
-      eq(L.State(s, killed(1, 14, "B")), "open")
+      eq(L.State(s, killed(1, 14, "B")), "done", "a size-free Normal kill too")
+      eq(L.State(s, killed(1, 16, "B")), "open")
     end)
 
     it("mixed { 2, {5,6} } needs both groups", function()
@@ -216,20 +217,69 @@ describe("lockouts", function()
     it("numbers are their own group, tables are any-of groups", function()
       local L = load().Lockouts
       local s = { instance = 1, boss = "B", difficulties = { 14, 15, 16 }, reset = "weekly" }
-      eq({ L.GroupsDone(s, {}) }, { {}, 0 })
-      eq({ L.GroupsDone(s, killed(1, 15, "B")) }, { { [2] = true }, 1 })
-      eq({ L.GroupsDone(s, merge(killed(1, 14, "B"), killed(1, 16, "B"))) }, { { [1] = true, [3] = true }, 2 })
+      eq({ L.GroupsDone(s, {}) }, { {}, 0, {} })
+      eq({ L.GroupsDone(s, killed(1, 15, "B")) }, { { [2] = true }, 1, { [2] = 15 } })
+      eq({ L.GroupsDone(s, merge(killed(1, 14, "B"), killed(1, 16, "B"))) }, { { [1] = true, [3] = true }, 2, { [1] = 14, [3] = 16 } })
       local anyOf = { instance = 1, boss = "B", difficulties = { 2, { 5, 6 } }, reset = "weekly" }
-      eq({ L.GroupsDone(anyOf, killed(1, 6, "B")) }, { { [2] = true }, 1 })
-      eq({ L.GroupsDone(anyOf, merge(killed(1, 5, "B"), killed(1, 6, "B"))) }, { { [2] = true }, 1 })
+      eq({ L.GroupsDone(anyOf, killed(1, 6, "B")) }, { { [2] = true }, 1, { [2] = 6 } })
+      eq((L.GroupsDone(anyOf, merge(killed(1, 5, "B"), killed(1, 6, "B")))), { [2] = true })
     end)
 
     it("non-instance specs and nil have no groups", function()
       local L = load().Lockouts
-      eq({ L.GroupsDone(nil, {}) }, { {}, 0 })
-      eq({ L.GroupsDone({ quest = 1, reset = "weekly" }, {}) }, { {}, 0 })
-      eq({ L.GroupsDone({ manual = true }, {}) }, { {}, 0 })
-      eq({ L.GroupsDone({ instance = 1, boss = "B", difficulties = { 2 } }, nil) }, { {}, 0 })
+      eq({ L.GroupsDone(nil, {}) }, { {}, 0, {} })
+      eq({ L.GroupsDone({ quest = 1, reset = "weekly" }, {}) }, { {}, 0, {} })
+      eq({ L.GroupsDone({ manual = true }, {}) }, { {}, 0, {} })
+      eq({ L.GroupsDone({ instance = 1, boss = "B", difficulties = { 2 } }, nil) }, { {}, 0, {} })
+    end)
+  end)
+
+  describe("legacy 10/25 raids reported as Normal / Heroic", function()
+    it("a Normal (14) kill meets 10 / 25 Normal, a Heroic (15) kill 10 / 25 Heroic", function()
+      local L = load().Lockouts
+      local fire = { instance = 720, boss = "Alysrazor", difficulties = { { 3, 4, 5, 6 } }, reset = "weekly" }
+      eq(L.State(fire, killed(720, 14, "Alysrazor")), "done")
+      eq(L.State(fire, killed(720, 15, "Alysrazor")), "done")
+      eq(L.State(fire, killed(720, 16, "Alysrazor")), "open")
+      local heroic = { instance = 967, boss = "Deathwing", difficulties = { { 5, 6 } }, reset = "weekly" }
+      eq(L.State(heroic, killed(967, 14, "Deathwing")), "open")
+      eq(L.State(heroic, killed(967, 15, "Deathwing")), "done")
+    end)
+
+    it("one Normal kill meets both size groups, reported on the same difficulty", function()
+      local L = load().Lockouts
+      local ony = { instance = 249, boss = "Onyxia", difficulties = { 3, 4 }, reset = "weekly" }
+      eq({ L.GroupsDone(ony, killed(249, 14, "Onyxia")) }, { { [1] = true, [2] = true }, 2, { [1] = 14, [2] = 14 } })
+    end)
+
+    it("the real Firelands and Antorus specs check off on a kill", function()
+      local ns = loadWithData()
+      local L = ns.Lockouts
+      eq(L.State(L.SpecFor(425), killed(720, 14, "Alysrazor")), "done")
+      eq(L.State(L.SpecFor(415), killed(720, 15, "Ragnaros")), "done")
+      local hounds = L.SpecFor(971)
+      eq(L.State(hounds, killed(1712, 15, "Felhounds of Sargeras")), "open")
+      eq(L.Progress(hounds, killed(1712, 15, "Felhounds of Sargeras")), { done = { 15 }, open = { 14, 16 } })
+    end)
+
+    it("no wrong-difficulty warning on Normal / Heroic in a legacy raid", function()
+      local L = load().Lockouts
+      local function specFor() return { instance = 967, boss = "Deathwing", difficulties = { { 3, 4, 5, 6 } } } end
+      eq(L.WrongDifficulty({ 1 }, 967, 14, specFor), {})
+      eq(L.WrongDifficulty({ 1 }, 967, 15, specFor), {})
+      eq(#L.WrongDifficulty({ 1 }, 967, 16, specFor), 1)
+    end)
+  end)
+
+  describe("Progress", function()
+    it("only for a multi-group spec part done", function()
+      local L = load().Lockouts
+      local s = { instance = 1, boss = "B", difficulties = { 14, 15, 16 } }
+      eq(L.Progress(s, {}), nil)
+      eq(L.Progress(s, merge(killed(1, 14, "B"), killed(1, 15, "B"), killed(1, 16, "B"))), nil)
+      eq(L.Progress(s, killed(1, 16, "B")), { done = { 16 }, open = { 14, 15 } })
+      eq(L.Progress({ instance = 1, boss = "B", difficulties = { { 3, 4 } } }, killed(1, 3, "B")), nil)
+      eq(L.Progress({ quest = 1 }, {}), nil)
     end)
   end)
 

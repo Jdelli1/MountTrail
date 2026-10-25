@@ -575,3 +575,14 @@ describe("checklist rare spawns (no lockout)", function()
     eq(loadUI().db.char.campChecked, {})
   end)
 end)
+
+describe("UI.LockoutProgressText", function()
+  it("names the difficulties done and left of a part-spent lockout", function()
+    local ns = loadUI({ DifficultyName = function(d) return ({ [14] = "Normal", [15] = "Heroic", [16] = "Mythic" })[d] end })
+    local spec = { instance = 1712, boss = "Felhounds of Sargeras", difficulties = { 14, 15, 16 } }
+    local snap = { [1712] = { [15] = { ["Felhounds of Sargeras"] = true } } }
+    eq(ns.UI.LockoutProgressText(spec, snap), "Heroic done \194\183 Normal, Mythic left")
+    eq(ns.UI.LockoutProgressText(spec, {}), nil)
+    eq(ns.UI.LockoutProgressText({ quest = 1 }, snap), nil)
+  end)
+end)

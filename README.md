@@ -196,6 +196,13 @@ it can still spend on a mount.
   can't report get a clickable box, so a ticked game-tracked row always means a
   real lockout on this character. Not-done rows come first; finished rows
   disappear on their own (the header counts them).
+- A kill the game saves prints a chat line ("Lockout checked off: Antoran
+  Charhound (attempt 3)"). A mount that drops on several difficulties, each its
+  own lockout (Felblaze Infernal, Antoran Charhound on Normal, Heroic and
+  Mythic), stays on the list until all are done, its row reading "Heroic done
+  · Normal, Mythic left".
+- Old 10 / 25-player raids that the game now saves as plain Normal or Heroic
+  (Firelands) tick off on those kills too.
 - The Filter button (Show raids / dungeons / world bosses / rares / holidays /
   other / rare spawns (no lockout), saved per character) narrows the list and
   its counts.
@@ -328,7 +335,9 @@ mount you can still get whose location is your current zone.
 - A mount is in the zone by its map coordinates, by any `Zone:` line of its
   Mount Journal source (where it drops, or where the vendor that sells it
   stands, also in a city inside the zone), or by a dungeon / raid whose
-  entrance is in the zone. Inside an instance it lists that instance's mounts.
+  entrance is in the zone. Inside an instance it lists that instance's mounts
+  (matched by the instance's ID, so raids whose maps the game hides, such as
+  Antorus, still list their drops).
 - A zone that exists more than once (TBC and WoD Nagrand, the Midnight
   Eversong Woods) gets the right version's mounts.
 - When the mounts come from more than one source, they are grouped under

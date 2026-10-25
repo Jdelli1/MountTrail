@@ -92,7 +92,9 @@ end
 -- instance (UI.RouteEntry), UI.GroupKey, the Journal's gate (other faction,
 -- unobtainable and mounts unknown to the client left out) and the Collected
 -- filter (ns.db.global.filters.collected); currentInstance
--- (Game.CurrentInstanceName) for when the player's map is unknown.
+-- (Game.CurrentInstanceName) for when the player's map is unknown, and
+-- currentInstanceID (Game.CurrentInstance) with each mount's instance
+-- (Data.JournalDrops, else Data.Lockouts) so a raid's drops show inside it.
 function UI.ZoneContext()
   local game = ns.Game
   local db = ns.db and ns.db.global
@@ -158,6 +160,13 @@ function UI.ZoneContext()
     gate = ns.Zone.Gate(UI.Memo(game.IsOwned), UI.Memo(game.Exists), game.Faction()),
     showCollected = filters.collected == true,
     currentInstance = game.CurrentInstanceName and game.CurrentInstanceName() or nil,
+    currentInstanceID = game.CurrentInstance and (game.CurrentInstance()) or nil,
+    instanceOf = function(id)
+      local drop = data.JournalDrops and data.JournalDrops[id]
+      if type(drop) == "table" and drop.map then return drop.map end
+      local spec = data.Lockouts and data.Lockouts[id]
+      return type(spec) == "table" and spec.instance or nil
+    end,
   }
   return ctx
 end

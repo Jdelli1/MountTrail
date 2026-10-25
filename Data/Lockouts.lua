@@ -26,7 +26,9 @@
 --
 -- Difficulty IDs: 1 Normal dungeon, 2 Heroic dungeon, 23 Mythic dungeon,
 -- 3/4 10/25 Normal legacy raid, 5/6 10/25 Heroic legacy raid, 9 40-player,
--- 14 Normal, 15 Heroic, 16 Mythic, 17 LFR.
+-- 14 Normal, 15 Heroic, 16 Mythic, 17 LFR. Old raids the game now saves as
+-- size-free Normal / Heroic (Firelands): a 3 / 4 entry is also met by a 14
+-- kill, a 5 / 6 entry by a 15 kill (Lockouts.LEGACY_AS).
 -- LFR (17) is not tracked in v1 (Ruling R10): LFR kills are not expected to show up
 -- in the saved-instance list, so a spec listing 17 could never complete.
 --
