@@ -29,8 +29,8 @@ lists, and pop-out windows to keep on screen while you farm.
 - **Wrong-difficulty warning** when you zone into a raid on a difficulty
   where your target mount doesn't drop (from the Encounter Journal).
 - **Search** everywhere, typo-tolerant, with short names (`tbc`, `icc`, `wod`).
-- **Your look**: window scale, text sizes, pop-out and guide colours, fonts
-  and sizes.
+- **Your look**: one flat design for the window and every pop-out, with
+  your opacity, colours, font and sizes (window scale and text sizes too).
 
 ## Contents
 
@@ -111,20 +111,30 @@ Working with the column:
   (click again to unpin).
 - Alt-drag an entry of My lists, Quick lists, Browse or Guides to put the
   section in your own order (saved; a list never moves above a favourite).
-- Click a heading (Browse, My lists, Quick lists, Guides) to collapse or
-  expand it (saved).
+- Headings look like a pop-out's group headers ("- Browse" over a thin rule,
+  in the window's header colour). Click one (Browse, My lists, Quick lists,
+  Guides) to collapse or expand it (saved; "+" while collapsed).
+- Lockouts, the lockout groups and your lists count what is left ("48
+  left"); the entry you are on is gold.
 - The settings can hide My lists or Quick lists (`Show My lists`,
   `Show Quick lists`). The column scrolls when your lists outgrow it.
 
 ### Home
 
-- Your collected total over every expansion (count, percent and a slim bar),
-  with a chip per tab showing its own owned / total.
-- One flat tile per expansion with its logo, a progress bar, owned / total and
-  percent (green with a check once complete). Click a tile for its mount list.
+- Your collected total over every tab (count, percent and a slim bar) and a
+  search box over every mount (see [Search](#search)).
+- **Expansions**: a row per expansion, its tag and name in its colour, a
+  progress bar, owned / total and percent (a check once complete). Click a
+  row for its mount list.
+- **By source**: the same rows for the Journal, Holidays, Achievements,
+  Timewalking and Misc tabs; click one to open it.
+- **Today**: the daily and weekly lockouts and rare spawns left, and your
+  lists with lockouts open today (click one to open it).
+- **Following**: the guide you are following, its step and `Resume guide`.
+- **Nearby**: the first mounts still to get in your zone (click one for its
+  waypoint); the line under them opens Current Zone.
 - Every bar takes its completion colour: red under 25 %, yellow under 75 %,
   green below complete and blue once complete (the total bar too).
-- A search box over every mount (see [Search](#search)).
 
 ### Mount lists
 
@@ -164,7 +174,10 @@ Browse pages:
 
 ### Detail pane
 
-Every mount list has a pane on its right. Click a mount to see:
+Every mount list has a pane on its right, showing the selected mount (the
+first one until you click another). With nothing to show (an empty list,
+every header collapsed) it folds away and the list takes the width. It
+shows:
 
 - Blizzard's 3D preview (rotate, zoom, with or without your character riding
   it).
@@ -187,11 +200,14 @@ it can still spend on a mount.
 
 - The header has the character's name, the weekly and daily reset timers and
   how many lockouts are left.
-- "Daily" and "Weekly" headers carry their reset countdowns and done / total
-  counts. Each splits into expansion sub-headers, then category headers
-  (Raids, Dungeons, World bosses, Rares, Holidays, Other), each with its own
-  done / total. All of them collapse.
-- One row per lockout. Each Vault of Archavon watcher counts. A kill that can
+- Flat tabs (All, Daily, Weekly, Rare Spawns, each with what is left) pick
+  the group; the shown one is gold and underlined.
+- "Daily" and "Weekly" headers carry their reset countdowns and what is left
+  ("(48 left)"). Each splits into expansion sub-headers, in the expansion's
+  colour, then category headers (Raids, Dungeons, World bosses, Rares,
+  Holidays, Other), each with its own count. All of them collapse.
+- One row per lockout, one line each as in a pop-out: its expansion tag, the
+  mount, and the boss and instance on the right. Each Vault of Archavon watcher counts. A kill that can
   drop several mounts, such as Malygos' two drakes, is one row named after the
   boss, listing its mounts on hover.
 - Also listed: tracked mounts the route does not list (rare-spawn quest flags,

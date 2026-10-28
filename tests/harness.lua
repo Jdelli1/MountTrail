@@ -74,7 +74,7 @@ end
 COMPANIONS = {
   ["UI/Frame.lua"] = { "UI/Widgets.lua", "UI/Style.lua", "UI/Nav.lua" },
   ["UI/Popouts.lua"] = { "UI/Style.lua" },
-  ["UI/List.lua"] = { "UI/Search.lua" },
+  ["UI/List.lua"] = { "UI/SourceText.lua", "UI/Search.lua" },
 }
 
 function load_addon(files)

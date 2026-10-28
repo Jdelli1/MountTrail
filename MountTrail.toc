@@ -58,6 +58,7 @@ UI\Style.lua
 UI\Nav.lua
 UI\Tooltip.lua
 UI\List.lua
+UI\SourceText.lua
 UI\Search.lua
 UI\DetailPane.lua
 UI\JournalHome.lua

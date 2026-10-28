@@ -1260,10 +1260,11 @@ describe("lists in the navigation column", function()
     local nav = ns.UI.frame.Nav
     local function heading(text)
       for _, h in ipairs(nav.Headings) do
-        if h:IsShown() and h.Text:GetText() == text then return h end
+        if h:IsShown() and (h.Text:GetText():gsub("^[%+%-] ", "")) == text then return h end
       end
     end
     local mine, quick = heading("My lists"), heading("Quick lists")
+    eq(mine.Text:GetText(), "- My lists", "open: a pop-out header's \"- \"")
     ok(mine and quick, "two headings")
     eq(mine.key, ns.UI.NAV_LISTS_KEY)
     ok(navButton(ns, "Loop") and navButton(ns, "Weekly lockouts"), "both sections open")
@@ -1272,6 +1273,7 @@ describe("lists in the navigation column", function()
     eq(navButton(ns, "Loop"), nil, "My lists collapsed")
     ok(navButton(ns, "Weekly lockouts"), "Quick lists still open")
     ok(heading("My lists").collapsed, "marked collapsed")
+    eq(heading("My lists").Text:GetText(), "+ My lists")
     heading("Quick lists"):RunScript("OnClick", "LeftButton")
     eq(navButton(ns, "Weekly lockouts"), nil, "Quick lists collapsed")
     heading("My lists"):RunScript("OnClick", "LeftButton")
@@ -1290,7 +1292,7 @@ describe("lists in the navigation column", function()
     home(ns)
     local daily = navButton(ns, "Daily lockouts")
     ok(daily and navButton(ns, "Weekly lockouts") and navButton(ns, "Rare Spawns"), "the three groups")
-    eq(daily.Badge:GetText(), "2", "what is left")
+    eq(daily.Badge:GetText(), "2 left", "what is left")
     daily:RunScript("OnClick", "LeftButton")
     eq(ns.UI.CurrentTab(), "checklist")
     eq(ns.db.char.checklistShow, "daily")

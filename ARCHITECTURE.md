@@ -97,14 +97,15 @@ changed addon gives `nil`, never an error.
 | File | Owns |
 | --- | --- |
 | `Frame.lua` | Fonts and text sizes (`UI.Font`, `UI.TextSize`), style helpers (`UI.Template`, `UI.FlatBorder`), the view registry, the main window (flat, in the pop-outs' style), its size / scale / position, the settings cogwheel menu, refresh hooks and `ns.Refresh`, window hooks, the minimap button. |
-| `Style.lua` | The look shared by the main window, the pop-outs and the extra windows: styles (`UI.PopoutStyle`, `UI.PopoutStyleOf`), styled text and chrome, the appearance menu (`UI.PopoutStyleMenu`), fonts, `UI.AddStyledWindow`. |
+| `Style.lua` | The look shared by the main window, the pop-outs and the extra windows: styles (`UI.PopoutStyle`, `UI.PopoutStyleOf`), styled text and chrome, the appearance menu (`UI.PopoutStyleMenu`), fonts, `UI.AddStyledWindow`, a page's header (`UI.PageHeader`, `UI.PageButton`). |
 | `Widgets.lua` | Hints, flat buttons and panels, menus with sliders (`UI.ShowMenu`), the expansion badge, the text / copy prompt (`UI.AskText`, `UI.ShowCopyText`), splitters, the resize grip. |
 | `Nav.lua` | The navigation column: entries, favourites, ordering, Alt-drag, badges, `UI.RefreshNav`. |
 | `Tooltip.lua` | The mount tooltip and `UI.TooltipLines`. |
-| `List.lua` | The shared mount list widget (`UI.List`): rows, headers, collapsing, filters, row clicks (`UI.InitMountRow`, `UI.PaneRowAction`, `UI.HandleRowClick`). |
+| `List.lua` | The shared mount list widget (`UI.List`): rows (full, or compact one-line ones), headers in the pop-outs' look (`UI.HeaderColor`, `UI.HeaderGlyph`), collapsing, filters, row clicks (`UI.InitMountRow`, `UI.PaneRowAction`, `UI.HandleRowClick`). |
+| `SourceText.lua` | Reading a mount's source text: `UI.StripMarkup`, `UI.SourcePairs`, `UI.SourceZone(s)`, `UI.RowDescription`. |
 | `Search.lua` | Search glue: the shared search cache, `UI.SearchMatches` (with its expansion fallback), `UI.SearchFields`. |
 | `DetailPane.lua` | The mount detail pane on the right of every list. |
-| `JournalHome.lua` | Home (front page, expansion tiles, search page) and list pages (`UI.ShowListPage`). |
+| `JournalHome.lua` | Home (summary, Expansions and By source rows, Today / Following / Nearby), the expansion, search and list pages (`UI.ShowListPage`). |
 | `Tabs.lua` | The Holidays, Achievements, Timewalking and Misc views. |
 | `LockoutHelpers.lua` | Lockout state per boss, hand ticks, header lines (shared by the Checklist). |
 | `ChecklistView.lua` | The Lockouts view (daily, weekly, rare spawns). |

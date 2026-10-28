@@ -228,7 +228,7 @@ describe("Following a guide", function()
       end
     end
     local heading
-    for _, h in ipairs(nav.Headings) do if h:IsShown() and h.Text:GetText() == "Guides" then heading = h end end
+    for _, h in ipairs(nav.Headings) do if h:IsShown() and h.Text:GetText() == "- Guides" then heading = h end end
     ok(heading, "a Guides heading")
     ok(nav.AddGuide:IsShown(), "with its +")
     local b = button("Thundering Ruby Cloud Serpent")

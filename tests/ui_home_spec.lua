@@ -1,6 +1,6 @@
--- The Journal front page (UI/JournalHome.lua home grid) built under the widget
--- stub: summary strip (title, totals, 4 px bar), 4 x 3 flat tiles that fit
--- the 800 x 560 window, completed-state styling, hover and click.
+-- The Journal front page (UI/JournalHome.lua) built under the widget stub:
+-- summary strip (title, totals, search, 4 px bar), the Expansions and By
+-- source progress rows, and the Today / Following / Nearby column.
 
 local UI_FILES = { "UI/Frame.lua", "UI/Tooltip.lua", "UI/List.lua", "UI/JournalHome.lua" }
 
@@ -72,10 +72,13 @@ local function loadUI(owned)
     SavedRows = function() return {} end,
     IsQuestDone = function() return false end,
     IsLfgDone = function() return false end,
-    ExpansionLogo = function(i) if i == 1 then return 123 end end,
     MountSourceText = function() return nil end,
     Now = function() return 1700000000 end,
     PlayerName = function() return "Tester" end,
+    ActiveHolidays = function() return {} end,
+    UntilDaily = function() return 3600 end,
+    UntilWeekly = function() return 86400 end,
+    PlayerMap = function() return nil end,
   }
   for k, v in pairs(stubGame) do ns.Game[k] = v end
   return ns
@@ -88,61 +91,53 @@ local function openHome(ns)
   return journal.children[2], journal
 end
 
-local function tiles(ns, home)
-  local out = {}
-  for i = 1, #ns.Data.Expansions do out[i] = home.children[i] end
-  return out
-end
+local function backOf(page) return page.Back end
 
 describe("journal home", function()
-  it("builds a summary strip and one tile per expansion under the stub", function()
+  it("a summary strip, then Expansions and By source rows on the left and the Today column on the right", function()
     local ns = loadUI()
     local home = openHome(ns)
-    eq(#home.children, #ns.Data.Expansions + 1, "the tiles, then the summary strip")
     local summary = home.Summary
-    ok(summary and home.children[#home.children] == summary, "summary strip on the home")
     eq(summary.Title:GetText(), "Mount Collection")
     eq(summary.Title.template, ns.UI.Font("GameFontNormalLarge"))
     eq(summary.Totals.template, ns.UI.Font("GameFontHighlight"))
     eq(summary.Bar.height, 4, "4 px summary bar")
     eq(summary.Bar:GetNumPoints(), 2, "full width: anchored left and right")
     eq(summary.Bar.barColor, ns.UI.ProgressColor(summary.have, summary.total), "its percent's colour")
-    for i, tile in ipairs(tiles(ns, home)) do
-      eq(tile.kind, "Button", "tile " .. i)
-      eq(tile.Bar.height, 3, "slim 3 px tile bar")
-      ok(tile.Edge and #tile.Edge.edges == 4, "1 px edge")
-      eq(tile.Count.template, ns.UI.Font("GameFontHighlightSmall"))
-      eq(tile.Percent.template, ns.UI.Font("GameFontDisableSmall"))
-      eq(tile.Count:GetPoint(1), "BOTTOMLEFT", "owned / total on the left")
-      eq(tile.Percent:GetPoint(1), "BOTTOMRIGHT", "percent on the right")
+    eq(home.ExpHeading.Text:GetText(), "Expansions")
+    eq(home.ExpHeading.Text.textColor, { 1, 0.82, 0 }, "a pop-out header: gold by default")
+    eq(home.ExpHeading.Rule.color, { 1, 0.82, 0, 0.35 })
+    eq(#home.Expansions, #ns.Data.Expansions)
+    for i, row in ipairs(home.Expansions) do
+      eq(row.kind, "Button", "row " .. i)
+      eq(row.Bar.height, 6, "slim bar")
+      eq(row.Count.template, ns.UI.Font("GameFontHighlightSmall"))
+      eq(row.Percent.template, ns.UI.Font("GameFontDisableSmall"))
+      eq(row.Name:GetText(), ns.Data.Expansions[i])
+      eq(row.Stripe:IsShown(), i % 2 == 0, "striped every other row")
     end
+    eq(home.SourceHeading.Text:GetText(), "By source")
+    eq(#home.Sources, 5)
+    ok(home.Side and home.Side.TodayHeading:IsShown(), "the right column")
+    eq({ home.Side:GetPoint(1) }, { "TOPRIGHT", home, "TOPRIGHT", -12, -48 })
   end)
 
-  it("shows the logo, or the expansion name only when there is no logo", function()
-    local ns = loadUI()
-    local all = tiles(ns, (openHome(ns)))
-    eq(all[1].Logo.texture, 123)
-    ok(all[1].Logo:IsShown() and not all[1].Name:IsShown(), "logo, no name")
-    ok(not all[2].Logo:IsShown() and all[2].Name:IsShown(), "name as the fallback")
-    eq(all[2].Name:GetText(), ns.Data.Expansions[2])
-  end)
-
-  it("tile counts and percents match their text", function()
+  it("expansion counts and percents match their text", function()
     local ns = loadUI()
     local home = openHome(ns)
     local have, total = 0, 0
-    for _, tile in ipairs(tiles(ns, home)) do
-      local h, t = tile.Count:GetText():match("^(%d+) / (%d+)$")
-      ok(h, "tile count text")
-      eq(tonumber(h), tile.have)
-      eq(tonumber(t), tile.total)
-      have, total = have + tile.have, total + tile.total
-      eq(tile.Percent:GetText(), ns.UI.HomePercent(tile.have, tile.total) .. "%")
+    for _, row in ipairs(home.Expansions) do
+      local h, t = row.Count:GetText():match("^(%d+) / (%d+)$")
+      ok(h, "count text")
+      eq(tonumber(h), row.have)
+      eq(tonumber(t), row.total)
+      have, total = have + row.have, total + row.total
+      eq(row.Percent:GetText(), ns.UI.HomePercent(row.have, row.total) .. "%")
     end
     ok(total > 0 and have > 0 and have < total, "a partial collection")
   end)
 
-  it("summary totals count every tab's mounts; one chip per tab, clicking opens it", function()
+  it("summary totals count every tab's mounts; a By source row per tab, clicking opens it", function()
     local ns = loadUI()
     ns.Data.Mounts = {
       [3] = { name = "J owned", tab = "journal", section = "raid", exp = ns.Data.Expansions[1] },
@@ -164,14 +159,13 @@ describe("journal home", function()
     local want = {
       journal = { 1, 2 }, holidays = { 1, 1 }, achievements = { 0, 1 }, timewalking = { 0, 1 }, misc = { 1, 2 },
     }
-    eq(#s.Chips, 5)
-    for i, chip in ipairs(s.Chips) do
-      eq(chip.key, ns.UI.HomeChips[i].key)
-      eq({ chip.have, chip.total }, want[chip.key], chip.key)
-      eq(chip.Text:GetText(), string.format("|cffffd100%s|r  %d / %d", chip.label, chip.have, chip.total))
+    for i, row in ipairs(home.Sources) do
+      eq(row.key, ns.UI.HomeSources[i].key)
+      eq({ row.have, row.total }, want[row.key], row.key)
+      eq(row.Count:GetText(), string.format("%d / %d", row.have, row.total))
     end
-    s.Chips[5]:RunScript("OnClick", "LeftButton")
-    ok(ns.UI.frame.Contents.misc:IsShown(), "the Misc chip opens the Misc tab")
+    home.Sources[5]:RunScript("OnClick", "LeftButton")
+    ok(ns.UI.frame.Contents.misc:IsShown(), "the Misc row opens the Misc tab")
   end)
 
   it("percent rounds down and is 0 without mounts", function()
@@ -183,90 +177,121 @@ describe("journal home", function()
     eq(P(5, 5), 100)
   end)
 
-  it("completed expansions: blue bar and the check atlas in the top-right corner", function()
+  it("complete rows: blue bar and the check; incomplete: their percent's colour, no check", function()
     local ns = loadUI(function() return true end)
     STUB_ATLASES[CHECK_ATLAS] = true -- after loadUI: reset_ui_stub clears atlases
     local home = openHome(ns)
     local seen = 0
-    for _, tile in ipairs(tiles(ns, home)) do
-      if tile.total > 0 then
+    for _, row in ipairs(home.Expansions) do
+      if row.total > 0 then
         seen = seen + 1
-        eq(tile.Bar.barColor, { 0.25, 0.6, 1, 1 }, "blue when complete")
-        ok(tile.Check:IsShown(), "check shown")
-        eq(tile.Check.atlas, CHECK_ATLAS)
-        eq(tile.Check:GetPoint(1), "TOPRIGHT")
+        eq(row.Bar.barColor, { 0.25, 0.6, 1, 1 }, "blue when complete")
+        ok(row.Check:IsShown(), "check shown")
+        eq(row.Check.atlas, CHECK_ATLAS)
       end
     end
     ok(seen > 0, "some expansion has mounts")
     STUB_ATLASES[CHECK_ATLAS] = nil
-  end)
-
-  it("incomplete tiles: red / yellow / green by percent and no check; no atlas -> the classic check texture", function()
-    local ns = loadUI()
-    local home = openHome(ns)
-    for _, tile in ipairs(tiles(ns, home)) do
-      if tile.have < tile.total then
-        eq(tile.Bar.barColor, ns.UI.ProgressColor(tile.have, tile.total), "its percent's colour")
-        ok(tile.Bar.barColor[3] ~= 1, "never blue while incomplete")
-        ok(not tile.Check:IsShown(), "no check")
+    local ns2 = loadUI()
+    for _, row in ipairs(openHome(ns2).Expansions) do
+      if row.have < row.total then
+        eq(row.Bar.barColor, ns2.UI.ProgressColor(row.have, row.total))
+        ok(not row.Check:IsShown(), "no check")
       end
     end
-    local ns2 = loadUI(function() return true end)
-    local tile = tiles(ns2, (openHome(ns2)))[1]
-    ok(tile.Check:IsShown())
-    eq(tile.Check.atlas, nil, "atlas missing on this client")
-    eq(tile.Check.texture, "Interface\\Scenarios\\ScenarioIcon-Check")
   end)
 
-  it("hover brightens the tile and edges it in gold; leave restores", function()
-    local ns = loadUI()
-    local tile = tiles(ns, (openHome(ns)))[1]
-    local base = tile.Bg.color
-    tile:RunScript("OnEnter")
-    ok(tile.Bg.color[1] > base[1] and tile.Bg.color[4] >= base[4], "brighter fill")
-    eq(tile.Edge.edges[1].color, { 1, 0.82, 0, 0.6 }, "gold edge")
-    tile:RunScript("OnLeave")
-    eq(tile.Bg.color, base)
-    eq(tile.Edge.edges[1].color, { 1, 1, 1, 0.1 })
-  end)
-
-  it("click opens the expansion list and Back returns home", function()
+  it("click an expansion row: its list; Back returns home", function()
     local ns = loadUI()
     local home, journal = openHome(ns)
-    local tile = tiles(ns, home)[3]
-    tile:RunScript("OnClick", "LeftButton")
+    home.Expansions[3]:RunScript("OnClick", "LeftButton")
     local listPage = journal.children[3]
     ok(listPage:IsShown() and not home:IsShown(), "list shown")
-    ok(not home.Summary:IsVisible(), "summary hidden with the home")
-    local back
-    for _, c in ipairs(listPage.children) do
-      if c.template == "UIPanelButtonTemplate" then back = c end
-    end
-    back:RunScript("OnClick", "LeftButton")
+    eq(listPage.Title:GetText(), ns.Data.Expansions[3])
+    eq(listPage.Back.template, nil, "a flat Back, not the red panel button")
+    backOf(listPage):RunScript("OnClick", "LeftButton")
     ok(home:IsShown() and not listPage:IsShown(), "Back returns home")
-    ok(home.Summary:IsVisible(), "summary back with the home")
   end)
 
-  it("a clicked tile comes back from Back without its hover look", function()
+  it("Today: the lockouts left per group and your lists with lockouts open; a click opens them", function()
     local ns = loadUI()
-    local home, journal = openHome(ns)
-    local tile = tiles(ns, home)[3]
-    local base = tile.Bg.color
-    -- Hover then click: the tile is hidden with the home, no OnLeave arrives.
-    tile:RunScript("OnEnter")
-    tile:RunScript("OnClick", "LeftButton")
-    local back
-    for _, c in ipairs(journal.children[3].children) do
-      if c.template == "UIPanelButtonTemplate" then back = c end
-    end
-    back:RunScript("OnClick", "LeftButton")
-    eq(tile.Bg.color, base, "plain fill again")
-    eq(tile.Edge.edges[1].color, { 1, 1, 1, 0.1 }, "faint edge again")
-    -- The client fires OnHide on the tile when the home hides; it resets too.
-    tile:RunScript("OnEnter")
-    tile:RunScript("OnHide")
-    eq(tile.Bg.color, base, "OnHide resets the fill")
-    eq(tile.Edge.edges[1].color, { 1, 1, 1, 0.1 }, "OnHide resets the edge")
+    local built = { daily = {}, weekly = {}, camp = {} }
+    ns.UI.ChecklistLeft = function() return { daily = 4, weekly = 0, camp = 2 } end
+    local rows = ns.UI.HomeToday(built, nil, {
+      { name = "Mine", open = 3, source = { kind = "list", list = 1 } },
+      { name = "Done", open = 0, source = { kind = "list", list = 2 } },
+    })
+    eq(#rows, 4, "three groups and the list with something open")
+    eq({ rows[1].label, rows[1].value, rows[1].open }, { "Daily lockouts", "4 left", true })
+    eq({ rows[2].value, rows[2].open }, { "0 left", false })
+    eq({ rows[4].label, rows[4].value }, { "Mine", "3 left" })
+    local clicked
+    ns.UI.NavClick = function(e) clicked = e end
+    rows[1].click()
+    eq(clicked, { show = "daily" })
+    rows[4].click()
+    eq(clicked.source, { kind = "list", list = 1 })
+    -- On the page.
+    local home = openHome(ns)
+    local today = home.Side.Today
+    eq(today[1].Label:GetText(), "Daily lockouts")
+    eq(today[1].Value:GetText(), "|cff40c0404 left|r", "green while some are left")
+    eq(today[2].Value:GetText(), "|cff9d9d9d0 left|r", "grey when none")
+  end)
+
+  it("Following: the guide followed, its step and Resume; else a hint", function()
+    local ns = loadUI()
+    local home = openHome(ns)
+    local f = home.Side.Follow
+    ok(f.None:IsShown() and not f.Resume:IsShown(), "no guide: the hint")
+    local guide = { title = "Serpent", guide = { steps = { { text = "Fly" }, { text = "Wait" }, { text = "Done" } } } }
+    ns.UI.ActiveGuide = function() return guide, 2 end
+    ns.UI.GuideText = function(t) return t end
+    local opened
+    ns.UI.ShowGuideWindow = function(on) opened = on end
+    ns.Refresh()
+    eq(f.Title:GetText(), "Serpent")
+    eq(f.Step:GetText(), "Step 2 of 3  |cff9d9d9dWait|r")
+    eq({ f.Bar.max, f.Bar.value }, { 3, 2 })
+    ok(f.Resume:IsShown() and not f.None:IsShown())
+    f.Resume:RunScript("OnClick", "LeftButton")
+    eq(opened, true, "Resume opens the guide window")
+  end)
+
+  it("Nearby: the first mounts of the zone, kept per zone for a minute; the last line opens Current Zone", function()
+    local ns = loadUI()
+    local calls = 0
+    local zoneList = {}
+    for i = 1, 7 do zoneList[i] = { id = i, m = { name = "Mount " .. i, exp = ns.Data.Expansions[2] } } end
+    ns.UI.ZoneMounts = function() calls = calls + 1; return zoneList, { name = "Nagrand" } end
+    ns.UI.ZoneContext = function() return {} end
+    ns.Zone.Key = function() return "107" end
+    local now = 1700000000
+    ns.Game.Now = function() return now end
+    ns.Game.MountInfo = function() return nil end
+    local home = openHome(ns)
+    local side = home.Side
+    eq(calls, 1)
+    local shown = 0
+    for _, b in ipairs(side.Nearby) do if b:IsShown() then shown = shown + 1 end end
+    eq(shown, 5, "the first five")
+    eq(side.Nearby[1].Name:GetText(), "Mount 1")
+    eq(side.Nearby[1].Tag.exp, ns.Data.Expansions[2], "its expansion tag")
+    eq(side.NearbyMore.Text:GetText(), "|cff9d9d9d7 in Nagrand: open Current Zone|r")
+    ns.Refresh()
+    eq(calls, 1, "same zone within a minute: kept")
+    now = now + 61
+    ns.Refresh()
+    eq(calls, 2, "a minute later: again")
+    ns.Zone.Key = function() return "108" end
+    ns.Refresh()
+    eq(calls, 3, "a new zone: again")
+    local went
+    ns.UI.GoTo = function(id) went = id end
+    side.Nearby[2]:RunScript("OnClick", "LeftButton")
+    eq(went, 2, "a click is the waypoint")
+    side.NearbyMore:RunScript("OnClick", "LeftButton")
+    eq(ns.UI.CurrentTab(), "here", "the last line opens Current Zone")
   end)
 
   it("typing in the home search box opens the search page with grouped results; Back returns", function()
@@ -298,56 +323,22 @@ describe("journal home", function()
     rows = list.ScrollBox.provider.rows
     eq(rows[1].text, "Dungeon / raid")
     eq(rows[2].id, 1)
-    local back
-    for _, c in ipairs(page.children) do
-      if c.template == "UIPanelButtonTemplate" then back = c end
-    end
-    back:RunScript("OnClick", "LeftButton")
+    backOf(page):RunScript("OnClick", "LeftButton")
     ok(home:IsShown() and not page:IsShown(), "Back returns home")
     eq(list.SearchBox:GetText(), "", "search cleared")
   end)
 
-  it("the 4 x 3 grid and the strip fit the view area of the 900 x 560 window beside the navigation", function()
+  it("the rows fit the view area of the 900 x 560 window beside the navigation", function()
     local ns = loadUI()
     local G = ns.UI.HomeLayout
-    eq(G.cols, 4)
-    ok(G.gap >= 10 and G.gap <= 12, "10-12 px gaps")
-    -- Window 900 x 560: the navigation column (6 + NAV_WIDTH + 4) on the left,
-    -- 6 px right; views from 34 px down to 6 px from the bottom; 4 px inside.
+    local home = openHome(ns)
+    -- Window 900 x 560: the navigation column (6 + NAV_WIDTH + 4) on the
+    -- left, 6 px right; views from 32 px down to 6 px from the bottom; 4 px inside.
     local contentW = 900 - (6 + ns.UI.NAV_WIDTH + 4) - 6 - 8
-    local contentH = 560 - 34 - 6 - 8
-    local rows = math.ceil(#ns.Data.Expansions / G.cols)
-    eq(rows, 3)
-    local right = G.left + G.cols * G.tileW + (G.cols - 1) * G.gap
-    local bottom = -G.top + rows * G.tileH + (rows - 1) * G.gap
-    ok(right <= contentW - G.left, "fits the width with an even right margin: " .. right)
-    ok(bottom <= contentH - 8, "fits the height: " .. bottom)
-    ok(-G.top > G.stripH, "grid starts below the summary strip")
-    -- Tile positions follow the layout.
-    local home = openHome(ns)
-    local p, rel, relP, x, y = tiles(ns, home)[6]:GetPoint(1)
-    eq({ p, relP, x, y }, { "TOPLEFT", "TOPLEFT", G.left + G.tileW + G.gap, G.top - G.tileH - G.gap })
-  end)
-
-  it("tiles fill a resized window (same margins and gaps); never under 80%; unknown size: defaults", function()
-    local ns = loadUI()
-    local G = ns.UI.HomeLayout
-    local dw, dh, ds = ns.UI.HomeTileSize(0, 0, 12)
-    eq({ dw, dh }, { G.tileW, G.tileH })
-    ok(ds > 0.9 and ds <= 1, "the default tile's logo scale: " .. ds)
-    local w, h, s = ns.UI.HomeTileSize(1200, 800, 12)
-    eq(w, math.floor((1200 - 2 * G.left - 3 * G.gap) / 4))
-    eq(h, math.floor((800 + G.top - 10 - 2 * G.gap) / 3))
-    ok(s > 1, "bigger logos")
-    local sw, sh = ns.UI.HomeTileSize(300, 200, 12)
-    eq({ sw, sh }, { math.floor(G.tileW * 0.8), math.floor(G.tileH * 0.8) })
-    local home = openHome(ns)
-    home.width, home.height = 1200, 800
-    home:RunScript("OnSizeChanged")
-    local tile = tiles(ns, home)[6]
-    eq({ tile.width, tile.height }, { w, h })
-    local p, _, relP, x, y = tile:GetPoint(1)
-    eq({ p, relP, x, y }, { "TOPLEFT", "TOPLEFT", G.left + w + G.gap, G.top - h - G.gap })
+    local contentH = 560 - 32 - 6 - 8
+    ok(-G.top + home.mainHeight <= contentH, "the left column fits the height: " .. (-G.top + home.mainHeight))
+    local leftW = contentW - 2 * G.left - G.sideW - G.gap
+    ok(leftW >= 46 + 150 + 8 + 60 + 4 + 70 + 6 + 36 + 4, "room for tag, name, bar, count and percent: " .. leftW)
   end)
 end)
 

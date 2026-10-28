@@ -139,13 +139,12 @@ describe("game adapter", function()
   end)
 
   describe("guards", function()
-    it("missing C_DateAndTime / C_Calendar / GetExpansionDisplayInfo fall back safely", function()
-      C_DateAndTime, C_Calendar, GetExpansionDisplayInfo = nil, nil, nil
+    it("missing C_DateAndTime / C_Calendar fall back safely", function()
+      C_DateAndTime, C_Calendar = nil, nil
       local G = loadGame().Game
       eq(G.UntilDaily(), 0)
       eq(G.UntilWeekly(), 0)
       eq(G.ActiveHolidays(), {})
-      eq(G.ExpansionLogo(1), nil)
     end)
     it("missing mount and quest APIs report not owned / not done", function()
       C_MountJournal, C_QuestLog, GetLFGDungeonRewards = nil, nil, nil
@@ -504,7 +503,6 @@ describe("game adapter", function()
       GetLFGDungeonRewards = function(id) return id == 285, 0, 0 end
       C_DateAndTime = { GetSecondsUntilDailyReset = function() return 111 end,
                         GetSecondsUntilWeeklyReset = function() return 222 end }
-      GetExpansionDisplayInfo = function(level) if level == 11 then return { logo = 5000 } end end
       local G = loadGame().Game
       eq(G.IsOwned(6), true); eq(G.IsOwned(7), false); eq(G.IsOwned(8), false)
       eq(G.Exists(7), true); eq(G.Exists(8), false)
@@ -512,8 +510,6 @@ describe("game adapter", function()
       eq(G.IsQuestDone(100), true); eq(G.IsQuestDone(101), false)
       eq(G.IsLfgDone(285), true); eq(G.IsLfgDone(287), false)
       eq(G.UntilDaily(), 111); eq(G.UntilWeekly(), 222)
-      eq(G.ExpansionLogo(12), 5000, "index 12 (Midnight) -> expansion level 11")
-      eq(G.ExpansionLogo(1), nil)
     end)
     it("builds CharKey as Name-Realm", function()
       UnitName = function() return "Jaina" end

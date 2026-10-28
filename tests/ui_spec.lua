@@ -63,7 +63,8 @@ describe("ui", function()
     eq(f.Inset.Fill, nil, "the views sit on the window's own fill, as in a pop-out")
     eq(next(ns.UI.TemplateFallbacks), nil, "no fallback used")
     eq(ns.UI.CurrentTab(), "journal", "Home by default")
-    ok(f.Nav.Buttons[1].selected and f.Nav.Buttons[1].Bar:IsShown(), "Home marked")
+    ok(f.Nav.Buttons[1].selected and f.Nav.Buttons[1].Selected:IsShown(), "Home marked")
+    eq(f.Nav.Buttons[1].Text.font, ns.UI.Font("GameFontNormal"), "in gold")
     eq(UISpecialFrames, { "MountTrailFrame" })
     ns.ToggleWindow()
     ok(not f:IsShown(), "second toggle hides")
@@ -156,6 +157,21 @@ describe("ui", function()
     end
     eq(leftInset(button("Holidays")), 18)
     eq(leftInset(button("Lockouts")), 12)
+  end)
+
+  it("section headings look like a pop-out's group headers, in the window's header colour", function()
+    local ns = loadUI()
+    ns.ToggleWindow()
+    local nav = ns.UI.frame.Nav
+    local h = nav.Headings[1]
+    eq(h.Text:GetText(), "- Browse")
+    eq(h.Text.textColor, { 1, 0.82, 0 }, "gold by default")
+    eq(h.Rule.color, { 1, 0.82, 0, 0.35 }, "a thin rule under it")
+    ns.db.global.popouts = { main = { style = { header = { 1, 1, 1 } } } }
+    ns.UI.RefreshNav()
+    eq(h.Text.textColor, { 1, 1, 1 }, "the appearance menu's header colour")
+    eq(h.Rule.color, { 1, 1, 1, 0.35 })
+    eq(nav.Edge.width, 1, "a 1 px line on the column's right edge")
   end)
 
   it("the navigation's text is the font object's size plus the bonus, however often it repaints", function()

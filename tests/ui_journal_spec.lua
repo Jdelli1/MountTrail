@@ -48,7 +48,7 @@ local ROUTE = {
 }
 
 describe("ui journal", function()
-  it("toc lists Frame's parts (Widgets, Style, Nav), then Tooltip, List (and Search), DetailPane, JournalHome", function()
+  it("toc lists Frame's parts (Widgets, Style, Nav), then Tooltip, List (and SourceText, Search), DetailPane, JournalHome", function()
     local fh = assert(io.open(ROOT .. "/MountTrail.toc", "r"))
     local lines = {}
     for line in fh:lines() do
@@ -60,8 +60,9 @@ describe("ui journal", function()
     for i, line in ipairs(lines) do if line == "UI\\Frame.lua" then frame = i end end
     ok(frame, "UI\\Frame.lua in toc")
     local got = {}
-    for i = 1, 8 do got[i] = lines[frame + i] end
-    eq(got, { "UI\\Widgets.lua", "UI\\Style.lua", "UI\\Nav.lua", "UI\\Tooltip.lua", "UI\\List.lua", "UI\\Search.lua",
+    for i = 1, 9 do got[i] = lines[frame + i] end
+    eq(got, { "UI\\Widgets.lua", "UI\\Style.lua", "UI\\Nav.lua", "UI\\Tooltip.lua", "UI\\List.lua",
+      "UI\\SourceText.lua", "UI\\Search.lua",
       "UI\\DetailPane.lua", "UI\\JournalHome.lua" })
   end)
 
@@ -1070,17 +1071,14 @@ describe("ui journal", function()
       eq(subs(ns.UI.ListRows(swapped, nil, opts)), subs(first))
     end)
 
-    it("HeaderText adds (owned/total) before the badge; HeaderIcon picks the atlas or text", function()
+    it("HeaderText adds (owned/total) before the badge, (n left) on Lockouts; HeaderGlyph is a pop-out's +/-", function()
       local ns = loadUI()
       eq(ns.UI.HeaderText({ text = "Raid drops", owned = 2, total = 5 }), "Raid drops  |cff9d9d9d(2/5)|r")
       eq(ns.UI.HeaderText({ text = "Brewfest", owned = 0, total = 1, badge = "Active now" }),
         "Brewfest  |cff9d9d9d(0/1)|r  |cff33ff99Active now|r")
-      eq({ ns.UI.HeaderIcon(false) }, { nil, "\226\128\147" }, "no atlas: an en dash when expanded (no U+2212 in the default font)")
-      eq({ ns.UI.HeaderIcon(true) }, { nil, "+" })
-      STUB_ATLASES["campaign_headericon_open"] = true
-      STUB_ATLASES["campaign_headericon_closed"] = true
-      eq({ ns.UI.HeaderIcon(false) }, { "campaign_headericon_open", "\226\128\147" })
-      eq({ ns.UI.HeaderIcon(true) }, { "campaign_headericon_closed", "+" })
+      eq(ns.UI.HeaderText({ text = "Daily", owned = 2, total = 5, reset = "daily" }), "Daily  |cff9d9d9d(3 left)|r")
+      eq(ns.UI.HeaderGlyph(false), "-")
+      eq(ns.UI.HeaderGlyph(true), "+")
     end)
   end)
 

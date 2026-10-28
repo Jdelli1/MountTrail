@@ -55,16 +55,10 @@ end
 function view.Build(parent)
   root = CreateFrame("Frame", nil, parent)
   root:SetAllPoints(parent)
-  local strip = root:CreateTexture(nil, "BACKGROUND")
-  strip:SetPoint("TOPLEFT", root, "TOPLEFT", 0, 0)
-  strip:SetPoint("TOPRIGHT", root, "TOPRIGHT", 0, 0)
-  strip:SetHeight(30)
-  strip:SetColorTexture(1, 1, 1, 0.04)
-  title = root:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalLarge"))
-  title:SetPoint("LEFT", root, "TOPLEFT", 10, -15)
-  root.Title = title
+  local _
+  _, title = UI.PageHeader(root, false)
   local holder = CreateFrame("Frame", nil, root)
-  holder:SetPoint("TOPLEFT", root, "TOPLEFT", 0, -36)
+  holder:SetPoint("TOPLEFT", root, "TOPLEFT", 0, UI.PAGE_TOP)
   holder:SetPoint("BOTTOMRIGHT", root, "BOTTOMRIGHT", 0, 0)
   list = UI.List(holder, function()
     return { view = "browse", exp = UI.BrowseCategory(), sourceText = ns.Game.MountSourceText }

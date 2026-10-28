@@ -43,7 +43,7 @@ local ADDON, ns = ...
 -- StripMarkup, SourcePairs, MountIcon, SectionLabel,
 -- ListRows, SubGroup, SourceZone, InstanceName, CollapseKey, ToggleCollapsed,
 -- ToggleAllCollapsed,
--- HeaderIcon, PreviewMount, RowClickAction, HasLocation, PinIcon,
+-- HeaderGlyph, HeaderColor, PreviewMount, RowClickAction, HasLocation, PinIcon,
 -- the filter menu helpers) are unit-tested; the widget
 -- code is built under a stub by tests/ui_build_spec.lua.
 -- The search box's matching (UI.SearchMatches, UI.SearchFields and the
@@ -206,302 +206,6 @@ end
 -- last, labelled L["Other"]).
 local OTHER_GROUP = "~other"
 UI.OTHER_GROUP = OTHER_GROUP
-
--- Plain text of a Mount Journal source string (Game.MountSourceText), the
--- one sanitiser for every reader of it: hyperlinks (|H...|h text |h keep
--- their text), named (|cnNAME:) and hex (|cAARRGGBB) colour codes, |r,
--- textures (|T...|t) and atlases (|A...|a) are removed; |n and CRLF become
--- "\n". nil for non-strings.
-function UI.StripMarkup(text)
-  if type(text) ~= "string" then return nil end
-  text = string.gsub(text, "|H.-|h(.-)|h", "%1")
-  text = string.gsub(text, "|cn[^:|]*:", "")
-  text = string.gsub(text, "|c%x%x%x%x%x%x%x%x", "")
-  text = string.gsub(text, "|r", "")
-  text = string.gsub(text, "|T.-|t", "")
-  text = string.gsub(text, "|A.-|a", "")
-  text = string.gsub(text, "|n", "\n")
-  text = string.gsub(text, "\r\n?", "\n")
-  return text
-end
-
--- Icon markup for display: a texture (|Tpath-or-fileID:h:w...|t) or atlas
--- (|Aname:h:w...|a) with its size fields rewritten to 0, which WoW scales to
--- the font height, so the icon lines up with the text around it.
-local function normalizeTexture(body)
-  local file = string.match(body, "^([^:]*)")
-  if file == "" then return "" end
-  return "|T" .. file .. ":0|t"
-end
-
-local function normalizeAtlas(body)
-  local name = string.match(body, "^:?([^:]*)")
-  if name == "" then return "" end
-  return "|A" .. name .. ":0:0|a"
-end
-
--- Placeholders ("\1" + a byte >= 128) stand in for icons while the text is
--- split into labels and values (UI.SourcePairs, keepIcons), so a fileID's
--- digits or an icon next to a label never confuse the label detection.
-local PLACEHOLDER = "\1[\128-\255]"
-local MAX_ICONS = 120
-
-local function hideIcons(text)
-  local icons = {}
-  local function hide(markup)
-    if markup == "" or #icons >= MAX_ICONS then return "" end
-    icons[#icons + 1] = markup
-    return "\1" .. string.char(127 + #icons)
-  end
-  text = string.gsub(text, "|T(.-)|t", function(body) return hide(normalizeTexture(body)) end)
-  text = string.gsub(text, "|A(.-)|a", function(body) return hide(normalizeAtlas(body)) end)
-  return text, icons
-end
-
-local function showIcons(text, icons)
-  return (string.gsub(text, PLACEHOLDER, function(mark) return icons[string.byte(mark, 2) - 127] or "" end))
-end
-
-local function dropIcons(text)
-  return (string.gsub(text, PLACEHOLDER, ""))
-end
-
--- UI.StripMarkup that keeps the icons (normalised, see above): the sanitiser
--- for text that is shown. Text that is compared stays on UI.StripMarkup.
-function UI.DisplayMarkup(text)
-  if type(text) ~= "string" then return nil end
-  local hidden, icons = hideIcons(text)
-  return showIcons(UI.StripMarkup(hidden), icons)
-end
-
-local FULLWIDTH_COLON = "\239\188\154" -- U+FF1A, zhCN / zhTW labels
-local MAX_LABEL = 40 -- bytes; longer "labels" are sentences with a colon
-
-local function trim(s)
-  return string.match(s, "^%s*(.-)%s*$")
-end
-
--- Comparable form of a label: lower case, without the colon and spaces.
-local function labelKey(label)
-  if type(label) ~= "string" then return nil end
-  label = dropIcons(label)
-  label = string.gsub(label, FULLWIDTH_COLON, "")
-  label = string.gsub(label, ":", "")
-  label = trim(label)
-  if label == "" then return nil end
-  return string.lower(label)
-end
-
--- Label kinds of the source text: English words plus the client's own
--- (GlobalStrings: BATTLE_PET_SOURCE_n are the Mount Journal's source names,
--- ZONE_COLON / LOCATION_COLON / COSTS_LABEL / CATEGORY) for other locales.
--- Read on each call, so a client without them still works. cost and
--- category only serve to split lines (UI.SourcePairs).
-local KIND_WORDS = {
-  { kind = "drop", words = { "Drop" }, globals = { "BATTLE_PET_SOURCE_1" } },
-  { kind = "quest", words = { "Quest" }, globals = { "BATTLE_PET_SOURCE_2" } },
-  { kind = "vendor", words = { "Vendor" }, globals = { "BATTLE_PET_SOURCE_3" } },
-  { kind = "achievement", words = { "Achievement" }, globals = { "BATTLE_PET_SOURCE_6" } },
-  { kind = "zone", words = { "Zone", "Location" }, globals = { "ZONE_COLON", "LOCATION_COLON" } },
-  { kind = "cost", words = { "Cost" }, globals = { "COSTS_LABEL" } },
-  { kind = "category", words = { "Category" }, globals = { "CATEGORY" } },
-}
-
-local function labelKinds()
-  local kinds = {}
-  local function add(word, kind)
-    local key = labelKey(word)
-    if key and not kinds[key] then kinds[key] = kind end
-  end
-  for _, entry in ipairs(KIND_WORDS) do
-    for _, word in ipairs(entry.words) do add(word, entry.kind) end
-    for _, name in ipairs(entry.globals) do add(_G[name], entry.kind) end
-  end
-  return kinds
-end
-
--- Kind of a source label: "drop" | "quest" | "vendor" | "achievement" |
--- "zone" (Zone / Location) | "cost" | "category" | nil.
-function UI.SourceLabelKind(label, kinds)
-  local key = labelKey(label)
-  return key and (kinds or labelKinds())[key] or nil
-end
-
--- Label key -> kind for UI.SourceLabelKind's second argument, built once per
--- caller (UI.SearchFields) instead of once per label.
-function UI.SourceLabelKinds()
-  return labelKinds()
-end
-
--- "<label>: <value>" -> label (with its colon), value; nil when the line has
--- no short, digit-free label before its first colon.
-local function splitLabel(line)
-  local label, value = string.match(line, "^([^:]-:)%s*(.*)$")
-  local wide, wideValue = string.match(line, "^(.-" .. FULLWIDTH_COLON .. ")%s*(.*)$")
-  if wide and (not label or #wide < #label) then label, value = wide, wideValue end
-  if not label or #label > MAX_LABEL or string.find(label, "%d") then return nil end
-  if not string.find(label, "[^%s:]") then return nil end
-  return label, value
-end
-
--- A value that runs into another known label ("Ultraxion Zone: Dragon
--- Soul") -> head, label, tail; nil when no known label (labelKinds) follows a
--- space. Unknown words never split ("Ahead of the Curve: Ultraxion").
-local function splitKnown(value, kinds)
-  local from = 1
-  while true do
-    local space = string.find(value, "%s", from)
-    if not space then return nil end
-    local rest = string.sub(value, space + 1)
-    local label = string.match(rest, "^([^:%s][^:]-:)")
-    if label and #label <= MAX_LABEL and kinds[labelKey(label)] then
-      local head = trim(string.sub(value, 1, space - 1))
-      if head ~= "" then return head, label, trim(string.sub(rest, #label + 1)) end
-    end
-    from = space + 1
-  end
-end
-
--- Coloured labels ("|cFFFFD200Zone:|r", "|cnNORMAL_FONT_COLOR:Zone:|r") start
--- a line of their own, even when the client put several on one line.
-local function breakColouredLabels(text)
-  for _, colon in ipairs({ ":", FULLWIDTH_COLON }) do
-    text = string.gsub(text, "(|c%x%x%x%x%x%x%x%x[^|\n]-" .. colon .. "%s*|r)", "|n%1")
-    text = string.gsub(text, "(|cn[^:|]*:[^|\n]-" .. colon .. "%s*|r)", "|n%1")
-  end
-  return text
-end
-
--- The source string's lines (UI.StripMarkup) -> { { label = "Drop:", value =
--- "Ultraxion" }, { value = "<unlabelled line>" }, ... } in order. Labels are
--- the client's own (localised) text with the colon; lines and values are
--- trimmed; empty lines and labels with an empty value are left out. Several
--- labels on one line become several pairs: coloured labels always, plain
--- ones when the label is a known word (UI.SourceLabelKind). With keepIcons
--- the values keep their (normalised) icons; labels never do.
-function UI.SourcePairs(text, keepIcons)
-  local out = {}
-  if type(text) ~= "string" then return out end
-  local icons
-  if keepIcons then text, icons = hideIcons(text) end
-  text = UI.StripMarkup(breakColouredLabels(text))
-  local kinds = labelKinds()
-  for line in string.gmatch(text .. "\n", "([^\n]*)\n") do
-    line = trim(line)
-    if line ~= "" then
-      local label, value = splitLabel(line)
-      if label then
-        value = trim(value)
-        while label do
-          local head, nextLabel, tail = splitKnown(value, kinds)
-          if head then value = head end
-          if value ~= "" then
-            out[#out + 1] = { label = trim(dropIcons(label)), value = icons and showIcons(value, icons) or value }
-          end
-          label, value = nextLabel, tail
-        end
-      else
-        out[#out + 1] = { value = icons and showIcons(line, icons) or line }
-      end
-    end
-  end
-  return out
-end
-
--- True for the label of the zone line: "Zone:", or ZONE_COLON (a
--- GlobalStrings entry) for other locales when the client has it. "Location:"
--- is not a sub-group source (UI.SourceLabelKind counts it as a zone).
-local function isZoneLabel(label)
-  local key = labelKey(label)
-  return key ~= nil and (key == "zone" or key == labelKey(ZONE_COLON))
-end
-
--- The value of the first "Zone:" line of a Mount Journal source string
--- (Game.MountSourceText; UI.SourcePairs), nil when there is none.
-function UI.SourceZone(text)
-  for _, pair in ipairs(UI.SourcePairs(text)) do
-    if pair.label and isZoneLabel(pair.label) then return pair.value end
-  end
-  return nil
-end
-
--- Every "Zone:" / "Location:" value of a Mount Journal source string, in
--- order (a drop's zone, a vendor's, ...); {} when there is none.
-function UI.SourceZones(text)
-  local out = {}
-  local kinds = labelKinds()
-  for _, pair in ipairs(UI.SourcePairs(text)) do
-    if pair.label and UI.SourceLabelKind(pair.label, kinds) == "zone" then out[#out + 1] = pair.value end
-  end
-  return out
-end
-
--- Name of the achievement the achievement scan mapped the mount to, or nil
--- (not an achievement mount, not known yet, or no match).
-local function scannedAchievementName(mountID)
-  local scan = ns.AchievementScan
-  local id = scan and scan.Lookup and scan.Lookup(mountID) or nil
-  if not id then return nil end
-  local name = ns.Game.AchievementName and ns.Game.AchievementName(id) or nil
-  if type(name) == "string" and name ~= "" then return name end
-  return nil
-end
-
--- The same, for UI.SearchFields (UI/Search.lua).
-function UI.ScannedAchievementName(mountID)
-  return scannedAchievementName(mountID)
-end
-
--- The grey line under a mount row's name: the most specific source the
--- client's source text (Game.MountSourceText, passed in) or our data gives,
--- one line:
---   "Drop: Ultraxion · Dragon Soul" (Drop, plus Zone / Location),
---   "Achievement: <name>" (source text, else the achievement scan's name),
---   "Vendor: <name> · <zone>", "Quest: <name>",
---   another labelled line, not Cost / Category ("Treasure: <name> · <zone>"),
---   the route's "<boss> (<instance>)",
---   a lone "Zone: <name>", an unlabelled line,
---   else UI.SourceLine (the category text; "" when there is none).
--- Labels are the client's own.
-function UI.RowDescription(mountID, sourceText)
-  local kinds = labelKinds()
-  local first, zone, unlabelled, other = {}, nil, nil, nil
-  for _, pair in ipairs(UI.SourcePairs(sourceText, true)) do
-    if pair.label then
-      local kind = UI.SourceLabelKind(pair.label, kinds)
-      if kind == "zone" then
-        zone = zone or pair
-      elseif kind then
-        first[kind] = first[kind] or pair
-      else
-        other = other or pair
-      end
-    else
-      unlabelled = unlabelled or pair.value
-    end
-  end
-  local function text(pair, withZone)
-    local out = pair.label .. " " .. pair.value
-    if withZone and zone then out = out .. " · " .. zone.value end
-    return out
-  end
-
-  if first.drop then return text(first.drop, true) end
-  if first.achievement then return text(first.achievement) end
-  local achievement = scannedAchievementName(mountID)
-  if achievement then return string.format(L["Achievement: %s"], achievement) end
-  if first.vendor then return text(first.vendor, true) end
-  if first.quest then return text(first.quest) end
-  if other then return text(other, true) end
-  local entry = routeEntry(mountID)
-  if entry and entry.boss then
-    if entry.instance then return entry.boss .. " (" .. entry.instance .. ")" end
-    return entry.boss
-  end
-  if zone then return text(zone) end
-  if unlabelled then return unlabelled end
-  return UI.SourceLine(mountID)
-end
 
 -- Grouping key of a sub-group name: lower case, trimmed, single spaces, a
 -- leading "The " dropped, so "The Vortex Pinnacle" and "Vortex Pinnacle"
@@ -745,20 +449,14 @@ end
 local GREEN = "|cff33ff99"
 local GREY = "|cff9d9d9d"
 
--- Collapse indicator of a header: the quest log's campaign header atlas when
--- the client has it (UI.AtlasExists), and the text fallback ("+" collapsed,
--- an en dash expanded: the default font has no U+2212 minus).
--- -> atlas|nil, text.
-local ICON_OPEN, ICON_CLOSED = "campaign_headericon_open", "campaign_headericon_closed"
-function UI.HeaderIcon(collapsed)
-  local atlas = collapsed and ICON_CLOSED or ICON_OPEN
-  local text = collapsed and "+" or "\226\128\147"
-  if UI.AtlasExists and UI.AtlasExists(atlas) then return atlas, text end
-  return nil, text
+-- Collapse glyph of a header, as a pop-out's group header: "+" collapsed,
+-- "-" expanded.
+function UI.HeaderGlyph(collapsed)
+  return collapsed and "+" or "-"
 end
 
 -- Header label: section / sub-group name, "(owned/total)" in grey when
--- counted, then the badge in green (grey when row.badgeMuted, e.g. a holiday
+-- counted ("(n left)" for a Lockouts header, row.reset), then the badge in green (grey when row.badgeMuted, e.g. a holiday
 -- that starts later). Active headers (row.active, e.g. a holiday on the
 -- calendar now) paint the name and badge in the game's GREEN_FONT_COLOR.
 local ACTIVE_GREEN = "|cff19ff19"
@@ -766,7 +464,10 @@ local STATUS_BLUE = "|cff71d5ff"
 function UI.HeaderText(row)
   local text = row.text or ""
   if row.active then text = ACTIVE_GREEN .. text .. "|r" end
-  if row.total then
+  if row.total and row.reset then
+    -- A Lockouts header counts what is left, as the pop-outs do.
+    text = text .. "  " .. GREY .. "(" .. string.format(L["%d left"], row.total - (row.owned or 0)) .. ")|r"
+  elseif row.total then
     text = text .. "  " .. GREY .. "(" .. (row.owned or 0) .. "/" .. row.total .. ")|r"
   elseif row.left then
     -- A count where owned/total means nothing (the checklist's rare spawns
@@ -1272,19 +973,33 @@ local function collapsedDB()
   return global.collapsed
 end
 
--- Section header (depth 1) and sub-header (depth 2, indented, smaller font,
--- fainter band; depth 3 -- the checklist's categories -- looks the same, one
--- DEPTH_STEP further in). A plain Frame (not a Button) so the ScrollBox pools it apart
--- from the mount rows; left-click (OnMouseUp) calls frame.onToggle(key), a
--- right-click frame.onRightClick(data, frame) when the caller set one, and hovering
+-- Header colours, as a pop-out's group headers: an expansion's header
+-- (depth 2 with `exp`, the Lockouts' expansions) in that expansion's colour,
+-- deeper ones (the Lockouts' categories) light grey, the rest in the main
+-- window's header colour (its appearance, UI/Style.lua), else gold.
+local GOLD = { 1, 0.82, 0 }
+local LIGHT = { 0.85, 0.85, 0.85 }
+function UI.HeaderColor(data)
+  local depth = data and data.depth or 1
+  if depth == 2 and data.exp and UI.EXPANSION_COLORS and UI.EXPANSION_COLORS[data.exp] then
+    return UI.EXPANSION_COLORS[data.exp]
+  end
+  if depth >= 3 then return LIGHT end
+  local style = UI.frame and UI.PopoutStyleOf and UI.PopoutStyleOf(UI.frame)
+  return style and style.header or GOLD
+end
+
+-- Section header (depth 1) and sub-header (depth 2, indented, smaller font;
+-- depth 3 -- the checklist's categories -- looks the same, one DEPTH_STEP
+-- further in), in the pop-outs' look: "- Name (count)" in the header's
+-- colour (UI.HeaderColor) over a thin rule of it. A plain Frame (not a
+-- Button) so the ScrollBox pools it apart from the mount rows; left-click
+-- (OnMouseUp) calls frame.onToggle(key), a right-click
+-- frame.onRightClick(data, frame) when the caller set one, and hovering
 -- shows frame.hint (UI.ShowHint, beside the cursor) when set.
 local function initHeader(frame, data)
   if not frame.Label then
     frame:EnableMouse(true)
-    -- Flat header: a faint band with a thin gold rule underneath.
-    local bg = frame:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints(frame)
-    frame.Bg = bg
     local hover = frame:CreateTexture(nil, "BORDER")
     hover:SetAllPoints(frame)
     hover:SetColorTexture(1, 1, 1, 0.05)
@@ -1292,18 +1007,14 @@ local function initHeader(frame, data)
     frame.Hover = hover
     local rule = frame:CreateTexture(nil, "BORDER")
     rule:SetHeight(1)
-    rule:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
-    rule:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
+    rule:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 1)
     frame.Rule = rule
-    -- +/- indicator: the campaign header atlas, else a text glyph.
-    local indicator = frame:CreateTexture(nil, "ARTWORK")
-    indicator:SetSize(INDICATOR_SIZE, INDICATOR_SIZE)
-    frame.Indicator = indicator
-    local indicatorText = frame:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlight"))
-    indicatorText:SetPoint("CENTER", indicator, "CENTER", 0, 0)
-    frame.IndicatorText = indicatorText
+    local glyph = frame:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormal"))
+    glyph:SetWidth(INDICATOR_SIZE)
+    glyph:SetJustifyH("LEFT")
+    frame.Glyph = glyph
     local label = frame:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormal"))
-    label:SetPoint("LEFT", indicator, "RIGHT", 6, 0)
+    label:SetPoint("LEFT", glyph, "RIGHT", 0, 0)
     label:SetJustifyH("LEFT")
     frame.Label = label
     frame:SetScript("OnEnter", function(self)
@@ -1340,21 +1051,20 @@ local function initHeader(frame, data)
   frame.data = data
   -- Recycled frames: the hover band follows the mouse, not the last use.
   frame.Hover:SetShown(type(frame.IsMouseOver) == "function" and frame:IsMouseOver() == true)
-  frame.Bg:SetColorTexture(1, 1, 1, sub and 0.025 or 0.05)
-  frame.Rule:SetColorTexture(1, 0.82, 0, sub and 0.1 or 0.25)
-  frame.Indicator:ClearAllPoints()
-  frame.Indicator:SetPoint("LEFT", frame, "LEFT", sub and (SUB_INDENT + (depth - 2) * DEPTH_STEP) or 6, 0)
-  local atlas, glyph = UI.HeaderIcon(data.collapsed == true)
-  if atlas then
-    frame.Indicator:SetAtlas(atlas)
-    frame.Indicator:Show()
-    frame.IndicatorText:Hide()
-  else
-    frame.Indicator:Hide()
-    frame.IndicatorText:SetText(glyph)
-    frame.IndicatorText:Show()
-  end
-  frame.Label:SetFontObject(sub and UI.Font("GameFontNormalSmall") or UI.Font("GameFontNormal"))
+  local inset = sub and (SUB_INDENT + (depth - 2) * DEPTH_STEP) or 6
+  local c = UI.HeaderColor(data)
+  frame.Glyph:ClearAllPoints()
+  frame.Glyph:SetPoint("LEFT", frame, "LEFT", inset, 0)
+  frame.Rule:ClearAllPoints()
+  frame.Rule:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", inset, 1)
+  frame.Rule:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 1)
+  frame.Rule:SetColorTexture(c[1], c[2], c[3], depth >= 3 and 0.15 or 0.35)
+  local font = sub and UI.Font("GameFontNormalSmall") or UI.Font("GameFontNormal")
+  frame.Glyph:SetFontObject(font)
+  frame.Glyph:SetText(UI.HeaderGlyph(data.collapsed == true))
+  frame.Glyph:SetTextColor(c[1], c[2], c[3])
+  frame.Label:SetFontObject(font)
+  frame.Label:SetTextColor(c[1], c[2], c[3])
   frame.Label:SetText(UI.HeaderText(data))
 end
 
@@ -1456,19 +1166,10 @@ local function setupRow(row)
   row.Pin = pin
 
   local name = row:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormal"))
-  -- Same-edge anchor pairs only (a RIGHT anchor would also pin the vertical
-  -- centre). The 32 px icon is centred in the 40 px row, so its top is at -4
-  -- and the name's at -6; the right edge stops 8 px left of the pin.
-  name:SetPoint("TOPLEFT", icon, "TOPRIGHT", 8, -2)
-  name:SetPoint("TOPRIGHT", row, "TOPRIGHT", -UI.PIN_ROOM, -((ROW_HEIGHT - 32) / 2 + 2))
-  name:SetJustifyH("LEFT")
   name:SetWordWrap(false)
   row.Name = name
 
   local source = row:CreateFontString(nil, "OVERLAY", UI.SourceFont())
-  source:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -3)
-  source:SetPoint("TOPRIGHT", name, "BOTTOMRIGHT", 0, -3)
-  source:SetJustifyH("LEFT")
   source:SetWordWrap(false)
   row.Source = source
 
@@ -1503,6 +1204,43 @@ end
 
 local function noTooltip() end
 
+-- The full row: icon, the name over its source line. Same-edge anchor pairs
+-- only (a RIGHT anchor would also pin the vertical centre). The 32 px icon
+-- is centred in the 40 px row, so its top is at -4 and the name's at -6;
+-- the right edge stops 8 px left of the pin.
+local function anchorFull(row)
+  local name, source = row.Name, row.Source
+  name:ClearAllPoints()
+  name:SetPoint("TOPLEFT", row.Icon, "TOPRIGHT", 8, -2)
+  name:SetPoint("TOPRIGHT", row, "TOPRIGHT", -UI.PIN_ROOM, -((ROW_HEIGHT - 32) / 2 + 2))
+  name:SetJustifyH("LEFT")
+  source:ClearAllPoints()
+  source:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -3)
+  source:SetPoint("TOPRIGHT", name, "BOTTOMRIGHT", 0, -3)
+  source:SetJustifyH("LEFT")
+end
+
+-- The compact row, a pop-out's: the expansion tag at `left`, the name after
+-- it, the source line right-aligned in the row's right half (left of the
+-- pin), all on one line.
+local function anchorCompact(row, left)
+  local tag, name, source = row.Tag, row.Name, row.Source
+  tag:ClearAllPoints()
+  tag:SetPoint("LEFT", row, "LEFT", left, 0)
+  name:ClearAllPoints()
+  if tag:IsShown() then
+    name:SetPoint("LEFT", tag, "RIGHT", 6, 0)
+  else
+    name:SetPoint("LEFT", row, "LEFT", left, 0)
+  end
+  name:SetPoint("RIGHT", row, "CENTER", 4, 0)
+  name:SetJustifyH("LEFT")
+  source:ClearAllPoints()
+  source:SetPoint("LEFT", row, "CENTER", 12, 0)
+  source:SetPoint("RIGHT", row, "RIGHT", -UI.PIN_ROOM, 0)
+  source:SetJustifyH("RIGHT")
+end
+
 local function initRow(row, data)
   if not row.Icon then setupRow(row) end
   row.mountID = data.id
@@ -1511,18 +1249,38 @@ local function initRow(row, data)
   row.Selected:SetShown(data.selected == true)
   row.routeBoss = data.routeBoss
   row.eventMap = data.eventMap
-  -- Under a sub-header the icon lines up with the sub-header's indicator.
-  row.Icon:SetPoint("LEFT", row, "LEFT", data.depth == 2 and SUB_INDENT or ROW_ICON_LEFT, 0)
+  local compact = data.compact == true
   local name = data.name or ns.Game.MountInfo(data.id)
-  row.Icon:SetTexture(UI.MountIcon(data.id))
+  row.Icon:SetShown(not compact)
+  if compact then
+    if not row.Tag then row.Tag = UI.ExpansionBadge(row) end
+    UI.SetExpansionBadge(row.Tag, data.m and data.m.exp)
+    row.Tag:EnableMouse(false) -- the row takes the clicks
+    anchorCompact(row, data.left or ROW_ICON_LEFT)
+  else
+    if row.Tag then row.Tag:Hide() end
+    -- Under a sub-header the icon lines up with the sub-header's indicator.
+    row.Icon:SetPoint("LEFT", row, "LEFT", data.depth == 2 and SUB_INDENT or ROW_ICON_LEFT, 0)
+    row.Icon:SetTexture(UI.MountIcon(data.id))
+    anchorFull(row)
+  end
   row.Name:SetText(name or data.m.name or tostring(data.id))
   row.Source:SetText(UI.RowSourceText(data))
   row.Stripe:SetShown(data.alt == true)
   UI.ShowPin(row.Pin, data.pin)
   -- Owned (collected) mounts: green tint and a light green name, the icon
-  -- in full colour; everything reset for a recycled frame.
+  -- in full colour; everything reset for a recycled frame. A compact row's
+  -- name is white (in its rarity's colour with the pop-outs' option on).
   row.Owned:SetShown(data.owned == true)
-  row.Name:SetFontObject(data.owned and UI.OwnedFont() or UI.Font("GameFontNormal"))
+  if data.owned then
+    row.Name:SetFontObject(UI.OwnedFont())
+  elseif compact then
+    row.Name:SetFontObject(UI.Font("GameFontHighlight"))
+    local c = UI.PopoutRarityColor and UI.PopoutRarityColor(data.id)
+    if c then row.Name:SetTextColor(c[1], c[2], c[3]) end
+  else
+    row.Name:SetFontObject(UI.Font("GameFontNormal"))
+  end
   row.Icon:SetDesaturated(false)
 end
 
@@ -1534,10 +1292,13 @@ end
 -- onSelect= (function(mountID): a plain left-click selects instead of the
 -- waypoint; the detail pane's lists), selected= (the selected row's look),
 -- routeBoss= (the row's route boss, passed to the click: UI.HandleRowClick,
--- and to the hover: UI.ShowMountTooltip's lockout line) }.
--- Rows are UI.MOUNT_ROW_HEIGHT tall.
+-- and to the hover: UI.ShowMountTooltip's lockout line), compact= (a
+-- pop-out's one-line row: expansion tag, name, the source line on the
+-- right; no icon), left= (a compact row's left inset) }.
+-- Rows are UI.MOUNT_ROW_HEIGHT tall, compact ones UI.COMPACT_ROW_HEIGHT.
 UI.InitMountRow = initRow
 UI.MOUNT_ROW_HEIGHT = ROW_HEIGHT
+UI.COMPACT_ROW_HEIGHT = 22
 
 -- Fallback panel checkbox; its label is one line kept inside the panel
 -- (long "Show ..." labels are cut, not run under the list).
@@ -1790,16 +1551,11 @@ function UI.List(parent, getQuery, opts)
   end)
   list.SearchBox = search
   if dropdown then
-    -- Flat header strip behind the top row, with a thin rule underneath.
-    local strip = list:CreateTexture(nil, "BACKGROUND")
-    strip:SetPoint("TOPLEFT", list, "TOPLEFT", 0, 0)
-    strip:SetPoint("TOPRIGHT", rightEdge, rightPoint, 0, 0)
-    strip:SetHeight(TOP_ROW - 2)
-    strip:SetColorTexture(1, 1, 1, 0.04)
+    -- The top row on the window's own fill, a thin rule underneath.
     local rule = list:CreateTexture(nil, "BORDER")
     rule:SetHeight(1)
-    rule:SetPoint("TOPLEFT", strip, "BOTTOMLEFT", 0, 0)
-    rule:SetPoint("TOPRIGHT", strip, "BOTTOMRIGHT", 0, 0)
+    rule:SetPoint("TOPLEFT", list, "TOPLEFT", 0, -(TOP_ROW - 2))
+    rule:SetPoint("TOPRIGHT", rightEdge, rightPoint, 0, -(TOP_ROW - 2))
     rule:SetColorTexture(1, 1, 1, 0.1)
     search:SetSize(SEARCH_WIDTH, 20)
     search:SetPoint("TOPLEFT", list, "TOPLEFT", 10, -4)

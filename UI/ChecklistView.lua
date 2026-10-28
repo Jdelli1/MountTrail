@@ -451,9 +451,9 @@ end
 
 -- Widgets ----------------------------------------------------------------------------
 
-local CHECK_SIZE = 22
+local CHECK_SIZE = 18
 local CHECK_LEFT = 6
-local ICON_LEFT = CHECK_LEFT + CHECK_SIZE + 4
+local ICON_LEFT = CHECK_LEFT + CHECK_SIZE + 4 -- where a row's expansion tag starts
 local SUB_OFFSET = 16 -- per header level under the reset header (UI/List.lua: sub-header indicator 22 vs 6, +16 per level)
 local TOP_HEIGHT = 96 -- the tab's own header: name, summary, flavour line, chips
 local HEADER_HEIGHT = 24 -- UI/List.lua section headers
@@ -571,9 +571,12 @@ local function onTick(self, button)
   ns.Refresh()
 end
 
--- A mount row (UI.InitMountRow) with a tick box in front of the icon; done
--- entries are dimmed (GameFontDisable name, grey icon).
+-- A compact mount row (UI.InitMountRow, a pop-out's: expansion tag, name,
+-- the boss / instance on the right) with a tick box in front; done entries
+-- are dimmed (GameFontDisable name).
 local function initRow(row, data)
+  local inset = math.max(0, (data.depth or 1) - 1) * SUB_OFFSET
+  data.compact, data.left = true, ICON_LEFT + inset
   UI.InitMountRow(row, data)
   if not row.Check then
     local check = CreateFrame("CheckButton", nil, row,
@@ -585,10 +588,8 @@ local function initRow(row, data)
   end
   row.entry = data.entry
   -- Recycled rows: re-anchor for this row's depth (indented under a sub-header).
-  local inset = math.max(0, (data.depth or 1) - 1) * SUB_OFFSET
   row.Check:ClearAllPoints()
   row.Check:SetPoint("LEFT", row, "LEFT", CHECK_LEFT + inset, 0)
-  row.Icon:SetPoint("LEFT", row, "LEFT", ICON_LEFT + inset, 0)
   local checked, enabled = UI.ChecklistCheck(data.entry)
   row.Check:SetChecked(checked and true or false)
   row.Check:SetEnabled(enabled and true or false)
@@ -739,10 +740,8 @@ local function buildHeader(parent)
   top:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
   top:SetHeight(TOP_HEIGHT)
 
-  -- Flat header strip with a thin rule underneath.
-  local strip = top:CreateTexture(nil, "BACKGROUND")
-  strip:SetAllPoints(top)
-  strip:SetColorTexture(1, 1, 1, 0.04)
+  -- On the window's own fill, as in a pop-out, with a thin rule underneath
+  -- (the tabs sit on it).
   local rule = top:CreateTexture(nil, "BORDER")
   rule:SetHeight(1)
   rule:SetPoint("BOTTOMLEFT", top, "BOTTOMLEFT", 0, 0)
@@ -776,23 +775,27 @@ local function buildHeader(parent)
     top.ChecklistFilter = filter
   end
 
-  -- Chips: All / Daily / Weekly / Rare Spawns.
+  -- Tabs (flat text on the rule, the shown one gold over a gold line): All /
+  -- Daily / Weekly / Rare Spawns.
   top.Chips = {}
   local prev
   for i, key in ipairs(SHOWS) do
     local chip = CreateFrame("Button", nil, top)
-    chip:SetHeight(18)
+    chip:SetHeight(20)
     if prev then
-      chip:SetPoint("LEFT", prev, "RIGHT", 6, 0)
+      chip:SetPoint("LEFT", prev, "RIGHT", 10, 0)
     else
-      chip:SetPoint("BOTTOMLEFT", top, "BOTTOMLEFT", 6, 6)
+      chip:SetPoint("BOTTOMLEFT", top, "BOTTOMLEFT", 6, 0)
     end
-    local bg = chip:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints(chip)
-    bg:SetColorTexture(1, 1, 1, 0.06)
-    chip.Bg = bg
+    local line = chip:CreateTexture(nil, "ARTWORK")
+    line:SetHeight(2)
+    line:SetPoint("BOTTOMLEFT", chip, "BOTTOMLEFT", 0, 0)
+    line:SetPoint("BOTTOMRIGHT", chip, "BOTTOMRIGHT", 0, 0)
+    line:SetColorTexture(1, 0.82, 0, 1)
+    line:Hide()
+    chip.Line = line
     local text = chip:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlightSmall"))
-    text:SetPoint("CENTER", chip, "CENTER", 0, 0)
+    text:SetPoint("CENTER", chip, "CENTER", 0, 1)
     chip.Text = text
     local hl = chip:CreateTexture(nil, "HIGHLIGHT")
     hl:SetAllPoints(chip)
@@ -852,16 +855,21 @@ function UI.ChecklistChipRightClick(key, owner)
   end
 end
 
--- Paints the chips: label with what is left, the shown one gold.
+-- Paints the tabs: label and what is left (grey), the shown one gold over
+-- its line.
+function UI.ChecklistTabLabel(label, left)
+  if left == nil then return label end
+  return string.format("%s  |cff9d9d9d%d|r", label, left)
+end
+
 local function paintChips(left, show)
   for _, chip in ipairs(header.Chips) do
     local key = chip.key
-    local label = L[SHOW_LABELS[key]]
-    if key ~= "all" then label = string.format("%s (%d)", label, left[key] or 0) end
-    chip.Text:SetText(label)
-    chip:SetWidth((chip.Text.GetStringWidth and chip.Text:GetStringWidth() or 60) + 16)
+    chip.Text:SetText(UI.ChecklistTabLabel(L[SHOW_LABELS[key]], key ~= "all" and (left[key] or 0) or nil))
+    chip:SetWidth((chip.Text.GetStringWidth and chip.Text:GetStringWidth() or 60) + 4)
     local on = key == show
-    chip.Bg:SetColorTexture(1, on and 0.82 or 1, on and 0 or 1, on and 0.3 or 0.06)
+    if on then chip.Text:SetTextColor(1, 0.82, 0) else chip.Text:SetTextColor(0.8, 0.8, 0.8) end
+    chip.Line:SetShown(on)
     chip.selected = on
   end
 end
@@ -905,7 +913,7 @@ function view.Build(parent)
   local listView = CreateScrollBoxListLinearView()
   listView:SetElementExtentCalculator(function(_, row)
     if row.header then return UI.HeaderHeight((row.depth or 1) >= 2 and SUB_HEADER_HEIGHT or HEADER_HEIGHT) end
-    return UI.RowHeight(UI.MOUNT_ROW_HEIGHT)
+    return UI.CompactRowHeight(UI.COMPACT_ROW_HEIGHT)
   end)
   listView:SetElementFactory(function(factory, row)
     if row.header then

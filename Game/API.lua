@@ -422,14 +422,6 @@ function Game.HolidaySchedule()
   return { now = today, occurrences = cache.occurrences }
 end
 
--- index: position in Data.Expansions (1 = Classic); the API takes the
--- 0-based expansion level. -> logo fileID or nil.
-function Game.ExpansionLogo(index)
-  if not (GetExpansionDisplayInfo and index) then return nil end
-  local info = GetExpansionDisplayInfo(index - 1)
-  return info and info.logo or nil
-end
-
 -- "Name-Realm" for this character.
 function Game.CharKey()
   local name = UnitName and UnitName("player") or "?"

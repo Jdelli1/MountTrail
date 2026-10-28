@@ -36,7 +36,7 @@ function UI.NavBrowseEntries(categories)
   end
   return out
 end
-UI.NAV_WIDTH = 156
+UI.NAV_WIDTH = 176
 -- The collapse keys of the My lists and Quick lists sections.
 UI.NAV_LISTS_KEY, UI.NAV_QUICK_KEY = "nav|lists", "nav|quick"
 UI.NAV_BROWSE_KEY = "nav|browse"
@@ -205,6 +205,13 @@ local function navFont(fs, fontObject)
 end
 local NAV_GOLD = { 1, 0.82, 0 }
 
+-- The main window's header colour (its appearance, UI/Style.lua), else gold:
+-- the section headings and their rules, as a pop-out's group headers.
+local function headerColor()
+  local style = UI.frame and UI.PopoutStyleOf and UI.PopoutStyleOf(UI.frame)
+  return style and style.header or NAV_GOLD
+end
+
 -- The entries under "My lists": each custom list ({ list = id }), then each
 -- quick list ({ quick = key, builtIn = true }) -> { { key = "list:<id>" |
 -- "quick:<key>", label =, source = (UI.OpenPopout / UI.ShowListPage source),
@@ -248,8 +255,9 @@ function UI.NavSelected(view, listSource, browseCategory, checklistShow)
   return view
 end
 
--- A badge for an entry (right-aligned, grey or green): Today -> the
--- lockouts left, a list -> its lockouts open today (green). (Here has none:
+-- A badge for an entry (right-aligned, grey or green), as the pop-outs
+-- count: Lockouts or one of its groups -> "<n> left", a list -> its
+-- lockouts open today, "<n> left" (green), a guide -> its step "2/5". (Here has none:
 -- working out the zone's mounts on every refresh costs too much.) nil: none. Errors are swallowed (nil).
 -- built() -> the Checklist.Build output to count from (one per repaint).
 function UI.NavBadge(entry, built)
@@ -265,17 +273,17 @@ function UI.NavBadge(entry, built)
       local char = ns.db and ns.db.char
       local filters = char and type(char.checklistFilters) == "table" and char.checklistFilters or nil
       local n = ns.Checklist.Remaining(built(), filters)
-      return n > 0 and tostring(n) or nil
+      return n > 0 and string.format(L["%d left"], n) or nil
     end
     if entry.show and built and UI.ChecklistLeft then
       local char = ns.db and ns.db.char
       local filters = char and type(char.checklistFilters) == "table" and char.checklistFilters or nil
       local n = UI.ChecklistLeft(built(), filters)[entry.show] or 0
-      return n > 0 and tostring(n) or nil
+      return n > 0 and string.format(L["%d left"], n) or nil
     end
     if entry.source and UI.ListCardStatsFor and built then
       local stats = UI.ListCardStatsFor(entry.source, built())
-      if stats and stats.open > 0 then return tostring(stats.open), true end
+      if stats and stats.open > 0 then return string.format(L["%d left"], stats.open), true end
     end
     return nil
   end)
@@ -291,16 +299,9 @@ local function navButton(parent)
   b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   local sel = b:CreateTexture(nil, "BACKGROUND")
   sel:SetAllPoints(b)
-  sel:SetColorTexture(1, 0.82, 0, 0.12)
+  sel:SetColorTexture(1, 1, 1, 0.07)
   sel:Hide()
   b.Selected = sel
-  local bar = b:CreateTexture(nil, "ARTWORK")
-  bar:SetWidth(3)
-  bar:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
-  bar:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 0)
-  bar:SetColorTexture(NAV_GOLD[1], NAV_GOLD[2], NAV_GOLD[3], 1)
-  bar:Hide()
-  b.Bar = bar
   local hl = b:CreateTexture(nil, "HIGHLIGHT")
   hl:SetAllPoints(b)
   hl:SetColorTexture(1, 1, 1, 0.06)
@@ -494,21 +495,21 @@ local function navCollapsed()
   return global.collapsed
 end
 
--- A section heading: a button whose text is the section's name; a
--- collapsible one (`key`) carries a +/- indicator and flips on click.
+-- A section heading, as a pop-out's group header: "- Browse" in the header
+-- colour over a thin rule of it; a collapsible one (`key`) flips on click
+-- ("+" while collapsed).
 local function navHeading(parent)
   local h = CreateFrame("Button", nil, parent)
   h:SetHeight(NAV_HEADING)
-  local indicator = h:CreateTexture(nil, "ARTWORK")
-  indicator:SetSize(12, 12)
-  indicator:SetPoint("LEFT", h, "LEFT", 8, -2)
-  h.Indicator = indicator
-  local glyph = h:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalSmall"))
-  glyph:SetPoint("CENTER", indicator, "CENTER", 0, 0)
-  h.Glyph = glyph
   local text = h:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalSmall"))
   text:SetJustifyH("LEFT")
+  text:SetPoint("LEFT", h, "LEFT", 10, 0)
   h.Text = text
+  local rule = h:CreateTexture(nil, "ARTWORK")
+  rule:SetHeight(1)
+  rule:SetPoint("BOTTOMLEFT", h, "BOTTOMLEFT", 8, 2)
+  rule:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", -8, 2)
+  h.Rule = rule
   h:SetScript("OnClick", function(self)
     if not self.key then return end
     local store = navCollapsed()
@@ -522,50 +523,38 @@ local function navHeading(parent)
   return h
 end
 
--- Paints heading `h`: its text, and for a collapsible one (`key`) the +/-
--- indicator (UI.HeaderIcon) with the text after it.
+-- Paints heading `h`: its text in the header colour (a collapsible one,
+-- `key`, after its "- " / "+ "), and its rule.
 local function paintHeading(h, text, key)
   h.key = key
+  local collapsed = key ~= nil and navCollapsed()[key] == true
+  h.collapsed = key ~= nil and collapsed or nil
   navFont(h.Text, UI.Font("GameFontNormalSmall"))
-  h.Text:SetText(text)
-  h.Text:ClearAllPoints()
-  if key then
-    local collapsed = navCollapsed()[key] == true
-    h.collapsed = collapsed
-    -- UI.HeaderIcon (UI/List.lua) when loaded, else a text +/-.
-    local atlas, glyph
-    if UI.HeaderIcon then atlas, glyph = UI.HeaderIcon(collapsed) else glyph = collapsed and "+" or "-" end
-    if atlas then
-      h.Indicator:SetAtlas(atlas)
-      h.Indicator:Show()
-      h.Glyph:Hide()
-    else
-      h.Indicator:Hide()
-      h.Glyph:SetText(glyph)
-      h.Glyph:Show()
-    end
-    h.Text:SetPoint("LEFT", h.Indicator, "RIGHT", 4, 0)
-    h:EnableMouse(true)
-  else
-    h.collapsed = nil
-    h.Indicator:Hide()
-    h.Glyph:Hide()
-    h.Text:SetPoint("LEFT", h, "LEFT", 10, -2)
-    h:EnableMouse(false)
-  end
+  local c = headerColor()
+  h.Text:SetTextColor(c[1], c[2], c[3])
+  h.Text:SetText(key and ((collapsed and "+ " or "- ") .. text) or text)
+  h.Rule:SetColorTexture(c[1], c[2], c[3], 0.35)
+  h:EnableMouse(key ~= nil)
 end
 
--- Builds the column on the window's left, under the portrait (UI/Frame.lua's
+-- Builds the column on the window's left, under the title strip (UI/Frame.lua's
 -- window calls it once) -> the column.
 function UI.CreateNav(frame)
   local n = CreateFrame("Frame", nil, frame)
   n:SetPoint("TOPLEFT", frame, "TOPLEFT", 6, UI.VIEW_TOP) -- under the title strip
   n:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 6, 6)
   n:SetWidth(UI.NavWidth())
+  -- A faint shade and a 1 px line on its right edge set it off from the views.
   local fill = n:CreateTexture(nil, "BACKGROUND")
   fill:SetAllPoints(n)
-  fill:SetColorTexture(0, 0, 0, 0.35)
-  n.Edge = UI.FlatBorder(n, 1, 1, 1, 0.08)
+  fill:SetColorTexture(1, 1, 1, 0.02)
+  n.Fill = fill
+  local edge = n:CreateTexture(nil, "BORDER")
+  edge:SetWidth(1)
+  edge:SetPoint("TOPRIGHT", n, "TOPRIGHT", 0, 0)
+  edge:SetPoint("BOTTOMRIGHT", n, "BOTTOMRIGHT", 0, 0)
+  edge:SetColorTexture(1, 1, 1, 0.08)
+  n.Edge = edge
 
   local scroll = CreateFrame("ScrollFrame", nil, n)
   scroll:SetPoint("TOPLEFT", n, "TOPLEFT", 1, -4)
@@ -644,7 +633,7 @@ function UI.SetNavWidth(w, save)
 end
 
 -- Repaints the column: the fixed entries, then My lists (and the quick
--- lists), each with its badge; the selected entry gets a gold bar.
+-- lists), each with its badge; the selected entry is gold on a faint band.
 function UI.RefreshNav()
   if not nav then return end
   local listPage = UI.CurrentListPage and UI.CurrentListPage() or nil
@@ -706,7 +695,6 @@ function UI.RefreshNav()
     b.Badge:SetText(badge and ((green and "|cff40c040" or "") .. badge .. (green and "|r" or "")) or "")
     local on = (e.key ~= nil and e.key == selected)
     b.Selected:SetShown(on)
-    b.Bar:SetShown(on)
     navFont(b.Text, on and UI.Font("GameFontNormal") or UI.Font("GameFontHighlight"))
     navFont(b.Badge, UI.Font("GameFontDisableSmall"))
     b.selected = on

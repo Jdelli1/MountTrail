@@ -75,6 +75,11 @@ function UI.RowHeight(base)
   return base + grow("header") + grow("detail")
 end
 
+-- A one-line row (a pop-out's) grows with the white text only.
+function UI.CompactRowHeight(base)
+  return base + grow("body")
+end
+
 function UI.HeaderHeight(base)
   return base + grow("header")
 end
@@ -509,9 +514,11 @@ local function createWindow()
   frame.Title = title
 
   -- The appearance: the fill and the title in the window's style, again
-  -- whenever the appearance menu changes it.
-  function frame.Restyle()
+  -- whenever the appearance menu changes it; a change beyond the background
+  -- (chromeOnly false: colours, font) redraws the navigation and the view.
+  function frame.Restyle(chromeOnly)
     if UI.PopoutApplyChrome then UI.PopoutApplyChrome(frame, UI.PopoutStyleOf(frame)) end
+    if not chromeOnly and frame:IsShown() and ns.Refresh then ns.Refresh() end
   end
   frame.Restyle()
   if UI.AddStyledWindow then UI.AddStyledWindow(frame) end

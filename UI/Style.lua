@@ -122,6 +122,40 @@ UI.PopoutStyleText = styleText
 UI.PopoutStyleHeader = headerText
 UI.PopoutApplyChrome = applyChrome
 
+-- A page's 30 px header in the pop-outs' look (no band, a thin rule under
+-- it): a flat Back button when `withBack`, then the title -> back|nil, title.
+-- The page's content starts UI.PAGE_TOP down.
+UI.PAGE_TOP = -36
+function UI.PageHeader(page, withBack)
+  local rule = page:CreateTexture(nil, "BORDER")
+  rule:SetHeight(1)
+  rule:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -30)
+  rule:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, -30)
+  rule:SetColorTexture(1, 1, 1, 0.1)
+  page.Rule = rule
+  local back
+  if withBack then
+    back = UI.FlatButton(page, L["Back"], "plain", 22)
+    back:SetPoint("TOPLEFT", page, "TOPLEFT", 4, -4)
+    page.Back = back
+  end
+  local title = page:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalLarge"))
+  if back then
+    title:SetPoint("LEFT", back, "RIGHT", 12, 0)
+  else
+    title:SetPoint("LEFT", page, "TOPLEFT", 10, -15)
+  end
+  page.Title = title
+  return back, title
+end
+
+-- A flat button for a page's header (Pop out), at its top right.
+function UI.PageButton(page, text)
+  local b = UI.FlatButton(page, text, "plain", 22)
+  b:SetPoint("TOPRIGHT", page, "TOPRIGHT", -4, -4)
+  return b
+end
+
 -- The extra windows, in the order they were added (UI.AddStyledWindow).
 function UI.StyledWindows()
   return extras

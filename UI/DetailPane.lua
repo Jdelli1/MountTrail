@@ -11,7 +11,7 @@ local ADDON, ns = ...
 -- many spawn points - all in a scrolling area. No buttons: the list's rows
 -- do it (UI.PaneRowClick: right-click plots or opens the achievement, Shift map, Ctrl preview).
 --   local pane = UI.CreateDetailPane(parent)
---   pane:SetMount(mountID[, routeBoss])   -- nil: empty
+--   pane:SetMount(mountID[, routeBoss])   -- nil: folded away (1 px wide)
 --   pane:Refresh()                        -- same mount, fresh numbers
 -- The model is reloaded only when the mount changes. Clients without the
 -- model scene template show the large icon instead.
@@ -241,10 +241,14 @@ end
 local function paint(pane)
   local id = pane.mountID
   local has = id ~= nil
+  -- No mount (an empty list, every header collapsed): the pane folds to
+  -- 1 px and the list takes its width; the first mount brings it back.
+  pane:SetWidth(has and pane.paneWidth or 1)
+  pane.ModelArea:SetShown(has)
+  if pane.Splitter then pane.Splitter:SetShown(has) end
   pane.Name:SetShown(has)
   pane.Icon:SetShown(has)
   pane.Info:SetShown(has)
-  pane.Empty:SetShown(not has)
   pane.AddList:SetShown(has)
   pane.Wowhead:SetShown(has)
   -- "+ List" while the mount is on none of your lists, else "Lists (n)".
@@ -416,12 +420,6 @@ local function build(parent)
   end)
   pane.Scroll, pane.Info = scroll, info
 
-  local empty = pane:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisable"))
-  empty:SetPoint("TOPLEFT", modelArea, "BOTTOMLEFT", PAD, -20)
-  empty:SetPoint("TOPRIGHT", modelArea, "BOTTOMRIGHT", -PAD, -20)
-  empty:SetText(L["Click a mount to see it here"])
-  pane.Empty = empty
-
   function pane:SetMount(mountID, routeBoss)
     local changed = mountID ~= self.mountID
     self.mountID, self.routeBoss = mountID, routeBoss
@@ -441,7 +439,6 @@ local function build(parent)
   -- A new width (UI.SetPaneWidth): the pane, its buttons and its lines.
   function pane:SetPaneWidth(w)
     self.paneWidth = w
-    self:SetWidth(w)
     self.Info:SetWidth(w - 2 * PAD)
     paint(self)
   end

@@ -2,9 +2,19 @@
 
 ## Unreleased
 
-- The main window takes the pop-outs' look: a flat panel with a slim title
-  strip instead of Blizzard's portrait frame. Right-click the strip for the
-  pop-outs' appearance menu (opacity, colours, font, size).
+- The main window takes the pop-outs' look throughout:
+  - a flat panel with a slim title strip instead of Blizzard's portrait
+    frame; right-click the strip for the pop-outs' appearance menu;
+  - the navigation's headings are pop-out group headers, counts read
+    "48 left";
+  - list headers are "- Name (count)" in the header or expansion colour over
+    a thin rule; Lockouts counts what is left;
+  - Lockouts rows are one line (expansion tag, mount, boss and instance)
+    under flat Daily / Weekly / Rare Spawns tabs;
+  - Home lists the expansions and sources as progress rows, with Today,
+    Following and Nearby beside them;
+  - flat Back / Pop out buttons; the detail pane folds away when it has
+    nothing to show.
 - `/mtrail zone` opens the small pop-out of your zone's mounts (as
   `/mtrail here` does) instead of the side panel; the panel stays on the
   title bar's pin button.
