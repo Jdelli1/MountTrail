@@ -23,6 +23,7 @@ ignore = {
 -- The saved variables (MountTrail.toc ## SavedVariables): Core/Init.lua
 -- migrates the old name's table into the new one.
 globals = {
+  "StaticPopupDialogs", -- an add-on registers its dialogs in it
   "MountTrailDB",
   "AzerothTrailDB",
 }
@@ -51,7 +52,7 @@ read_globals = {
   "ColorPickerFrame", "AchievementFrame", "AchievementFrame_SelectAchievement",
   "AchievementFrame_ToggleAchievementFrame", "OpenAchievementFrameToAchievement",
   "ShowAchievementFrameForAchievement", "ShowUIPanel", "OpenWorldMap",
-  "StaticPopupDialogs", "StaticPopup_Show", "SetPortraitToTexture", "CreateSettingsButtonInitializer", "ReloadUI",
+  "StaticPopup_Show", "SetPortraitToTexture", "CreateSettingsButtonInitializer", "ReloadUI",
   "DressUpMount", "DressUpMountLink", "PlaySound", "SOUNDKIT",
   "GameFontNormal", "GameFontHighlight", "GameFontHighlightSmall", "UiMapPoint", "Item", "Enum",
 
