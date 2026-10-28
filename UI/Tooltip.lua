@@ -228,7 +228,7 @@ function UI.TooltipLines(mountID, routeBoss, opts)
   local status = UI.LockoutStatus(mountID, routeBoss)
   lines[#lines + 1] = line(string.format(L["Lockout: %s"], L[STATUS_TEXT[status] or "—"]), GOLD)
 
-  local achievementLines, achievementID = UI.AchievementLines(mountID)
+  local achievementLines = UI.AchievementLines(mountID)
   for _, a in ipairs(achievementLines) do
     lines[#lines + 1] = { left = a.text, r = a.r, g = a.g, b = a.b, wrap = a.wrap }
   end

@@ -170,7 +170,7 @@ describe("game adapter", function()
       eq(G.Statistic(6), 5, "a number passes through")
     end)
     it("is nil for non-numeric, empty or missing values", function()
-      local values = { [1] = "abc", [2] = "", [3] = "12|TInterface\MoneyFrame\UI-GoldIcon:0:0:2:0|t",
+      local values = { [1] = "abc", [2] = "", [3] = "12|TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t",
         [4] = "1-2" }
       GetStatistic = function(id) return values[id] end
       local G = loadGame().Game

@@ -48,7 +48,6 @@ function UI.SetPaneWidth(w, save)
   return w
 end
 local MODEL_HEIGHT = 230
-local HEADER_HEIGHT = 44
 local PAD = 10
 local LINE_GAP = 3
 local SCROLL_STEP = 30

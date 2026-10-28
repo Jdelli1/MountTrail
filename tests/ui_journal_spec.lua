@@ -1090,7 +1090,7 @@ describe("ui journal", function()
       local SM = ns.UI.StripMarkup
       eq(SM("|cFFFFD200Drop:|r Ultraxion|n|cFFFFD200Zone: |rDragon Soul"), "Drop: Ultraxion\nZone: Dragon Soul")
       eq(SM("|cnNORMAL_FONT_COLOR:Zone:|r |Hmapzone:107|hNagrand|h"), "Zone: Nagrand")
-      eq(SM("Cost: 500|TInterface\MoneyFrame\UI-GoldIcon:0|t |A:raceicon-dwarf-male:16:16|aDwarf"), "Cost: 500 Dwarf")
+      eq(SM("Cost: 500|TInterface\\MoneyFrame\\UI-GoldIcon:0|t |A:raceicon-dwarf-male:16:16|aDwarf"), "Cost: 500 Dwarf")
       eq(SM("a\r\nb"), "a\nb", "CRLF")
       eq(SM(nil), nil)
       eq(SM(5), nil)
