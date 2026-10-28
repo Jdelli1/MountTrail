@@ -1543,7 +1543,8 @@ describe("ui build", function()
       if group == "Assault: Uldum" then
         seen.uldum = true
         eq(row.status, uldum)
-        ok(frames[i].Source:GetText():find(uldum, 1, true), frames[i].Source:GetText())
+        ok(frames[i].Name:GetText():find(uldum, 1, true), "beside the name: " .. frames[i].Name:GetText())
+        ok(not frames[i].Source:GetText():find(uldum, 1, true), "not cut off at the end of the right-hand line")
       elseif group == "Warfront: Darkshore" then
         seen.darkshore = true
         eq(row.status, "Status unknown — click to load")

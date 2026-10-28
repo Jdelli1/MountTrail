@@ -1284,7 +1284,9 @@ local function initRow(row, data)
     row.Icon:SetTexture(UI.MountIcon(data.id))
     anchorFull(row)
   end
-  row.Name:SetText(name or data.m.name or tostring(data.id))
+  name = name or data.m.name or tostring(data.id)
+  if compact and data.suffix then name = name .. "  " .. data.suffix end
+  row.Name:SetText(name)
   row.Source:SetFontObject(compact and UI.CompactSourceFont() or UI.SourceFont())
   row.Source:SetText(UI.RowSourceText(data))
   row.Stripe:SetShown(data.alt == true)
@@ -1315,7 +1317,8 @@ end
 -- routeBoss= (the row's route boss, passed to the click: UI.HandleRowClick,
 -- and to the hover: UI.ShowMountTooltip's lockout line), compact= (a
 -- pop-out's one-line row: expansion tag, name, the source line on the
--- right; no icon), left= (a compact row's left inset) }.
+-- right; no icon), left= (a compact row's left inset), suffix= (a compact
+-- row's text after the name: the Lockouts' light blue status) }.
 -- Rows are UI.MOUNT_ROW_HEIGHT tall, compact ones UI.COMPACT_ROW_HEIGHT.
 UI.InitMountRow = initRow
 UI.MOUNT_ROW_HEIGHT = ROW_HEIGHT

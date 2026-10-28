@@ -207,7 +207,9 @@ it can still spend on a mount.
   colour, then category headers (Raids, Dungeons, World bosses, Rares,
   Holidays, Other), each with its own count. All of them collapse.
 - One row per lockout, one line each as in a pop-out: its expansion tag, the
-  mount, and the boss and instance on the right. Each Vault of Archavon watcher counts. A kill that can
+  mount (with any live status beside it in light blue: an assault's or
+  warfront's state, the difficulties done), and the boss and instance on the
+  right. Each Vault of Archavon watcher counts. A kill that can
   drop several mounts, such as Malygos' two drakes, is one row named after the
   boss, listing its mounts on hover.
 - Also listed: tracked mounts the route does not list (rare-spawn quest flags,
