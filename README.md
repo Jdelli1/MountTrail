@@ -433,6 +433,7 @@ window's title bar has the same settings, plus `Reset text sizes` and
 | `Warn about the wrong difficulty` | On by default: entering an instance on a difficulty where a mount in your open pop-outs does not drop (Normal instead of Heroic, Heroic instead of Mythic, 10 instead of 25...) shows a warning on screen and in chat, e.g. "Wrong difficulty for Invincible: you are on 25 Player, it drops on 25 Player (Heroic)." Once per instance and difficulty; mounts you own are left out. |
 | `Show minimap button` | Shows or hides the minimap button. |
 | Debug messages | The same as `/mtrail debug`. |
+| `Reset all settings` | After a warning, puts every setting back to its default and reloads the interface: these options and text sizes, the window's size, position and column widths, the look, size and place of the window and every pop-out, the minimap button, the list filters and this character's Lockouts filters. Your lists, guides, attempts, lockouts, alts, collapsed headers and the navigation's order and favourites are kept. |
 
 ## Your lists
 

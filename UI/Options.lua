@@ -18,7 +18,11 @@ local ADDON, ns = ...
 --                the navigation column's fonts, 0-6, default 2): sliders,
 --                when the client has Settings.CreateSlider,
 --   "Show minimap button" (ns.db.global.minimap.hide, LibDBIcon Show / Hide),
---   "Debug messages" (ns.db.global.debug, the same flag as /mtrail debug).
+--   "Debug messages" (ns.db.global.debug, the same flag as /mtrail debug),
+--   "Reset all settings" (a button, when the client has
+--                CreateSettingsButtonInitializer): after a warning
+--                (Options.ConfirmReset, a StaticPopup), Options.ResetAll and a
+--                reload of the interface.
 -- `/mtrail options` opens it (Settings.OpenToCategory(category:GetID())). Every
 -- Settings call is guarded: a client without the API simply has no page.
 
@@ -224,12 +228,71 @@ local function report(err)
   if game and type(game.ReportError) == "function" then game.ReportError(err) end
 end
 
+-- Puts every setting back to its default: the options and text sizes, the
+-- window (size, position, view, column widths), the appearance of every
+-- window and pop-out (and their sizes and positions), the minimap button,
+-- the list filters, the zone panel, debug, and this character's Lockouts
+-- filters. Kept: lists, guides, attempts, kill statistics, lockout ticks,
+-- rare-spawn checks, the alts, collapsed headers and the navigation's order
+-- and favourites (the player's own data, not settings). global / char:
+-- ns.db.global / ns.db.char.
+function Options.ResetAll(global, char)
+  if type(global) ~= "table" then return end
+  global.settings = { showUnobtainable = false, rarityColors = false }
+  global.window = {}
+  global.filters = {}
+  for k, v in pairs(ns.Journal and ns.Journal.DefaultFilters or {}) do
+    global.filters[k] = type(v) == "table" and {} or v
+    if type(v) == "table" then for k2, v2 in pairs(v) do global.filters[k][k2] = v2 end end
+  end
+  global.minimap = { hide = false }
+  global.zonePanel = { open = false }
+  global.altsWindow = {}
+  global.guideWindow = {}
+  global.debug = false
+  global.popoutStyle = nil
+  for _, state in pairs(type(global.popouts) == "table" and global.popouts or {}) do
+    if type(state) == "table" then
+      state.style, state.width, state.height = nil, nil, nil
+      state.point, state.relPoint, state.x, state.y = nil, nil, nil, nil
+    end
+  end
+  if type(char) == "table" then
+    char.checklistFilters = {}
+    char.checklistShow = nil
+  end
+end
+
+-- The warning before Options.ResetAll; accepting resets, then reloads the
+-- interface so every window starts from the defaults.
+Options.RESET_POPUP = "MOUNTTRAIL_RESET_SETTINGS"
+
+function Options.ConfirmReset()
+  if type(StaticPopupDialogs) ~= "table" or type(StaticPopup_Show) ~= "function" then return false end
+  StaticPopupDialogs[Options.RESET_POPUP] = StaticPopupDialogs[Options.RESET_POPUP] or {
+    text = L["Reset every MountTrail setting to its default?\n\nOptions, text sizes, window size and position, and the look of every window and pop-out go back to the defaults. Your lists, guides, attempts and lockouts are kept.\n\nThe interface reloads."],
+    button1 = L["Reset"],
+    button2 = L["Cancel"],
+    showAlert = true,
+    timeout = 0,
+    whileDead = true,
+    hideOnEscape = true,
+    OnAccept = function()
+      if not ns.db then return end
+      Options.ResetAll(ns.db.global, ns.db.char)
+      if type(ReloadUI) == "function" then ReloadUI() elseif ns.Refresh then ns.Refresh() end
+    end,
+  }
+  StaticPopup_Show(Options.RESET_POPUP)
+  return true
+end
+
 local REQUIRED = { "RegisterVerticalLayoutCategory", "RegisterProxySetting", "CreateCheckbox",
   "RegisterAddOnCategory" }
 
 local function build(api)
   local VarType = type(api.VarType) == "table" and api.VarType or {}
-  local category = api.RegisterVerticalLayoutCategory(L["MountTrail"])
+  local category, layout = api.RegisterVerticalLayoutCategory(L["MountTrail"])
 
   local unobtainable = api.RegisterProxySetting(category, Options.UNOBTAINABLE, VarType.Boolean or "boolean",
     L["Show unobtainable mounts"], false, Options.ShowUnobtainable, setUnobtainable)
@@ -285,6 +348,14 @@ local function build(api)
     L["Debug messages"], false, getDebug, setDebug)
   api.CreateCheckbox(category, debug,
     L["Show errors MountTrail catches around maps and waypoints (same as /mtrail debug)."])
+
+  -- Reset all settings: a button (with a warning first) on clients that have it.
+  if layout and type(layout.AddInitializer) == "function" and type(CreateSettingsButtonInitializer) == "function" then
+    layout:AddInitializer(CreateSettingsButtonInitializer(L["Reset all settings"], L["Reset"],
+      function() Options.ConfirmReset() end,
+      L["Every MountTrail setting back to its default, after a warning. Your lists, guides, attempts and lockouts are kept."],
+      true))
+  end
 
   api.RegisterAddOnCategory(category)
   return category

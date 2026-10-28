@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Options > AddOns > MountTrail: `Reset all settings`, after a warning, puts
+  every setting (options, text sizes, window, every window's and pop-out's
+  look) back to its default and reloads; lists, guides, attempts and lockouts
+  are kept.
 - The main window takes the pop-outs' look throughout:
   - a flat panel with a slim title strip instead of Blizzard's portrait
     frame; right-click the strip for the pop-outs' appearance menu;

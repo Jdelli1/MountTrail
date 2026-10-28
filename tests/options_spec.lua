@@ -24,7 +24,10 @@ local function fakeSettings()
     local category = { name = name }
     function category:GetID() return 77 end
     S.category = category
-    return category, { initializers = {} }
+    local layout = { initializers = {} }
+    function layout:AddInitializer(init) self.initializers[#self.initializers + 1] = init end
+    S.layout = layout
+    return category, layout
   end
   function S.RegisterProxySetting(category, variable, varType, name, default, get, set)
     rec("Setting", variable)
@@ -396,5 +399,92 @@ describe("options", function()
         eq(ns.Options.category, nil)
       end)
     end)
+  end)
+end)
+
+describe("reset all settings", function()
+  it("ResetAll puts every setting back and keeps the player's own data", function()
+    local ns = loadOptions()
+    local g, c = ns.db.global, ns.db.char
+    g.settings.windowScale, g.settings.textBody, g.settings.rarityColors = 130, 4, true
+    g.window.width, g.window.navWidth, g.window.tab = 1200, 240, "checklist"
+    g.filters.collected = true
+    g.minimap.hide = true
+    g.debug = true
+    g.popoutStyle = { alpha = 0.5 }
+    g.popouts = { main = { style = { alpha = 0.4 } },
+      ["daily:all"] = { open = true, source = { kind = "daily", all = true }, style = { size = 14 },
+        width = 300, height = 200, point = "CENTER", x = 5, y = 6, order = { 1, 2 } } }
+    g.altsWindow.point = "TOP"
+    g.lists = { [1] = { name = "Mine", mounts = { 6 } } }
+    g.guides = { mine = "#guide Mine" }
+    g.attemptsByChar = { ["Me-Realm"] = { [6] = 3 } }
+    g.navFavorites = { ["list:1"] = true }
+    c.checklistFilters = { rares = false }
+    c.checklistShow = "weekly"
+    c.ticks = { [7] = { kind = "daily", at = 1 } }
+
+    ns.Options.ResetAll(g, c)
+    eq(g.settings, { showUnobtainable = false, rarityColors = false }, "options and text sizes")
+    eq(g.window, {}, "window size, position, view and column widths")
+    eq(g.filters, { collected = false })
+    eq(g.minimap, { hide = false })
+    eq(g.debug, false)
+    eq(g.popoutStyle, nil, "the shared look")
+    eq(g.popouts.main.style, nil, "the main window's look")
+    local p = g.popouts["daily:all"]
+    eq({ p.style, p.width, p.height, p.point, p.x, p.y }, {}, "a pop-out's look, size and place")
+    ok(p.open and p.source and p.order, "the open pop-out itself and its order stay")
+    eq(g.altsWindow, {})
+    eq(c.checklistFilters, {})
+    eq(c.checklistShow, nil)
+    eq(g.lists[1].name, "Mine", "lists kept")
+    eq(g.guides.mine, "#guide Mine", "guides kept")
+    eq(g.attemptsByChar["Me-Realm"][6], 3, "attempts kept")
+    eq(g.navFavorites["list:1"], true, "favourites kept")
+    ok(c.ticks[7], "lockout ticks kept")
+  end)
+
+  it("a Reset all settings button on the AddOns page warns first, then resets and reloads", function()
+    local ns = loadOptions()
+    local S = fakeSettings()
+    local made
+    local oldInit, oldShow, oldReload = CreateSettingsButtonInitializer, StaticPopup_Show, ReloadUI
+    CreateSettingsButtonInitializer = function(name, text, click, tooltip, search)
+      made = { name = name, text = text, click = click, tooltip = tooltip, search = search }
+      return made
+    end
+    local shown, reloaded
+    StaticPopupDialogs = StaticPopupDialogs or {}
+    StaticPopup_Show = function(which) shown = which end
+    ReloadUI = function() reloaded = true end
+    local good, err = pcall(function()
+      ns.Options.Register(S)
+      ok(made, "the button")
+      eq({ made.name, made.text }, { "Reset all settings", "Reset" })
+      eq(S.layout.initializers[1], made, "on the page's layout")
+      ns.db.global.settings.windowScale = 140
+      made.click()
+      eq(shown, ns.Options.RESET_POPUP, "a warning first")
+      eq(ns.db.global.settings.windowScale, 140, "nothing reset yet")
+      local dialog = StaticPopupDialogs[ns.Options.RESET_POPUP]
+      ok(dialog.showAlert and dialog.text:find("kept", 1, true), "an alert that says what is kept")
+      eq({ dialog.button1, dialog.button2 }, { "Reset", "Cancel" })
+      dialog.OnAccept()
+      eq(ns.db.global.settings.windowScale, nil, "reset")
+      eq(reloaded, true, "then the interface reloads")
+    end)
+    CreateSettingsButtonInitializer, StaticPopup_Show, ReloadUI = oldInit, oldShow, oldReload
+    if not good then error(err, 0) end
+  end)
+
+  it("no button (and no error) on clients without CreateSettingsButtonInitializer", function()
+    local ns = loadOptions()
+    local S = fakeSettings()
+    local old = CreateSettingsButtonInitializer
+    CreateSettingsButtonInitializer = nil
+    ok(ns.Options.Register(S), "the page still registers")
+    eq(#S.layout.initializers, 0)
+    CreateSettingsButtonInitializer = old
   end)
 end)
