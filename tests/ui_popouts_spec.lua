@@ -1092,6 +1092,25 @@ describe("the zone's mounts pop-out", function()
     eq(got, { { "OpenMap", 10, "Boss" }, { "preview", 10 }, { "go", 10, "Boss" } })
   end)
 
+  it("/mtrail zone (and /mtrail here) toggles the zone's mounts pop-out, not the side panel", function()
+    local ns = loadUI()
+    ns.UI.ChecklistBuild = function() return built() end
+    ns.Game.PlayerMap = function() return 550 end
+    ns.UI.ZoneMounts = function() return { { id = 614 } }, { name = "Nagrand" } end
+    run_slash(ns.addon, "mtrail", "zone")
+    ok(ns.UI.PopoutWindows.zonemounts:IsShown(), "pop-out opened")
+    ok(not (ns.UI.frame and ns.UI.frame:IsShown()), "main window stays closed")
+    ok(not (ns.UI.zonePanel and ns.UI.zonePanel:IsShown()), "side panel stays closed")
+    run_slash(ns.addon, "mtrail", "zone")
+    ok(not ns.UI.PopoutWindows.zonemounts:IsShown(), "and closed again")
+    run_slash(ns.addon, "mtrail", "here")
+    ok(ns.UI.PopoutWindows.zonemounts:IsShown(), "here still works")
+    run_slash(ns.addon, "mtrail", "help")
+    local found = false
+    for _, line in ipairs(ns.addon.printed or {}) do if line:find("^/mtrail zone") then found = true end end
+    ok(found, "help lists /mtrail zone")
+  end)
+
   it("right-clicking the zone panel's title pops the zone's mounts out", function()
     local ns = loadUI()
     ns.UI.ChecklistBuild = function() return built() end

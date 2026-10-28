@@ -5,7 +5,7 @@ local ADDON, ns = ...
 -- get whose location is the current zone (Zone.MountsFor: coords, source
 -- "Zone:", dungeon / raid entrances). Rows look and click like the mount
 -- lists (UI.InitMountRow: left-click waypoint, Shift map, Ctrl preview,
--- hover tooltip). Toggled by the title-bar pin button and `/mtrail zone`; the
+-- hover tooltip). Toggled by the title-bar pin button; the
 -- open state is saved in ns.db.global.zonePanel.open. The panel is a child
 -- of the main window, so it is shown only while the window is (v1: no
 -- detached mode). It recomputes on ZONE_CHANGED_NEW_AREA, ZONE_CHANGED,
@@ -332,27 +332,6 @@ function UI.SetZonePanelOpen(open)
     if open then UI.RefreshZonePanel(true) end
   end
   paintButton()
-end
-
--- `/mtrail zone`: with the window closed, opens it with the panel; else flips
--- the panel. -> the panel's new open state.
-function ns.ToggleZonePanel()
-  local frame = UI.frame
-  if not (frame and frame:IsShown()) then
-    -- Open before the window shows: its OnShow hook then builds the list once.
-    local db = stateDB()
-    if db then db.open = true end
-    if panel then
-      panel:Show()
-      applyClamp(true)
-    end
-    paintButton()
-    if ns.ToggleWindow then ns.ToggleWindow() end
-    return true
-  end
-  local open = not UI.ZonePanelOpen()
-  UI.SetZonePanelOpen(open)
-  return open
 end
 
 local function buildPanel(frame)

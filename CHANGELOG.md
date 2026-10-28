@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `/mtrail zone` opens the small pop-out of your zone's mounts (as
+  `/mtrail here` does) instead of the side panel; the panel stays on the
+  title bar's pin button.
 - Lockouts: a saved kill now prints "Lockout checked off: <mount> (attempt
   n)" in chat, and lockouts are asked for again a few seconds after a kill.
 - Lockouts: old raids up to Throne of Thunder share one lockout across the

@@ -286,7 +286,7 @@ What you can pop out:
 - Any list: your own lists (build them with `+ List` on any mount) and the
   quick lists.
 - `/mtrail rares`: the rare spawns of your zone.
-- `/mtrail here`, a right-click on the zone panel's title or on Current Zone:
+- `/mtrail zone` (or `/mtrail here`), a right-click on the zone panel's title or on Current Zone:
   every mount you can still get in your zone, under source headers (Dungeon
   drops, Vendors, Achievements, ...) when it has more than one source.
 
@@ -332,7 +332,7 @@ and in chat, before you pull:
 ## Zone panel and world map tab
 
 **Zone panel.** A slim side panel docked to the window's right edge (the pin
-button in the title bar, or `/mtrail zone`) listing "Mounts in <zone>": every
+button in the title bar) listing "Mounts in <zone>": every
 mount you can still get whose location is your current zone.
 
 - A mount is in the zone by its map coordinates, by any `Zone:` line of its
@@ -497,8 +497,7 @@ doesn't know are left out.
 | Command | Action |
 | --- | --- |
 | `/mtrail` | Show or hide the window |
-| `/mtrail zone` | Show or hide the zone panel (opens the window too when it is closed) |
-| `/mtrail here` | Show or hide every mount still to get in your zone, in a pop-out that follows you |
+| `/mtrail zone` (or `here`) | Show or hide every mount still to get in your zone, in a pop-out that follows you |
 | `/mtrail rares` | Show or hide the rare spawns of your zone, in a pop-out that follows you |
 | `/mtrail alts` | Show or hide the alt lockout matrix |
 | `/mtrail import` | Paste a list someone shared |
