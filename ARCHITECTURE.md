@@ -96,7 +96,8 @@ changed addon gives `nil`, never an error.
 
 | File | Owns |
 | --- | --- |
-| `Frame.lua` | Fonts and text sizes (`UI.Font`, `UI.TextSize`), style helpers (`UI.Template`, `UI.FlatBorder`), the view registry, the main window, its size / scale / position, the settings cogwheel menu, refresh hooks and `ns.Refresh`, window hooks, the minimap button. |
+| `Frame.lua` | Fonts and text sizes (`UI.Font`, `UI.TextSize`), style helpers (`UI.Template`, `UI.FlatBorder`), the view registry, the main window (flat, in the pop-outs' style), its size / scale / position, the settings cogwheel menu, refresh hooks and `ns.Refresh`, window hooks, the minimap button. |
+| `Style.lua` | The look shared by the main window, the pop-outs and the extra windows: styles (`UI.PopoutStyle`, `UI.PopoutStyleOf`), styled text and chrome, the appearance menu (`UI.PopoutStyleMenu`), fonts, `UI.AddStyledWindow`. |
 | `Widgets.lua` | Hints, flat buttons and panels, menus with sliders (`UI.ShowMenu`), the expansion badge, the text / copy prompt (`UI.AskText`, `UI.ShowCopyText`), splitters, the resize grip. |
 | `Nav.lua` | The navigation column: entries, favourites, ordering, Alt-drag, badges, `UI.RefreshNav`. |
 | `Tooltip.lua` | The mount tooltip and `UI.TooltipLines`. |
@@ -108,7 +109,7 @@ changed addon gives `nil`, never an error.
 | `LockoutHelpers.lua` | Lockout state per boss, hand ticks, header lines (shared by the Checklist). |
 | `ChecklistView.lua` | The Lockouts view (daily, weekly, rare spawns). |
 | `AltsWindow.lua` | The alt lockout matrix window. |
-| `Popouts.lua` | Pop-out windows, their styles, snapping and order. |
+| `Popouts.lua` | Pop-out windows, their snapping and order (their look: `Style.lua`). |
 | `HereView.lua` | The Current Zone view. |
 | `BrowseView.lua` | Browse-by-source pages. |
 | `DifficultyCheck.lua` | The wrong-difficulty warning: on entering an instance, the open pop-outs' mounts that drop here but not on this difficulty (`Lockouts.WrongDifficulty`). |
@@ -195,7 +196,7 @@ created on first use by their owner.
 | `global.lists`, `global.seededLists` | `Logic/Lists.lua`, `Logic/QuickLists.lua` | Custom lists; which example lists were already seeded. |
 | `global.guides`, `global.guideWindow` | `UI/Guides.lua`, `UI/GuideWindow.lua` | The player's guides (`{ [id] = text }`); the guide window's position and mode. |
 | `char.guides` | `UI/Guides.lua` | `{ active =, steps = { [guide id] = step }, complete = }`: which guide this character follows and where. |
-| `global.popouts`, `global.popoutStyle` | `UI/Popouts.lua` | Open pop-outs (position, size, order, collapsed groups, style, `showDone`); the shared style. |
+| `global.popouts`, `global.popoutStyle` | `UI/Popouts.lua`, `UI/Style.lua` | Open pop-outs (position, size, order, collapsed groups, style, `showDone`), the main window's style (`main`) and the extra windows'; the shared style. |
 | `global.zonePanel` | `UI/ZonePanel.lua` | `open`. |
 | `global.mapTab` | `UI/MapTab.lua` | Whether the map tab was left selected. |
 | `global.altsHidden`, `global.altsWindow` | `UI/AltsWindow.lua` | Hidden characters; window position and size. |

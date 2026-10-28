@@ -54,6 +54,7 @@ Integrations\Notes.lua
 Core\Init.lua
 UI\Frame.lua
 UI\Widgets.lua
+UI\Style.lua
 UI\Nav.lua
 UI\Tooltip.lua
 UI\List.lua

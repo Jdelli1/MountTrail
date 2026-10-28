@@ -72,7 +72,8 @@ end
 -- Files split out of a bigger one load right after it, as in the .toc, so a
 -- spec that names UI/Frame.lua or UI/List.lua gets the whole of it.
 COMPANIONS = {
-  ["UI/Frame.lua"] = { "UI/Widgets.lua", "UI/Nav.lua" },
+  ["UI/Frame.lua"] = { "UI/Widgets.lua", "UI/Style.lua", "UI/Nav.lua" },
+  ["UI/Popouts.lua"] = { "UI/Style.lua" },
   ["UI/List.lua"] = { "UI/Search.lua" },
 }
 

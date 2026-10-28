@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The main window takes the pop-outs' look: a flat panel with a slim title
+  strip instead of Blizzard's portrait frame. Right-click the strip for the
+  pop-outs' appearance menu (opacity, colours, font, size).
 - `/mtrail zone` opens the small pop-out of your zone's mounts (as
   `/mtrail here` does) instead of the side panel; the panel stays on the
   title bar's pin button.

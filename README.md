@@ -74,6 +74,12 @@ Drag the corner grip to resize it. Its three boxes (navigation, list, detail
 pane) share the width: drag the navigation's right edge or the detail pane's
 left edge to resize them (saved; right-click either edge for the default).
 
+It has the pop-outs' look: a flat panel with a slim title strip (drag it to
+move the window, x to close). Right-click the title strip for the same
+appearance menu as a pop-out: opacity, background, header and text colour,
+font size and font, saved for the window. `Apply to all pop-outs` there (on
+the window or any pop-out) gives every window one look.
+
 ### Navigation column
 
 The left column:
