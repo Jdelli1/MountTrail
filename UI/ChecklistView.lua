@@ -757,7 +757,7 @@ local function buildHeader(parent)
   name:SetJustifyH("LEFT")
   top.Name = name
 
-  local resets = top:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlightSmall"))
+  local resets = top:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlight"))
   resets:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -4)
   resets:SetPoint("TOPRIGHT", name, "BOTTOMRIGHT", 0, -4)
   resets:SetJustifyH("LEFT")
@@ -794,7 +794,7 @@ local function buildHeader(parent)
     line:SetColorTexture(1, 0.82, 0, 1)
     line:Hide()
     chip.Line = line
-    local text = chip:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlightSmall"))
+    local text = chip:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlight"))
     text:SetPoint("CENTER", chip, "CENTER", 0, 1)
     chip.Text = text
     local hl = chip:CreateTexture(nil, "HIGHLIGHT")

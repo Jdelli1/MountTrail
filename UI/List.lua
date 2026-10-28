@@ -913,6 +913,24 @@ function UI.SourceFont()
   return sourceFont
 end
 
+-- The compact rows' source line: the body text's size (GameFontHighlight,
+-- following the text size sliders) dimmed to 70 % grey; GameFontDisable
+-- when the client has no CreateFont.
+local COMPACT_SOURCE_FONT = "MountTrailFontSourceLine"
+local compactSourceFont
+function UI.CompactSourceFont()
+  if compactSourceFont then return compactSourceFont end
+  if type(CreateFont) == "function" and GameFontHighlight then
+    local font = _G[COMPACT_SOURCE_FONT] or CreateFont(COMPACT_SOURCE_FONT)
+    font:SetFontObject(_G[UI.Font("GameFontHighlight")] or GameFontHighlight)
+    font:SetTextColor(0.7, 0.7, 0.7)
+    compactSourceFont = COMPACT_SOURCE_FONT
+  else
+    compactSourceFont = UI.Font("GameFontDisable")
+  end
+  return compactSourceFont
+end
+
 -- Name font of owned (collected) mount rows: GameFontNormal in a light green
 -- (readable on the dark fill and the green row tint); GameFontGreen when the
 -- client has no CreateFont.
@@ -989,7 +1007,7 @@ function UI.HeaderColor(data)
   return style and style.header or GOLD
 end
 
--- Section header (depth 1) and sub-header (depth 2, indented, smaller font;
+-- Section header (depth 1) and sub-header (depth 2, indented;
 -- depth 3 -- the checklist's categories -- looks the same, one DEPTH_STEP
 -- further in), in the pop-outs' look: "- Name (count)" in the header's
 -- colour (UI.HeaderColor) over a thin rule of it. A plain Frame (not a
@@ -1059,7 +1077,9 @@ local function initHeader(frame, data)
   frame.Rule:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", inset, 1)
   frame.Rule:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 1)
   frame.Rule:SetColorTexture(c[1], c[2], c[3], depth >= 3 and 0.15 or 0.35)
-  local font = sub and UI.Font("GameFontNormalSmall") or UI.Font("GameFontNormal")
+  -- One size for every level (the small font read too small): the colour and
+  -- the indent tell them apart.
+  local font = UI.Font("GameFontNormal")
   frame.Glyph:SetFontObject(font)
   frame.Glyph:SetText(UI.HeaderGlyph(data.collapsed == true))
   frame.Glyph:SetTextColor(c[1], c[2], c[3])
@@ -1265,6 +1285,7 @@ local function initRow(row, data)
     anchorFull(row)
   end
   row.Name:SetText(name or data.m.name or tostring(data.id))
+  row.Source:SetFontObject(compact and UI.CompactSourceFont() or UI.SourceFont())
   row.Source:SetText(UI.RowSourceText(data))
   row.Stripe:SetShown(data.alt == true)
   UI.ShowPin(row.Pin, data.pin)

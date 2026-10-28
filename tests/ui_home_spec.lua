@@ -111,8 +111,8 @@ describe("journal home", function()
     for i, row in ipairs(home.Expansions) do
       eq(row.kind, "Button", "row " .. i)
       eq(row.Bar.height, 6, "slim bar")
-      eq(row.Count.template, ns.UI.Font("GameFontHighlightSmall"))
-      eq(row.Percent.template, ns.UI.Font("GameFontDisableSmall"))
+      eq(row.Count.template, ns.UI.Font("GameFontHighlight"), "readable, not the small font")
+      eq(row.Percent.template, ns.UI.Font("GameFontDisable"))
       eq(row.Name:GetText(), ns.Data.Expansions[i])
       eq(row.Stripe:IsShown(), i % 2 == 0, "striped every other row")
     end
@@ -338,7 +338,8 @@ describe("journal home", function()
     local contentH = 560 - 32 - 6 - 8
     ok(-G.top + home.mainHeight <= contentH, "the left column fits the height: " .. (-G.top + home.mainHeight))
     local leftW = contentW - 2 * G.left - G.sideW - G.gap
-    ok(leftW >= 46 + 150 + 8 + 60 + 4 + 70 + 6 + 36 + 4, "room for tag, name, bar, count and percent: " .. leftW)
+    -- tag 54, name 150, gap 8, a 60 px bar at least, check 6 + 14 + 4, count 80, gap 6, percent 40, 4.
+    ok(leftW >= 54 + 150 + 8 + 60 + 6 + 14 + 4 + 80 + 6 + 40 + 4, "room for tag, name, bar, count and percent: " .. leftW)
   end)
 end)
 

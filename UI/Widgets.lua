@@ -447,7 +447,7 @@ UI.EXPANSION_COLORS = EXPANSION_COLORS
 
 function UI.ExpansionBadge(parent)
   local b = CreateFrame("Frame", nil, parent)
-  b:SetSize(30, 12)
+  b:SetSize(30, 14)
   local fill = b:CreateTexture(nil, "ARTWORK")
   fill:SetAllPoints(b)
   b.Fill = fill
@@ -455,7 +455,7 @@ function UI.ExpansionBadge(parent)
   text:SetPoint("CENTER", b, "CENTER", 0, 0)
   if text.SetFont and text.GetFont then
     local font, _, flags = text:GetFont()
-    if font then text:SetFont(font, 8, flags) end
+    if font then text:SetFont(font, 10, flags) end
   end
   b.Text = text
   return b

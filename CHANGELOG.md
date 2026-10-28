@@ -14,7 +14,10 @@
   - Home lists the expansions and sources as progress rows, with Today,
     Following and Nearby beside them;
   - flat Back / Pop out buttons; the detail pane folds away when it has
-    nothing to show.
+    nothing to show;
+  - no small fonts in the new parts: headers at every level, the Lockouts
+    rows' boss / instance line, tabs and Home's numbers are normal size, and
+    expansion tags are 10 pt (were 8).
 - `/mtrail zone` opens the small pop-out of your zone's mounts (as
   `/mtrail here` does) instead of the side panel; the panel stays on the
   title bar's pin button.

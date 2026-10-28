@@ -53,7 +53,7 @@ read_globals = {
   "ShowAchievementFrameForAchievement", "ShowUIPanel", "OpenWorldMap",
   "StaticPopupDialogs", "StaticPopup_Show", "SetPortraitToTexture",
   "DressUpMount", "DressUpMountLink", "PlaySound", "SOUNDKIT",
-  "GameFontNormal", "GameFontHighlightSmall", "UiMapPoint", "Item", "Enum",
+  "GameFontNormal", "GameFontHighlight", "GameFontHighlightSmall", "UiMapPoint", "Item", "Enum",
 
   -- Game state
   "GetAchievementCriteriaInfo", "GetAchievementInfo", "GetAchievementNumCriteria",
