@@ -45,6 +45,7 @@ local GREEN = { 0.25, 0.78, 0.35, 1 }
 local GREEN_TEXT = "|cff40c040"
 local GREY_TEXT = "|cff9d9d9d"
 local NEARBY_MAX, TODAY_LISTS_MAX = 5, 3
+local TAG_COLUMN = 62 -- room for the widest expansion tag (CLASSIC at 10 pt) and a gap
 local NEARBY_TTL = 60 -- seconds the Nearby list is kept for one zone
 
 -- Progress colours (rows and the summary bar): red under 25 %, yellow
@@ -175,11 +176,11 @@ local function progressRow(parent, i, withTag)
     local tag = UI.ExpansionBadge(b)
     tag:SetPoint("LEFT", b, "LEFT", 4, 0)
     b.Tag = tag
-    nameLeft = 4 + 54
+    nameLeft = 4 + TAG_COLUMN
   end
   local name = b:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlight"))
   name:SetPoint("LEFT", b, "LEFT", nameLeft, 0)
-  name:SetWidth(withTag and 150 or 190)
+  name:SetWidth(withTag and 140 or 190)
   name:SetJustifyH("LEFT")
   name:SetWordWrap(false)
   b.Name = name
@@ -245,7 +246,7 @@ local function nearbyRow(parent)
   tag:SetPoint("LEFT", b, "LEFT", 4, 0)
   b.Tag = tag
   local name = b:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlight"))
-  name:SetPoint("LEFT", b, "LEFT", 4 + 54, 0)
+  name:SetPoint("LEFT", b, "LEFT", 4 + TAG_COLUMN, 0)
   name:SetPoint("RIGHT", b, "RIGHT", -4, 0)
   name:SetJustifyH("LEFT")
   name:SetWordWrap(false)

@@ -338,8 +338,9 @@ describe("journal home", function()
     local contentH = 560 - 32 - 6 - 8
     ok(-G.top + home.mainHeight <= contentH, "the left column fits the height: " .. (-G.top + home.mainHeight))
     local leftW = contentW - 2 * G.left - G.sideW - G.gap
-    -- tag 54, name 150, gap 8, a 60 px bar at least, check 6 + 14 + 4, count 80, gap 6, percent 40, 4.
-    ok(leftW >= 54 + 150 + 8 + 60 + 6 + 14 + 4 + 80 + 6 + 40 + 4, "room for tag, name, bar, count and percent: " .. leftW)
+    -- tag 62, name 140, gap 8, a 60 px bar at least, check 6 + 14 + 4, count 80, gap 6, percent 40, 4.
+    ok(leftW >= 62 + 140 + 8 + 60 + 6 + 14 + 4 + 80 + 6 + 40 + 4, "room for tag, name, bar, count and percent: " .. leftW)
+    eq(select(4, home.Expansions[1].Name:GetPoint(1)), 4 + 62, "names start past the widest tag (CLASSIC)")
   end)
 end)
 
