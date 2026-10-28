@@ -138,6 +138,24 @@ describe("Zone.MountsFor", function()
     eq(zone, { name = "Dragon Soul" })
   end)
 
+  it("inside an instance: its drops by instance ID, whatever the names and maps say", function()
+    local ns = loadZone()
+    local mounts = {
+      [971] = { name = "Antoran Charhound", tab = "journal", section = "raid", coords = { m = 910 } },
+      [954] = { name = "Shackled Ur'zul", tab = "journal", section = "raid", coords = { m = 910 } },
+      [5] = { name = "Elsewhere", tab = "journal", section = "raid" },
+    }
+    local function instanceOf(id) if id == 971 or id == 954 then return 1712 end return 720 end
+    local ctx = ctxFor(ns, mounts, { currentInstance = "Antorus", currentInstanceID = 1712, instanceOf = instanceOf })
+    local list = ns.Zone.MountsFor(nil, ctx)
+    eq(ids(list), { 971, 954 })
+    eq(list[1].via, "instance")
+    ctx.currentInstance = nil
+    eq(ids(ns.Zone.MountsFor(nil, ctx)), { 971, 954 }, "no name either: still listed")
+    ctx.currentInstanceID = nil
+    eq(ids(ns.Zone.MountsFor(nil, ctx)), {}, "outside: nothing")
+  end)
+
   it("gates first: excluded mounts never reach the source text or instance lookups", function()
     local ns = loadZone()
     local mounts = { [1] = { name = "Kept" }, [2] = { name = "Owned" }, [3] = { name = "Horde" } }

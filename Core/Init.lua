@@ -109,6 +109,13 @@ function ns.UpdateAttempts(freshInstances)
   local charKey = ns.Game.CharKey()
   for _, mountID in ipairs(newly) do
     ns.Attempts.AddForChar(global.attemptsByChar, charKey, mountID)
+    -- Say so in chat: the kill was seen and the lockout is spent.
+    local m = ns.Data and ns.Data.Mounts and ns.Data.Mounts[mountID]
+    local name = ns.Game.MountInfo(mountID) or (m and m.name) or tostring(mountID)
+    if addon.Print then
+      addon:Print(string.format(L["Lockout checked off: %s (attempt %d)"], name,
+        ns.Attempts.Get(global.attemptsByChar[charKey], mountID)))
+    end
   end
   char.last = curr
   ns.RecordSeen(char, ns.Game.Now(), true)
@@ -267,8 +274,17 @@ function addon:OnCombatEnd()
   if statsPending and ns.UpdateStats() then ns.Refresh() end
 end
 
+-- The server can answer the first request before it has saved the kill: ask
+-- again a few seconds later (an unchanged answer counts nothing).
+local KILL_RECHECK = { 3, 10 }
+
 function addon:OnKill()
   ns.Game.RequestLockouts()
+  if type(C_Timer) == "table" and type(C_Timer.After) == "function" then
+    for _, seconds in ipairs(KILL_RECHECK) do
+      C_Timer.After(seconds, function() ns.Game.RequestLockouts() end)
+    end
+  end
 end
 
 function addon:OnCalendarUpdate()
@@ -311,19 +327,13 @@ function addon:OnSlash(input)
     end
   elseif cmd == "dump" then
     ns.Dump()
-  elseif cmd == "zone" then
-    if ns.ToggleZonePanel then
-      ns.ToggleZonePanel()
-    else
-      self:Print(L["The window is not available yet. Type /mtrail help for commands."])
-    end
   elseif cmd == "rares" then
     if ns.UI and ns.UI.ToggleZonePopout then
       ns.UI.ToggleZonePopout()
     else
       self:Print(L["The window is not available yet. Type /mtrail help for commands."])
     end
-  elseif cmd == "here" then
+  elseif cmd == "zone" or cmd == "here" then
     if ns.UI and ns.UI.ToggleZoneMountsPopout then
       ns.UI.ToggleZoneMountsPopout()
     else
@@ -373,9 +383,8 @@ function addon:OnSlash(input)
     self:Print(L["Commands:"])
     self:Print(L["/mtrail - show or hide the window"])
     self:Print(L["/mtrail dump - list saved instances (instance ID, difficulty ID, bosses)"])
-    self:Print(L["/mtrail zone - show or hide the zone panel (mounts in your current zone)"])
     self:Print(L["/mtrail rares - show or hide the rare spawns of your zone"])
-    self:Print(L["/mtrail here - show or hide every mount still to get in your zone"])
+    self:Print(L["/mtrail zone - show or hide every mount still to get in your zone"])
     self:Print(L["/mtrail options - open the MountTrail options (Options > AddOns)"])
     self:Print(L["/mtrail alts - show or hide the alt lockout matrix (who is still unsaved)"])
     self:Print(L["/mtrail import - paste a list someone shared"])

@@ -5,8 +5,12 @@
 --     Each entry is a difficulty ID or a table of IDs (Ruling R9). A table is one
 --     lockout group, satisfied by a kill on ANY of its IDs (difficulties that share
 --     one lockout); a plain ID is a group of one. The spec is done when EVERY group
---     is satisfied: { {3,4,5,6} } = one kill on any size/difficulty; { 3, 4 } = a
---     10-player kill AND a 25-player kill (separate lockouts).
+--     is satisfied: { {3,4,5,6} } = one kill on any size/difficulty; { 14, 16 } = a
+--     Normal kill AND a Mythic kill (separate lockouts).
+--     Legacy raids (every ID a 10 / 25 size, 3-6): the boss has ONE lockout across
+--     all four sizes, so any kill there spends it (Lockouts.IsLegacySpec); the IDs
+--     still say where the mount drops (Invincible { 6 }: a 10N kill spends the
+--     week without an attempt).
 --   { quest=<questID>, reset=... }   { lfg=<LFG dungeonID>, reset="daily" }   { manual=true, reset=... }
 --   any spec may add requires={ quest=<questID>, text="<unlock needed>" }
 --   { camp=true, zone="<Zone>" }: a rare spawn with no known kill flag and no
@@ -26,7 +30,9 @@
 --
 -- Difficulty IDs: 1 Normal dungeon, 2 Heroic dungeon, 23 Mythic dungeon,
 -- 3/4 10/25 Normal legacy raid, 5/6 10/25 Heroic legacy raid, 9 40-player,
--- 14 Normal, 15 Heroic, 16 Mythic, 17 LFR.
+-- 14 Normal, 15 Heroic, 16 Mythic, 17 LFR. Old raids the game now saves as
+-- size-free Normal / Heroic (Firelands): a 3 / 4 entry is also met by a 14
+-- kill, a 5 / 6 entry by a 15 kill (Lockouts.LEGACY_AS).
 -- LFR (17) is not tracked in v1 (Ruling R10): LFR kills are not expected to show up
 -- in the saved-instance list, so a spec listing 17 could never complete.
 --
@@ -56,14 +62,14 @@ ns.Data.Lockouts = {
   [213] = { instance = 585, boss = "Kael'thas Sunstrider", difficulties = { 2 }, reset = "daily" }, -- Swift White Hawkstrider, Magisters' Terrace
 
   -- Wrath of the Lich King ---------------------------------------------------
-  [349] = { instance = 249, boss = "Onyxia", difficulties = { 3, 4 }, reset = "weekly" }, -- Onyxian Drake, 10 and 25 are separate lockouts -- verify in game
+  [349] = { instance = 249, boss = "Onyxia", difficulties = { { 3, 4 } }, reset = "weekly" }, -- Onyxian Drake, any size -- verify in game
   [363] = { instance = 631, boss = "The Lich King", difficulties = { 6 }, reset = "weekly" }, -- Invincible, Heroic 25 only
   -- Vault of Archavon: all four bosses drop it; the spec follows Archavon (Rarity's lock boss),
   -- Koralon/Emalon/Toravon rows use BossLockouts below.
-  [286] = { instance = 624, boss = "Archavon the Stone Watcher", difficulties = { 3, 4 }, reset = "weekly" }, -- Grand Black War Mammoth (A), 10 and 25 separate -- verify in game
-  [287] = { instance = 624, boss = "Archavon the Stone Watcher", difficulties = { 3, 4 }, reset = "weekly" }, -- Grand Black War Mammoth (H), 10 and 25 separate -- verify in game
-  [246] = { instance = 616, boss = "Malygos", difficulties = { 3, 4 }, reset = "weekly" }, -- Azure Drake, 10 and 25 are separate lockouts -- verify in game
-  [247] = { instance = 616, boss = "Malygos", difficulties = { 3, 4 }, reset = "weekly" }, -- Blue Drake, 10 and 25 are separate lockouts -- verify in game
+  [286] = { instance = 624, boss = "Archavon the Stone Watcher", difficulties = { { 3, 4 } }, reset = "weekly" }, -- Grand Black War Mammoth (A), any size -- verify in game
+  [287] = { instance = 624, boss = "Archavon the Stone Watcher", difficulties = { { 3, 4 } }, reset = "weekly" }, -- Grand Black War Mammoth (H), any size -- verify in game
+  [246] = { instance = 616, boss = "Malygos", difficulties = { { 3, 4 } }, reset = "weekly" }, -- Azure Drake, any size -- verify in game
+  [247] = { instance = 616, boss = "Malygos", difficulties = { { 3, 4 } }, reset = "weekly" }, -- Blue Drake, any size -- verify in game
   [253] = { instance = 615, boss = "Sartharion", difficulties = { 3 }, reset = "weekly" }, -- Black Drake, 10-player, 3 drakes up
   [250] = { instance = 615, boss = "Sartharion", difficulties = { 4 }, reset = "weekly" }, -- Twilight Drake, 25-player, 3 drakes up
   [264] = { instance = 575, boss = "Skadi the Ruthless", difficulties = { 2 }, reset = "daily" }, -- Blue Proto-Drake, Utgarde Pinnacle heroic
@@ -248,7 +254,7 @@ ns.Data.Lockouts = {
 -- describes a different source. Each name must belong to a single route node.
 ns.Data.BossLockouts = {
   -- Vault of Archavon: the other three watchers (Archavon is the mount spec itself).
-  ["Koralon"] = { instance = 624, boss = "Koralon the Flame Watcher", difficulties = { 3, 4 }, reset = "weekly", exp = "Wrath of the Lich King" }, -- verify in game
-  ["Emalon"]  = { instance = 624, boss = "Emalon the Storm Watcher", difficulties = { 3, 4 }, reset = "weekly", exp = "Wrath of the Lich King" }, -- verify in game
-  ["Toravon"] = { instance = 624, boss = "Toravon the Ice Watcher", difficulties = { 3, 4 }, reset = "weekly", exp = "Wrath of the Lich King" }, -- verify in game
+  ["Koralon"] = { instance = 624, boss = "Koralon the Flame Watcher", difficulties = { { 3, 4 } }, reset = "weekly", exp = "Wrath of the Lich King" }, -- verify in game
+  ["Emalon"]  = { instance = 624, boss = "Emalon the Storm Watcher", difficulties = { { 3, 4 } }, reset = "weekly", exp = "Wrath of the Lich King" }, -- verify in game
+  ["Toravon"] = { instance = 624, boss = "Toravon the Ice Watcher", difficulties = { { 3, 4 } }, reset = "weekly", exp = "Wrath of the Lich King" }, -- verify in game
 }

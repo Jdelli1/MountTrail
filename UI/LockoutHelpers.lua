@@ -109,6 +109,20 @@ function UI.RouteContext(now)
   }
 end
 
+-- A lockout spent on some of its difficulties but not all (Lockouts.Progress)
+-- -> "Heroic done · Normal, Mythic left", else nil. snap: Lockouts.Snapshot.
+function UI.LockoutProgressText(spec, snap)
+  local progress = ns.Lockouts.Progress(spec, snap)
+  if not progress then return nil end
+  local function names(ids)
+    local out = {}
+    for _, d in ipairs(ids) do out[#out + 1] = ns.Game.DifficultyName(d) or tostring(d) end
+    return table.concat(out, ", ")
+  end
+  return string.format(L["%s done"], names(progress.done)) .. " \194\183 "
+    .. string.format(L["%s left"], names(progress.open))
+end
+
 -- Whether the player may tick (or untick) a route boss by hand: only bosses
 -- with a manual spec (the game can't report them). Game-tracked bosses
 -- (instance / quest / LFG) are display-only, "done" belongs to the game, and

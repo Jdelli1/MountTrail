@@ -34,6 +34,15 @@ describe("attempts", function()
       eq(A.Newly(state(), state({}, {}, killed), { 3 }, specFor, notOwned), { 3 })
     end)
 
+    it("a Normal kill meeting both legacy size groups is one attempt", function()
+      local A = load().Attempts
+      local function ony() return { instance = 249, boss = "Onyxia", difficulties = { 3, 4 } } end
+      local snap = { [249] = { [14] = { Onyxia = true } } }
+      eq(A.Newly(state(), state({}, {}, snap), { 7 }, ony, notOwned), { 7 })
+      local both = { [249] = { [3] = { Onyxia = true }, [4] = { Onyxia = true } } }
+      eq(A.Newly(state(), state({}, {}, both), { 7 }, ony, notOwned), { 7, 7 })
+    end)
+
     it("never counts a camp spec (no lockout to observe)", function()
       local A = load().Attempts
       local killed = { [657] = { [2] = { Altairus = true } } }

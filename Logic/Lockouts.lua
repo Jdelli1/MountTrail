@@ -92,7 +92,13 @@ local function bossMatches(specBoss, snapBoss)
   return contains(b, a) or contains(a, b)
 end
 
-local function killedOn(snap, instance, difficulty, specBoss)
+-- Legacy raid sizes the game now reports as size-free Normal / Heroic: a
+-- 10 or 25 Normal spec (3, 4) is also met by a Normal (14) kill, a 10 or 25
+-- Heroic one (5, 6) by a Heroic (15) kill (old raids such as Firelands lock
+-- and drop on 14 / 15 now).
+Lockouts.LEGACY_AS = { [3] = 14, [4] = 14, [5] = 15, [6] = 15 }
+
+local function killedExactly(snap, instance, difficulty, specBoss)
   local byDiff = snap and snap[instance]
   local bosses = byDiff and byDiff[difficulty]
   if not bosses then return false end
@@ -102,14 +108,40 @@ local function killedOn(snap, instance, difficulty, specBoss)
   return false
 end
 
+-- The difficulty a kill was reported on for spec difficulty `difficulty`
+-- (itself, or its size-free equivalent) -> ID or nil.
+local function killedOn(snap, instance, difficulty, specBoss)
+  if killedExactly(snap, instance, difficulty, specBoss) then return difficulty end
+  local modern = Lockouts.LEGACY_AS[difficulty]
+  if modern and killedExactly(snap, instance, modern, specBoss) then return modern end
+  return nil
+end
+
+-- -> the reported difficulty that satisfies the group, or nil.
 local function groupSatisfied(snap, spec, group)
   if type(group) == "table" then
     for _, difficulty in ipairs(group) do
-      if killedOn(snap, spec.instance, difficulty, spec.boss) then return true end
+      local hit = killedOn(snap, spec.instance, difficulty, spec.boss)
+      if hit then return hit end
     end
-    return false
+    return nil
   end
   return killedOn(snap, spec.instance, group, spec.boss)
+end
+
+-- Raids up to Throne of Thunder save one lockout per boss across all four
+-- 10 / 25 Normal / Heroic sizes: a kill on any of them (or on the size-free
+-- Normal / Heroic a converted raid reports) spends the week. A spec whose
+-- difficulties are all legacy sizes is such a raid; its difficulties still
+-- say where the mount drops (attempts, the wrong-difficulty warning).
+Lockouts.LEGACY_ANY = { 3, 4, 5, 6, 14, 15 }
+
+function Lockouts.IsLegacySpec(spec)
+  if type(spec) ~= "table" or type(spec.difficulties) ~= "table" or #spec.difficulties == 0 then return false end
+  for d in pairs(Lockouts.DropDifficulties(spec)) do
+    if not Lockouts.LEGACY_AS[d] then return false end
+  end
+  return true
 end
 
 local function isInstanceSpec(spec)
@@ -119,17 +151,36 @@ end
 
 -- Difficulty groups of an instance spec that the snapshot satisfies: a number
 -- in spec.difficulties is its own group, a table is an any-of group.
--- -> { [groupIndex] = true }, count. Other specs (and nil) -> {}, 0.
+-- -> { [groupIndex] = true }, count, { [groupIndex] = the difficulty the kill
+-- was reported on } (two legacy groups met by one size-free kill share it).
+-- Other specs (and nil) -> {}, 0, {}.
 function Lockouts.GroupsDone(spec, snap)
-  local done, count = {}, 0
-  if not isInstanceSpec(spec) then return done, count end
+  local done, count, by = {}, 0, {}
+  if not isInstanceSpec(spec) then return done, count, by end
   for i, group in ipairs(spec.difficulties) do
-    if groupSatisfied(snap, spec, group) then
+    local hit = groupSatisfied(snap, spec, group)
+    if hit then
       done[i] = true
+      by[i] = hit
       count = count + 1
     end
   end
-  return done, count
+  return done, count, by
+end
+
+-- An instance spec with more than one group, some but not all done ->
+-- { done = { difficulty IDs }, open = { difficulty IDs } } (a group's first
+-- ID stands for it), else nil. For the checklist row's "Heroic done" line.
+function Lockouts.Progress(spec, snap)
+  if not isInstanceSpec(spec) or #spec.difficulties < 2 or Lockouts.IsLegacySpec(spec) then return nil end
+  local done, count, by = Lockouts.GroupsDone(spec, snap)
+  if count == 0 or count == #spec.difficulties then return nil end
+  local out = { done = {}, open = {} }
+  for i, group in ipairs(spec.difficulties) do
+    local first = type(group) == "table" and group[1] or group
+    if done[i] then out.done[#out.done + 1] = by[i] else out.open[#out.open + 1] = first end
+  end
+  return out
 end
 
 -- A camp spec ({ camp = true, zone = }): a rare spawn with no known kill
@@ -153,6 +204,9 @@ function Lockouts.State(spec, snap, isQuestDone, isLfgDone)
     return (isLfgDone and isLfgDone(spec.lfg)) and "done" or "open"
   end
   if spec.instance and spec.difficulties and #spec.difficulties > 0 then
+    if Lockouts.IsLegacySpec(spec) then
+      return groupSatisfied(snap, spec, Lockouts.LEGACY_ANY) and "done" or "open"
+    end
     for _, group in ipairs(spec.difficulties) do
       if not groupSatisfied(snap, spec, group) then return "open" end
     end
@@ -201,7 +255,13 @@ function Lockouts.WrongDifficulty(mountIDs, instanceID, difficultyID, specFor, d
       end
     end
     if set then
-      if next(set) and not set[difficultyID] then
+      -- A hand-written spec's 10 / 25 drops may be on the size-free
+      -- difficulty now (the journal lists those itself, as for Firelands).
+      local here = set[difficultyID]
+      for legacy, modern in pairs(Lockouts.LEGACY_AS) do
+        if not journal and set[legacy] and modern == difficultyID then here = true end
+      end
+      if next(set) and not here then
         local wanted = {}
         for d in pairs(set) do wanted[#wanted + 1] = d end
         table.sort(wanted)

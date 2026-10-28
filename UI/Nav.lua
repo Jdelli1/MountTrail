@@ -174,8 +174,6 @@ end
 
 -- Navigation column -----------------------------------------------------------------
 
-local CONTENT_TOP = -60 -- the navigation column starts below the portrait
-
 -- The navigation column's width (saved; UI.NAV_WIDTH by default).
 function UI.NavWidth()
   local db = UI.WindowDB()
@@ -561,7 +559,7 @@ end
 -- window calls it once) -> the column.
 function UI.CreateNav(frame)
   local n = CreateFrame("Frame", nil, frame)
-  n:SetPoint("TOPLEFT", frame, "TOPLEFT", 6, CONTENT_TOP)
+  n:SetPoint("TOPLEFT", frame, "TOPLEFT", 6, UI.VIEW_TOP) -- under the title strip
   n:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 6, 6)
   n:SetWidth(UI.NavWidth())
   local fill = n:CreateTexture(nil, "BACKGROUND")

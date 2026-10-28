@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+- The main window takes the pop-outs' look: a flat panel with a slim title
+  strip instead of Blizzard's portrait frame. Right-click the strip for the
+  pop-outs' appearance menu (opacity, colours, font, size).
+- `/mtrail zone` opens the small pop-out of your zone's mounts (as
+  `/mtrail here` does) instead of the side panel; the panel stays on the
+  title bar's pin button.
+- Lockouts: a saved kill now prints "Lockout checked off: <mount> (attempt
+  n)" in chat, and lockouts are asked for again a few seconds after a kill.
+- Lockouts: old raids up to Throne of Thunder share one lockout across the
+  four 10 / 25 sizes: any kill ticks the row (Onyxia, Malygos and the Vault
+  of Archavon were two rows' worth before). Firelands, Ulduar and Black
+  Temple, now Normal / Heroic only, tick off on those kills (Alysrazor,
+  Ragnaros).
+- Lockouts: a mount with one lockout per difficulty (Felblaze Infernal,
+  Antoran Charhound) shows which difficulties are done and which are left.
+- Current Zone: inside a raid, its drops are matched by instance ID (Antorus
+  listed none).
+
 ## 0.9.0-beta (first public beta)
 
 The first public release. Highlights:

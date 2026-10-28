@@ -37,9 +37,15 @@ function Attempts.Newly(prev, curr, mountIDs, specFor, isOwned)
           end
         else
           local before = ns.Lockouts.GroupsDone(spec, prev.snap or {})
-          local after = ns.Lockouts.GroupsDone(spec, curr.snap or {})
+          local after, _, by = ns.Lockouts.GroupsDone(spec, curr.snap or {})
+          -- One kill is one attempt, even when a size-free Normal kill meets
+          -- both a 10- and a 25-player group.
+          local counted = {}
           for i in pairs(after) do
-            if not before[i] then out[#out + 1] = mountID end
+            if not before[i] and not counted[by[i]] then
+              counted[by[i]] = true
+              out[#out + 1] = mountID
+            end
           end
         end
       end

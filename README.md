@@ -74,6 +74,12 @@ Drag the corner grip to resize it. Its three boxes (navigation, list, detail
 pane) share the width: drag the navigation's right edge or the detail pane's
 left edge to resize them (saved; right-click either edge for the default).
 
+It has the pop-outs' look: a flat panel with a slim title strip (drag it to
+move the window, x to close). Right-click the title strip for the same
+appearance menu as a pop-out: opacity, background, header and text colour,
+font size and font, saved for the window. `Apply to all pop-outs` there (on
+the window or any pop-out) gives every window one look.
+
 ### Navigation column
 
 The left column:
@@ -196,6 +202,16 @@ it can still spend on a mount.
   can't report get a clickable box, so a ticked game-tracked row always means a
   real lockout on this character. Not-done rows come first; finished rows
   disappear on their own (the header counts them).
+- A kill the game saves prints a chat line ("Lockout checked off: Antoran
+  Charhound (attempt 3)"). A mount that drops on several difficulties, each its
+  own lockout (Felblaze Infernal, Antoran Charhound on Normal, Heroic and
+  Mythic), stays on the list until all are done, its row reading "Heroic done
+  · Normal, Mythic left".
+- Old raids up to Throne of Thunder save one lockout per boss across all four
+  10 / 25 Normal / Heroic sizes, so a kill on any size ticks the row off for
+  the week (a 10 Normal Lich King spends your Invincible chance, though only
+  a 25 Heroic kill counts as an attempt). Firelands, Ulduar and Black Temple
+  have no 10 / 25 sizes any more: their Normal / Heroic kills count.
 - The Filter button (Show raids / dungeons / world bosses / rares / holidays /
   other / rare spawns (no lockout), saved per character) narrows the list and
   its counts.
@@ -276,7 +292,7 @@ What you can pop out:
 - Any list: your own lists (build them with `+ List` on any mount) and the
   quick lists.
 - `/mtrail rares`: the rare spawns of your zone.
-- `/mtrail here`, a right-click on the zone panel's title or on Current Zone:
+- `/mtrail zone` (or `/mtrail here`), a right-click on the zone panel's title or on Current Zone:
   every mount you can still get in your zone, under source headers (Dungeon
   drops, Vendors, Achievements, ...) when it has more than one source.
 
@@ -322,13 +338,15 @@ and in chat, before you pull:
 ## Zone panel and world map tab
 
 **Zone panel.** A slim side panel docked to the window's right edge (the pin
-button in the title bar, or `/mtrail zone`) listing "Mounts in <zone>": every
+button in the title bar) listing "Mounts in <zone>": every
 mount you can still get whose location is your current zone.
 
 - A mount is in the zone by its map coordinates, by any `Zone:` line of its
   Mount Journal source (where it drops, or where the vendor that sells it
   stands, also in a city inside the zone), or by a dungeon / raid whose
-  entrance is in the zone. Inside an instance it lists that instance's mounts.
+  entrance is in the zone. Inside an instance it lists that instance's mounts
+  (matched by the instance's ID, so raids whose maps the game hides, such as
+  Antorus, still list their drops).
 - A zone that exists more than once (TBC and WoD Nagrand, the Midnight
   Eversong Woods) gets the right version's mounts.
 - When the mounts come from more than one source, they are grouped under
@@ -485,8 +503,7 @@ doesn't know are left out.
 | Command | Action |
 | --- | --- |
 | `/mtrail` | Show or hide the window |
-| `/mtrail zone` | Show or hide the zone panel (opens the window too when it is closed) |
-| `/mtrail here` | Show or hide every mount still to get in your zone, in a pop-out that follows you |
+| `/mtrail zone` (or `here`) | Show or hide every mount still to get in your zone, in a pop-out that follows you |
 | `/mtrail rares` | Show or hide the rare spawns of your zone, in a pop-out that follows you |
 | `/mtrail alts` | Show or hide the alt lockout matrix |
 | `/mtrail import` | Paste a list someone shared |

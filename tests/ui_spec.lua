@@ -42,26 +42,25 @@ describe("ui", function()
     local f = ns.UI.frame
     ok(f and f:IsShown(), "window shown")
     eq(f:GetName(), "MountTrailFrame")
-    eq(f.template, "PortraitFrameFlatTemplate", "modern flat window")
+    eq(f.template, nil, "no Blizzard frame template: the pop-outs' flat look")
     eq({ f:GetSize() }, { 900, 560 })
-    eq(f.title, "MountTrail")
-    eq(f.portraitAsset, 132261)
+    eq(f.Title:GetText(), "MountTrail")
+    ok(f.Fill and f.Edge and f.Strip and f.CloseButton, "flat fill, edge, title strip and close button")
+    eq({ f.Strip:GetPoint(1) }, { "TOPLEFT", f, "TOPLEFT", 1, -1 })
     ok(f.movable and f.clamped, "movable and clamped")
     -- The navigation column on the left (no tabs), the views right of it.
     ok(f.Nav and f.isFlat, "flat window with a navigation column")
     eq(f.Tabs, nil, "no tab buttons")
-    eq({ f.Nav:GetPoint(1) }, { "TOPLEFT", f, "TOPLEFT", 6, -60 }, "under the portrait")
+    eq({ f.Nav:GetPoint(1) }, { "TOPLEFT", f, "TOPLEFT", 6, -32 }, "under the title strip")
     eq(f.Nav.width, ns.UI.NAV_WIDTH)
-    eq({ f.Inset:GetPoint(1) }, { "TOPLEFT", f, "TOPLEFT", 6 + ns.UI.NAV_WIDTH + 4, -34 }, "views right of it, clear of the title bar")
+    eq({ f.Inset:GetPoint(1) }, { "TOPLEFT", f, "TOPLEFT", 6 + ns.UI.NAV_WIDTH + 4, -32 }, "views right of it, under the title strip")
     local labels = {}
     for i = 1, f.Nav.shown do labels[i] = f.Nav.Buttons[i].Text:GetText() end
     eq({ labels[1], labels[2], labels[3] }, { "Home", "Lockouts", "Current Zone" })
     ok(labels[4]:find("^Alts"), labels[4])
     eq({ labels[5], labels[8] }, { "Drops", "Achievements" }, "Browse by source")
     eq(f.Inset.template, nil, "flat content area, no classic inset")
-    eq(f.Inset.Fill:GetParent(), f.Inset, "flat fill drawn on the inset")
-    eq(f.Inset.Fill.color, { 0, 0, 0, 0.3 })
-    eq(#f.Inset.Edge.edges, 4, "faint 1 px edge")
+    eq(f.Inset.Fill, nil, "the views sit on the window's own fill, as in a pop-out")
     eq(next(ns.UI.TemplateFallbacks), nil, "no fallback used")
     eq(ns.UI.CurrentTab(), "journal", "Home by default")
     ok(f.Nav.Buttons[1].selected and f.Nav.Buttons[1].Bar:IsShown(), "Home marked")
@@ -374,21 +373,24 @@ describe("ui", function()
     eq({ w.point, w.relPoint, w.x, w.y }, { "BOTTOMLEFT", "BOTTOMLEFT", 12, 34 })
   end)
 
-  it("falls back to the classic window and inset without the modern templates", function()
+  it("takes the pop-outs' appearance: its own style under the key \"main\", the shared one else", function()
     local ns = loadUI()
-    STUB_TEMPLATES.PortraitFrameFlatTemplate = nil
-    STUB_TEMPLATES.PanelTopTabButtonTemplate = nil
     ns.ToggleWindow()
     local f = ns.UI.frame
-    ok(f:IsShown(), "window still opens")
-    eq(f.template, "PortraitFrameTemplate")
-    eq(f.portraitAsset, 132261)
-    eq(f.Inset.template, "InsetFrameTemplate")
-    eq(f.Inset.Fill, nil, "classic inset draws its own background")
-    ok(f.Nav, "the navigation column still there")
-    eq(ns.UI.TemplateFallbacks, { PortraitFrameFlatTemplate = "PortraitFrameTemplate" })
-    ns.UI.SelectTab("checklist")
-    eq(ns.UI.CurrentTab(), "checklist", "views still switch")
+    eq(f.key, "main")
+    eq(f.Fill.color, { 0.06, 0.06, 0.07, 0.92 }, "the pop-outs' default fill")
+    local listed = false
+    for _, w in ipairs(ns.UI.StyledWindows()) do if w == f then listed = true end end
+    ok(listed, "restyled with the other windows")
+    ns.db.global.popouts = { main = { style = { alpha = 0.5, bg = { 0, 0, 0 } } } }
+    f.Restyle()
+    eq(f.Fill.color, { 0, 0, 0, 0.5 }, "its own style")
+    ns.db.global.popouts = {}
+    ns.db.global.popoutStyle = { alpha = 0.8, bg = { 0.1, 0.12, 0.16 } }
+    f.Restyle()
+    eq(f.Fill.color, { 0.1, 0.12, 0.16, 0.8 }, "the shared style")
+    f.CloseButton:RunScript("OnClick")
+    ok(not f:IsShown(), "x closes it")
   end)
 
   describe("Template", function()

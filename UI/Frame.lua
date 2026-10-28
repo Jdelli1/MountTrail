@@ -87,10 +87,9 @@ function UI.ApplyTextSizes()
 end
 
 -- Style helpers ------------------------------------------------------------------
--- The window follows Blizzard's current flat panel style (Professions, Delves,
--- the modern Collections). Every template newer than the classic ones goes
--- through UI.Template, so a client without it gets the classic look instead
--- of a broken window.
+-- The window draws its own flat look (Window, below). Widgets that use a
+-- Blizzard template newer than the classic ones go through UI.Template, so
+-- a client without it gets the classic widget instead of a broken one.
 
 -- preferred -> fallback for each template the client did not define (shown
 -- by `/mtrail debug`).
@@ -334,24 +333,6 @@ local function restorePosition(frame)
   end
 end
 
-local function setPortrait(frame)
-  if frame.SetPortraitToAsset then -- PortraitFrameMixin (Retail)
-    frame:SetPortraitToAsset(ICON)
-  elseif frame.portrait and SetPortraitToTexture then -- older templates
-    SetPortraitToTexture(frame.portrait, ICON)
-  elseif frame.PortraitContainer and frame.PortraitContainer.portrait then
-    frame.PortraitContainer.portrait:SetTexture(ICON)
-  end
-end
-
-local function setTitle(frame, text)
-  if frame.SetTitle then
-    frame:SetTitle(text)
-  elseif frame.TitleText then
-    frame.TitleText:SetText(text)
-  end
-end
-
 -- The view on screen (its key).
 function UI.CurrentTab()
   return current
@@ -380,9 +361,8 @@ end
 UI.COG_ATLAS = "QuestLog-icon-setting"
 UI.COG_TEXTURE = "Interface\\Buttons\\UI-OptionsButton"
 
--- Title-bar buttons sit above the window template's border and title art
--- (Retail draws its NineSlice on a high frame level): the close button's
--- level, else a margin above the window's.
+-- Title-bar buttons sit above the title strip: the close button's level,
+-- else a margin above the window's.
 function UI.RaiseTitleButton(button, frame)
   if not (button.SetFrameLevel and frame.GetFrameLevel) then return end
   local level = frame:GetFrameLevel() + 20
@@ -454,63 +434,92 @@ function UI.AddWindowHook(fn)
 end
 
 -- Window -----------------------------------------------------------------------
+-- The pop-outs' look (UI/Style.lua): a flat fill in the window's style, a
+-- 1 px edge, and a title strip with a gold rule under it. Drag the strip to
+-- move the window; right-click it for the appearance menu (the same as a
+-- pop-out's, saved under the key "main"; "Apply to all pop-outs" shares it).
+-- The strip holds the close button (x), the zone panel's pin and the
+-- settings cogwheel.
 
-local TITLE_HEIGHT = 24 -- title bar of the portrait frame
-local PORTRAIT_RIGHT = 60 -- the portrait covers the top-left corner up to here
-local VIEW_TOP = -34 -- the view area starts clear of the title bar and its border (right of the portrait)
-local TITLE_BUTTONS_RIGHT = 74 -- close button + two 20 px title-bar buttons (zone panel, settings)
+local TITLE_HEIGHT = 26 -- the title strip
+local VIEW_TOP = -(TITLE_HEIGHT + 6) -- the navigation and the views start under the strip and its rule
 UI.VIEW_TOP = VIEW_TOP -- UI.SetNavWidth moves the views beside the navigation column
+UI.WINDOW_STYLE_KEY = "main"
 
 local function createWindow()
-  local frameTemplate = UI.Template("PortraitFrameFlatTemplate", "PortraitFrameTemplate")
-  local flat = frameTemplate == "PortraitFrameFlatTemplate"
-  local frame = CreateFrame("Frame", "MountTrailFrame", UIParent, frameTemplate)
+  local frame = CreateFrame("Frame", "MountTrailFrame", UIParent)
   UI.frame = frame
-  frame.isFlat = flat
+  frame.key = UI.WINDOW_STYLE_KEY
+  frame.isFlat = true
   frame:Hide()
   frame:SetSize(WIDTH, HEIGHT)
   frame:SetToplevel(true)
   frame:EnableMouse(true)
   frame:SetMovable(true)
   frame:SetClampedToScreen(true)
-  setTitle(frame, L["MountTrail"])
-  setPortrait(frame)
   restorePosition(frame)
 
-  -- Drag handle over the title bar (right of the portrait, left of the close
-  -- button and the title-bar buttons such as the zone panel toggle). We save
-  -- the position ourselves, so opt out of the layout cache.
-  local drag = CreateFrame("Frame", nil, frame)
-  drag:SetPoint("TOPLEFT", frame, "TOPLEFT", PORTRAIT_RIGHT, 0)
-  drag:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -TITLE_BUTTONS_RIGHT, 0)
-  drag:SetHeight(TITLE_HEIGHT)
-  drag:EnableMouse(true)
-  drag:RegisterForDrag("LeftButton")
-  drag:SetScript("OnDragStart", function() frame:StartMoving() end)
-  drag:SetScript("OnDragStop", function()
+  local fill = frame:CreateTexture(nil, "BACKGROUND")
+  fill:SetAllPoints(frame)
+  frame.Fill = fill
+  frame.Edge = UI.FlatBorder(frame, 1, 1, 1, 0.12)
+
+  -- Title strip: drag to move (we save the position ourselves, so no layout
+  -- cache), right-click for the appearance.
+  local strip = CreateFrame("Frame", nil, frame)
+  strip:SetPoint("TOPLEFT", frame, "TOPLEFT", 1, -1)
+  strip:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -1, -1)
+  strip:SetHeight(TITLE_HEIGHT)
+  strip:EnableMouse(true)
+  strip:RegisterForDrag("LeftButton")
+  strip:SetScript("OnDragStart", function() frame:StartMoving() end)
+  strip:SetScript("OnDragStop", function()
     frame:StopMovingOrSizing()
     frame:SetUserPlaced(false)
     savePosition(frame)
   end)
-  frame.DragHandle = drag
+  strip:SetScript("OnMouseUp", function(self, button)
+    if button == "RightButton" and UI.ShowPopoutStyleMenu then UI.ShowPopoutStyleMenu(frame, self) end
+  end)
+  strip:SetScript("OnEnter", function(self) UI.ShowHint(self, L["Drag to move"], L["Right-click: appearance"]) end)
+  strip:SetScript("OnLeave", function(self) UI.HideHint(self) end)
+  local stripBg = strip:CreateTexture(nil, "BACKGROUND")
+  stripBg:SetAllPoints(strip)
+  stripBg:SetColorTexture(1, 1, 1, 0.05)
+  local rule = frame:CreateTexture(nil, "BORDER")
+  rule:SetHeight(1)
+  rule:SetPoint("TOPLEFT", strip, "BOTTOMLEFT", 0, 0)
+  rule:SetPoint("TOPRIGHT", strip, "BOTTOMRIGHT", 0, 0)
+  rule:SetColorTexture(1, 0.82, 0, 0.3)
+  frame.Strip = strip
+  frame.DragHandle = strip
+
+  local close = UI.FlatButton(strip, "x", "plain", 18)
+  close:SetWidth(18)
+  close:SetPoint("RIGHT", strip, "RIGHT", -4, 0)
+  close:SetScript("OnClick", function() frame:Hide() end)
+  close:SetScript("OnEnter", function(self) UI.ShowHint(self, L["Close"]) end)
+  close:SetScript("OnLeave", function(self) UI.HideHint(self) end)
+  frame.CloseButton = close
+
+  local title = strip:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormal"))
+  title:SetPoint("LEFT", strip, "LEFT", 8, 0)
+  title:SetJustifyH("LEFT")
+  title:SetText(L["MountTrail"])
+  frame.Title = title
+
+  -- The appearance: the fill and the title in the window's style, again
+  -- whenever the appearance menu changes it.
+  function frame.Restyle()
+    if UI.PopoutApplyChrome then UI.PopoutApplyChrome(frame, UI.PopoutStyleOf(frame)) end
+  end
+  frame.Restyle()
+  if UI.AddStyledWindow then UI.AddStyledWindow(frame) end
   createSizeGrip(frame)
 
-  -- Content area below the portrait; one content frame per tab inside it
-  -- (frame.Contents[key]). Flat window: a plain frame with a slightly darker
-  -- flat fill and a faint 1 px edge (the modern inset look). Classic
-  -- fallback: the classic inset.
-  local inset
-  if flat then
-    inset = CreateFrame("Frame", nil, frame)
-    local fill = inset:CreateTexture(nil, "BACKGROUND")
-    fill:SetAllPoints(inset)
-    fill:SetColorTexture(0, 0, 0, 0.3)
-    inset.Fill = fill
-    inset.Edge = UI.FlatBorder(inset, 1, 1, 1, 0.08)
-  else
-    inset = CreateFrame("Frame", nil, frame, "InsetFrameTemplate")
-  end
-  -- The navigation column on the left, the views right of it.
+  -- The views' area right of the navigation column (one content frame per
+  -- tab inside it, frame.Contents[key]), on the window's own fill.
+  local inset = CreateFrame("Frame", nil, frame)
   local nav = UI.CreateNav(frame)
   frame.Nav = nav
   inset:SetPoint("TOPLEFT", frame, "TOPLEFT", 6 + UI.NavWidth() + 4, VIEW_TOP)

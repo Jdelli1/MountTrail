@@ -123,7 +123,11 @@ end
 --   showCollected = true to keep owned mounts, currentInstance = the name
 --   of the instance the player is in (GetInstanceInfo) for when the map is
 --   unknown (GetBestMapForUnit gives nil in some instances): then only (b)
---   and (c) by that name apply.
+--   and (c) by that name apply. currentInstanceID = the instance's ID
+--   (GetInstanceInfo's 8th return) and instanceOf(id) -> the instance ID the
+--   mount drops in (the Encounter Journal's, else its lockout spec's): a
+--   mount whose instance is the one the player stands in is always listed
+--   ("instance"), whatever the map APIs can tell inside it.
 -- Nested zones: a Zone-type ancestor of a Zone root (Thaldraszus above
 -- Valdrakken, Isle of Dorn above Dornogal) counts for (a) itself, not its
 -- other maps; the root and the title stay the inner zone.
@@ -136,7 +140,8 @@ function Zone.MountsFor(mapID, ctx)
   local mapInfo = ctx.mapInfo
   local root, insideInstance = Zone.Root(mapID, mapInfo, ctx.instanceForMap)
   local byName = not root and nonEmpty(ctx.currentInstance) or nil
-  if not (root or byName) then return {}, nil end
+  local hereID = ctx.instanceOf and ctx.currentInstanceID or nil
+  if not (root or byName or hereID) then return {}, nil end
   local rootInfo = root and mapInfo(root) or {}
   local key = ctx.key or defaultKey
 
@@ -323,6 +328,7 @@ function Zone.MountsFor(mapID, ctx)
     return false
   end
   local function via(id, m)
+    if hereID and ctx.instanceOf(id, m) == hereID then return "instance" end
     local cm = coordsMap(id, m)
     if cm then
       if underRoot(cm) then return "coords" end
@@ -360,6 +366,7 @@ function Zone.MountsFor(mapID, ctx)
     if na ~= nb then return na < nb end
     return a.id < b.id
   end)
+  if not root and not byName then return out, nil end
   if byName then return out, { name = zoneName } end
   return out, { mapID = root, name = zoneName, instance = insideInstance }
 end

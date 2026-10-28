@@ -5,7 +5,7 @@ local ADDON, ns = ...
 -- get whose location is the current zone (Zone.MountsFor: coords, source
 -- "Zone:", dungeon / raid entrances). Rows look and click like the mount
 -- lists (UI.InitMountRow: left-click waypoint, Shift map, Ctrl preview,
--- hover tooltip). Toggled by the title-bar pin button and `/mtrail zone`; the
+-- hover tooltip). Toggled by the title-bar pin button; the
 -- open state is saved in ns.db.global.zonePanel.open. The panel is a child
 -- of the main window, so it is shown only while the window is (v1: no
 -- detached mode). It recomputes on ZONE_CHANGED_NEW_AREA, ZONE_CHANGED,
@@ -92,7 +92,9 @@ end
 -- instance (UI.RouteEntry), UI.GroupKey, the Journal's gate (other faction,
 -- unobtainable and mounts unknown to the client left out) and the Collected
 -- filter (ns.db.global.filters.collected); currentInstance
--- (Game.CurrentInstanceName) for when the player's map is unknown.
+-- (Game.CurrentInstanceName) for when the player's map is unknown, and
+-- currentInstanceID (Game.CurrentInstance) with each mount's instance
+-- (Data.JournalDrops, else Data.Lockouts) so a raid's drops show inside it.
 function UI.ZoneContext()
   local game = ns.Game
   local db = ns.db and ns.db.global
@@ -158,6 +160,13 @@ function UI.ZoneContext()
     gate = ns.Zone.Gate(UI.Memo(game.IsOwned), UI.Memo(game.Exists), game.Faction()),
     showCollected = filters.collected == true,
     currentInstance = game.CurrentInstanceName and game.CurrentInstanceName() or nil,
+    currentInstanceID = game.CurrentInstance and (game.CurrentInstance()) or nil,
+    instanceOf = function(id)
+      local drop = data.JournalDrops and data.JournalDrops[id]
+      if type(drop) == "table" and drop.map then return drop.map end
+      local spec = data.Lockouts and data.Lockouts[id]
+      return type(spec) == "table" and spec.instance or nil
+    end,
   }
   return ctx
 end
@@ -323,27 +332,6 @@ function UI.SetZonePanelOpen(open)
     if open then UI.RefreshZonePanel(true) end
   end
   paintButton()
-end
-
--- `/mtrail zone`: with the window closed, opens it with the panel; else flips
--- the panel. -> the panel's new open state.
-function ns.ToggleZonePanel()
-  local frame = UI.frame
-  if not (frame and frame:IsShown()) then
-    -- Open before the window shows: its OnShow hook then builds the list once.
-    local db = stateDB()
-    if db then db.open = true end
-    if panel then
-      panel:Show()
-      applyClamp(true)
-    end
-    paintButton()
-    if ns.ToggleWindow then ns.ToggleWindow() end
-    return true
-  end
-  local open = not UI.ZonePanelOpen()
-  UI.SetZonePanelOpen(open)
-  return open
 end
 
 local function buildPanel(frame)
