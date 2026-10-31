@@ -14,7 +14,6 @@ local UI = ns.UI or {}
 ns.UI = UI
 
 local view = {}
-UI.HereView = view
 
 local root, list, title
 local shownMap -- the map the list was built for

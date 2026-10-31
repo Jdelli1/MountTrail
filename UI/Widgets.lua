@@ -617,7 +617,6 @@ local function cursorX(region)
   if type(x) ~= "number" or not scale or scale == 0 then return nil end
   return x / scale
 end
-UI.CursorX = cursorX
 
 -- A vertical drag handle on `parent`: while dragged, widthAt(cursorX) is the
 -- new width, apply(w) shows it; done(w) on release (saves); right-click:

@@ -200,7 +200,6 @@ local function setDropSound(key)
   settings().dropSound = key
   if ns.Game and ns.Game.PlaySoundKit then ns.Game.PlaySoundKit(key) end
 end
-Options.SetDropSound = setDropSound
 
 -- Accessibility: "Colour-blind marks" (settings.colorblindMarks): a tick on
 -- finished lockouts and collected mounts, "open" on the left column's green

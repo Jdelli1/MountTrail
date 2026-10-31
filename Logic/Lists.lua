@@ -141,8 +141,6 @@ function Lists.MoveBefore(store, id, mountID, beforeID)
   return false
 end
 
-Lists.SORTS = { "added", "expansion" }
-
 -- How a list is shown: "added" (its own order, the default) or "expansion".
 function Lists.SortOf(store, id)
   local l = Lists.Get(store, id)

@@ -86,22 +86,6 @@ function UI.ApplyNavOrder(entries, order)
   return named
 end
 
--- `keys` (a section as shown) with `key` moved one place (`delta` -1 up,
--- +1 down) -> the new keys, or nil when it cannot move: at an end, or past
--- the line between the favourites and the rest (isFavorite(key); nil:
--- none are).
-function UI.NavMove(keys, key, delta, isFavorite)
-  local i
-  for j, k in ipairs(keys) do if k == key then i = j end end
-  local t = i and i + delta
-  if not (t and t >= 1 and t <= #keys) then return nil end
-  if isFavorite and (isFavorite(keys[i]) == true) ~= (isFavorite(keys[t]) == true) then return nil end
-  local out = {}
-  for j, k in ipairs(keys) do out[j] = k end
-  out[i], out[t] = out[t], out[i]
-  return out
-end
-
 local shownSections = {} -- section -> its entries' keys as last shown (the moves' baseline)
 
 -- `keys` with `key` moved to position `to` (1..#keys), held inside its own
@@ -138,18 +122,6 @@ function UI.NavDropIndex(rects, y)
     if y > (r.top + r.bottom) / 2 then return i end
   end
   return #rects
-end
-
--- Moves an entry of `section` one place and saves the section's order.
-function UI.MoveNavEntry(section, key, delta)
-  local keys = shownSections[section]
-  if not keys then return false end
-  local fav = section ~= "browse" and UI.IsNavFavorite or nil
-  local moved = UI.NavMove(keys, key, delta, fav)
-  if not moved then return false end
-  navOrders()[section] = moved
-  UI.RefreshNav()
-  return true
 end
 
 -- Whether a section is shown (Options: "Show My lists" / "Show Quick lists").

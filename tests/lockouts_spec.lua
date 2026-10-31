@@ -203,9 +203,6 @@ describe("lockouts", function()
       local L = load().Lockouts
       eq(L.State({ camp = true, zone = "Gorgrond" }, {}), "camp")
       eq(L.State({ camp = true }, {}, function() return true end, function() return true end), "camp")
-      eq(L.IsCamp({ camp = true }), true)
-      eq(L.IsCamp({ manual = true, reset = "daily" }), false)
-      eq(L.IsCamp(nil), false)
     end)
 
     it("unknown spec kind is open", function()

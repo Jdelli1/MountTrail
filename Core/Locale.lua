@@ -7,11 +7,6 @@ ns.L = setmetatable({}, {
 
 local L = ns.L
 
--- Route
-L["Hearthstone to %s"] = "Hearthstone to %s"
-L["your capital"] = "your capital"
-L["Start in %s"] = "Start in %s"
-
 -- Slash commands and /mtrail dump
 L["No saved instances yet (lockout data arrives shortly after login). Try again in a moment."] = "No saved instances yet (lockout data arrives shortly after login). Try again in a moment."
 L["Saved instances (instance ID / difficulty ID):"] = "Saved instances (instance ID / difficulty ID):"
@@ -33,7 +28,6 @@ L["No map location for %s"] = "No map location for %s"
 
 -- Main window and minimap button
 L["MountTrail"] = "MountTrail"
-L["Journal"] = "Journal"
 L["Holidays"] = "Holidays"
 L["Misc"] = "Misc"
 L["Coming soon"] = "Coming soon"
@@ -50,7 +44,6 @@ L["Mounts you can still get in your current zone"] = "Mounts you can still get i
 -- Journal home and mount list
 L["Back"] = "Back"
 L["%d / %d"] = "%d / %d"
-L["Map"] = "Map"
 L["Waypoint: %s"] = "Waypoint: %s"
 L["%s (entrance)"] = "%s (entrance)"
 L["Opened map: %s"] = "Opened map: %s"
@@ -145,13 +138,11 @@ L["Available"] = "Available"
 L["Manual"] = "Manual"
 L["—"] = "—"
 L["Click to set waypoint"] = "Click to set waypoint"
-L["Left-click"] = "Left-click"
 L["Right-click"] = "Right-click"
 L["How to get it"] = "How to get it"
 L["Wowhead"] = "Wowhead"
 L["Ctrl+C to copy, then paste it into your browser"] = "Ctrl+C to copy, then paste it into your browser"
 L["The mount's Wowhead page: guides and comments (a link to copy)"] = "The mount's Wowhead page: guides and comments (a link to copy)"
-L["view"] = "view"
 L["Shift-click"] = "Shift-click"
 L["Ctrl-click"] = "Ctrl-click"
 L["open the zone map"] = "open the zone map"
@@ -200,11 +191,9 @@ L["auto"] = "auto"
 L["Locked"] = "Locked"
 
 -- Checklist tab
-L["Checklist"] = "Checklist"
 L["Daily"] = "Daily"
 L["Weekly"] = "Weekly"
 L["%s · resets in %s"] = "%s · resets in %s"
-L["Hide done"] = "Hide done"
 L["No lockouts left to farm on this character."] = "No lockouts left to farm on this character."
 L["%d mounts"] = "%d mounts"
 L["Can drop:"] = "Can drop:"
@@ -273,7 +262,6 @@ L["/mtrail options - open the MountTrail options (Options > AddOns)"] = "/mtrail
 
 -- Journal home (front page)
 L["Mount Collection"] = "Mount Collection"
-L["Current zone"] = "Current zone"
 L["Click to open the achievement"] = "Click to open the achievement"
 L["Sky"] = "Sky"
 L["Green"] = "Green"
@@ -297,14 +285,11 @@ L["Header colour"] = "Header colour"
 L["Background colour"] = "Background colour"
 L["Opacity"] = "Opacity"
 L["Appearance"] = "Appearance"
-L["Appearance..."] = "Appearance..."
 L["Right-click: appearance"] = "Right-click: appearance"
 L["Right-click: fit to its rows"] = "Right-click: fit to its rows"
 L["Right-click: default size"] = "Right-click: default size"
 L["Drag to resize"] = "Drag to resize"
 L["Ctrl-click: close every pop-out"] = "Ctrl-click: close every pop-out"
-L["Show quick lists"] = "Show quick lists"
-L["Lists"] = "Lists"
 L["Mythic Mounts"] = "Mythic Mounts"
 L["Quick lists"] = "Quick lists"
 L["Type %s to confirm. This can't be undone."] = "Type %s to confirm. This can't be undone."
@@ -329,15 +314,11 @@ L["Delete"] = "Delete"
 L["Pop out"] = "Pop out"
 L["Rename list"] = "Rename list"
 L["Name of the new list"] = "Name of the new list"
-L["Right-click to start a list (or + List on a mount)"] = "Right-click to start a list (or + List on a mount)"
-L["Right-click: pop out, rename or delete"] = "Right-click: pop out, rename or delete"
 L["Right-click to pop out %s"] = "Right-click to pop out %s"
 L["+ List"] = "+ List"
-L["Add to list"] = "Add to list"
 L["Lists (%d)"] = "Lists (%d)"
 L["Tick a list to add this mount to it, untick to remove it."] = "Tick a list to add this mount to it, untick to remove it."
 L["Your lists"] = "Your lists"
-L["Add to a custom list"] = "Add to a custom list"
 L["/mtrail rares - show or hide the rare spawns of your zone"] = "/mtrail rares - show or hide the rare spawns of your zone"
 L["Cancel"] = "Cancel"
 L["OK"] = "OK"
@@ -354,8 +335,6 @@ L["Vendor"] = "Vendor"
 L["vendor"] = "vendor"
 L["daily"] = "daily"
 L["Rider"] = "Rider"
-L["Waypoint"] = "Waypoint"
-L["Map"] = "Map"
 L["Achievement"] = "Achievement"
 L["MountTrail: mounts on this map"] = "MountTrail: mounts on this map"
 L["Open a zone on the map to see its mounts"] = "Open a zone on the map to see its mounts"
@@ -440,7 +419,6 @@ L["Right-click: fit the columns"] = "Right-click: fit the columns"
 -- Checklist chips' right-click (UI/ChecklistView.lua, UI/Popouts.lua)
 L["Dailies"] = "Dailies"
 L["Weeklies"] = "Weeklies"
-L["Right-click: pop out a list"] = "Right-click: pop out a list"
 
 -- TomTom is required (Integrations/Map.lua)
 L["MountTrail needs TomTom for waypoints. Install TomTom, then /reload."] = "MountTrail needs TomTom for waypoints. Install TomTom, then /reload."
@@ -464,15 +442,7 @@ L["Colour pop-out names by rarity"] = "Colour pop-out names by rarity"
 L["Colour each pop-out row by how many characters own the mount (legendary under 2 %, epic under 10 %, rare under 20 %, uncommon under 50 %). Needs Mount Journal Enhanced or the MountsRarity add-on."] = "Colour each pop-out row by how many characters own the mount (legendary under 2 %, epic under 10 %, rare under 20 %, uncommon under 50 %). Needs Mount Journal Enhanced or the MountsRarity add-on."
 
 -- The home page's lists column (UI/JournalHome.lua)
-L["MY LISTS"] = "MY LISTS"
-L["QUICK LISTS"] = "QUICK LISTS"
-L["+ New"] = "+ New"
-L["New list"] = "New list"
 L["Or + List on any mount to start one with it"] = "Or + List on any mount to start one with it"
-L["No lists yet. Click + New, or + List on any mount."] = "No lists yet. Click + New, or + List on any mount."
-L["built-in"] = "built-in"
-L["%d open today"] = "%d open today"
-L["Click: open"] = "Click: open"
 L["Click: open. Right-click: pop out. Shift-right-click: share, rename or delete"] = "Click: open. Right-click: pop out. Shift-right-click: share, rename or delete"
 
 -- The navigation column (UI/Frame.lua)
@@ -490,7 +460,6 @@ L["No lists yet: + here, or + List on any mount."] = "No lists yet: + here, or +
 L["Drops"] = "Drops"
 L["Vendors & Reputation"] = "Vendors & Reputation"
 L["Quests & Activities"] = "Quests & Activities"
-L["Shop & Trading Post"] = "Shop & Trading Post"
 
 -- Text size settings (UI/Options.lua)
 L["Right-click: default width"] = "Right-click: default width"

@@ -124,7 +124,6 @@ local function refreshPanel()
   panel.Empty:SetText(emptyText)
   panel.Empty:SetShown(#rows == 0)
 end
-UI.RefreshMapTab = refreshPanel
 
 local function paintTab(selected)
   if not tab then return end

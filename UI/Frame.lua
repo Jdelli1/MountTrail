@@ -30,7 +30,6 @@ UI.FONT_ROLES = {
   GameFontHighlight = "body", GameFontHighlightSmall = "body", GameFontGreen = "body",
   GameFontDisable = "detail", GameFontDisableSmall = "detail", GameFontDisableLarge = "detail",
 }
-UI.TEXT_ROLES = { "header", "body", "detail" }
 
 local fonts = {} -- MountTrail<name> -> { base =, role =, object = }
 

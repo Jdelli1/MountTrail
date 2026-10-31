@@ -187,9 +187,6 @@ end
 -- UI/Options.lua (Journal.SetExcluded).
 Journal.excluded = {}
 
--- The data sections a counting option can leave out, in the order offered.
-Journal.OPTIONAL_SECTIONS = { "shop", "tradingpost", "promotion", "bmah" }
-
 -- Whether not-owned unobtainable mounts count in the collected numbers
 -- (Options: "Show unobtainable mounts" and its "Count towards the total";
 -- owned ones always count). Set by UI/Options.lua.

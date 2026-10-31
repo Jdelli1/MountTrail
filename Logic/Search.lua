@@ -89,10 +89,10 @@ end
 function Search.Distance(a, b, max)
   local la, lb = #a, #b
   if math.abs(la - lb) > max then return max + 1 end
-  local prev2, prev, cur = nil, {}, nil
+  local prev2, prev = nil, {}
   for j = 0, lb do prev[j] = j end
   for i = 1, la do
-    cur = { [0] = i }
+    local cur = { [0] = i }
     local best = i
     local ca = string.byte(a, i)
     for j = 1, lb do

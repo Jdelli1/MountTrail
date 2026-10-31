@@ -1,7 +1,7 @@
 local ADDON, ns = ...
 
 -- Reading a mount's Mount Journal source text (Game.MountSourceText): the
--- one sanitiser for it (UI.StripMarkup, UI.DisplayMarkup), its label / value
+-- one sanitiser for it (UI.StripMarkup), its label / value
 -- pairs (UI.SourcePairs), its Zone: lines (UI.SourceZone, UI.SourceZones),
 -- the achievement it names, and a list row's grey line (UI.RowDescription).
 -- Split out of UI/List.lua (loads after it); the sub-groups and rows
@@ -69,14 +69,6 @@ end
 
 local function dropIcons(text)
   return (string.gsub(text, PLACEHOLDER, ""))
-end
-
--- UI.StripMarkup that keeps the icons (normalised, see above): the sanitiser
--- for text that is shown. Text that is compared stays on UI.StripMarkup.
-function UI.DisplayMarkup(text)
-  if type(text) ~= "string" then return nil end
-  local hidden, icons = hideIcons(text)
-  return showIcons(UI.StripMarkup(hidden), icons)
 end
 
 local FULLWIDTH_COLON = "\239\188\154" -- U+FF1A, zhCN / zhTW labels

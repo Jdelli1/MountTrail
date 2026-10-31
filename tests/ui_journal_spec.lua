@@ -1077,17 +1077,6 @@ describe("ui journal", function()
       eq(SM(5), nil)
     end)
 
-    it("DisplayMarkup keeps textures and atlases, sized to the text", function()
-      local ns = loadUI()
-      local DM = ns.UI.DisplayMarkup
-      eq(DM("|cFFFFD200Cost:|r 2000|TINTERFACE\\MONEYFRAME\\UI-GOLDICON.BLP:0|t"),
-        "Cost: 2000|TINTERFACE\\MONEYFRAME\\UI-GOLDICON.BLP:0|t")
-      eq(DM("5|T463446:16:16:2:0|t"), "5|T463446:0|t", "fileID, size fields rewritten")
-      eq(DM("x |A:raceicon-dwarf-male:16:16|a y"), "x |Araceicon-dwarf-male:0:0|a y")
-      eq(DM("a|n|Hitem:1|hLink|h"), "a\nLink")
-      eq(DM(nil), nil)
-    end)
-
     it("SourcePairs keeps icons in values only with keepIcons", function()
       local ns = loadUI()
       local SP = ns.UI.SourcePairs

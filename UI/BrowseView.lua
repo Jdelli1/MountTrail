@@ -12,7 +12,6 @@ local UI = ns.UI or {}
 ns.UI = UI
 
 local view = {}
-UI.BrowseView = view
 
 local root, list, title
 local current = "drops"
