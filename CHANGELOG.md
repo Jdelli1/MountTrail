@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.1-beta
 
 - The world map tab's rows show each mount's icon again, at a bag slot's
   size, and drop the expansion tag and the source column (the map already
