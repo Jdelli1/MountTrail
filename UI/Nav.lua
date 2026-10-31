@@ -192,13 +192,15 @@ function UI.NavFontBonus()
   return UI.NAV_FONT_BONUS
 end
 
--- `fs` in `fontObject`, UI.NAV_FONT_BONUS points larger. The size comes
--- from the font object itself, never from `fs`: a font string keeps a size
--- set with SetFont through SetFontObject, so reading it back would grow the
--- text on every repaint.
-local function navFont(fs, fontObject)
-  fs:SetFontObject(fontObject)
-  local fo = _G[fontObject]
+-- `fs` in game font `name` (its colour), the game's own size plus the
+-- "Left column" setting (UI.NavFontBonus) only: the column follows that
+-- slider alone, not the Headers / Mount names ones (UI.Font's copies). The
+-- size comes from the game font itself, never from `fs`: a font string keeps
+-- a size set with SetFont through SetFontObject, so reading it back would
+-- grow the text on every repaint.
+local function navFont(fs, name)
+  fs:SetFontObject(name)
+  local fo = _G[name]
   if not (fs.SetFont and type(fo) == "table" and type(fo.GetFont) == "function") then return end
   local path, size, flags = fo:GetFont()
   if path and size then fs:SetFont(path, size + UI.NavFontBonus(), flags or "") end
@@ -529,7 +531,7 @@ local function paintHeading(h, text, key)
   h.key = key
   local collapsed = key ~= nil and navCollapsed()[key] == true
   h.collapsed = key ~= nil and collapsed or nil
-  navFont(h.Text, UI.Font("GameFontNormalSmall"))
+  navFont(h.Text, "GameFontNormalSmall")
   local c = headerColor()
   h.Text:SetTextColor(c[1], c[2], c[3])
   h.Text:SetText(key and ((collapsed and "+ " or "- ") .. text) or text)
@@ -695,15 +697,16 @@ function UI.RefreshNav()
     b.Badge:SetText(badge and ((green and "|cff40c040" or "") .. badge .. (green and "|r" or "")) or "")
     local on = (e.key ~= nil and e.key == selected)
     b.Selected:SetShown(on)
-    navFont(b.Text, on and UI.Font("GameFontNormal") or UI.Font("GameFontHighlight"))
-    navFont(b.Badge, UI.Font("GameFontDisableSmall"))
+    navFont(b.Text, on and "GameFontNormal" or "GameFontHighlight")
+    navFont(b.Badge, "GameFontDisableSmall")
     b.selected = on
     if e.section then
       sectionButtons[e.section] = sectionButtons[e.section] or {}
       local list = sectionButtons[e.section]
       list[#list + 1] = b
     end
-    local rowH = NAV_ROW + math.max(0, UI.NavFontBonus() - 2) + math.max(0, UI.TextSize("body"))
+    -- Taller with the "Left column" size only.
+    local rowH = NAV_ROW + math.max(0, UI.NavFontBonus() - 2)
     b:SetHeight(rowH)
     b:Show()
     y = y + rowH

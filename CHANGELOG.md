@@ -5,7 +5,8 @@
 - Sizes named by what they size: `Whole window`, then `Left column`,
   `Headers`, `Mount names and text` and `Small notes` (were Window scale and
   Gold / White / Grey / Navigation text size). A row's source line and
-  collected mounts' names now size with `Mount names and text`.
+  collected mounts' names now size with `Mount names and text`; the left
+  column sizes with `Left column` only.
 - Your lists: sort `Order added` (default) or `By expansion` from the list
   page's Filter menu or the pop-out's title menu; move mounts with `Move up`
   / `Move down` (detail pane, pop-out row) or Alt-drag in the pop-out; remove

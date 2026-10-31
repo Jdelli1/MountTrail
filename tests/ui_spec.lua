@@ -196,6 +196,34 @@ describe("ui", function()
     mt.SetFont, mt.GetFont = savedSet, savedGet
   end)
 
+  it("the left column follows its own size only: Headers and Mount names and text leave it alone", function()
+    local ns = loadUI()
+    local probe = CreateFrame("Frame")
+    local mt = getmetatable(probe:CreateFontString(nil, "OVERLAY", "GameFontHighlight")).__index
+    local savedSet = mt.SetFont
+    mt.SetFont = function(self, path, size) self.fontPath, self.fontSize = path, size end
+    local fonts = { "GameFontHighlight", "GameFontNormal", "GameFontNormalSmall", "GameFontDisableSmall" }
+    for _, name in ipairs(fonts) do
+      _G[name] = { GetFont = function() return "Fonts\\FRIZQT__.TTF", 12, "" end }
+    end
+    local sizes = { header = 0, body = 0, detail = 0 }
+    ns.Options = { TextSize = function(role) return sizes[role] end, NavTextSize = function() return 2 end }
+    ns.ToggleWindow()
+    local nav = ns.UI.frame.Nav
+    local row, heading = nav.Buttons[2], nav.Headings[1]
+    local rowH = row.height
+    eq({ row.Text.fontSize, heading.Text.fontSize }, { 14, 14 }, "the game's size + the Left column's 2")
+    sizes.header, sizes.body = 4, 4
+    ns.UI.RefreshNav()
+    eq({ row.Text.fontSize, heading.Text.fontSize }, { 14, 14 }, "the other sizes don't move it")
+    eq(row.height, rowH, "nor its rows' height")
+    ns.Options.NavTextSize = function() return 5 end
+    ns.UI.RefreshNav()
+    eq(row.Text.fontSize, 17, "the Left column size does")
+    for _, name in ipairs(fonts) do _G[name] = nil end
+    mt.SetFont = savedSet
+  end)
+
   it("drag the navigation's right edge to resize it (saved, clamped); right-click: the default", function()
     local ns = loadUI()
     ns.ToggleWindow()
