@@ -58,6 +58,8 @@ UI\Style.lua
 UI\Nav.lua
 UI\Tooltip.lua
 UI\List.lua
+UI\ListRows.lua
+UI\ListFilter.lua
 UI\SourceText.lua
 UI\Search.lua
 UI\DetailPane.lua

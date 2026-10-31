@@ -60,9 +60,9 @@ describe("ui journal", function()
     for i, line in ipairs(lines) do if line == "UI\\Frame.lua" then frame = i end end
     ok(frame, "UI\\Frame.lua in toc")
     local got = {}
-    for i = 1, 9 do got[i] = lines[frame + i] end
+    for i = 1, 11 do got[i] = lines[frame + i] end
     eq(got, { "UI\\Widgets.lua", "UI\\Style.lua", "UI\\Nav.lua", "UI\\Tooltip.lua", "UI\\List.lua",
-      "UI\\SourceText.lua", "UI\\Search.lua",
+      "UI\\ListRows.lua", "UI\\ListFilter.lua", "UI\\SourceText.lua", "UI\\Search.lua",
       "UI\\DetailPane.lua", "UI\\JournalHome.lua" })
   end)
 

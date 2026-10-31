@@ -4,8 +4,8 @@ local ADDON, ns = ...
 -- one sanitiser for it (UI.StripMarkup, UI.DisplayMarkup), its label / value
 -- pairs (UI.SourcePairs), its Zone: lines (UI.SourceZone, UI.SourceZones),
 -- the achievement it names, and a list row's grey line (UI.RowDescription).
--- Split out of UI/List.lua (loads right after it); its sub-groups and rows
--- read these.
+-- Split out of UI/List.lua (loads after it); the sub-groups and rows
+-- (UI/ListRows.lua) read these.
 
 local L = ns.L
 
