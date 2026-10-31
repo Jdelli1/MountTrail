@@ -344,10 +344,11 @@ local ROW_HEIGHT = 22 -- one line, as a pop-out's rows
 local PIN_SIZE, PIN_RIGHT = 16, 8 -- the location pin on a row's right end
 -- Map item icons are cropped past their baked-in edge (the pin).
 local ICON_CROP = 0.08
--- The world map tab's rows (row.withIcon): a bigger mount icon, the name
--- across the row and no source (the map shows the zone already).
-local ICON_SIZE = 26
-local ICON_ROW_HEIGHT = 30
+-- The world map tab's rows (row.withIcon): the mount's icon at a bag slot's
+-- size, the name across the row, no expansion tag and no source (the map
+-- shows the zone already).
+local ICON_SIZE = 37
+local ICON_ROW_HEIGHT = 41
 -- Rounded icon mask of the current action bars, when the client has it.
 local ICON_MASK = "UI-HUD-ActionBar-IconFrame-Mask"
 
@@ -664,7 +665,7 @@ local function anchorRow(row, left)
     local icon = rowIcon(row)
     icon:ClearAllPoints()
     icon:SetPoint("LEFT", row, "LEFT", left, 0)
-    left = left + ICON_SIZE + 5
+    left = left + ICON_SIZE + 8
   end
   tag:SetPoint("LEFT", row, "LEFT", left, 0)
   name:ClearAllPoints()
@@ -695,6 +696,7 @@ local function initRow(row, data)
   row.routeBoss = data.routeBoss
   row.eventMap = data.eventMap
   UI.SetExpansionBadge(row.Tag, data.m and data.m.exp)
+  if row.withIcon then row.Tag:Hide() end
   row.Tag:EnableMouse(false) -- the row takes the clicks
   -- Under a sub-header the tag lines up with the sub-header's glyph.
   anchorRow(row, data.left or (data.depth == 2 and SUB_INDENT or ROW_ICON_LEFT))
