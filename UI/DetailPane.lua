@@ -4,7 +4,7 @@ local ADDON, ns = ...
 -- selected mount: Blizzard's mount preview (the Mount Journal's own
 -- WrappedAndUnwrappedModelScene: drag to rotate, wheel to zoom, the rider
 -- shown or not by the Mount Journal's "mountJournalShowPlayer" setting, its
--- checkbox here too), the name and icon, the client's flavor text, then the
+-- checkbox here too), the name, the client's flavor text, then the
 -- tooltip's lines (UI.TooltipLines without the click hints: source, chance,
 -- attempts, lockout, achievement) and "Where to find it": each NPC behind
 -- the mount (Map.Spots: the vendor, a rare) by name, its zones and how
@@ -247,7 +247,6 @@ local function paint(pane)
   pane.ModelArea:SetShown(has)
   if pane.Splitter then pane.Splitter:SetShown(has) end
   pane.Name:SetShown(has)
-  pane.Icon:SetShown(has)
   pane.Info:SetShown(has)
   pane.AddList:SetShown(has)
   pane.Wowhead:SetShown(has)
@@ -270,7 +269,6 @@ local function paint(pane)
   local content = UI.DetailContent(id, pane.routeBoss)
   pane.content = content
   pane.Name:SetText(content.name)
-  pane.Icon:SetTexture(UI.MountIcon(id))
   pane.Owned:SetShown(ns.Game.IsOwned and ns.Game.IsOwned(id) and true or false)
   layoutInfo(pane, content)
 end
@@ -337,12 +335,13 @@ local function build(parent)
   bigIcon:Hide()
   pane.BigIcon = bigIcon
 
-  -- Header: icon, name, a check when owned.
-  local icon = pane:CreateTexture(nil, "ARTWORK")
-  icon:SetSize(32, 32)
-  icon:SetPoint("TOPLEFT", modelArea, "BOTTOMLEFT", PAD, -8)
-  UI.StyleIcon(pane, icon)
-  pane.Icon = icon
+  -- Header: the name (no icon: the model shows the mount), a check when
+  -- owned, the buttons on the right; a 32 px band under the model.
+  local header = CreateFrame("Frame", nil, pane)
+  header:SetHeight(32)
+  header:SetPoint("TOPLEFT", modelArea, "BOTTOMLEFT", PAD, -8)
+  header:SetPoint("TOPRIGHT", modelArea, "BOTTOMRIGHT", -PAD, -8)
+  pane.Header = header
   -- "+ List": add the mount to a custom list (a flat menu of the lists,
   -- each toggled; "New list..." asks for a name).
   local addList = UI.FlatButton(pane, L["+ List"], "gold", 18)
@@ -388,7 +387,7 @@ local function build(parent)
   pane.Guide = guide
 
   local name = pane:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalLarge"))
-  name:SetPoint("LEFT", icon, "RIGHT", 8, 0)
+  name:SetPoint("LEFT", header, "LEFT", 0, 0)
   name:SetPoint("RIGHT", guide, "LEFT", -22, 0)
   name:SetJustifyH("LEFT")
   name:SetWordWrap(true)
@@ -407,7 +406,7 @@ local function build(parent)
 
   -- Scrolling info: flavor text and the tooltip's lines.
   local scroll = CreateFrame("ScrollFrame", nil, pane)
-  scroll:SetPoint("TOPLEFT", icon, "BOTTOMLEFT", 0, -10)
+  scroll:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -10)
   scroll:SetPoint("BOTTOMRIGHT", pane, "BOTTOMRIGHT", -PAD, 8)
   if scroll.EnableMouseWheel then scroll:EnableMouseWheel(true) end
   local info = CreateFrame("Frame", nil, scroll)
