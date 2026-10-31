@@ -48,7 +48,7 @@ local ROUTE = {
 }
 
 describe("ui journal", function()
-  it("toc lists Frame's parts (Widgets, Style, Nav), then Tooltip, List (and Search), DetailPane, JournalHome", function()
+  it("toc lists Frame's parts (Widgets, Style, Nav), then Tooltip, List (and SourceText, Search), DetailPane, JournalHome", function()
     local fh = assert(io.open(ROOT .. "/MountTrail.toc", "r"))
     local lines = {}
     for line in fh:lines() do
@@ -60,17 +60,18 @@ describe("ui journal", function()
     for i, line in ipairs(lines) do if line == "UI\\Frame.lua" then frame = i end end
     ok(frame, "UI\\Frame.lua in toc")
     local got = {}
-    for i = 1, 8 do got[i] = lines[frame + i] end
-    eq(got, { "UI\\Widgets.lua", "UI\\Style.lua", "UI\\Nav.lua", "UI\\Tooltip.lua", "UI\\List.lua", "UI\\Search.lua",
+    for i = 1, 11 do got[i] = lines[frame + i] end
+    eq(got, { "UI\\Widgets.lua", "UI\\Style.lua", "UI\\Nav.lua", "UI\\Tooltip.lua", "UI\\List.lua",
+      "UI\\ListRows.lua", "UI\\ListFilter.lua", "UI\\SourceText.lua", "UI\\Search.lua",
       "UI\\DetailPane.lua", "UI\\JournalHome.lua" })
   end)
 
   it("loads the UI files and registers the journal view without building it", function()
     local ns = loadUI()
     for _, name in ipairs({ "ShowMountTooltip", "LockoutStatus", "TooltipLines", "List",
-      "SourceLine", "MountIcon", "SectionLabel", "ListRows", "PreviewMount", "FilterMenuItems",
+      "SourceLine", "SectionLabel", "ListRows", "PreviewMount", "FilterMenuItems",
       "FilterChecked", "ToggleFilter", "ApplyFilterAction", "FiltersAreDefault", "FilterLabel",
-      "CreateFilterDropdown", "StyleIcon" }) do
+      "CreateFilterDropdown" }) do
       eq(type(ns.UI[name]), "function", name)
     end
     eq(ns.UI.frame, nil, "no window until toggled")
@@ -102,23 +103,6 @@ describe("ui journal", function()
     it("uses the route alone when the mount has no group", function()
       local ns = loadUI(nil, { Mounts = { [395] = { name = "x" } }, Route = ROUTE })
       eq(ns.UI.SourceLine(395), "Altairus (Vortex Pinnacle (Dungeon))")
-    end)
-  end)
-
-  describe("MountIcon", function()
-    it("prefers the client icon, then the data file ID, then the icon name", function()
-      local ns = loadUI({
-        MountInfo = function(id) if id == 1 then return "One", 123456, 99 end end,
-      }, { Mounts = {
-        [1] = { name = "One", icon = "ignored" },
-        [2] = { name = "Two", icon = 654321 },
-        [3] = { name = "Three", icon = "ability_mount_ridinghorse" },
-        [4] = { name = "Four" },
-      } })
-      eq(ns.UI.MountIcon(1), 123456)
-      eq(ns.UI.MountIcon(2), 654321)
-      eq(ns.UI.MountIcon(3), "Interface\\Icons\\ability_mount_ridinghorse")
-      eq(ns.UI.MountIcon(4), 134400, "question mark fallback")
     end)
   end)
 
@@ -1070,17 +1054,14 @@ describe("ui journal", function()
       eq(subs(ns.UI.ListRows(swapped, nil, opts)), subs(first))
     end)
 
-    it("HeaderText adds (owned/total) before the badge; HeaderIcon picks the atlas or text", function()
+    it("HeaderText adds (owned/total) before the badge, (n left) on Lockouts; HeaderGlyph is a pop-out's +/-", function()
       local ns = loadUI()
       eq(ns.UI.HeaderText({ text = "Raid drops", owned = 2, total = 5 }), "Raid drops  |cff9d9d9d(2/5)|r")
       eq(ns.UI.HeaderText({ text = "Brewfest", owned = 0, total = 1, badge = "Active now" }),
         "Brewfest  |cff9d9d9d(0/1)|r  |cff33ff99Active now|r")
-      eq({ ns.UI.HeaderIcon(false) }, { nil, "\226\128\147" }, "no atlas: an en dash when expanded (no U+2212 in the default font)")
-      eq({ ns.UI.HeaderIcon(true) }, { nil, "+" })
-      STUB_ATLASES["campaign_headericon_open"] = true
-      STUB_ATLASES["campaign_headericon_closed"] = true
-      eq({ ns.UI.HeaderIcon(false) }, { "campaign_headericon_open", "\226\128\147" })
-      eq({ ns.UI.HeaderIcon(true) }, { "campaign_headericon_closed", "+" })
+      eq(ns.UI.HeaderText({ text = "Daily", owned = 2, total = 5, reset = "daily" }), "Daily  |cff9d9d9d(3 left)|r")
+      eq(ns.UI.HeaderGlyph(false), "-")
+      eq(ns.UI.HeaderGlyph(true), "+")
     end)
   end)
 
@@ -1090,21 +1071,10 @@ describe("ui journal", function()
       local SM = ns.UI.StripMarkup
       eq(SM("|cFFFFD200Drop:|r Ultraxion|n|cFFFFD200Zone: |rDragon Soul"), "Drop: Ultraxion\nZone: Dragon Soul")
       eq(SM("|cnNORMAL_FONT_COLOR:Zone:|r |Hmapzone:107|hNagrand|h"), "Zone: Nagrand")
-      eq(SM("Cost: 500|TInterface\MoneyFrame\UI-GoldIcon:0|t |A:raceicon-dwarf-male:16:16|aDwarf"), "Cost: 500 Dwarf")
+      eq(SM("Cost: 500|TInterface\\MoneyFrame\\UI-GoldIcon:0|t |A:raceicon-dwarf-male:16:16|aDwarf"), "Cost: 500 Dwarf")
       eq(SM("a\r\nb"), "a\nb", "CRLF")
       eq(SM(nil), nil)
       eq(SM(5), nil)
-    end)
-
-    it("DisplayMarkup keeps textures and atlases, sized to the text", function()
-      local ns = loadUI()
-      local DM = ns.UI.DisplayMarkup
-      eq(DM("|cFFFFD200Cost:|r 2000|TINTERFACE\\MONEYFRAME\\UI-GOLDICON.BLP:0|t"),
-        "Cost: 2000|TINTERFACE\\MONEYFRAME\\UI-GOLDICON.BLP:0|t")
-      eq(DM("5|T463446:16:16:2:0|t"), "5|T463446:0|t", "fileID, size fields rewritten")
-      eq(DM("x |A:raceicon-dwarf-male:16:16|a y"), "x |Araceicon-dwarf-male:0:0|a y")
-      eq(DM("a|n|Hitem:1|hLink|h"), "a\nLink")
-      eq(DM(nil), nil)
     end)
 
     it("SourcePairs keeps icons in values only with keepIcons", function()

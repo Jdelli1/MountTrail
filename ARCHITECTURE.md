@@ -57,7 +57,6 @@ unit-tested under plain Lua 5.1.
 | `Attempts.lua`, `Stats.lua`, `Odds.lua` | Attempt counting, kill statistics, drop-chance maths. |
 | `Achievements.lua` | Matching mounts to the achievements that reward them. |
 | `Lists.lua`, `QuickLists.lua` | Custom lists; the built-in quick lists and the example lists seeded once (Mythic Mounts). |
-| `Guide.lua` | The guide text format: parsing (with line-numbered errors), when a step is done. |
 | `Share.lua` | The `!MT1!` share string, addon-message chunks and chat links for sharing lists. |
 | `Search.lua` | The fuzzy search scoring engine (words, aliases, typos). |
 | `Browse.lua` | Browse-by-source categories. |
@@ -97,26 +96,28 @@ changed addon gives `nil`, never an error.
 | File | Owns |
 | --- | --- |
 | `Frame.lua` | Fonts and text sizes (`UI.Font`, `UI.TextSize`), style helpers (`UI.Template`, `UI.FlatBorder`), the view registry, the main window (flat, in the pop-outs' style), its size / scale / position, the settings cogwheel menu, refresh hooks and `ns.Refresh`, window hooks, the minimap button. |
-| `Style.lua` | The look shared by the main window, the pop-outs and the extra windows: styles (`UI.PopoutStyle`, `UI.PopoutStyleOf`), styled text and chrome, the appearance menu (`UI.PopoutStyleMenu`), fonts, `UI.AddStyledWindow`. |
+| `Style.lua` | The look shared by the main window, the pop-outs and the extra windows: styles (`UI.PopoutStyle`, `UI.PopoutStyleOf`), styled text and chrome, the appearance menu (`UI.PopoutStyleMenu`), fonts, `UI.AddStyledWindow`, a page's header (`UI.PageHeader`, `UI.PageButton`). |
 | `Widgets.lua` | Hints, flat buttons and panels, menus with sliders (`UI.ShowMenu`), the expansion badge, the text / copy prompt (`UI.AskText`, `UI.ShowCopyText`), splitters, the resize grip. |
 | `Nav.lua` | The navigation column: entries, favourites, ordering, Alt-drag, badges, `UI.RefreshNav`. |
 | `Tooltip.lua` | The mount tooltip and `UI.TooltipLines`. |
-| `List.lua` | The shared mount list widget (`UI.List`): rows, headers, collapsing, filters, row clicks (`UI.InitMountRow`, `UI.PaneRowAction`, `UI.HandleRowClick`). |
+| `List.lua` | The shared mount list widget (`UI.List`): row and header frames (`UI.InitMountRow`, `UI.InitListHeader`, `UI.HeaderColor`), pins, row clicks (`UI.PaneRowAction`, `UI.HandleRowClick`). |
+| `ListRows.lua` | The list's row model, split out of `List.lua`: `UI.ListRows`, sub-groups (`UI.SubGroup`), collapse keys (`UI.CollapseKey`, `UI.ToggleCollapsed`, `UI.ToggleAllCollapsed`), header / row text (`UI.HeaderGlyph`, `UI.HeaderText`, `UI.RowSourceText`), `UI.SourceLine`, `UI.SectionLabel`. |
+| `ListFilter.lua` | The list's Filter menu, split out of `List.lua`: `UI.FilterMenuItems`, `UI.ToggleFilter`, `UI.ApplyFilterAction`, `UI.FiltersAreDefault`, the dropdown (`UI.CreateFilterDropdown`, `UI.ListFilterDropdown`) and the fallback checkbox panel. |
+| `SourceText.lua` | Reading a mount's source text: `UI.StripMarkup`, `UI.SourcePairs`, `UI.SourceZone(s)`, `UI.RowDescription`. |
 | `Search.lua` | Search glue: the shared search cache, `UI.SearchMatches` (with its expansion fallback), `UI.SearchFields`. |
 | `DetailPane.lua` | The mount detail pane on the right of every list. |
-| `JournalHome.lua` | Home (front page, expansion tiles, search page) and list pages (`UI.ShowListPage`). |
+| `JournalHome.lua` | Home (summary, Expansions and By source rows, Today / Following / Nearby), the expansion, search and list pages (`UI.ShowListPage`). |
 | `Tabs.lua` | The Holidays, Achievements, Timewalking and Misc views. |
 | `LockoutHelpers.lua` | Lockout state per boss, hand ticks, header lines (shared by the Checklist). |
 | `ChecklistView.lua` | The Lockouts view (daily, weekly, rare spawns). |
+| `ChecklistStatus.lua` | The Lockouts view's live status for event rares (assaults, warfronts): `UI.EventStatusTexts`, `UI.EventStatusChanged`, the event-map click. |
 | `AltsWindow.lua` | The alt lockout matrix window. |
-| `Popouts.lua` | Pop-out windows, their snapping and order (their look: `Style.lua`). |
+| `Popouts.lua` | Pop-out windows: frames, rows, dragging, snapping and open / close (their look: `Style.lua`). |
+| `PopoutRows.lua` | A pop-out's pure side (split out of `Popouts.lua`): key, title, rows, groups, saved order and the snapping maths (`UI.SnapRect`, `UI.SnapChain`). |
 | `HereView.lua` | The Current Zone view. |
 | `BrowseView.lua` | Browse-by-source pages. |
 | `DifficultyCheck.lua` | The wrong-difficulty warning: on entering an instance, the open pop-outs' mounts that drop here but not on this difficulty (`Lockouts.WrongDifficulty`). |
 | `Share.lua` | Sharing lists: export / import boxes, chat links (clicking asks the sharer's addon), Send to player, the `CHAT_MSG_ADDON` handler. |
-| `Guides.lua` | Following guides: the library (built-in + the player's), each character's step, Next / Back, plotting, auto-advance. |
-| `GuideWindow.lua` | The guide window (current step or every step) and a guide's menu. |
-| `GuideEditor.lua` | The editor for new / imported / edited / exported guides, checking the text as it is typed. |
 | `ZonePanel.lua` | The zone side panel docked to the window. |
 | `MapTab.lua` | The MountTrail tab in the world map's side tabs. |
 | `Options.lua` | Options > AddOns > MountTrail (Settings API). |
@@ -188,14 +189,12 @@ created on first use by their owner.
 
 | Key | Owner | Content |
 | --- | --- | --- |
-| `global.filters` | `Logic/Journal.lua`, `UI/List.lua` | `collected` plus hidden sections per view. |
-| `global.collapsed` | `UI/List.lua` and every collapsible list | Collapsed headers, `"<view>|<exp>|<section>"`, `"checklist|..."`, `"alts|..."`, `"nav|..."`. |
+| `global.filters` | `Logic/Journal.lua`, `UI/List.lua`, `UI/ListFilter.lua` | `collected` plus hidden sections per view. |
+| `global.collapsed` | `UI/List.lua` / `UI/ListRows.lua` and every collapsible list | Collapsed headers, `"<view>|<exp>|<section>"`, `"checklist|..."`, `"alts|..."`, `"nav|..."`. |
 | `global.settings` | `UI/Options.lua` | `showUnobtainable`, `rarityColors`, `windowScale`, `navTextSize`, `textHeader` / `textBody` / `textDetail`, `navHideLists`, `navHideQuick`; `checklistShowDone` (Lockouts' Show completed, `UI/ChecklistView.lua`); `difficultyWarnOff` (the wrong-difficulty warning switched off, `UI/DifficultyCheck.lua`). |
 | `global.window` | `UI/Frame.lua` | Current view (`tab`), position, `width` / `height`, `navWidth`, `paneWidth`, `browse` category. |
 | `global.navOrder`, `global.navFavorites` | `UI/Nav.lua` | Section order per section; favourite stars. |
 | `global.lists`, `global.seededLists` | `Logic/Lists.lua`, `Logic/QuickLists.lua` | Custom lists; which example lists were already seeded. |
-| `global.guides`, `global.guideWindow` | `UI/Guides.lua`, `UI/GuideWindow.lua` | The player's guides (`{ [id] = text }`); the guide window's position and mode. |
-| `char.guides` | `UI/Guides.lua` | `{ active =, steps = { [guide id] = step }, complete = }`: which guide this character follows and where. |
 | `global.popouts`, `global.popoutStyle` | `UI/Popouts.lua`, `UI/Style.lua` | Open pop-outs (position, size, order, collapsed groups, style, `showDone`), the main window's style (`main`) and the extra windows'; the shared style. |
 | `global.zonePanel` | `UI/ZonePanel.lua` | `open`. |
 | `global.mapTab` | `UI/MapTab.lua` | Whether the map tab was left selected. |
@@ -219,7 +218,7 @@ created on first use by their owner.
 | Fix a hand-written lockout | `Data/Lockouts.lua` (shapes in its header), then `python3 tools/verify_data.py`. |
 | Add a navigation entry | `UI.NAV` (fixed entries), `UI.NavBrowseEntries` / `Logic/Browse.lua` (Browse), `UI.NavListEntries` (lists), click handling in `UI.NavClick`: all in `UI/Nav.lua`. A new view also needs its key in `TABS` (`UI/Frame.lua`) and a `UI.RegisterView` call. |
 | Add an option | Default in `Core/Init.lua` (`settings`), the proxy setting and `Options.Set` in `UI/Options.lua`, the cogwheel item in `UI.SettingsMenuItems` (`UI/Frame.lua`), strings in `Core/Locale.lua`, a case in `tests/options_spec.lua`. |
-| Add a pop-out kind | `UI/Popouts.lua`: `UI.PopoutKey`, `UI.PopoutTitle`, `UI.PopoutRows`, `UI.PopoutGroups`, and `refreshWindow` if it follows the player; open it with `UI.OpenPopout({ kind = ... })`. |
+| Add a pop-out kind | `UI/PopoutRows.lua`: `UI.PopoutKey`, `UI.PopoutTitle`, `UI.PopoutRows`, `UI.PopoutGroups`; `UI/Popouts.lua`: `refreshWindow` if it follows the player; open it with `UI.OpenPopout({ kind = ... })`. |
 | Change a row's click | `UI/List.lua`: `UI.PaneRowAction` / `UI.PaneRowHint` (lists with the detail pane), `UI.RowClickAction` / `UI.HandleRowClick` (zone panel, map tab), the row's `OnClick` in `rowFrame` in `UI/Popouts.lua` (pop-outs). Keep the hint in step with the action. |
 | Add a locale string | `Core/Locale.lua`, under the heading of the file that uses it: `L["Text"] = "Text"`. Use it as `L["Text"]`. |
 | Change the search | Scoring in `Logic/Search.lua`; what each mount offers to it in `UI.SearchFields` (`UI/Search.lua`). |

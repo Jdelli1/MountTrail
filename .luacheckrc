@@ -23,6 +23,7 @@ ignore = {
 -- The saved variables (MountTrail.toc ## SavedVariables): Core/Init.lua
 -- migrates the old name's table into the new one.
 globals = {
+  "StaticPopupDialogs", -- an add-on registers its dialogs in it
   "MountTrailDB",
   "AzerothTrailDB",
 }
@@ -51,17 +52,22 @@ read_globals = {
   "ColorPickerFrame", "AchievementFrame", "AchievementFrame_SelectAchievement",
   "AchievementFrame_ToggleAchievementFrame", "OpenAchievementFrameToAchievement",
   "ShowAchievementFrameForAchievement", "ShowUIPanel", "OpenWorldMap",
-  "StaticPopupDialogs", "StaticPopup_Show", "SetPortraitToTexture",
+  "StaticPopup_Show", "SetPortraitToTexture", "CreateSettingsButtonInitializer", "CreateSettingsListSectionHeaderInitializer", "ReloadUI",
   "DressUpMount", "DressUpMountLink", "PlaySound", "SOUNDKIT",
-  "GameFontNormal", "GameFontHighlightSmall", "UiMapPoint", "Item", "Enum",
+  "GameFontNormal", "GameFontHighlight", "GameFontHighlightSmall", "UiMapPoint", "Item", "Enum",
 
   -- Game state
   "GetAchievementCriteriaInfo", "GetAchievementInfo", "GetAchievementNumCriteria",
   "GetCategoryList", "GetCategoryNumAchievements", "GetBuildInfo", "GetCVarBool", "SetCVar",
-  "GetCursorPosition", "GetExpansionDisplayInfo", "GetLFGDungeonRewards",
+  "GetCursorPosition", "GetLFGDungeonRewards",
   "GetNormalizedRealmName", "GetRealmName", "GetNumSavedInstances",
   "GetSavedInstanceEncounterInfo", "GetSavedInstanceInfo", "GetServerTime",
   "GetSpellLink", "GetStatistic", "GetTime", "GetPlayerFacing", "EJ_GetInstanceInfo",
+  "GetInstanceInfo", "GetDifficultyInfo", "GetItemCount", "GetItemInfo", "GetSpellInfo",
+  "GetAchievementLink", "CreateMacro", "EditMacro", "GetMacroIndexByName", "PickupMacro",
+  "C_ChatInfo", "ChatFrameUtil", "ChatEdit_InsertLink", "ChatFrame_OpenChat",
+  "ChatFrame_AddMessageEventFilter", "ChatTypeInfo", "DEFAULT_CHAT_FRAME", "SetItemRef",
+  "RaidNotice_AddMessage", "RaidWarningFrame",
   "InCombatLockdown", "IsAltKeyDown", "IsControlKeyDown", "IsShiftKeyDown",
   "IsLoggedIn", "LoadAddOn", "RequestLFDPlayerLockInfo", "RequestRaidInfo",
   "SecondsToTime", "UnitClass", "UnitFactionGroup", "UnitLevel", "UnitName",

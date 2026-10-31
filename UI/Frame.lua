@@ -30,7 +30,6 @@ UI.FONT_ROLES = {
   GameFontHighlight = "body", GameFontHighlightSmall = "body", GameFontGreen = "body",
   GameFontDisable = "detail", GameFontDisableSmall = "detail", GameFontDisableLarge = "detail",
 }
-UI.TEXT_ROLES = { "header", "body", "detail" }
 
 local fonts = {} -- MountTrail<name> -> { base =, role =, object = }
 
@@ -66,13 +65,30 @@ function UI.Font(name)
   return mine
 end
 
--- Taller rows for larger text: a mount row (gold name over a grey line)
--- grows by both sizes' extra points, a header by the gold one's (smaller
--- text never shrinks a row).
+-- A coloured copy of game font `base` (named `name`) that follows `base`'s
+-- role like UI.Font's copies (the text size sliders resize it) -> its name;
+-- `fallback` (a font name) without CreateFont or the game font.
+function UI.TintedFont(name, base, r, g, b, fallback)
+  if fonts[name] then return name end
+  local role = UI.FONT_ROLES[base]
+  local baseObject = _G[base]
+  if not role or type(CreateFont) ~= "function" or type(baseObject) ~= "table" then return fallback or base end
+  local good, object = pcall(CreateFont, name)
+  if not (good and object) then return fallback or base end
+  if object.CopyFontObject then object:CopyFontObject(baseObject) elseif object.SetFontObject then object:SetFontObject(baseObject) end
+  if object.SetTextColor then object:SetTextColor(r, g, b) end
+  fonts[name] = { base = base, role = role, object = object }
+  sizeFont(fonts[name])
+  return name
+end
+
+-- Taller rows for larger text: a mount row (one line of white text, a
+-- pop-out's) grows by the white text's extra points, a header by the gold
+-- one's (smaller text never shrinks a row).
 local function grow(role) return math.max(0, UI.TextSize(role)) end
 
 function UI.RowHeight(base)
-  return base + grow("header") + grow("detail")
+  return base + grow("body")
 end
 
 function UI.HeaderHeight(base)
@@ -307,7 +323,7 @@ local function createSizeGrip(frame)
   return grip
 end
 
--- The window's scale: Options' "Window scale" (80-150 %, default 100).
+-- The window's scale: Options' "Whole window" (80-150 %, default 100).
 function UI.WindowScale()
   local options = ns.Options
   local pct = options and options.WindowScale and options.WindowScale() or 100
@@ -380,25 +396,51 @@ function UI.SettingsMenuItems()
   local function check(text, on, flip)
     return { text = text, checked = on, keepOpen = true, onClick = flip }
   end
+  -- The whole window first, then one kind of text each (named by what it
+  -- sizes: the left column, headers, mount names, small notes).
   local items = {
-    { title = L["Settings"] },
-    { slider = true, text = L["Window scale"], min = O.SCALE_RANGE.min, max = O.SCALE_RANGE.max,
+    { title = L["Size"] },
+    { slider = true, text = L[O.SCALE_LABEL], min = O.SCALE_RANGE.min, max = O.SCALE_RANGE.max,
       step = O.SCALE_RANGE.step, value = O.WindowScale(), format = "%d%%",
       onChange = function(v) O.Set("windowScale", v) end },
+    { title = L["Text size"] },
+    { slider = true, text = L[O.NAV_LABEL], min = O.NAV_TEXT_RANGE.min,
+      max = O.NAV_TEXT_RANGE.max, step = 1, value = O.NavTextSize(), format = "+%d",
+      onChange = function(v) O.Set("navTextSize", v) end },
   }
-  for _, role in ipairs(UI.TEXT_ROLES) do
+  for _, role in ipairs(O.TEXT_ORDER) do
     items[#items + 1] = { slider = true, text = L[O.TEXT_LABELS[role]], min = O.TEXT_RANGE.min,
       max = O.TEXT_RANGE.max, step = 1, value = O.TextSize(role), format = "%+d",
       onChange = function(v) O.SetTextSize(role, v) end }
   end
-  items[#items + 1] = { slider = true, text = L["Navigation text size"], min = O.NAV_TEXT_RANGE.min,
-    max = O.NAV_TEXT_RANGE.max, step = 1, value = O.NavTextSize(), format = "+%d",
-    onChange = function(v) O.Set("navTextSize", v) end }
+  items[#items + 1] = { separator = true }
+  items[#items + 1] = { title = L["Settings"] }
   items[#items + 1] = { separator = true }
   items[#items + 1] = check(L["Show unobtainable mounts"], saved.showUnobtainable == true,
-    function() O.Set("showUnobtainable", not (saved.showUnobtainable == true)) end)
+    function() O.Set("showUnobtainable", saved.showUnobtainable ~= true) end)
+  -- (Its "Count towards the total" is on the AddOns page only: All options...)
   items[#items + 1] = check(L["Colour pop-out names by rarity"], saved.rarityColors == true,
-    function() O.Set("rarityColors", not (saved.rarityColors == true)) end)
+    function() O.Set("rarityColors", saved.rarityColors ~= true) end)
+  items[#items + 1] = check(L["Colour list names by rarity"], saved.rarityColorsMain == true,
+    function() O.Set("rarityColorsMain", saved.rarityColorsMain ~= true) end)
+  items[#items + 1] = check(L["Chime when a mount drops"], O.DropChime and O.DropChime(),
+    function() O.Set("dropChime", not (O.DropChime and O.DropChime())) end)
+  if O.DropSound and UI.DropSounds then
+    local current = O.DropSound()
+    items[#items + 1] = { text = L["Drop sound"], submenu = function()
+      local list = { { title = L["Drop sound"] } }
+      for _, s in ipairs(UI.DropSounds()) do
+        -- A pick plays the sound and stays open, to try the next one.
+        list[#list + 1] = { text = L[s.label], checked = s.key == current, keepOpen = true,
+          onClick = function() O.Set("dropSound", s.key); current = s.key end }
+      end
+      list[#list + 1] = { separator = true }
+      list[#list + 1] = { text = L["Back"], submenu = UI.SettingsMenuItems }
+      return list
+    end }
+  end
+  items[#items + 1] = check(L["Colour-blind marks"], O.ColorblindMarks and O.ColorblindMarks() == true,
+    function() O.Set("colorblindMarks", not (O.ColorblindMarks and O.ColorblindMarks())) end)
   items[#items + 1] = check(L["Warn about the wrong difficulty"], saved.difficultyWarnOff ~= true,
     function() O.Set("difficultyWarning", saved.difficultyWarnOff == true) end)
   items[#items + 1] = check(L["Show My lists"], saved.navHideLists ~= true,
@@ -407,6 +449,14 @@ function UI.SettingsMenuItems()
     function() O.Set("showQuick", saved.navHideQuick == true) end)
   items[#items + 1] = check(L["Show minimap button"], not (global and global.minimap and global.minimap.hide),
     function() O.Set("minimap", global and global.minimap and global.minimap.hide == true) end)
+  -- What is counted (Options.COUNT_SECTIONS).
+  if O.COUNT_SECTIONS and O.Counted then
+    items[#items + 1] = { title = L["Count"] }
+    for _, c in ipairs(O.COUNT_SECTIONS) do
+      local on = O.Counted(c.section)
+      items[#items + 1] = check(L[c.label], on, function() O.Set("count:" .. c.section, not on) end)
+    end
+  end
   items[#items + 1] = { separator = true }
   items[#items + 1] = { text = L["Reset text sizes"], onClick = function() O.ResetTextSizes() end }
   items[#items + 1] = { text = L["All options..."], onClick = function() O.Open() end }
@@ -509,9 +559,11 @@ local function createWindow()
   frame.Title = title
 
   -- The appearance: the fill and the title in the window's style, again
-  -- whenever the appearance menu changes it.
-  function frame.Restyle()
+  -- whenever the appearance menu changes it; a change beyond the background
+  -- (chromeOnly false: colours, font) redraws the navigation and the view.
+  function frame.Restyle(chromeOnly)
     if UI.PopoutApplyChrome then UI.PopoutApplyChrome(frame, UI.PopoutStyleOf(frame)) end
+    if not chromeOnly and frame:IsShown() and ns.Refresh then ns.Refresh() end
   end
   frame.Restyle()
   if UI.AddStyledWindow then UI.AddStyledWindow(frame) end

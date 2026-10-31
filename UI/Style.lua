@@ -2,7 +2,7 @@ local ADDON, ns = ...
 
 -- The look shared by MountTrail's own windows: the pop-outs (UI/Popouts.lua),
 -- the main window (UI/Frame.lua) and the extra windows (the alt lockout
--- matrix, the guide window). A window's style is its own (saved under its
+-- matrix). A window's style is its own (saved under its
 -- key in ns.db.global.popouts), else the shared one ("Apply to all
 -- pop-outs", ns.db.global.popoutStyle), over the defaults. Right-click a
 -- window's title for its appearance menu (UI.PopoutStyleMenu).
@@ -122,6 +122,59 @@ UI.PopoutStyleText = styleText
 UI.PopoutStyleHeader = headerText
 UI.PopoutApplyChrome = applyChrome
 
+-- Accessibility: marks that say in text or shape what a colour says, for
+-- colour-blind players (Options: "Colour-blind marks", following the game's
+-- Colorblind Mode until set). The ready-check tick (an inline texture: the
+-- game fonts have no check glyph).
+UI.MARK_DONE = "|TInterface\\RaidFrame\\ReadyCheck-Ready:0|t"
+
+function UI.ColorblindMarks()
+  return ns.Options ~= nil and ns.Options.ColorblindMarks ~= nil and ns.Options.ColorblindMarks() == true
+end
+
+-- A rarity colour's meaning as text: " (2%)" of characters owning the mount
+-- (MountsRarity, ns.Owners) while the marks are on, else "".
+function UI.RarityTag(mountID)
+  if not UI.ColorblindMarks() then return "" end
+  local pct = ns.Owners and ns.Owners.Percent and ns.Owners.Percent(mountID)
+  if type(pct) ~= "number" then return "" end
+  return pct < 1 and string.format(" (%.1f%%)", pct) or string.format(" (%d%%)", math.floor(pct + 0.5))
+end
+
+-- A page's 30 px header in the pop-outs' look (no band, a thin rule under
+-- it): a flat Back button when `withBack`, then the title -> back|nil, title.
+-- The page's content starts UI.PAGE_TOP down.
+UI.PAGE_TOP = -36
+function UI.PageHeader(page, withBack)
+  local rule = page:CreateTexture(nil, "BORDER")
+  rule:SetHeight(1)
+  rule:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -30)
+  rule:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, -30)
+  rule:SetColorTexture(1, 1, 1, 0.1)
+  page.Rule = rule
+  local back
+  if withBack then
+    back = UI.FlatButton(page, L["Back"], "plain", 22)
+    back:SetPoint("TOPLEFT", page, "TOPLEFT", 4, -4)
+    page.Back = back
+  end
+  local title = page:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalLarge"))
+  if back then
+    title:SetPoint("LEFT", back, "RIGHT", 12, 0)
+  else
+    title:SetPoint("LEFT", page, "TOPLEFT", 10, -15)
+  end
+  page.Title = title
+  return back, title
+end
+
+-- A flat button for a page's header (Pop out), at its top right.
+function UI.PageButton(page, text)
+  local b = UI.FlatButton(page, text, "plain", 22)
+  b:SetPoint("TOPRIGHT", page, "TOPRIGHT", -4, -4)
+  return b
+end
+
 -- The extra windows, in the order they were added (UI.AddStyledWindow).
 function UI.StyledWindows()
   return extras
@@ -221,6 +274,7 @@ function UI.PopoutStyleMenu(w, back)
           UI.RefreshPopouts()
         end },
       { separator = true, popoutOnly = true },
+      { extra = true },
       { slider = true, text = L["Opacity"], min = math.floor(ALPHA_MIN * 100 + 0.5), max = 100, step = 1,
         value = math.floor(s.alpha * 100 + 0.5), format = "%d%%",
         onChange = function(pct) setStyle(w, function(st) st.alpha = pct / 100 end, true) end },
@@ -278,13 +332,18 @@ function UI.PopoutStyleMenu(w, back)
       end },
     }
   end
-  -- Show completed is a pop-out's own (the Alts and guide windows list no
+  -- Show completed is a pop-out's own (the Alts window lists no
   -- lockouts to complete).
   local build = main
   main = function()
     local out = {}
     for _, it in ipairs(build()) do
-      if not it.popoutOnly or (UI.PopoutWindows or {})[w.key] == w then out[#out + 1] = it end
+      if it.extra then
+        -- The window's own items (a custom list's sort, UI.PopoutMenuExtra).
+        for _, x in ipairs(UI.PopoutMenuExtra and UI.PopoutMenuExtra(w) or {}) do out[#out + 1] = x end
+      elseif not it.popoutOnly or (UI.PopoutWindows or {})[w.key] == w then
+        out[#out + 1] = it
+      end
     end
     if back then
       out[#out + 1] = { separator = true }

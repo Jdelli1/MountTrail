@@ -24,9 +24,9 @@ local ADDON, ns = ...
 -- after its boss ("<instance> · <n> mounts", hover lists the mounts:
 -- UI.ChecklistGroupLines). Rares of the N'Zoth assaults and the Arathi /
 -- Darkshore warfronts add a light-blue live status to their grey line (F17,
--- UI.EventStatusTexts over Logic/Events.lua), and a header whose open entries
--- all share one shows it too. Also defines UI.ChecklistRemaining for the
--- minimap tooltip.
+-- UI.EventStatusTexts over Logic/Events.lua, UI/ChecklistStatus.lua), and a
+-- header whose open entries all share one shows it too. Also defines
+-- UI.ChecklistRemaining for the minimap tooltip.
 -- Layout as the other tabs: the list on the left, the detail pane
 -- (UI/DetailPane.lua) on the right showing the selected row's mount (a plain
 -- left-click selects; modifier clicks and the tick boxes keep their
@@ -112,103 +112,6 @@ function UI.ChecklistRemaining(now)
   local char = ns.db and ns.db.char
   local filters = char and type(char.checklistFilters) == "table" and char.checklistFilters or nil
   return ns.Checklist.Remaining(UI.ChecklistBuild(now), filters)
-end
-
--- Event rares' live status (F17) -------------------------------------------------
--- Rows whose mount is in a Data/Events.lua group (N'Zoth assaults in Uldum
--- and the Vale, the Arathi / Darkshore warfronts) get that group's line from
--- Logic/Events.lua; a header whose open entries all share one shows it too
--- (Checklist.Rows opts.status). Read through the Game wrappers at most once
--- a minute, sooner when the game reports a change (AREA_POIS_UPDATED,
--- CONTRIBUTION_COLLECTOR_UPDATE: UI.EventStatusChanged, Core/Init.lua).
-
-local STATUS_TTL = 60 -- seconds a read stays fresh
-local STATUS_THROTTLE = 2 -- seconds between redraws for reported changes
-local STATUS_COLOR = "|cff71d5ff" -- light blue: information, not a done / open state
-local statusCache = { texts = nil, at = nil }
-local redrawPending = false
-
--- { [group key] = line } at `now` (default Game.Now()), cached for a minute.
-function UI.EventStatusTexts(now)
-  local Game = ns.Game
-  now = now or Game.Now()
-  local at = statusCache.at
-  if statusCache.texts and at and now >= at and now - at < STATUS_TTL then return statusCache.texts end
-  statusCache.texts = ns.Events.Statuses(ns.Data and ns.Data.EventGroups, {
-    poisForMap = Game.AreaPOIsForMap,
-    poiInfo = Game.AreaPOIInfo,
-    secondsLeft = Game.AreaPOISecondsLeft,
-    contributionsForMap = Game.ContributionsForMap,
-    formatDuration = UI.FormatDuration,
-  })
-  statusCache.at = now
-  return statusCache.texts
-end
-
--- The game reported a change: the next read is fresh, and the checklist (when
--- on screen) redraws once within STATUS_THROTTLE seconds, however many events
--- arrive (AREA_POIS_UPDATED fires often).
-function UI.EventStatusChanged()
-  statusCache.texts = nil
-  if redrawPending then return end
-  redrawPending = true
-  local function redraw()
-    redrawPending = false
-    local checklist = UI.ChecklistView
-    if checklist and checklist.IsShown() then checklist.Refresh() end
-  end
-  if type(C_Timer) == "table" and type(C_Timer.After) == "function" then
-    C_Timer.After(STATUS_THROTTLE, redraw)
-  else
-    redraw()
-  end
-end
-
--- Checklist.Rows opts.status over `texts` (UI.EventStatusTexts): an entry's
--- line by its mount's event group, nil for other entries.
-function UI.ChecklistStatusOf(texts)
-  local groups = ns.Data and ns.Data.EventGroups
-  return function(entry)
-    local key = ns.Events.GroupOf(entry and entry.m, groups)
-    return key and texts and texts[key] or nil
-  end
-end
-
--- The UiMap a click on this entry's row opens: its event zone while the
--- group's line reads "status unknown", else nil (the normal waypoint click).
-function UI.ChecklistEventMap(entry, texts)
-  local key, def = ns.Events.GroupOf(entry and entry.m, ns.Data and ns.Data.EventGroups)
-  if not key or not ns.Events.IsUnknown(texts and texts[key]) then return nil end
-  return ns.Events.ZoneMap(def)
-end
-
-local mapHooked = false
--- Opens the event zone's world map so the client loads its data, and drops the
--- cached lines so the checklist redraws once the data arrives. Not in combat
--- (Map.OpenZone says so). The map closing also invalidates the cache (guarded,
--- hooked once).
-function UI.OpenEventMap(uiMapID)
-  local map = ns.Map
-  if not (map and type(map.OpenZone) == "function") then return false end
-  local good, opened = pcall(map.OpenZone, uiMapID)
-  if not good then
-    if ns.Game and ns.Game.ReportError then ns.Game.ReportError(opened) end
-    return false
-  end
-  if not opened then return false end
-  if not mapHooked and type(WorldMapFrame) == "table" and type(WorldMapFrame.HookScript) == "function" then
-    mapHooked = pcall(WorldMapFrame.HookScript, WorldMapFrame, "OnHide", function() UI.EventStatusChanged() end)
-  end
-  UI.EventStatusChanged()
-  return true
-end
-
--- A row's grey line with its status appended in light blue.
-function UI.ChecklistStatusDesc(desc, status)
-  if not status or status == "" then return desc end
-  local colored = STATUS_COLOR .. status .. "|r"
-  if not desc or desc == "" then return colored end
-  return desc .. DOT .. colored
 end
 
 -- Grey row line of an entry: "<boss> · <instance>" for route rows (either
@@ -451,9 +354,9 @@ end
 
 -- Widgets ----------------------------------------------------------------------------
 
-local CHECK_SIZE = 22
+local CHECK_SIZE = 18
 local CHECK_LEFT = 6
-local ICON_LEFT = CHECK_LEFT + CHECK_SIZE + 4
+local ICON_LEFT = CHECK_LEFT + CHECK_SIZE + 4 -- where a row's expansion tag starts
 local SUB_OFFSET = 16 -- per header level under the reset header (UI/List.lua: sub-header indicator 22 vs 6, +16 per level)
 local TOP_HEIGHT = 96 -- the tab's own header: name, summary, flavour line, chips
 local HEADER_HEIGHT = 24 -- UI/List.lua section headers
@@ -571,9 +474,12 @@ local function onTick(self, button)
   ns.Refresh()
 end
 
--- A mount row (UI.InitMountRow) with a tick box in front of the icon; done
--- entries are dimmed (GameFontDisable name, grey icon).
+-- A mount row (UI.InitMountRow, a pop-out's: expansion tag, name, the
+-- boss / instance on the right) with a tick box in front; done entries are
+-- dimmed (GameFontDisable name).
 local function initRow(row, data)
+  local inset = math.max(0, (data.depth or 1) - 1) * SUB_OFFSET
+  data.left = ICON_LEFT + inset
   UI.InitMountRow(row, data)
   if not row.Check then
     local check = CreateFrame("CheckButton", nil, row,
@@ -585,10 +491,8 @@ local function initRow(row, data)
   end
   row.entry = data.entry
   -- Recycled rows: re-anchor for this row's depth (indented under a sub-header).
-  local inset = math.max(0, (data.depth or 1) - 1) * SUB_OFFSET
   row.Check:ClearAllPoints()
   row.Check:SetPoint("LEFT", row, "LEFT", CHECK_LEFT + inset, 0)
-  row.Icon:SetPoint("LEFT", row, "LEFT", ICON_LEFT + inset, 0)
   local checked, enabled = UI.ChecklistCheck(data.entry)
   row.Check:SetChecked(checked and true or false)
   row.Check:SetEnabled(enabled and true or false)
@@ -597,7 +501,10 @@ local function initRow(row, data)
   row.Check:SetShown(enabled and true or false)
   if data.done then
     row.Name:SetFontObject("GameFontDisable")
-    row.Icon:SetDesaturated(true)
+    -- Colour-blind marks: a tick, not only the grey.
+    if UI.ColorblindMarks and UI.ColorblindMarks() then
+      row.Name:SetText(row.Name:GetText() .. " " .. UI.MARK_DONE)
+    end
   end
 end
 
@@ -739,10 +646,8 @@ local function buildHeader(parent)
   top:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
   top:SetHeight(TOP_HEIGHT)
 
-  -- Flat header strip with a thin rule underneath.
-  local strip = top:CreateTexture(nil, "BACKGROUND")
-  strip:SetAllPoints(top)
-  strip:SetColorTexture(1, 1, 1, 0.04)
+  -- On the window's own fill, as in a pop-out, with a thin rule underneath
+  -- (the tabs sit on it).
   local rule = top:CreateTexture(nil, "BORDER")
   rule:SetHeight(1)
   rule:SetPoint("BOTTOMLEFT", top, "BOTTOMLEFT", 0, 0)
@@ -758,7 +663,7 @@ local function buildHeader(parent)
   name:SetJustifyH("LEFT")
   top.Name = name
 
-  local resets = top:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlightSmall"))
+  local resets = top:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlight"))
   resets:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -4)
   resets:SetPoint("TOPRIGHT", name, "BOTTOMRIGHT", 0, -4)
   resets:SetJustifyH("LEFT")
@@ -776,23 +681,27 @@ local function buildHeader(parent)
     top.ChecklistFilter = filter
   end
 
-  -- Chips: All / Daily / Weekly / Rare Spawns.
+  -- Tabs (flat text on the rule, the shown one gold over a gold line): All /
+  -- Daily / Weekly / Rare Spawns.
   top.Chips = {}
   local prev
   for i, key in ipairs(SHOWS) do
     local chip = CreateFrame("Button", nil, top)
-    chip:SetHeight(18)
+    chip:SetHeight(20)
     if prev then
-      chip:SetPoint("LEFT", prev, "RIGHT", 6, 0)
+      chip:SetPoint("LEFT", prev, "RIGHT", 10, 0)
     else
-      chip:SetPoint("BOTTOMLEFT", top, "BOTTOMLEFT", 6, 6)
+      chip:SetPoint("BOTTOMLEFT", top, "BOTTOMLEFT", 6, 0)
     end
-    local bg = chip:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints(chip)
-    bg:SetColorTexture(1, 1, 1, 0.06)
-    chip.Bg = bg
-    local text = chip:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlightSmall"))
-    text:SetPoint("CENTER", chip, "CENTER", 0, 0)
+    local line = chip:CreateTexture(nil, "ARTWORK")
+    line:SetHeight(2)
+    line:SetPoint("BOTTOMLEFT", chip, "BOTTOMLEFT", 0, 0)
+    line:SetPoint("BOTTOMRIGHT", chip, "BOTTOMRIGHT", 0, 0)
+    line:SetColorTexture(1, 0.82, 0, 1)
+    line:Hide()
+    chip.Line = line
+    local text = chip:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlight"))
+    text:SetPoint("CENTER", chip, "CENTER", 0, 1)
     chip.Text = text
     local hl = chip:CreateTexture(nil, "HIGHLIGHT")
     hl:SetAllPoints(chip)
@@ -852,16 +761,21 @@ function UI.ChecklistChipRightClick(key, owner)
   end
 end
 
--- Paints the chips: label with what is left, the shown one gold.
+-- Paints the tabs: label and what is left (grey), the shown one gold over
+-- its line.
+function UI.ChecklistTabLabel(label, left)
+  if left == nil then return label end
+  return string.format("%s  |cff9d9d9d%d|r", label, left)
+end
+
 local function paintChips(left, show)
   for _, chip in ipairs(header.Chips) do
     local key = chip.key
-    local label = L[SHOW_LABELS[key]]
-    if key ~= "all" then label = string.format("%s (%d)", label, left[key] or 0) end
-    chip.Text:SetText(label)
-    chip:SetWidth((chip.Text.GetStringWidth and chip.Text:GetStringWidth() or 60) + 16)
+    chip.Text:SetText(UI.ChecklistTabLabel(L[SHOW_LABELS[key]], key ~= "all" and (left[key] or 0) or nil))
+    chip:SetWidth((chip.Text.GetStringWidth and chip.Text:GetStringWidth() or 60) + 4)
     local on = key == show
-    chip.Bg:SetColorTexture(1, on and 0.82 or 1, on and 0 or 1, on and 0.3 or 0.06)
+    if on then chip.Text:SetTextColor(1, 0.82, 0) else chip.Text:SetTextColor(0.8, 0.8, 0.8) end
+    chip.Line:SetShown(on)
     chip.selected = on
   end
 end
@@ -972,8 +886,11 @@ function view.Refresh()
       local e = row.entry
       row.owned = false
       row.alt = n % 2 == 0
-      row.desc = UI.ChecklistStatusDesc(UI.ChecklistDescription(e, sourceText(e.id)),
-        row.status or (not e.done and UI.LockoutProgressText(e.spec, snap)) or nil)
+      -- The boss / instance on the right; the light blue status (an event
+      -- rare's, a lockout's difficulties) beside the name, where there is room.
+      row.desc = UI.ChecklistDescription(e, sourceText(e.id))
+      local status = row.status or (not e.done and UI.LockoutProgressText(e.spec, snap)) or nil
+      row.suffix = status and UI.ChecklistStatusDesc("", status) or nil
       if row.camp then
         row.desc = UI.ChecklistCampDesc(row.desc, UI.CampCheckedText(campStore, e.key, now))
       end

@@ -26,8 +26,10 @@ local ADDON, ns = ...
 -- badge after the header text; grey when the second return is true),
 -- headerActive = fn(sectionKey) -> bool (the
 -- header text in green), rowTag = fn(mountID, m) -> string|nil (a green tag
--- after the row's source line) }. The base query may carry pin =
--- {[section]=true} (Journal.Select: those sections first).
+-- after the row's source line), menu = { items =, onChange = } (the list's
+-- own choices after the Filter menu's: UI.ListFilterDropdown) }. The base
+-- query may carry pin = {[section]=true} (Journal.Select: those sections
+-- first) and bare = true (no headers: the mounts in the order selected).
 -- Rows are a tree (UI.ListRows): section headers, sub-headers (dungeon / raid
 -- by instance, world by zone, reputation by faction group), mounts. Headers
 -- show +/- and (owned/total) over every mount the view's filters select,
@@ -39,875 +41,29 @@ local ADDON, ns = ...
 -- the category), computed once per refresh. Left-click sets a waypoint
 -- (Map.SetWaypoint), Shift+left-click opens the world map there (Map.OpenMap);
 -- rows with a location (UI.HasLocation) show a small pin on the right.
--- The pure helpers above the widget code (SourceLine, RowDescription,
--- StripMarkup, SourcePairs, MountIcon, SectionLabel,
--- ListRows, SubGroup, SourceZone, InstanceName, CollapseKey, ToggleCollapsed,
--- ToggleAllCollapsed,
--- HeaderIcon, PreviewMount, RowClickAction, HasLocation, PinIcon,
--- the filter menu helpers) are unit-tested; the widget
--- code is built under a stub by tests/ui_build_spec.lua.
--- The search box's matching (UI.SearchMatches, UI.SearchFields and the
--- shared search cache) is in UI/Search.lua.
+-- This file holds the row clicks (PreviewMount, RowClickAction, HasLocation,
+-- PinIcon, PaneRowAction, ...) and the widgets (headers, mount rows,
+-- HeaderColor, UI.List). Split out of it, loading right after it: the row
+-- model (UI.ListRows, SubGroup, CollapseKey, ToggleCollapsed,
+-- ToggleAllCollapsed, HeaderGlyph, HeaderText, SourceLine, MountIcon,
+-- SectionLabel, InstanceName) in UI/ListRows.lua; the Filter menu, its
+-- dropdown and the fallback checkbox panel in UI/ListFilter.lua; the source
+-- text (StripMarkup, SourcePairs, SourceZone, RowDescription) in
+-- UI/SourceText.lua; the search box's matching (UI.SearchMatches,
+-- UI.SearchFields and the shared search cache) in UI/Search.lua. The pure
+-- helpers are unit-tested; the widget code is built under a stub by
+-- tests/ui_build_spec.lua.
 
 local L = ns.L
 
 local UI = ns.UI or {}
 ns.UI = UI
 
--- Pure helpers -------------------------------------------------------------------
-
--- mountID -> { boss=, title=, instance= (UI.InstanceName) } for the first route boss row of each mount
--- (depth-first, Data.Route order); routeBossIndex: route boss name -> the
--- instance name of its first route step. Built once, on first use.
-local routeIndex, routeBossIndex
-
-local function stripRun(title)
-  if type(title) ~= "string" then return nil end
-  if string.sub(title, 1, 4) == "Run " then title = string.sub(title, 5) end
-  return title
-end
-
--- Instance name of a route step title: "Run <name>" without a trailing
--- "(...Dungeon)" / "(...Raid)" suffix; nil for anything that is not an
--- instance run ("Kill Galleon (World Boss)", "Fly to ...").
-function UI.InstanceName(title)
-  if type(title) ~= "string" or string.sub(title, 1, 4) ~= "Run " then return nil end
-  local name = string.sub(title, 5)
-  local inner = string.match(name, "%s*%(([^()]*)%)%s*$")
-  if inner and (string.find(inner, "Dungeon", 1, true) or string.find(inner, "Raid", 1, true)) then
-    name = string.gsub(name, "%s*%([^()]*%)%s*$", "")
-  end
-  name = string.match(name, "^%s*(.-)%s*$")
-  if name == "" then return nil end
-  return name
-end
-
-local function buildRouteIndex()
-  local index, byBoss = {}, {}
-  local function walk(nodes)
-    if type(nodes) ~= "table" then return end
-    for _, node in ipairs(nodes) do
-      if type(node) == "table" then
-        for _, boss in ipairs(node.bosses or {}) do
-          if type(boss) == "table" and boss.mount and not index[boss.mount] then
-            index[boss.mount] = { boss = boss.boss, title = stripRun(node.title),
-              instance = UI.InstanceName(node.title) }
-          end
-          if type(boss) == "table" and boss.boss and not byBoss[boss.boss] then
-            byBoss[boss.boss] = UI.InstanceName(node.title)
-          end
-        end
-        walk(node.steps)
-      end
-    end
-  end
-  walk(ns.Data and ns.Data.Route)
-  return index, byBoss
-end
-
-local function ensureRouteIndex()
-  if not routeIndex then routeIndex, routeBossIndex = buildRouteIndex() end
-end
-
-local function routeEntry(mountID)
-  ensureRouteIndex()
-  return routeIndex[mountID]
-end
-
--- Instance name (UI.InstanceName) of a route boss's first route step, or nil.
-function UI.RouteBossInstance(boss)
-  if boss == nil then return nil end
-  ensureRouteIndex()
-  return routeBossIndex[boss]
-end
-
--- The mount's first route row (Data.Route order): { boss=, title= (step
--- title without "Run "), instance= (UI.InstanceName) }, or nil. Read-only.
-function UI.RouteEntry(mountID)
-  return routeEntry(mountID)
-end
-
--- Boss name of the mount's first route row (Data.Route order), or nil.
-function UI.RouteBoss(mountID)
-  local entry = routeEntry(mountID)
-  return entry and entry.boss or nil
-end
+-- Row clicks ---------------------------------------------------------------------
 
 local function mountData(mountID)
   local mounts = ns.Data and ns.Data.Mounts
   return mounts and mounts[mountID] or nil
-end
-
--- "<group> · <boss> (<route step without 'Run '>)", or the parts that exist.
-function UI.SourceLine(mountID)
-  local m = mountData(mountID) or {}
-  local group = (type(m.group) == "string" and m.group ~= "") and m.group or nil
-  local where
-  local entry = routeEntry(mountID)
-  if entry and entry.boss then
-    if entry.title and entry.title ~= "" then
-      where = entry.boss .. " (" .. entry.title .. ")"
-    else
-      where = entry.boss
-    end
-  end
-  if group and where then return group .. " · " .. where end
-  return group or where or ""
-end
-
--- Icon for a row: the client's icon first, else the data's (file ID or
--- Interface\Icons name), else the question mark.
-function UI.MountIcon(mountID)
-  local _, icon = ns.Game.MountInfo(mountID)
-  if icon then return icon end
-  local m = mountData(mountID)
-  if m and type(m.icon) == "number" then return m.icon end
-  if m and type(m.icon) == "string" and m.icon ~= "" then return "Interface\\Icons\\" .. m.icon end
-  return 134400 -- INV_Misc_QuestionMark
-end
-
-local SECTION_NAMES = {
-  dungeon = "Dungeon drops", raid = "Raid drops", world = "World drops / rares",
-  delve = "Delves", treasure = "Treasures & caches", quest = "Quests",
-  activity = "Zone activities", reputation = "Reputation", vendor = "Vendors",
-  other = "Other",
-  achievement = "Achievements", profession = "Professions", shop = "In-game Shop",
-  tradingpost = "Trading Post", pvp = "PvP", racial = "Racial", keystone = "Mythic+",
-  promotion = "Promotions", class = "Class", bmah = "Black Market",
-  collection = "Collection rewards",
-  timewalking = "Timewalking", anniversary = "Anniversary",
-  unobtainable = "Unobtainable",
-  -- Search results (Search.Select), by what matched.
-  search_name = "Mount name", search_boss = "Boss / rare", search_instance = "Dungeon / raid",
-  search_zone = "Zone", search_achievement = "Achievement", search_expansion = "Expansion",
-  search_other = "Other matches",
-}
-
--- Options "Show unobtainable mounts" (ns.db.global.settings.showUnobtainable):
--- not-owned unobtainable mounts listed on Misc (Journal.Select).
-function UI.ShowUnobtainable()
-  local global = ns.db and ns.db.global
-  local settings = global and global.settings
-  return type(settings) == "table" and settings.showUnobtainable == true
-end
-
--- Header text for a section key: holiday titles from Data.Holidays, else the
--- section names above, else the key itself.
-function UI.SectionLabel(section)
-  local holidays = ns.Data and ns.Data.Holidays
-  local holiday = holidays and holidays[section]
-  if type(holiday) == "table" and holiday.title then return L[holiday.title] end
-  return L[SECTION_NAMES[section] or tostring(section)]
-end
-
--- Sub-groups -------------------------------------------------------------------
-
--- Sub-group key of mounts whose instance / zone / faction is unknown (sorted
--- last, labelled L["Other"]).
-local OTHER_GROUP = "~other"
-UI.OTHER_GROUP = OTHER_GROUP
-
--- Plain text of a Mount Journal source string (Game.MountSourceText), the
--- one sanitiser for every reader of it: hyperlinks (|H...|h text |h keep
--- their text), named (|cnNAME:) and hex (|cAARRGGBB) colour codes, |r,
--- textures (|T...|t) and atlases (|A...|a) are removed; |n and CRLF become
--- "\n". nil for non-strings.
-function UI.StripMarkup(text)
-  if type(text) ~= "string" then return nil end
-  text = string.gsub(text, "|H.-|h(.-)|h", "%1")
-  text = string.gsub(text, "|cn[^:|]*:", "")
-  text = string.gsub(text, "|c%x%x%x%x%x%x%x%x", "")
-  text = string.gsub(text, "|r", "")
-  text = string.gsub(text, "|T.-|t", "")
-  text = string.gsub(text, "|A.-|a", "")
-  text = string.gsub(text, "|n", "\n")
-  text = string.gsub(text, "\r\n?", "\n")
-  return text
-end
-
--- Icon markup for display: a texture (|Tpath-or-fileID:h:w...|t) or atlas
--- (|Aname:h:w...|a) with its size fields rewritten to 0, which WoW scales to
--- the font height, so the icon lines up with the text around it.
-local function normalizeTexture(body)
-  local file = string.match(body, "^([^:]*)")
-  if file == "" then return "" end
-  return "|T" .. file .. ":0|t"
-end
-
-local function normalizeAtlas(body)
-  local name = string.match(body, "^:?([^:]*)")
-  if name == "" then return "" end
-  return "|A" .. name .. ":0:0|a"
-end
-
--- Placeholders ("\1" + a byte >= 128) stand in for icons while the text is
--- split into labels and values (UI.SourcePairs, keepIcons), so a fileID's
--- digits or an icon next to a label never confuse the label detection.
-local PLACEHOLDER = "\1[\128-\255]"
-local MAX_ICONS = 120
-
-local function hideIcons(text)
-  local icons = {}
-  local function hide(markup)
-    if markup == "" or #icons >= MAX_ICONS then return "" end
-    icons[#icons + 1] = markup
-    return "\1" .. string.char(127 + #icons)
-  end
-  text = string.gsub(text, "|T(.-)|t", function(body) return hide(normalizeTexture(body)) end)
-  text = string.gsub(text, "|A(.-)|a", function(body) return hide(normalizeAtlas(body)) end)
-  return text, icons
-end
-
-local function showIcons(text, icons)
-  return (string.gsub(text, PLACEHOLDER, function(mark) return icons[string.byte(mark, 2) - 127] or "" end))
-end
-
-local function dropIcons(text)
-  return (string.gsub(text, PLACEHOLDER, ""))
-end
-
--- UI.StripMarkup that keeps the icons (normalised, see above): the sanitiser
--- for text that is shown. Text that is compared stays on UI.StripMarkup.
-function UI.DisplayMarkup(text)
-  if type(text) ~= "string" then return nil end
-  local hidden, icons = hideIcons(text)
-  return showIcons(UI.StripMarkup(hidden), icons)
-end
-
-local FULLWIDTH_COLON = "\239\188\154" -- U+FF1A, zhCN / zhTW labels
-local MAX_LABEL = 40 -- bytes; longer "labels" are sentences with a colon
-
-local function trim(s)
-  return string.match(s, "^%s*(.-)%s*$")
-end
-
--- Comparable form of a label: lower case, without the colon and spaces.
-local function labelKey(label)
-  if type(label) ~= "string" then return nil end
-  label = dropIcons(label)
-  label = string.gsub(label, FULLWIDTH_COLON, "")
-  label = string.gsub(label, ":", "")
-  label = trim(label)
-  if label == "" then return nil end
-  return string.lower(label)
-end
-
--- Label kinds of the source text: English words plus the client's own
--- (GlobalStrings: BATTLE_PET_SOURCE_n are the Mount Journal's source names,
--- ZONE_COLON / LOCATION_COLON / COSTS_LABEL / CATEGORY) for other locales.
--- Read on each call, so a client without them still works. cost and
--- category only serve to split lines (UI.SourcePairs).
-local KIND_WORDS = {
-  { kind = "drop", words = { "Drop" }, globals = { "BATTLE_PET_SOURCE_1" } },
-  { kind = "quest", words = { "Quest" }, globals = { "BATTLE_PET_SOURCE_2" } },
-  { kind = "vendor", words = { "Vendor" }, globals = { "BATTLE_PET_SOURCE_3" } },
-  { kind = "achievement", words = { "Achievement" }, globals = { "BATTLE_PET_SOURCE_6" } },
-  { kind = "zone", words = { "Zone", "Location" }, globals = { "ZONE_COLON", "LOCATION_COLON" } },
-  { kind = "cost", words = { "Cost" }, globals = { "COSTS_LABEL" } },
-  { kind = "category", words = { "Category" }, globals = { "CATEGORY" } },
-}
-
-local function labelKinds()
-  local kinds = {}
-  local function add(word, kind)
-    local key = labelKey(word)
-    if key and not kinds[key] then kinds[key] = kind end
-  end
-  for _, entry in ipairs(KIND_WORDS) do
-    for _, word in ipairs(entry.words) do add(word, entry.kind) end
-    for _, name in ipairs(entry.globals) do add(_G[name], entry.kind) end
-  end
-  return kinds
-end
-
--- Kind of a source label: "drop" | "quest" | "vendor" | "achievement" |
--- "zone" (Zone / Location) | "cost" | "category" | nil.
-function UI.SourceLabelKind(label, kinds)
-  local key = labelKey(label)
-  return key and (kinds or labelKinds())[key] or nil
-end
-
--- Label key -> kind for UI.SourceLabelKind's second argument, built once per
--- caller (UI.SearchFields) instead of once per label.
-function UI.SourceLabelKinds()
-  return labelKinds()
-end
-
--- "<label>: <value>" -> label (with its colon), value; nil when the line has
--- no short, digit-free label before its first colon.
-local function splitLabel(line)
-  local label, value = string.match(line, "^([^:]-:)%s*(.*)$")
-  local wide, wideValue = string.match(line, "^(.-" .. FULLWIDTH_COLON .. ")%s*(.*)$")
-  if wide and (not label or #wide < #label) then label, value = wide, wideValue end
-  if not label or #label > MAX_LABEL or string.find(label, "%d") then return nil end
-  if not string.find(label, "[^%s:]") then return nil end
-  return label, value
-end
-
--- A value that runs into another known label ("Ultraxion Zone: Dragon
--- Soul") -> head, label, tail; nil when no known label (labelKinds) follows a
--- space. Unknown words never split ("Ahead of the Curve: Ultraxion").
-local function splitKnown(value, kinds)
-  local from = 1
-  while true do
-    local space = string.find(value, "%s", from)
-    if not space then return nil end
-    local rest = string.sub(value, space + 1)
-    local label = string.match(rest, "^([^:%s][^:]-:)")
-    if label and #label <= MAX_LABEL and kinds[labelKey(label)] then
-      local head = trim(string.sub(value, 1, space - 1))
-      if head ~= "" then return head, label, trim(string.sub(rest, #label + 1)) end
-    end
-    from = space + 1
-  end
-end
-
--- Coloured labels ("|cFFFFD200Zone:|r", "|cnNORMAL_FONT_COLOR:Zone:|r") start
--- a line of their own, even when the client put several on one line.
-local function breakColouredLabels(text)
-  for _, colon in ipairs({ ":", FULLWIDTH_COLON }) do
-    text = string.gsub(text, "(|c%x%x%x%x%x%x%x%x[^|\n]-" .. colon .. "%s*|r)", "|n%1")
-    text = string.gsub(text, "(|cn[^:|]*:[^|\n]-" .. colon .. "%s*|r)", "|n%1")
-  end
-  return text
-end
-
--- The source string's lines (UI.StripMarkup) -> { { label = "Drop:", value =
--- "Ultraxion" }, { value = "<unlabelled line>" }, ... } in order. Labels are
--- the client's own (localised) text with the colon; lines and values are
--- trimmed; empty lines and labels with an empty value are left out. Several
--- labels on one line become several pairs: coloured labels always, plain
--- ones when the label is a known word (UI.SourceLabelKind). With keepIcons
--- the values keep their (normalised) icons; labels never do.
-function UI.SourcePairs(text, keepIcons)
-  local out = {}
-  if type(text) ~= "string" then return out end
-  local icons
-  if keepIcons then text, icons = hideIcons(text) end
-  text = UI.StripMarkup(breakColouredLabels(text))
-  local kinds = labelKinds()
-  for line in string.gmatch(text .. "\n", "([^\n]*)\n") do
-    line = trim(line)
-    if line ~= "" then
-      local label, value = splitLabel(line)
-      if label then
-        value = trim(value)
-        while label do
-          local head, nextLabel, tail = splitKnown(value, kinds)
-          if head then value = head end
-          if value ~= "" then
-            out[#out + 1] = { label = trim(dropIcons(label)), value = icons and showIcons(value, icons) or value }
-          end
-          label, value = nextLabel, tail
-        end
-      else
-        out[#out + 1] = { value = icons and showIcons(line, icons) or line }
-      end
-    end
-  end
-  return out
-end
-
--- True for the label of the zone line: "Zone:", or ZONE_COLON (a
--- GlobalStrings entry) for other locales when the client has it. "Location:"
--- is not a sub-group source (UI.SourceLabelKind counts it as a zone).
-local function isZoneLabel(label)
-  local key = labelKey(label)
-  return key ~= nil and (key == "zone" or key == labelKey(ZONE_COLON))
-end
-
--- The value of the first "Zone:" line of a Mount Journal source string
--- (Game.MountSourceText; UI.SourcePairs), nil when there is none.
-function UI.SourceZone(text)
-  for _, pair in ipairs(UI.SourcePairs(text)) do
-    if pair.label and isZoneLabel(pair.label) then return pair.value end
-  end
-  return nil
-end
-
--- Every "Zone:" / "Location:" value of a Mount Journal source string, in
--- order (a drop's zone, a vendor's, ...); {} when there is none.
-function UI.SourceZones(text)
-  local out = {}
-  local kinds = labelKinds()
-  for _, pair in ipairs(UI.SourcePairs(text)) do
-    if pair.label and UI.SourceLabelKind(pair.label, kinds) == "zone" then out[#out + 1] = pair.value end
-  end
-  return out
-end
-
--- Name of the achievement the achievement scan mapped the mount to, or nil
--- (not an achievement mount, not known yet, or no match).
-local function scannedAchievementName(mountID)
-  local scan = ns.AchievementScan
-  local id = scan and scan.Lookup and scan.Lookup(mountID) or nil
-  if not id then return nil end
-  local name = ns.Game.AchievementName and ns.Game.AchievementName(id) or nil
-  if type(name) == "string" and name ~= "" then return name end
-  return nil
-end
-
--- The same, for UI.SearchFields (UI/Search.lua).
-function UI.ScannedAchievementName(mountID)
-  return scannedAchievementName(mountID)
-end
-
--- The grey line under a mount row's name: the most specific source the
--- client's source text (Game.MountSourceText, passed in) or our data gives,
--- one line:
---   "Drop: Ultraxion · Dragon Soul" (Drop, plus Zone / Location),
---   "Achievement: <name>" (source text, else the achievement scan's name),
---   "Vendor: <name> · <zone>", "Quest: <name>",
---   another labelled line, not Cost / Category ("Treasure: <name> · <zone>"),
---   the route's "<boss> (<instance>)",
---   a lone "Zone: <name>", an unlabelled line,
---   else UI.SourceLine (the category text; "" when there is none).
--- Labels are the client's own.
-function UI.RowDescription(mountID, sourceText)
-  local kinds = labelKinds()
-  local first, zone, unlabelled, other = {}, nil, nil, nil
-  for _, pair in ipairs(UI.SourcePairs(sourceText, true)) do
-    if pair.label then
-      local kind = UI.SourceLabelKind(pair.label, kinds)
-      if kind == "zone" then
-        zone = zone or pair
-      elseif kind then
-        first[kind] = first[kind] or pair
-      else
-        other = other or pair
-      end
-    else
-      unlabelled = unlabelled or pair.value
-    end
-  end
-  local function text(pair, withZone)
-    local out = pair.label .. " " .. pair.value
-    if withZone and zone then out = out .. " · " .. zone.value end
-    return out
-  end
-
-  if first.drop then return text(first.drop, true) end
-  if first.achievement then return text(first.achievement) end
-  local achievement = scannedAchievementName(mountID)
-  if achievement then return string.format(L["Achievement: %s"], achievement) end
-  if first.vendor then return text(first.vendor, true) end
-  if first.quest then return text(first.quest) end
-  if other then return text(other, true) end
-  local entry = routeEntry(mountID)
-  if entry and entry.boss then
-    if entry.instance then return entry.boss .. " (" .. entry.instance .. ")" end
-    return entry.boss
-  end
-  if zone then return text(zone) end
-  if unlabelled then return unlabelled end
-  return UI.SourceLine(mountID)
-end
-
--- Grouping key of a sub-group name: lower case, trimmed, single spaces, a
--- leading "The " dropped, so "The Vortex Pinnacle" and "Vortex Pinnacle"
--- are one group.
-function UI.GroupKey(name)
-  local key = string.lower(tostring(name))
-  key = string.gsub(key, "%s+", " ")
-  key = string.match(key, "^%s*(.-)%s*$")
-  key = string.gsub(key, "^the ", "")
-  return key
-end
-
--- How each section is split: dungeon / raid by instance, world by zone,
--- reputation by faction group. Other sections are flat.
-local GROUPED = { dungeon = "instance", raid = "instance", world = "zone", reputation = "faction" }
-
--- SimpleArmory's catch-all reputation groups (lower case): not a faction.
-local GENERIC_FACTION = { reputation = true, renown = true, ["paragon reputation"] = true }
-
--- Sub-group of a mount listed under `section` -> key, label, fromClient, or
--- nil when the section is flat. Instance: the client's name first (the
--- source text's "Zone:", then the name of the data's coords map), the route
--- step ("Run <name> (Dungeon)") only as the last resort. Zone: "Zone:", then
--- the coords map name. Faction: the data's group, unless it is a catch-all
--- ("Reputation", "Renown", "Paragon Reputation" or the section's own label).
--- Unknown -> OTHER_GROUP, L["Other"]. key is UI.GroupKey(label); fromClient
--- is true unless the label came from the route (ListRows then prefers a
--- client label for the group). ctx (optional): { sourceText = fn(id) ->
--- string|nil, mapName = fn(mapID) -> string|nil }.
-function UI.SubGroup(id, m, section, ctx)
-  local kind = GROUPED[section]
-  if not kind then return nil end
-  m = m or {}
-  local name, fromClient = nil, true
-  if kind == "faction" then
-    local group = m.group
-    if type(group) == "string" and group ~= "" then
-      local lower = string.lower(group)
-      if not GENERIC_FACTION[lower] and lower ~= string.lower(UI.SectionLabel(section)) then name = group end
-    end
-  else
-    if ctx and ctx.sourceText then
-      name = UI.SourceZone(ctx.sourceText(id))
-    end
-    local coords = m.coords
-    if not name and ctx and ctx.mapName and type(coords) == "table" and coords.m then
-      local mapName = ctx.mapName(coords.m)
-      if type(mapName) == "string" and mapName ~= "" then name = mapName end
-    end
-    if not name and kind == "instance" then
-      local entry = routeEntry(id)
-      name = entry and entry.instance or nil
-      fromClient = false
-    end
-  end
-  if name then
-    local key = UI.GroupKey(name)
-    if key ~= "" then return key, name, fromClient end
-  end
-  return OTHER_GROUP, L["Other"]
-end
-
--- Saved collapse key of a header: "<view>|<exp or ''>|<section>" for a
--- section, plus "|<sub-group key>" for a sub-header.
-function UI.CollapseKey(view, exp, section, group)
-  local key = table.concat({ view or "", exp or "", tostring(section) }, "|")
-  if group then key = key .. "|" .. group end
-  return key
-end
-
--- Flips header `key` in `store` (ns.db.global.collapsed), which holds only
--- collapsed = true (absent = expanded). -> the new collapsed state.
-function UI.ToggleCollapsed(store, key)
-  if store[key] then
-    store[key] = nil
-    return false
-  end
-  store[key] = true
-  return true
-end
-
--- Shift-click on a header: every header of that list at once. `rows`: the
--- list's rows as shown; `clicked`: the header's row. A collapsed header
--- expands them all: each shown header and every saved key under one
--- ("<key>|..."), so headers nested inside collapsed ones open too. An open
--- header collapses every shown header. -> true when collapsed.
-function UI.ToggleAllCollapsed(store, rows, clicked)
-  local collapse = not (clicked and clicked.collapsed)
-  for _, row in ipairs(rows or {}) do
-    if row.header and row.key ~= nil then
-      local key = tostring(row.key)
-      if collapse then
-        store[key] = true
-      else
-        store[key] = nil
-        local prefix = key .. "|"
-        for k in pairs(store) do
-          if type(k) == "string" and string.sub(k, 1, #prefix) == prefix then store[k] = nil end
-        end
-      end
-    end
-  end
-  return collapse
-end
-
--- A header's hover hint -> title, text: its own hint (e.g. "Right-click to
--- pop out ...") over the collapse lines when it collapses; nil when it has
--- neither.
-function UI.HeaderHint(hint, collapsible)
-  if not collapsible then return hint, nil end
-  if hint then return hint, L["Click: collapse or expand. Shift-click: all at once"] end
-  return L["Click: collapse or expand"], L["Shift-click: collapse or expand all"]
-end
-
--- Whether Shift is held (a header's Shift-click: all headers at once).
-function UI.ShiftDown()
-  return type(IsShiftKeyDown) == "function" and IsShiftKeyDown() and true or false
-end
-
-local function groupOrder(a, b)
-  if (a.key == OTHER_GROUP) ~= (b.key == OTHER_GROUP) then return b.key == OTHER_GROUP end
-  return a.key < b.key -- UI.GroupKey: case-insensitive, a leading "The " ignored
-end
-
--- Journal.Select output -> ScrollBox elements, a tree: a section header
--- (the entry's refined section, else the mount's; sections in Select order),
--- then for split sections (UI.SubGroup) a sub-header per instance / zone /
--- faction (by UI.GroupKey, Other last; labelled with a client-provided name
--- when any of its mounts has one, else the route's), then { id=, m=, owned= }
--- mount rows (Select order; depth = 2 under a sub-header). A section stays
--- flat when Other is its only sub-group with a shown mount.
--- Headers: { header = true, depth = 1 | 2, section =, group = (sub-headers),
--- key = UI.CollapseKey(...), text =, badge = (sections only), owned =,
--- total =, collapsed = }. owned / total count every selected mount under the
--- header, including owned ones hidden by opts.hideOwned and children of a
--- collapsed header. Headers with no shown mount are left out; a collapsed
--- header's children are left out.
--- opts (all optional): headerSuffix = fn(section) -> badge, muted, headerActive =
--- fn(section) -> true marks the section header active (row.active = true;
--- UI.HeaderText paints it green), rowTag =
--- fn(id, m) -> tag, view =, exp = (collapse keys), collapsed = { [key] = true },
--- hideOwned = true (drop owned mount rows: the Collected filter is off),
--- sourceText = fn(id), mapName = fn(mapID) (UI.SubGroup's ctx).
-function UI.ListRows(selected, isOwned, opts)
-  opts = opts or {}
-  local headerSuffix, rowTag, headerActive = opts.headerSuffix, opts.rowTag, opts.headerActive
-  local collapsed = opts.collapsed or {}
-  local hideOwned = opts.hideOwned == true
-  local ctx = { sourceText = opts.sourceText, mapName = opts.mapName }
-
-  local sections, bySection = {}, {}
-  for _, entry in ipairs(selected or {}) do
-    local section = entry.section or entry.m.section or "other"
-    local sec = bySection[section]
-    if not sec then
-      sec = { key = section, items = {}, groups = {}, byGroup = {} }
-      bySection[section] = sec
-      sections[#sections + 1] = sec
-    end
-    local item = { entry = entry, owned = (isOwned and isOwned(entry.id)) and true or false }
-    sec.items[#sec.items + 1] = item
-    local gkey, glabel, fromClient = UI.SubGroup(entry.id, entry.m, section, ctx)
-    if gkey then
-      local group = sec.byGroup[gkey]
-      if not group then
-        group = { key = gkey, label = glabel, client = fromClient == true, items = {} }
-        sec.byGroup[gkey] = group
-        sec.groups[#sec.groups + 1] = group
-      elseif fromClient and not group.client then
-        -- A client name (source text / map) beats a route step title.
-        group.label, group.client = glabel, true
-      end
-      group.items[#group.items + 1] = item
-    end
-  end
-
-  local rows = {}
-  local function tally(items)
-    local owned, shown = 0, 0
-    for _, item in ipairs(items) do
-      if item.owned then owned = owned + 1 end
-      if not (hideOwned and item.owned) then shown = shown + 1 end
-    end
-    return owned, #items, shown
-  end
-  local function addMounts(items, depth)
-    for _, item in ipairs(items) do
-      if not (hideOwned and item.owned) then
-        local entry = item.entry
-        rows[#rows + 1] = {
-          id = entry.id, m = entry.m, owned = item.owned, depth = depth,
-          tag = rowTag and rowTag(entry.id, entry.m) or nil,
-        }
-      end
-    end
-  end
-
-  for _, sec in ipairs(sections) do
-    local owned, total, shown = tally(sec.items)
-    if shown > 0 then
-      local key = UI.CollapseKey(opts.view, opts.exp, sec.key)
-      local isCollapsed = collapsed[key] == true
-      local badge, muted
-      if headerSuffix then badge, muted = headerSuffix(sec.key) end
-      rows[#rows + 1] = {
-        header = true, depth = 1, section = sec.key, key = key, text = UI.SectionLabel(sec.key),
-        badge = badge or nil, badgeMuted = (badge and muted) and true or nil,
-        owned = owned, total = total, collapsed = isCollapsed,
-        active = (headerActive and headerActive(sec.key)) and true or nil,
-      }
-      if not isCollapsed then
-        -- Sub-groups with at least one shown mount decide the shape.
-        local shownGroups = {}
-        for _, group in ipairs(sec.groups) do
-          local gOwned, gTotal, gShown = tally(group.items)
-          if gShown > 0 then
-            group.owned, group.total = gOwned, gTotal
-            shownGroups[#shownGroups + 1] = group
-          end
-        end
-        if #shownGroups == 0 or (#shownGroups == 1 and shownGroups[1].key == OTHER_GROUP) then
-          addMounts(sec.items)
-        else
-          table.sort(shownGroups, groupOrder)
-          for _, group in ipairs(shownGroups) do
-            local gkey = UI.CollapseKey(opts.view, opts.exp, sec.key, group.key)
-            local gCollapsed = collapsed[gkey] == true
-            rows[#rows + 1] = {
-              header = true, depth = 2, section = sec.key, group = group.key, key = gkey,
-              text = group.label, owned = group.owned, total = group.total, collapsed = gCollapsed,
-            }
-            if not gCollapsed then addMounts(group.items, 2) end
-          end
-        end
-      end
-    end
-  end
-  return rows
-end
-
-local GREEN = "|cff33ff99"
-local GREY = "|cff9d9d9d"
-
--- Collapse indicator of a header: the quest log's campaign header atlas when
--- the client has it (UI.AtlasExists), and the text fallback ("+" collapsed,
--- an en dash expanded: the default font has no U+2212 minus).
--- -> atlas|nil, text.
-local ICON_OPEN, ICON_CLOSED = "campaign_headericon_open", "campaign_headericon_closed"
-function UI.HeaderIcon(collapsed)
-  local atlas = collapsed and ICON_CLOSED or ICON_OPEN
-  local text = collapsed and "+" or "\226\128\147"
-  if UI.AtlasExists and UI.AtlasExists(atlas) then return atlas, text end
-  return nil, text
-end
-
--- Header label: section / sub-group name, "(owned/total)" in grey when
--- counted, then the badge in green (grey when row.badgeMuted, e.g. a holiday
--- that starts later). Active headers (row.active, e.g. a holiday on the
--- calendar now) paint the name and badge in the game's GREEN_FONT_COLOR.
-local ACTIVE_GREEN = "|cff19ff19"
-local STATUS_BLUE = "|cff71d5ff"
-function UI.HeaderText(row)
-  local text = row.text or ""
-  if row.active then text = ACTIVE_GREEN .. text .. "|r" end
-  if row.total then
-    text = text .. "  " .. GREY .. "(" .. (row.owned or 0) .. "/" .. row.total .. ")|r"
-  elseif row.left then
-    -- A count where owned/total means nothing (the checklist's rare spawns
-    -- with no lockout: mounts still to get).
-    text = text .. "  " .. GREY .. "(" .. string.format(L["%d left"], row.left) .. ")|r"
-  end
-  if row.badge and row.badge ~= "" then
-    local color = row.active and ACTIVE_GREEN or (row.badgeMuted and GREY or GREEN)
-    text = text .. "  " .. color .. row.badge .. "|r"
-  end
-  -- A checklist header's event status (F17, Checklist.Rows opts.status).
-  if row.status and row.status ~= "" then
-    text = text .. "  " .. STATUS_BLUE .. row.status .. "|r"
-  end
-  return text
-end
-
--- Row source line: the row's description (UI.RowDescription, set per
--- refresh as row.desc), else UI.SourceLine, plus the tag in green.
-function UI.RowSourceText(row)
-  local text = row.desc or UI.SourceLine(row.id)
-  if row.tag and row.tag ~= "" then
-    local tag = GREEN .. row.tag .. "|r"
-    text = (text ~= "") and (text .. " · " .. tag) or tag
-  end
-  return text
-end
-
--- Filter menu --------------------------------------------------------------------
-
--- Saved filters (ns.db.global.filters, Logic/Journal.lua): a global
--- `collected` plus, per list view, { [section] = false } for the hidden
--- sections. Each view's menu offers its own sections (Journal.FilterSections):
--- Journal the ten sources, Misc its categories, Holidays each holiday,
--- Achievements each expansion and General, Timewalking none.
-
--- Menu title above a view's section checkboxes.
-local FILTER_TITLES = {
-  journal = "Sources", misc = "Categories", holidays = "Holidays", achievements = "Expansions",
-}
-
--- "Show <category>" labels of the Journal and Misc sections. Holidays use
--- "Show <holiday>", Achievements "Show <expansion> achievements".
-local FILTER_LABELS = {
-  journal = {
-    dungeon = "Show dungeon drops", raid = "Show raid drops", world = "Show world drops / rares",
-    delve = "Show delve mounts", treasure = "Show treasures & caches", quest = "Show quest mounts",
-    activity = "Show zone activity mounts", reputation = "Show reputation mounts",
-    vendor = "Show vendor mounts", other = "Show other mounts",
-  },
-  misc = {
-    profession = "Show profession mounts", shop = "Show in-game shop mounts",
-    tradingpost = "Show Trading Post mounts", pvp = "Show PvP mounts", racial = "Show racial mounts",
-    keystone = "Show Mythic+ mounts", promotion = "Show promotion mounts", class = "Show class mounts",
-    bmah = "Show Black Market mounts", collection = "Show collection rewards",
-    other = "Show other mounts",
-    unobtainable = "Show unobtainable mounts",
-  },
-  holidays = { other = "Show other mounts" },
-}
-
--- The menu label of section `key` on `view`.
-function UI.FilterLabel(view, key)
-  local labels = FILTER_LABELS[view]
-  if labels and labels[key] then return L[labels[key]] end
-  if view == "achievements" then return string.format(L["Show %s achievements"], UI.SectionLabel(key)) end
-  return string.format(L["Show %s"], UI.SectionLabel(key))
-end
-
--- Section keys the Filter menu shows on `view` (Journal.FilterSections;
--- opts.expansions, else Data.Expansions, for Achievements).
-local function menuSections(view, opts)
-  return ns.Journal.FilterSections(view, opts)
-end
-
--- Whether filter `key` is on: "collected" only when true (default off); a
--- section of `view` unless hidden (Journal.SectionShown: missing = shown).
-function UI.FilterChecked(filters, key, view)
-  if key == "collected" then return type(filters) == "table" and filters.collected == true end
-  return ns.Journal.SectionShown(filters, view, key)
-end
-
--- The Filter dropdown's items for the list view `view` -> { { kind =
--- "checkbox", key =, label =, checked = }, { kind = "divider" }, { kind =
--- "title", label = }, { kind = "button", action = "checkAll" | "uncheckAll",
--- label = } }: Collected, then (views with sections) the view's sections
--- with Check all / Uncheck all. opts (optional): { expansions = } as for
--- Journal.FilterSections (default: Data.Expansions).
-function UI.FilterMenuItems(view, filters, opts)
-  local items = {
-    { kind = "checkbox", key = "collected", label = L["Collected"], checked = UI.FilterChecked(filters, "collected", view) },
-  }
-  local keys = menuSections(view, opts)
-  if #keys == 0 then return items end
-  items[#items + 1] = { kind = "divider" }
-  items[#items + 1] = { kind = "title", label = L[FILTER_TITLES[view] or "Sources"] }
-  for _, key in ipairs(keys) do
-    items[#items + 1] = { kind = "checkbox", key = key, label = UI.FilterLabel(view, key),
-      checked = UI.FilterChecked(filters, key, view) }
-  end
-  items[#items + 1] = { kind = "divider" }
-  items[#items + 1] = { kind = "button", action = "checkAll", label = L["Check all"] }
-  items[#items + 1] = { kind = "button", action = "uncheckAll", label = L["Uncheck all"] }
-  return items
-end
-
--- Flips Collected or section `key` of `view` in `filters` -> its new state.
-function UI.ToggleFilter(filters, key, view)
-  local on = not UI.FilterChecked(filters, key, view)
-  if key == "collected" then
-    filters.collected = on
-  else
-    ns.Journal.SetSectionShown(filters, view, key, on)
-  end
-  return on
-end
-
--- "checkAll" / "uncheckAll": every section the menu shows on `view` on /
--- off (Collected and other views untouched). "reset" (the dropdown's reset
--- arrow): Collected off and every section of `view` shown.
-function UI.ApplyFilterAction(filters, action, view, opts)
-  if action == "checkAll" or action == "uncheckAll" then
-    for _, key in ipairs(menuSections(view, opts)) do
-      ns.Journal.SetSectionShown(filters, view, key, action == "checkAll")
-    end
-  elseif action == "reset" then
-    filters.collected = ns.Journal.DefaultFilters.collected
-    if view ~= nil and type(filters[view]) == "table" then filters[view] = nil end
-  end
-end
-
--- True when what the menu shows on `view` is at the defaults (Collected
--- off, every section shown): no reset arrow.
-function UI.FiltersAreDefault(filters, view, opts)
-  if UI.FilterChecked(filters, "collected", view) ~= (ns.Journal.DefaultFilters.collected == true) then
-    return false
-  end
-  for _, key in ipairs(menuSections(view, opts)) do
-    if not UI.FilterChecked(filters, key, view) then return false end
-  end
-  return true
 end
 
 -- Ctrl+left-click: open the dressing room on the mount.
@@ -1176,9 +332,7 @@ end
 
 -- Widgets ----------------------------------------------------------------------------
 
-local FILTER_WIDTH = 150 -- fallback filter panel
 local SEARCH_WIDTH = 220
-local FILTER_BUTTON_WIDTH, FILTER_BUTTON_HEIGHT = 93, 22 -- the Mount Journal's Filter button
 local TOP_ROW = 30 -- search box + Filter button above the list
 local HEADER_HEIGHT = 24
 local SUB_HEADER_HEIGHT = 20
@@ -1186,49 +340,23 @@ local INDICATOR_SIZE = 14
 local SUB_INDENT = 22 -- sub-header indicator inset (section headers: 6); icons of rows under it
 local DEPTH_STEP = 16 -- each deeper header level (the checklist's depth 3) moves in this much more
 local ROW_ICON_LEFT = 4 -- icon inset of other mount rows
-local ROW_HEIGHT = 40
-local ICON_SIZE = 32
-local CHECK_SIZE = 24
+local ROW_HEIGHT = 22 -- one line, as a pop-out's rows
 local PIN_SIZE, PIN_RIGHT = 16, 8 -- the location pin on a row's right end
--- Rounded icon mask of the current action bars; used only when the client
--- has it (UI.AtlasExists). Icons are also cropped past their baked-in edge.
-local ICON_MASK = "UI-HUD-ActionBar-IconFrame-Mask"
+-- Map item icons are cropped past their baked-in edge (the pin).
 local ICON_CROP = 0.08
 
--- Source line font: GameFontHighlightSmall dimmed to 70 % grey (readable on
--- the dark fill); GameFontDisableSmall when the client has no CreateFont.
-local SOURCE_FONT = "MountTrailFontSource"
-local sourceFont
+-- A row's "where it comes from" line: the mount names' font (GameFontHighlight,
+-- so "Mount names and text" sizes both) dimmed to 70 % grey; GameFontDisable
+-- when the client has no CreateFont.
 function UI.SourceFont()
-  if sourceFont then return sourceFont end
-  if type(CreateFont) == "function" and GameFontHighlightSmall then
-    local font = _G[SOURCE_FONT] or CreateFont(SOURCE_FONT)
-    font:SetFontObject(GameFontHighlightSmall)
-    font:SetTextColor(0.7, 0.7, 0.7)
-    sourceFont = SOURCE_FONT
-  else
-    sourceFont = UI.Font("GameFontDisableSmall")
-  end
-  return sourceFont
+  return UI.TintedFont("MountTrailFontSource", "GameFontHighlight", 0.7, 0.7, 0.7, UI.Font("GameFontDisable"))
 end
 
--- Name font of owned (collected) mount rows: GameFontNormal in a light green
--- (readable on the dark fill and the green row tint); GameFontGreen when the
--- client has no CreateFont.
-local OWNED_FONT = "MountTrailFontOwned"
-local ownedFont
+-- Name font of owned (collected) mount rows: the other names' font in a
+-- light green (readable on the dark fill and the green row tint), so it
+-- sizes with them; GameFontGreen when the client has no CreateFont.
 function UI.OwnedFont()
-  if ownedFont then return ownedFont end
-  if type(CreateFont) == "function" and GameFontNormal then
-    local font = _G[OWNED_FONT] or CreateFont(OWNED_FONT)
-    -- From the add-on's sized copy, so it follows the gold text size.
-    font:SetFontObject(_G[UI.Font("GameFontNormal")] or GameFontNormal)
-    font:SetTextColor(0.55, 0.95, 0.6)
-    ownedFont = OWNED_FONT
-  else
-    ownedFont = UI.Font("GameFontGreen")
-  end
-  return ownedFont
+  return UI.TintedFont("MountTrailFontOwned", "GameFontHighlight", 0.55, 0.95, 0.6, UI.Font("GameFontGreen"))
 end
 
 local function filtersDB()
@@ -1272,19 +400,35 @@ local function collapsedDB()
   return global.collapsed
 end
 
--- Section header (depth 1) and sub-header (depth 2, indented, smaller font,
--- fainter band; depth 3 -- the checklist's categories -- looks the same, one
--- DEPTH_STEP further in). A plain Frame (not a Button) so the ScrollBox pools it apart
--- from the mount rows; left-click (OnMouseUp) calls frame.onToggle(key), a
--- right-click frame.onRightClick(data, frame) when the caller set one, and hovering
+-- Header colours, the same in every list, as a pop-out's group headers: a
+-- header of an expansion (depth 1 or 2 with `exp`: the Lockouts'
+-- expansions, a list by expansion) in that expansion's colour; any other
+-- top-level header (depth 1) in the main window's header colour (its
+-- appearance, UI/Style.lua), else gold; every other group (instances,
+-- zones, the Lockouts' categories) light grey.
+local GOLD = { 1, 0.82, 0 }
+local LIGHT = { 0.85, 0.85, 0.85 }
+function UI.HeaderColor(data)
+  local depth = data and data.depth or 1
+  if depth <= 2 and data.exp and UI.EXPANSION_COLORS and UI.EXPANSION_COLORS[data.exp] then
+    return UI.EXPANSION_COLORS[data.exp]
+  end
+  if depth >= 2 then return LIGHT end
+  local style = UI.frame and UI.PopoutStyleOf and UI.PopoutStyleOf(UI.frame)
+  return style and style.header or GOLD
+end
+
+-- Section header (depth 1) and sub-header (depth 2, indented;
+-- depth 3 -- the checklist's categories -- looks the same, one DEPTH_STEP
+-- further in), in the pop-outs' look: "- Name (count)" in the header's
+-- colour (UI.HeaderColor) over a thin rule of it. A plain Frame (not a
+-- Button) so the ScrollBox pools it apart from the mount rows; left-click
+-- (OnMouseUp) calls frame.onToggle(key), a right-click
+-- frame.onRightClick(data, frame) when the caller set one, and hovering
 -- shows frame.hint (UI.ShowHint, beside the cursor) when set.
 local function initHeader(frame, data)
   if not frame.Label then
     frame:EnableMouse(true)
-    -- Flat header: a faint band with a thin gold rule underneath.
-    local bg = frame:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints(frame)
-    frame.Bg = bg
     local hover = frame:CreateTexture(nil, "BORDER")
     hover:SetAllPoints(frame)
     hover:SetColorTexture(1, 1, 1, 0.05)
@@ -1292,18 +436,14 @@ local function initHeader(frame, data)
     frame.Hover = hover
     local rule = frame:CreateTexture(nil, "BORDER")
     rule:SetHeight(1)
-    rule:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
-    rule:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
+    rule:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 1)
     frame.Rule = rule
-    -- +/- indicator: the campaign header atlas, else a text glyph.
-    local indicator = frame:CreateTexture(nil, "ARTWORK")
-    indicator:SetSize(INDICATOR_SIZE, INDICATOR_SIZE)
-    frame.Indicator = indicator
-    local indicatorText = frame:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlight"))
-    indicatorText:SetPoint("CENTER", indicator, "CENTER", 0, 0)
-    frame.IndicatorText = indicatorText
+    local glyph = frame:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormal"))
+    glyph:SetWidth(INDICATOR_SIZE)
+    glyph:SetJustifyH("LEFT")
+    frame.Glyph = glyph
     local label = frame:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormal"))
-    label:SetPoint("LEFT", indicator, "RIGHT", 6, 0)
+    label:SetPoint("LEFT", glyph, "RIGHT", 0, 0)
     label:SetJustifyH("LEFT")
     frame.Label = label
     frame:SetScript("OnEnter", function(self)
@@ -1340,21 +480,22 @@ local function initHeader(frame, data)
   frame.data = data
   -- Recycled frames: the hover band follows the mouse, not the last use.
   frame.Hover:SetShown(type(frame.IsMouseOver) == "function" and frame:IsMouseOver() == true)
-  frame.Bg:SetColorTexture(1, 1, 1, sub and 0.025 or 0.05)
-  frame.Rule:SetColorTexture(1, 0.82, 0, sub and 0.1 or 0.25)
-  frame.Indicator:ClearAllPoints()
-  frame.Indicator:SetPoint("LEFT", frame, "LEFT", sub and (SUB_INDENT + (depth - 2) * DEPTH_STEP) or 6, 0)
-  local atlas, glyph = UI.HeaderIcon(data.collapsed == true)
-  if atlas then
-    frame.Indicator:SetAtlas(atlas)
-    frame.Indicator:Show()
-    frame.IndicatorText:Hide()
-  else
-    frame.Indicator:Hide()
-    frame.IndicatorText:SetText(glyph)
-    frame.IndicatorText:Show()
-  end
-  frame.Label:SetFontObject(sub and UI.Font("GameFontNormalSmall") or UI.Font("GameFontNormal"))
+  local inset = sub and (SUB_INDENT + (depth - 2) * DEPTH_STEP) or 6
+  local c = UI.HeaderColor(data)
+  frame.Glyph:ClearAllPoints()
+  frame.Glyph:SetPoint("LEFT", frame, "LEFT", inset, 0)
+  frame.Rule:ClearAllPoints()
+  frame.Rule:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", inset, 1)
+  frame.Rule:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 1)
+  frame.Rule:SetColorTexture(c[1], c[2], c[3], depth >= 3 and 0.15 or 0.35)
+  -- One size for every level (the small font read too small): the colour and
+  -- the indent tell them apart.
+  local font = UI.Font("GameFontNormal")
+  frame.Glyph:SetFontObject(font)
+  frame.Glyph:SetText(UI.HeaderGlyph(data.collapsed == true))
+  frame.Glyph:SetTextColor(c[1], c[2], c[3])
+  frame.Label:SetFontObject(font)
+  frame.Label:SetTextColor(c[1], c[2], c[3])
   frame.Label:SetText(UI.HeaderText(data))
 end
 
@@ -1362,18 +503,6 @@ end
 -- (UI/ChecklistView.lua): a ScrollBox "Frame" initializer; set
 -- frame.onToggle(key) for clicks.
 UI.InitListHeader = initHeader
-
--- Crops `icon` past its baked-in edge and, when the client has the modern
--- rounded icon mask, masks it.
-function UI.StyleIcon(owner, icon)
-  icon:SetTexCoord(ICON_CROP, 1 - ICON_CROP, ICON_CROP, 1 - ICON_CROP)
-  if UI.AtlasExists(ICON_MASK) and owner.CreateMaskTexture and icon.AddMaskTexture then
-    local mask = owner:CreateMaskTexture()
-    mask:SetAtlas(ICON_MASK)
-    mask:SetAllPoints(icon)
-    icon:AddMaskTexture(mask)
-  end
-end
 
 -- Paints a row's location icon for UI.LocationIcon's kind: the map pin
 -- (UI.PinIcon) for "spot" (true counts as "spot"), the map item icon for
@@ -1444,31 +573,18 @@ local function setupRow(row)
     IsShown = function() return selected:IsShown() end,
   }
 
-  local icon = row:CreateTexture(nil, "ARTWORK")
-  icon:SetSize(ICON_SIZE, ICON_SIZE)
-  icon:SetPoint("LEFT", row, "LEFT", ROW_ICON_LEFT, 0)
-  UI.StyleIcon(row, icon)
-  row.Icon = icon
+  row.Tag = UI.ExpansionBadge(row)
 
   -- Location pin on the right end (rows with a waypoint target only).
   local pin = UI.CreatePin(row)
   pin:SetPoint("RIGHT", row, "RIGHT", -PIN_RIGHT, 0)
   row.Pin = pin
 
-  local name = row:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormal"))
-  -- Same-edge anchor pairs only (a RIGHT anchor would also pin the vertical
-  -- centre). The 32 px icon is centred in the 40 px row, so its top is at -4
-  -- and the name's at -6; the right edge stops 8 px left of the pin.
-  name:SetPoint("TOPLEFT", icon, "TOPRIGHT", 8, -2)
-  name:SetPoint("TOPRIGHT", row, "TOPRIGHT", -UI.PIN_ROOM, -((ROW_HEIGHT - 32) / 2 + 2))
-  name:SetJustifyH("LEFT")
+  local name = row:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlight"))
   name:SetWordWrap(false)
   row.Name = name
 
   local source = row:CreateFontString(nil, "OVERLAY", UI.SourceFont())
-  source:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -3)
-  source:SetPoint("TOPRIGHT", name, "BOTTOMRIGHT", 0, -3)
-  source:SetJustifyH("LEFT")
   source:SetWordWrap(false)
   row.Source = source
 
@@ -1503,253 +619,90 @@ end
 
 local function noTooltip() end
 
+-- A list name's colour when "Colour list names by rarity" is on (the main
+-- window's own setting, apart from the pop-outs') and MountsRarity knows the
+-- mount (ns.Owners), else nil.
+function UI.ListRarityColor(mountID)
+  local global = ns.db and ns.db.global
+  local settings = global and global.settings
+  local owners = ns.Owners
+  if not (type(settings) == "table" and settings.rarityColorsMain == true and owners) then return nil end
+  local pct = owners.Percent(mountID)
+  return pct and owners.Color(pct) or nil
+end
+
+-- The row, a pop-out's: the mount's expansion tag at `left`, the name, and
+-- the source line right-aligned in the row's right half (left of the pin),
+-- all on one line (no icon: the detail pane shows the mount).
+local function anchorRow(row, left)
+  local tag, name, source = row.Tag, row.Name, row.Source
+  tag:ClearAllPoints()
+  tag:SetPoint("LEFT", row, "LEFT", left, 0)
+  name:ClearAllPoints()
+  if tag:IsShown() then
+    name:SetPoint("LEFT", tag, "RIGHT", 6, 0)
+  else
+    name:SetPoint("LEFT", row, "LEFT", left, 0)
+  end
+  name:SetPoint("RIGHT", row, "CENTER", 4, 0)
+  name:SetJustifyH("LEFT")
+  source:ClearAllPoints()
+  source:SetPoint("LEFT", row, "CENTER", 12, 0)
+  source:SetPoint("RIGHT", row, "RIGHT", -UI.PIN_ROOM, 0)
+  source:SetJustifyH("RIGHT")
+end
+
 local function initRow(row, data)
-  if not row.Icon then setupRow(row) end
+  if not row.Name then setupRow(row) end
   row.mountID = data.id
   row.tooltip = data.tooltip
   row.onSelect = data.onSelect
   row.Selected:SetShown(data.selected == true)
   row.routeBoss = data.routeBoss
   row.eventMap = data.eventMap
-  -- Under a sub-header the icon lines up with the sub-header's indicator.
-  row.Icon:SetPoint("LEFT", row, "LEFT", data.depth == 2 and SUB_INDENT or ROW_ICON_LEFT, 0)
-  local name = data.name or ns.Game.MountInfo(data.id)
-  row.Icon:SetTexture(UI.MountIcon(data.id))
-  row.Name:SetText(name or data.m.name or tostring(data.id))
+  UI.SetExpansionBadge(row.Tag, data.m and data.m.exp)
+  row.Tag:EnableMouse(false) -- the row takes the clicks
+  -- Under a sub-header the tag lines up with the sub-header's glyph.
+  anchorRow(row, data.left or (data.depth == 2 and SUB_INDENT or ROW_ICON_LEFT))
+  local name = data.name or ns.Game.MountInfo(data.id) or data.m.name or tostring(data.id)
+  -- Colour-blind marks: a tick on owned rows (the green says it otherwise).
+  if data.owned and UI.ColorblindMarks and UI.ColorblindMarks() then name = UI.MARK_DONE .. " " .. name end
+  if data.suffix then name = name .. "  " .. data.suffix end
+  row.Name:SetText(name)
   row.Source:SetText(UI.RowSourceText(data))
   row.Stripe:SetShown(data.alt == true)
   UI.ShowPin(row.Pin, data.pin)
-  -- Owned (collected) mounts: green tint and a light green name, the icon
-  -- in full colour; everything reset for a recycled frame.
+  -- Owned (collected) mounts: green tint and a light green name; others
+  -- white (in their rarity's colour with the pop-outs' option on).
+  -- Everything reset for a recycled frame.
   row.Owned:SetShown(data.owned == true)
-  row.Name:SetFontObject(data.owned and UI.OwnedFont() or UI.Font("GameFontNormal"))
-  row.Icon:SetDesaturated(false)
+  if data.owned then
+    row.Name:SetFontObject(UI.OwnedFont())
+  else
+    row.Name:SetFontObject(UI.Font("GameFontHighlight"))
+    local c = UI.ListRarityColor(data.id)
+    if c then
+      row.Name:SetTextColor(c[1], c[2], c[3])
+      -- The colour's meaning as text too (colour-blind marks).
+      if UI.RarityTag then row.Name:SetText(row.Name:GetText() .. UI.RarityTag(data.id)) end
+    end
+  end
 end
 
--- The mount row look, shared by other mount lists (the zone panel): a
--- ScrollBox element initializer for "Button" frames. data: { id=, m=,
--- owned=, depth= (2: indented), desc= (UI.RowDescription), tag=, alt=
--- (striped), pin= (UI.HasLocation), name= (overrides the mount's name),
--- tooltip= (function(row) shown on hover instead of the mount tooltip),
--- onSelect= (function(mountID): a plain left-click selects instead of the
--- waypoint; the detail pane's lists), selected= (the selected row's look),
--- routeBoss= (the row's route boss, passed to the click: UI.HandleRowClick,
--- and to the hover: UI.ShowMountTooltip's lockout line) }.
--- Rows are UI.MOUNT_ROW_HEIGHT tall.
+-- The mount row, every list's (the lists, Lockouts, the zone panel, the map
+-- tab), a pop-out's: a ScrollBox element initializer for "Button" frames.
+-- data: { id=, m=, owned=, depth= (2: indented), left= (the icon's inset,
+-- overriding depth), desc= (UI.RowDescription), tag=, alt= (striped), pin=
+-- (UI.HasLocation), name= (overrides the mount's name), suffix= (text after
+-- the name: the Lockouts' light blue status), tooltip= (function(row)
+-- shown on hover instead of the mount tooltip), onSelect=
+-- (function(mountID): a plain left-click selects instead of the waypoint;
+-- the detail pane's lists), selected= (the selected row's look), routeBoss=
+-- (the row's route boss, passed to the click: UI.HandleRowClick, and to the
+-- hover: UI.ShowMountTooltip's lockout line) }. Rows are
+-- UI.MOUNT_ROW_HEIGHT tall (UI.RowHeight for the text size).
 UI.InitMountRow = initRow
 UI.MOUNT_ROW_HEIGHT = ROW_HEIGHT
-
--- Fallback panel checkbox; its label is one line kept inside the panel
--- (long "Show ..." labels are cut, not run under the list).
-local FILTER_LABEL_WIDTH = FILTER_WIDTH - CHECK_SIZE - 10
-local function makeCheck(panel, label, onClick)
-  local cb = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
-  cb:SetSize(CHECK_SIZE, CHECK_SIZE)
-  local text = cb.Text or cb.text
-  if not text then
-    text = cb:CreateFontString(nil, "ARTWORK", UI.Font("GameFontHighlightSmall"))
-    text:SetPoint("LEFT", cb, "RIGHT", 2, 0)
-  end
-  text:SetWidth(FILTER_LABEL_WIDTH)
-  text:SetWordWrap(false)
-  if text.SetJustifyH then text:SetJustifyH("LEFT") end
-  text:SetText(label)
-  cb.Label = text
-  cb:SetScript("OnClick", onClick)
-  return cb
-end
-
--- Fallback filter panel (clients without the 11.x dropdown menus): a column
--- of checkboxes left of the list, under the search box: Collected, then the
--- current view's sections (UI.FilterMenuItems), rebuilt when the view changes.
-local function buildFilterPanel(list)
-  local panel = CreateFrame("Frame", nil, list)
-  panel:SetPoint("TOPLEFT", list, "TOPLEFT", 0, 0)
-  panel:SetPoint("BOTTOMLEFT", list, "BOTTOMLEFT", 0, 0)
-  panel:SetWidth(FILTER_WIDTH)
-  list.FilterPanel = panel
-  return panel
-end
-
--- Search box, Collected and the section title of the fallback filter panel;
--- the section checkboxes come from refreshFilterPanel.
-local function layoutFilterPanel(list, search)
-  local panel = list.FilterPanel
-  search:SetSize(FILTER_WIDTH - 16, 20)
-  search:SetPoint("TOPLEFT", panel, "TOPLEFT", 10, -4)
-
-  local collected = makeCheck(panel, L["Collected"], function(self)
-    local filters = filtersDB()
-    if filters then filters.collected = self:GetChecked() and true or false end
-    ns.Refresh()
-  end)
-  collected:SetPoint("TOPLEFT", search, "BOTTOMLEFT", -6, -8)
-  list.CollectedCheck = collected
-
-  local sectionsTitle = panel:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalSmall"))
-  sectionsTitle:SetPoint("TOPLEFT", collected, "BOTTOMLEFT", 4, -8)
-  sectionsTitle:SetText(L["Sources"])
-  list.SectionsTitle = sectionsTitle
-
-  -- SectionPool: every section checkbox made so far (reused across views);
-  -- SectionChecks: the ones the current view shows, in menu order.
-  list.SectionPool = {}
-  list.SectionChecks = {}
-end
-
--- One reusable section checkbox of the fallback panel: it writes its
--- current filterKey on the panel's current view.
-local function sectionCheck(list, i)
-  local cb = list.SectionPool[i]
-  if cb then return cb end
-  cb = makeCheck(list.FilterPanel, "", function(self)
-    local filters = filtersDB()
-    if filters then ns.Journal.SetSectionShown(filters, list.tab, self.filterKey, self:GetChecked() and true or false) end
-    ns.Refresh()
-  end)
-  if i == 1 then
-    cb:SetPoint("TOPLEFT", list.SectionsTitle, "BOTTOMLEFT", -4, -4)
-  else
-    cb:SetPoint("TOPLEFT", sectionCheck(list, i - 1), "BOTTOMLEFT", 0, 0)
-  end
-  list.SectionPool[i] = cb
-  return cb
-end
-
-local function refreshFilterPanel(list, filters, view)
-  list.CollectedCheck:SetChecked(filters.collected == true)
-  local checks, title = {}, nil
-  for _, item in ipairs(UI.FilterMenuItems(view, filters)) do
-    if item.kind == "title" then
-      title = item.label
-    elseif item.kind == "checkbox" and item.key ~= "collected" then
-      local cb = sectionCheck(list, #checks + 1)
-      cb.filterKey = item.key
-      cb.Label:SetText(item.label)
-      cb:SetChecked(item.checked)
-      cb:Show()
-      checks[#checks + 1] = cb
-    end
-  end
-  for i = #checks + 1, #list.SectionPool do list.SectionPool[i]:Hide() end
-  list.SectionChecks = checks
-  list.SectionsTitle:SetText(title or "")
-  list.SectionsTitle:SetShown(#checks > 0)
-end
-
--- A Filter button (the Mount Journal's WowStyle1FilterDropdownTemplate with
--- the 11.x SetupMenu API), or nil when this client lacks either (callers
--- fall back to checkboxes). Reusable by any view (the list, the checklist).
--- opts: {
---   items = function() -> UI.FilterMenuItems-style list (read when the
---     menu is built and again after each change; the checkboxes' states
---     come from that one read),
---   onChange = function(kind, value): ("toggle", key) when a checkbox is
---     clicked, ("action", action) for a button (the menu stays open),
---   isDefault = function() -> bool and reset = function() (optional, both
---     needed): the reset arrow next to the button while not at the defaults,
---   fallbackName = string (optional): what replaces the dropdown on clients
---     without it, for /mtrail debug (default "checkbox panel"),
--- }
-function UI.CreateFilterDropdown(parent, opts)
-  local fallbackName = opts.fallbackName or "checkbox panel"
-  local template = UI.Template("WowStyle1FilterDropdownTemplate", nil)
-  if not template then return nil end
-  local good, dropdown = pcall(CreateFrame, "DropdownButton", nil, parent, template)
-  if not (good and type(dropdown) == "table") then
-    UI.RecordFallback("DropdownButton", fallbackName)
-    return nil
-  end
-  if type(dropdown.SetupMenu) ~= "function" then
-    dropdown:Hide()
-    UI.RecordFallback("DropdownButton:SetupMenu", fallbackName)
-    return nil
-  end
-  dropdown:SetSize(FILTER_BUTTON_WIDTH, FILTER_BUTTON_HEIGHT)
-  if dropdown.Text and dropdown.Text.SetText then dropdown.Text:SetText(L["Filter"]) end
-
-  -- key -> checked from the last items() read; nil = read again on demand
-  -- (after a change).
-  local checked
-  local function readItems()
-    local items = opts.items() or {}
-    checked = {}
-    for _, item in ipairs(items) do
-      if item.kind == "checkbox" then checked[item.key] = item.checked == true end
-    end
-    return items
-  end
-  local function isChecked(key)
-    if not checked then readItems() end
-    return checked[key] == true
-  end
-  local function changed(kind, value)
-    opts.onChange(kind, value)
-    checked = nil
-  end
-
-  dropdown:SetupMenu(function(_, root)
-    for _, item in ipairs(readItems()) do
-      if item.kind == "checkbox" then
-        local key = item.key
-        root:CreateCheckbox(item.label, function() return isChecked(key) end,
-          function() changed("toggle", key) end)
-      elseif item.kind == "divider" then
-        root:CreateDivider()
-      elseif item.kind == "title" then
-        root:CreateTitle(item.label)
-      elseif item.kind == "button" then
-        local action = item.action
-        root:CreateButton(item.label, function()
-          changed("action", action)
-          -- Keep the menu open and redraw its checkboxes.
-          return MenuResponse and MenuResponse.Refresh or nil
-        end)
-      end
-    end
-  end)
-
-  if opts.isDefault and opts.reset and type(dropdown.SetDefaultCallback) == "function"
-    and type(dropdown.SetIsDefaultCallback) == "function" then
-    dropdown:SetIsDefaultCallback(opts.isDefault)
-    dropdown:SetDefaultCallback(function()
-      opts.reset()
-      checked = nil
-    end)
-  end
-  return dropdown
-end
-
--- The list's Filter button: UI.FilterMenuItems of the list's view over
--- ns.db.global.filters; every change writes them and calls ns.Refresh().
-local function createFilterDropdown(list)
-  return UI.CreateFilterDropdown(list, {
-    items = function()
-      return UI.FilterMenuItems(list.tab, filtersDB() or ns.Journal.DefaultFilters)
-    end,
-    onChange = function(kind, value)
-      local filters = filtersDB()
-      if not filters then return end
-      if kind == "toggle" then
-        UI.ToggleFilter(filters, value, list.tab)
-      else
-        UI.ApplyFilterAction(filters, value, list.tab)
-      end
-      ns.Refresh()
-    end,
-    isDefault = function()
-      local filters = filtersDB()
-      return filters == nil or UI.FiltersAreDefault(filters, list.tab)
-    end,
-    reset = function()
-      local filters = filtersDB()
-      if filters then
-        UI.ApplyFilterAction(filters, "reset", list.tab)
-        ns.Refresh()
-      end
-    end,
-  })
-end
 
 function UI.List(parent, getQuery, opts)
   local list = CreateFrame("Frame", nil, parent)
@@ -1774,10 +727,10 @@ function UI.List(parent, getQuery, opts)
 
   -- Top row: search box + Filter button. Fallback: the left filter panel
   -- (search box on top of it).
-  local dropdown = createFilterDropdown(list)
+  local dropdown = UI.ListFilterDropdown(list, opts and opts.menu)
   list.FilterDropdown = dropdown
   local searchParent = list
-  if not dropdown then searchParent = buildFilterPanel(list) end
+  if not dropdown then searchParent = UI.BuildFilterPanel(list) end
 
   local search = CreateFrame("EditBox", nil, searchParent, "SearchBoxTemplate")
   search:SetAutoFocus(false)
@@ -1790,22 +743,17 @@ function UI.List(parent, getQuery, opts)
   end)
   list.SearchBox = search
   if dropdown then
-    -- Flat header strip behind the top row, with a thin rule underneath.
-    local strip = list:CreateTexture(nil, "BACKGROUND")
-    strip:SetPoint("TOPLEFT", list, "TOPLEFT", 0, 0)
-    strip:SetPoint("TOPRIGHT", rightEdge, rightPoint, 0, 0)
-    strip:SetHeight(TOP_ROW - 2)
-    strip:SetColorTexture(1, 1, 1, 0.04)
+    -- The top row on the window's own fill, a thin rule underneath.
     local rule = list:CreateTexture(nil, "BORDER")
     rule:SetHeight(1)
-    rule:SetPoint("TOPLEFT", strip, "BOTTOMLEFT", 0, 0)
-    rule:SetPoint("TOPRIGHT", strip, "BOTTOMRIGHT", 0, 0)
+    rule:SetPoint("TOPLEFT", list, "TOPLEFT", 0, -(TOP_ROW - 2))
+    rule:SetPoint("TOPRIGHT", rightEdge, rightPoint, 0, -(TOP_ROW - 2))
     rule:SetColorTexture(1, 1, 1, 0.1)
     search:SetSize(SEARCH_WIDTH, 20)
     search:SetPoint("TOPLEFT", list, "TOPLEFT", 10, -4)
     dropdown:SetPoint("LEFT", search, "RIGHT", 8, 0)
   else
-    layoutFilterPanel(list, search)
+    UI.LayoutFilterPanel(list, search)
   end
 
   -- Scroll list ----------------------------------------------------------------
@@ -1900,7 +848,7 @@ function UI.List(parent, getQuery, opts)
       local dd = self.FilterDropdown
       if dd and type(dd.GenerateMenu) == "function" then dd:GenerateMenu() end
     end
-    if self.FilterPanel then refreshFilterPanel(self, filters, tab) end
+    if self.FilterPanel then UI.RefreshFilterPanel(self, filters, tab) end
     if self.FilterDropdown and type(self.FilterDropdown.ValidateResetState) == "function" then
       self.FilterDropdown:ValidateResetState()
     end
@@ -1914,6 +862,7 @@ function UI.List(parent, getQuery, opts)
     end
     local selected = select((ns.Data and ns.Data.Mounts) or {}, query)
     local rows = UI.ListRows(selected, query.isOwned, {
+      bare = query.bare,
       headerSuffix = opts and opts.headerSuffix,
       headerActive = opts and opts.headerActive,
       rowTag = opts and opts.rowTag,

@@ -152,6 +152,11 @@ local function attempts(mountID, m)
   })
 end
 
+-- The same for other views (the drop alert, UI/DropAlert.lua).
+function UI.MountAttempts(mountID, m)
+  return attempts(mountID, m or mountData(mountID) or {})
+end
+
 -- Whether attempts are worth showing for a mount: it has a drop chance,
 -- kill statistics, or a lockout spec (Lockouts.SpecFor, incl. the route
 -- boss's BossLockouts; `routeBoss` as UI.LockoutStatus). Shop / vendor /
@@ -228,7 +233,7 @@ function UI.TooltipLines(mountID, routeBoss, opts)
   local status = UI.LockoutStatus(mountID, routeBoss)
   lines[#lines + 1] = line(string.format(L["Lockout: %s"], L[STATUS_TEXT[status] or "—"]), GOLD)
 
-  local achievementLines, achievementID = UI.AchievementLines(mountID)
+  local achievementLines = UI.AchievementLines(mountID)
   for _, a in ipairs(achievementLines) do
     lines[#lines + 1] = { left = a.text, r = a.r, g = a.g, b = a.b, wrap = a.wrap }
   end

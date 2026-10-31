@@ -1,7 +1,5 @@
 local ADDON, ns = ...
 
-ns.version = "0.1.0"
-
 -- UI hook: re-renders the visible tab. A no-op until UI\Frame.lua (loaded after
 -- this file) replaces it; always call it as ns.Refresh() so the replacement is
 -- picked up.
@@ -261,8 +259,14 @@ function addon:OnEnteringWorld()
   ns.RefreshSoon()
 end
 
-function addon:OnLockoutEvent(event)
+function addon:OnLockoutEvent(event, ...)
   if event == "UPDATE_INSTANCE_INFO" then ready.instances = true end
+  -- A mount learned: the drop alert (UI/DropAlert.lua), before the attempts
+  -- update below can tidy anything away.
+  if event == "NEW_MOUNT_ADDED" and ns.UI and ns.UI.OnMountLearned then
+    local good, err = pcall(ns.UI.OnMountLearned, ...)
+    if not good and ns.Game.ReportError then ns.Game.ReportError(err) end
+  end
   if event == "LFG_UPDATE_RANDOM_INFO" then ready.lfg = true end
   ns.UpdateAttempts(event == "UPDATE_INSTANCE_INFO")
   if event == "UPDATE_INSTANCE_INFO" then ns.UpdateStats() end
@@ -357,6 +361,15 @@ function addon:OnSlash(input)
     else
       self:Print(L["The window is not available yet. Type /mtrail help for commands."])
     end
+  elseif cmd == "hide" or cmd == "show" then
+    -- The minimap button (the same setting as Options' Show minimap button).
+    if ns.Options and ns.Options.Set then
+      ns.Options.Set("minimap", cmd == "show")
+      self:Print(cmd == "show" and L["Minimap button shown."]
+        or L["Minimap button hidden. /mtrail show brings it back; /mtrail opens the window."])
+    else
+      self:Print(L["The options page is not available on this client."])
+    end
   elseif cmd == "options" then
     if ns.Options and ns.Options.Open then
       ns.Options.Open()
@@ -386,6 +399,7 @@ function addon:OnSlash(input)
     self:Print(L["/mtrail rares - show or hide the rare spawns of your zone"])
     self:Print(L["/mtrail zone - show or hide every mount still to get in your zone"])
     self:Print(L["/mtrail options - open the MountTrail options (Options > AddOns)"])
+    self:Print(L["/mtrail hide / show - hide or show the minimap button"])
     self:Print(L["/mtrail alts - show or hide the alt lockout matrix (who is still unsaved)"])
     self:Print(L["/mtrail import - paste a list someone shared"])
     self:Print(L["/mtrail sharetest - check that sharing works on this client"])

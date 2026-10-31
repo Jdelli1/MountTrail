@@ -133,12 +133,10 @@ local function openJournalList(ns)
   ns.ToggleWindow()
   local journal = content(ns, "journal")
   local home = journal.children[2] -- [1] is the Coming soon placeholder
-  local card = home.children[1]
-  card:RunScript("OnEnter")
-  card:RunScript("OnLeave")
-  card:RunScript("OnClick", "LeftButton")
+  local row = home.Expansions[1]
+  row:RunScript("OnClick", "LeftButton")
   local listPage = journal.children[3]
-  ok(listPage:IsShown() and not home:IsShown(), "card opens the list")
+  ok(listPage:IsShown() and not home:IsShown(), "an expansion row opens the list")
   local holder
   for _, child in ipairs(listPage.children) do
     local first = child.children and child.children[1]
@@ -149,21 +147,15 @@ local function openJournalList(ns)
 end
 
 describe("ui build", function()
-  it("journal home builds a card per expansion with flat edges", function()
+  it("journal home lists each expansion as a pop-out style progress row", function()
     local ns = loadUI()
     ns.ToggleWindow()
     local home = content(ns, "journal").children[2]
-    eq(#home.children, #ns.Data.Expansions + 1, "the cards, then the summary strip")
-    local card = home.children[1]
-    ok(card.Edge and #card.Edge.edges == 4, "flat 1 px edge")
-    eq(card.Logo.texture, 123, "logo from the client")
-    ok(card.Logo:IsShown() and not card.Name:IsShown(), "logo instead of the name")
-    eq(card.Logo:GetPoint(1), "CENTER", "logo centred")
-    eq(card.Bar.height, 3, "slim bar")
-    card:RunScript("OnEnter")
-    eq(card.Edge.edges[1].color, { 1, 0.82, 0, 0.6 }, "gold edge on hover")
-    card:RunScript("OnLeave")
-    eq(card.Edge.edges[1].color, { 1, 1, 1, 0.1 })
+    eq(#home.Expansions, #ns.Data.Expansions, "a row per expansion")
+    local row = home.Expansions[1]
+    eq(row.Tag.exp, ns.Data.Expansions[1], "its expansion tag")
+    eq(row.Bar.height, 6, "slim bar")
+    eq(row.Name.textColor, ns.UI.EXPANSION_COLORS[ns.Data.Expansions[1]], "its name in the expansion's colour")
   end)
 
   it("the journal list has a full-width list under the search box and Filter button", function()
@@ -181,7 +173,8 @@ describe("ui build", function()
     for _, f in ipairs(frames) do
       if f.Stripe then
         if f.Stripe:IsShown() then sawStripe = true else sawPlain = true end
-        ok(f.Name.font == ns.UI.Font("GameFontNormal") or f.Name.font == ns.UI.OwnedFont(), "GameFont family")
+        ok(f.Name.font == ns.UI.Font("GameFontHighlight") or f.Name.font == ns.UI.OwnedFont(), "GameFont family")
+        eq(f.Icon, nil, "no icon on a row: the detail pane shows the mount")
       end
     end
     ok(sawStripe and sawPlain, "every other row striped")
@@ -203,28 +196,40 @@ describe("ui build", function()
     eq(f.Owned.color, { 0.25, 0.85, 0.35, 0.14 })
     eq(f.Owned.layer, "BACKGROUND")
     eq(f.Owned.sublevel, 1, "above the stripe")
-    eq(f.Icon.desaturated, false, "full-colour icon")
     eq(f.Strike, nil, "no strikethrough")
     eq(f.Name.font, ns.UI.OwnedFont(), "light green name")
+    ok(not f.Name:GetText():find(ns.UI.MARK_DONE, 1, true), "no tick while the colour-blind marks are off")
+    -- Colour-blind marks: a tick says "owned" too, not only the green.
+    ns.Options = ns.Options or {}
+    local savedMarks = ns.Options.ColorblindMarks
+    ns.Options.ColorblindMarks = function() return true end
+    list.ScrollBox.view.factory(function(_, init) init(f, rows[owned]) end, rows[owned])
+    ok(f.Name:GetText():find(ns.UI.MARK_DONE, 1, true), "a tick on the owned row")
+    list.ScrollBox.view.factory(function(_, init) init(frames[plain], rows[plain]) end, rows[plain])
+    ok(not frames[plain].Name:GetText():find(ns.UI.MARK_DONE, 1, true), "none on a missing one")
+    ns.Options.ColorblindMarks = savedMarks
     local p = frames[plain]
     ok(not p.Owned:IsShown(), "missing mounts: no green")
-    eq(p.Name.font, ns.UI.Font("GameFontNormal"))
-    eq(p.Icon.desaturated, false)
+    eq(p.Name.font, ns.UI.Font("GameFontHighlight"), "white, as on every list")
     -- A recycled frame drops the green look.
     list.ScrollBox.view.factory(function(_, init) init(f, rows[plain]) end, rows[plain])
     ok(not f.Owned:IsShown(), "recycled: green off")
-    eq(f.Name.font, ns.UI.Font("GameFontNormal"))
+    eq(f.Name.font, ns.UI.Font("GameFontHighlight"))
     list.ScrollBox.view.factory(function(_, init) init(f, rows[owned]) end, rows[owned])
     ok(f.Owned:IsShown(), "and on again")
   end)
 
-  it("UI.OwnedFont: a light green copy of GameFontNormal, GameFontGreen without CreateFont", function()
+  it("UI.OwnedFont: a light green copy of the mount names' font, sized with them; GameFontGreen without it", function()
     local ns = loadUI()
-    local name = ns.UI.OwnedFont()
+    eq(ns.UI.OwnedFont(), ns.UI.Font("GameFontGreen"), "no GameFontHighlight: the fallback")
+    local ns2 = loadUI()
+    GameFontHighlight = { name = "GameFontHighlight" }
+    local name = ns2.UI.OwnedFont()
     eq(name, "MountTrailFontOwned")
     local font = _G[name]
-    eq(font.base, _G[ns.UI.Font("GameFontNormal")], "from the sized copy of GameFontNormal")
+    eq(font.base, GameFontHighlight, "from GameFontHighlight: \"Mount names and text\" sizes it")
     eq(font.color, { 0.55, 0.95, 0.6 })
+    GameFontHighlight = nil
   end)
 
   it("the Filter menu writes ns.db.global.filters, refreshes and drives the reset arrow", function()
@@ -294,15 +299,17 @@ describe("ui build", function()
     eq(boxes, 13, "Misc: Collected + its twelve categories")
   end)
 
-  it("source lines use the dimmed highlight font", function()
+  it("source lines use the body text's font, dimmed", function()
     local ns = loadUI()
+    GameFontHighlight = { name = "GameFontHighlight" }
     local list = openJournalList(ns)
     local frames = render(list.ScrollBox)
     local row
     for _, f in ipairs(frames) do if f.Source then row = f; break end end
     eq(row.Source.template, "MountTrailFontSource")
-    eq(MountTrailFontSource.base, GameFontHighlightSmall)
+    eq(MountTrailFontSource.base, GameFontHighlight, "the mount names' font: one slider sizes both")
     eq(MountTrailFontSource.color, { 0.7, 0.7, 0.7 })
+    GameFontHighlight = nil
   end)
 
   it("falls back to the checkbox panel without the dropdown template", function()
@@ -720,11 +727,14 @@ describe("ui build", function()
     eq(#chips, 4, "All / Daily / Weekly / Rare Spawns (the lists live in the navigation)")
     eq(chips[1].Text:GetText(), "All")
     eq(chips[1].selected, true)
-    ok(chips[2].Text:GetText():find("^Daily %(%d+%)$"), chips[2].Text:GetText())
-    ok(chips[4].Text:GetText():find("^Rare Spawns %(%d+%)$"), chips[4].Text:GetText())
+    ok(chips[2].Text:GetText():find("^Daily  |cff9d9d9d%d+|r$"), chips[2].Text:GetText())
+    ok(chips[4].Text:GetText():find("^Rare Spawns  |cff9d9d9d%d+|r$"), chips[4].Text:GetText())
+    ok(chips[1].Line:IsShown() and not chips[2].Line:IsShown(), "flat tabs: the shown one underlined")
+    eq(chips[1].Text.textColor, { 1, 0.82, 0 }, "and gold")
     chips[4]:RunScript("OnClick", "LeftButton")
     eq(ns.db.char.checklistShow, "camp")
     eq(chips[4].selected, true)
+    ok(chips[4].Line:IsShown() and not chips[1].Line:IsShown(), "the line moves with it")
     for _, row in ipairs(header.Checklist.ScrollBox.provider.rows) do
       ok(row.camp, "only the rare spawns group")
     end
@@ -914,8 +924,9 @@ describe("ui build", function()
     local before = #rows
     local header = render(list.ScrollBox)[1]
     ok(header.mouse, "header takes the mouse")
-    eq(header.Indicator:IsShown() or header.IndicatorText:IsShown(), true, "a +/- indicator")
-    eq(header.IndicatorText.text, "\226\128\147", "expanded: en dash (no atlas in the stub)")
+    eq(header.Glyph.text, "-", "expanded: a pop-out header's \"-\"")
+    eq(header.Label.textColor, { 1, 0.82, 0 }, "a section header in the header colour (gold)")
+    eq(header.Rule.color, { 1, 0.82, 0, 0.35 }, "over a thin rule of it")
 
     header:RunScript("OnMouseUp", "LeftButton")
     eq(ns.db.global.collapsed, { [first.key] = true })
@@ -924,7 +935,7 @@ describe("ui build", function()
     ok(rows[2] == nil or (rows[2].header and rows[2].depth == 1), "its sub-headers and mounts are gone")
     ok(#rows < before, "fewer rows")
     header = render(list.ScrollBox)[1]
-    eq(header.IndicatorText.text, "+")
+    eq(header.Glyph.text, "+")
 
     header:RunScript("OnMouseUp", "RightButton")
     eq(ns.db.global.collapsed[first.key], true, "right-click does nothing")
@@ -933,17 +944,7 @@ describe("ui build", function()
     eq(#list.ScrollBox.provider.rows, before)
   end)
 
-  it("uses the atlas indicator when the client has it", function()
-    local ns = loadUI()
-    STUB_ATLASES.campaign_headericon_open = true
-    STUB_ATLASES.campaign_headericon_closed = true
-    local list = openJournalList(ns)
-    local header = render(list.ScrollBox)[1]
-    eq(header.Indicator.atlas, "campaign_headericon_open")
-    ok(header.Indicator:IsShown() and not header.IndicatorText:IsShown(), "atlas, no text")
-  end)
-
-  it("sub-headers are indented and smaller; counts include owned mounts the Collected filter hides", function()
+  it("sub-headers are indented and shorter, in the same readable font; counts include owned mounts the Collected filter hides", function()
     local ns = loadUI()
     ns.Game.MountSourceText = function(id) return "|cFFFFD200Zone:|r Zone " .. (id % 2) end
     local list = openJournalList(ns)
@@ -957,8 +958,8 @@ describe("ui build", function()
     end
     ok(sub, "dungeon/raid/world sections split into sub-groups")
     eq(top.Label.font, ns.UI.Font("GameFontNormal"))
-    eq(sub.Label.font, ns.UI.Font("GameFontNormalSmall"))
-    ok(select(4, sub.Indicator:GetPoint(1)) > select(4, top.Indicator:GetPoint(1)), "sub-header indented")
+    eq(sub.Label.font, ns.UI.Font("GameFontNormal"), "no small font: colour and indent set them apart")
+    ok(select(4, sub.Glyph:GetPoint(1)) > select(4, top.Glyph:GetPoint(1)), "sub-header indented")
     eq(list.ScrollBox.view.extent(1, { header = true, depth = 2 }) < list.ScrollBox.view.extent(1, rows[1]), true,
       "sub-headers are shorter")
 
@@ -1022,12 +1023,12 @@ describe("ui build", function()
       if not row.header and row.depth == 2 and not nested then nested = i end
     end
     ok(subHeader and nested, "a nested mount row")
-    local inset = select(4, subHeader.Indicator:GetPoint(1))
-    eq(select(4, frames[nested].Icon:GetPoint(1)), inset, "icon lines up with the sub-header indicator")
+    local inset = select(4, subHeader.Glyph:GetPoint(1))
+    eq(select(4, frames[nested].Tag:GetPoint(1)), inset, "the tag lines up with the sub-header's glyph")
     -- The same frame recycled for a flat row goes back to the normal inset.
     local flat = { id = rows[nested].id, m = rows[nested].m, owned = false }
     initFor(list.ScrollBox, flat)(frames[nested], flat)
-    eq(select(4, frames[nested].Icon:GetPoint(1)), 4)
+    eq(select(4, frames[nested].Tag:GetPoint(1)), 4)
   end)
 
   it("other tabs collapse their (flat) sections under their own view key", function()
@@ -1085,6 +1086,8 @@ describe("ui build", function()
     local computed = 0
     local real = ns.Zone.MountsFor
     ns.Zone.MountsFor = function(...) computed = computed + 1; return real(...) end
+    -- Home's Nearby keeps its own zone list: only the panel's builds count here.
+    ns.UI.HomeNearby = function() return {}, nil end
     return ns, map, function() return computed end
   end
 
@@ -1399,7 +1402,7 @@ describe("ui build", function()
     eq(rows[1].key, "checklist|daily")
     local frames = render(box)
     ok(frames[1].Label:GetText():find("^Daily \194\183 resets in "), frames[1].Label:GetText())
-    ok(frames[1].Label:GetText():find("(0/" .. rows[1].total .. ")", 1, true), "done/total")
+    ok(frames[1].Label:GetText():find("(" .. rows[1].total .. " left)", 1, true), "what is left, as the pop-outs count")
     local weekly
     for i, row in ipairs(rows) do if row.header and row.depth == 1 and row.reset == "weekly" then weekly = i end end
     ok(weekly and weekly > 2, "weekly header after the daily rows")
@@ -1409,7 +1412,8 @@ describe("ui build", function()
     eq(rows[2].depth, 2)
     ok(rows[2].key:find("^checklist|daily|"), rows[2].key)
     eq(box.view.extent(1, rows[2]), 20, "sub-header height")
-    ok(frames[2].Label:GetText():find("(0/" .. rows[2].total .. ")", 1, true), "sub-header done/total")
+    ok(frames[2].Label:GetText():find("(" .. rows[2].total .. " left)", 1, true), "sub-header: what is left")
+    eq(frames[2].Label.textColor, ns.UI.EXPANSION_COLORS[rows[2].exp], "an expansion header in its colour")
 
     -- F14: then a category header (Raids, Dungeons, ...) one step further in.
     eq(rows[3].header, true)
@@ -1417,9 +1421,9 @@ describe("ui build", function()
     ok(rows[3].key:find("^" .. rows[2].key:gsub("%p", "%%%0") .. "|"), rows[3].key)
     ok(rows[3].category, "category header")
     eq(box.view.extent(1, rows[3]), 20, "category header: sub-header height")
-    eq({ frames[3].Indicator:GetPoint(1) }, { "LEFT", frames[3], "LEFT", 22 + 16, 0 }, "indented a step further")
-    eq(frames[3].Label.font, ns.UI.Font("GameFontNormalSmall"))
-    ok(frames[3].Label:GetText():find("(0/" .. rows[3].total .. ")", 1, true), "category done/total")
+    eq({ frames[3].Glyph:GetPoint(1) }, { "LEFT", frames[3], "LEFT", 22 + 16, 0 }, "indented a step further")
+    eq(frames[3].Label.font, ns.UI.Font("GameFontNormal"))
+    ok(frames[3].Label:GetText():find("(" .. rows[3].total .. " left)", 1, true), "category: what is left")
 
     -- A row: list look, pin, click, hover. A game-tracked lockout has no
     -- tick box (the game decides); the icon keeps its place either way.
@@ -1435,7 +1439,11 @@ describe("ui build", function()
     ok(not row.entry.spec.manual, "the first daily entry is game-tracked")
     eq(row.depth, 3, "under its category header")
     eq(f.Check:IsShown(), false, "no tick box on a game-tracked lockout")
-    eq({ f.Icon:GetPoint(1) }, { "LEFT", f, "LEFT", 6 + 22 + 4 + 32, 0 }, "icon after the tick-box column, indented")
+    eq(box.view.extent(1, row), 22, "one line tall, as every list's rows")
+    eq({ f.Tag:GetPoint(1) }, { "LEFT", f, "LEFT", 6 + 18 + 4 + 32, 0 }, "the expansion tag after the tick-box column, indented")
+    ok(f.Tag:IsShown() == (ns.UI.ExpansionTag(row.m.exp) ~= nil), "the mount's expansion tag")
+    eq(f.Source.justifyH, "RIGHT", "boss / instance on the right")
+    eq(f.Source.template, ns.UI.SourceFont(), "at the body text's size, not the small font")
     eq({ f.Check:GetPoint(1) }, { "LEFT", f, "LEFT", 6 + 32, 0 }, "tick-box column indented")
     eq(f.Pin:IsShown(), row.id % 2 == 0)
     ok(f.Source:GetText() ~= "", "grey description line")
@@ -1549,7 +1557,8 @@ describe("ui build", function()
       if group == "Assault: Uldum" then
         seen.uldum = true
         eq(row.status, uldum)
-        ok(frames[i].Source:GetText():find(uldum, 1, true), frames[i].Source:GetText())
+        ok(frames[i].Name:GetText():find(uldum, 1, true), "beside the name: " .. frames[i].Name:GetText())
+        ok(not frames[i].Source:GetText():find(uldum, 1, true), "not cut off at the end of the right-hand line")
       elseif group == "Warfront: Darkshore" then
         seen.darkshore = true
         eq(row.status, "Status unknown — click to load")

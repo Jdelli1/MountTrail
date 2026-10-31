@@ -180,6 +180,26 @@ local function factionOk(m, faction)
   return m.faction == faction
 end
 
+-- Sections the player chose not to count (Options: "Count in-game shop
+-- mounts" and the like): { [section] = true }. Their mounts stay listed
+-- everywhere; owned or not, they are left out of the collected numbers
+-- (Journal.Counts, Home's totals: UI.HomeSourceCounts). Set by
+-- UI/Options.lua (Journal.SetExcluded).
+Journal.excluded = {}
+
+-- Whether not-owned unobtainable mounts count in the collected numbers
+-- (Options: "Show unobtainable mounts" and its "Count towards the total";
+-- owned ones always count). Set by UI/Options.lua.
+Journal.countUnobtainable = false
+
+function Journal.SetExcluded(set)
+  Journal.excluded = type(set) == "table" and set or {}
+end
+
+function Journal.IsExcluded(m)
+  return m ~= nil and m.section ~= nil and Journal.excluded[m.section] == true
+end
+
 -- Common gate for Select and Counts: known to this client, right faction, and
 -- obtainable (or already owned; or any unobtainable one with
 -- showUnobtainable, which only Select passes). Returns owned (boolean) or nil
@@ -335,8 +355,8 @@ end
 function Journal.Counts(mounts, exp, isOwned, exists, faction, sourceText)
   local owned, total = 0, 0
   for id, m in pairs(mounts) do
-    if (exp == nil or m.exp == exp) and Journal.ViewOf(m) == "journal" then
-      local o = gate(id, m, isOwned, exists, faction)
+    if (exp == nil or m.exp == exp) and Journal.ViewOf(m) == "journal" and not Journal.IsExcluded(m) then
+      local o = gate(id, m, isOwned, exists, faction, Journal.countUnobtainable)
       if o ~= nil then
         total = total + 1
         if o then owned = owned + 1 end

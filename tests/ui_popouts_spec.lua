@@ -451,7 +451,29 @@ describe("pop-out windows", function()
     local l = ns.UI.OpenPopout({ kind = "list", list = id })
     for _, h in ipairs(l.groupFrames) do ok(not h:IsShown(), "no headers on a custom list") end
     eq(#l.rows, 2)
-    ok(string.lower(l.rows[1].name) < string.lower(l.rows[2].name), "by name, expansions mixed")
+    eq({ l.rows[1].id, l.rows[2].id }, { 614, 1 }, "in the order added, expansions mixed")
+    -- By expansion (the title menu): headers, the list's order inside.
+    local items = ns.UI.PopoutMenuExtra(l)
+    eq({ items[1].text, items[1].checked, items[2].text, items[2].checked },
+      { "Sort: order added", true, "Sort: by expansion", false })
+    items[2].onClick()
+    eq(ns.Lists.SortOf(store, id), "expansion")
+    local shown = {}
+    for _, h in ipairs(l.groupFrames) do if h:IsShown() then shown[#shown + 1] = h.Text:GetText() end end
+    eq(#shown, 2, "a header per expansion")
+    ok(shown[1]:find("^%- Classic"), shown[1])
+    eq(ns.UI.PopoutMenuExtra(q), {}, "a quick list has no sort")
+    -- Move down (a row's right-click) changes the list itself.
+    ns.Lists.SetSort(store, id, "added")
+    ns.Lists.Move(store, id, 614, 1)
+    ns.Refresh()
+    eq({ l.rows[1].id, l.rows[2].id }, { 1, 614 }, "the list's new order")
+    -- Alt-drag: the list itself changes, not a window order.
+    l.dragKey, l.dropAt = l.rows[2].key, 1
+    l.SetScript = l.SetScript or function() end
+    ns.UI.PopoutDragDrop(l)
+    eq(store.lists[id].mounts, { 614, 1 }, "dragged to the top of the list")
+    eq((ns.db.global.popouts[l.key] or {}).order, nil, "no per-window order for a custom list")
   end)
 
   it("Alt-drag keeps a row inside its expansion group; moving down lands at the line", function()
@@ -1229,14 +1251,33 @@ describe("lists in the navigation column", function()
     eq(page.Title:GetText(), "Loop")
     ok(navButton(ns, "Loop").selected and not navButton(ns, "Home").selected, "its entry marked")
     eq(ns.UI.ListCardStatsFor({ kind = "list", list = id }, built()), { have = 1, total = 2, open = 1 })
-    -- Collected on: the owned mount's source shows too.
+    -- The list's own order, no headers; Collected on: the owned mount too.
+    local function ids()
+      local out = {}
+      for _, r in ipairs(page.List.ScrollBox.provider.rows) do
+        ok(not r.header, "in the order added: no headers")
+        out[#out + 1] = r.id
+      end
+      return out
+    end
     ns.db.global.filters.collected = true
+    page.List:Refresh()
+    eq(ids(), store.lists[id].mounts, "the order the mounts were added")
+    ns.Lists.Move(store, id, store.lists[id].mounts[2], -1)
+    page.List:Refresh()
+    eq(ids(), store.lists[id].mounts, "moved: the list's new order")
+    -- By expansion: a header per expansion, the list's order inside.
+    ns.Lists.SetSort(store, id, "expansion")
     page.List:Refresh()
     local have, total = 0, 0
     for _, r in ipairs(page.List.ScrollBox.provider.rows) do
-      if r.header and (r.depth or 1) == 1 then have, total = have + (r.owned or 0), total + (r.total or 0) end
+      if r.header then
+        eq(r.depth, 1)
+        have, total = have + (r.owned or 0), total + (r.total or 0)
+      end
     end
-    eq({ have, total }, { 1, 2 }, "by source, owned counted")
+    eq({ have, total }, { 1, 2 }, "by expansion, owned counted")
+    ns.Lists.SetSort(store, id, "added")
     ns.db.global.filters.collected = false
     page.PopOut:RunScript("OnClick", "LeftButton")
     ok(ns.UI.PopoutWindows["list|" .. id]:IsShown())
@@ -1260,10 +1301,11 @@ describe("lists in the navigation column", function()
     local nav = ns.UI.frame.Nav
     local function heading(text)
       for _, h in ipairs(nav.Headings) do
-        if h:IsShown() and h.Text:GetText() == text then return h end
+        if h:IsShown() and (h.Text:GetText():gsub("^[%+%-] ", "")) == text then return h end
       end
     end
     local mine, quick = heading("My lists"), heading("Quick lists")
+    eq(mine.Text:GetText(), "- My lists", "open: a pop-out header's \"- \"")
     ok(mine and quick, "two headings")
     eq(mine.key, ns.UI.NAV_LISTS_KEY)
     ok(navButton(ns, "Loop") and navButton(ns, "Weekly lockouts"), "both sections open")
@@ -1272,6 +1314,7 @@ describe("lists in the navigation column", function()
     eq(navButton(ns, "Loop"), nil, "My lists collapsed")
     ok(navButton(ns, "Weekly lockouts"), "Quick lists still open")
     ok(heading("My lists").collapsed, "marked collapsed")
+    eq(heading("My lists").Text:GetText(), "+ My lists")
     heading("Quick lists"):RunScript("OnClick", "LeftButton")
     eq(navButton(ns, "Weekly lockouts"), nil, "Quick lists collapsed")
     heading("My lists"):RunScript("OnClick", "LeftButton")
@@ -1290,7 +1333,7 @@ describe("lists in the navigation column", function()
     home(ns)
     local daily = navButton(ns, "Daily lockouts")
     ok(daily and navButton(ns, "Weekly lockouts") and navButton(ns, "Rare Spawns"), "the three groups")
-    eq(daily.Badge:GetText(), "2", "what is left")
+    eq(daily.Badge:GetText(), "2 left", "what is left")
     daily:RunScript("OnClick", "LeftButton")
     eq(ns.UI.CurrentTab(), "checklist")
     eq(ns.db.char.checklistShow, "daily")
@@ -1577,7 +1620,7 @@ describe("Show completed", function()
 end)
 
 describe("adding and removing a mount from your lists", function()
-  it("the pane's button counts your lists; on a list's page Remove comes first", function()
+  it("the pane's button counts your lists; on a list's page Move up / down and Remove come first", function()
     local ns = loadUI()
     local store = ns.UI.ListsDB()
     local id = ns.Lists.Create(store, "Loop")
@@ -1590,9 +1633,15 @@ describe("adding and removing a mount from your lists", function()
     local items
     ns.UI.ShowMenu = function(_, list) items = type(list) == "function" and list() or list end
     ns.UI.CurrentListPage = function() return { kind = "list", list = id } end
+    ns.Lists.Add(store, id, 1)
     ns.UI.ShowListMenu(pane.AddList, 614)
-    eq(items[2].text, "Remove from Loop")
+    eq({ items[2].text, items[3].text, items[4].text }, { "Move up", "Move down", "Remove from Loop" },
+      "on its list's page: move it, or take it off")
+    items[3].onClick()
+    eq(store.lists[id].mounts, { 1, 614 }, "moved down")
     items[2].onClick()
+    eq(store.lists[id].mounts, { 614, 1 }, "and up again")
+    items[4].onClick()
     eq(ns.Lists.Has(store, id, 614), false)
     ns.UI.ShowListMenu(pane.AddList, 614)
     eq(items[2].text, "Loop", "not on it: just the lists to tick")

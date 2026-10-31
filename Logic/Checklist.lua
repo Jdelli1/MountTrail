@@ -97,7 +97,7 @@ local CATEGORY_LABELS = {
 local CATEGORY_RANK = rankOf(CATEGORIES)
 Checklist.CATEGORIES = CATEGORIES
 
--- Rare Spawns with no lockout (camp specs, Lockouts.IsCamp): their own
+-- Rare Spawns with no lockout (camp specs, { camp = true }): their own
 -- top-level group after Daily and Weekly, and their own filter key.
 local CAMP = "camp"
 Checklist.CAMP = CAMP
@@ -178,7 +178,7 @@ end
 -- active. Owned mounts and mounts the gate excludes are left out.
 -- Members spending the same lockout (Checklist.LockoutKey: e.g. every
 -- Vault of Archavon watcher's rows) are ONE entry: one kill, one state, one row.
--- Camp specs (rare spawns with no kill flag, Lockouts.IsCamp) go to a third
+-- Camp specs (rare spawns with no kill flag, spec.camp) go to a third
 -- list, `camp`: entries with state = reset = category = "camp", done = false,
 -- zone = the spec's zone, never grouped, sorted by expansion, zone (none
 -- last), name.

@@ -4,17 +4,18 @@ local ADDON, ns = ...
 -- selected mount: Blizzard's mount preview (the Mount Journal's own
 -- WrappedAndUnwrappedModelScene: drag to rotate, wheel to zoom, the rider
 -- shown or not by the Mount Journal's "mountJournalShowPlayer" setting, its
--- checkbox here too), the name and icon, the client's flavor text, then the
+-- checkbox here too), the name, the client's flavor text, then the
 -- tooltip's lines (UI.TooltipLines without the click hints: source, chance,
 -- attempts, lockout, achievement) and "Where to find it": each NPC behind
 -- the mount (Map.Spots: the vendor, a rare) by name, its zones and how
 -- many spawn points - all in a scrolling area. No buttons: the list's rows
 -- do it (UI.PaneRowClick: right-click plots or opens the achievement, Shift map, Ctrl preview).
 --   local pane = UI.CreateDetailPane(parent)
---   pane:SetMount(mountID[, routeBoss])   -- nil: empty
+--   pane:SetMount(mountID[, routeBoss])   -- nil: folded away (1 px wide)
 --   pane:Refresh()                        -- same mount, fresh numbers
--- The model is reloaded only when the mount changes. Clients without the
--- model scene template show the large icon instead.
+-- The model is reloaded only when the mount changes. Without a model (the
+-- client lacks the scene template, or the mount has none) the model area
+-- stays empty.
 -- Its width is shared by every pane and saved (ns.db.global.window.
 -- paneWidth, UI.PANE_MIN..UI.PANE_MAX): drag its left edge (UI.Splitter),
 -- right-click there for the default.
@@ -48,7 +49,6 @@ function UI.SetPaneWidth(w, save)
   return w
 end
 local MODEL_HEIGHT = 230
-local HEADER_HEIGHT = 44
 local PAD = 10
 local LINE_GAP = 3
 local SCROLL_STEP = 30
@@ -242,10 +242,13 @@ end
 local function paint(pane)
   local id = pane.mountID
   local has = id ~= nil
+  -- No mount (an empty list, every header collapsed): the pane folds to
+  -- 1 px and the list takes its width; the first mount brings it back.
+  pane:SetWidth(has and pane.paneWidth or 1)
+  pane.ModelArea:SetShown(has)
+  if pane.Splitter then pane.Splitter:SetShown(has) end
   pane.Name:SetShown(has)
-  pane.Icon:SetShown(has)
   pane.Info:SetShown(has)
-  pane.Empty:SetShown(not has)
   pane.AddList:SetShown(has)
   pane.Wowhead:SetShown(has)
   -- "+ List" while the mount is on none of your lists, else "Lists (n)".
@@ -255,19 +258,10 @@ local function paint(pane)
     if ns.Lists.Has(store, l.id, id) then on = on + 1 end
   end
   UI.FlatButtonSetText(pane.AddList, on > 0 and string.format(L["Lists (%d)"], on) or L["+ List"])
-  local guides = has and UI.GuidesForMount and UI.GuidesForMount(id) or {}
-  if #guides > 0 then
-    UI.FlatButtonSetText(pane.Guide, L["Guide"])
-    pane.Guide:Show()
-  else
-    pane.Guide:SetWidth(1)
-    pane.Guide:Hide()
-  end
   if not has then return end
   local content = UI.DetailContent(id, pane.routeBoss)
   pane.content = content
   pane.Name:SetText(content.name)
-  pane.Icon:SetTexture(UI.MountIcon(id))
   pane.Owned:SetShown(ns.Game.IsOwned and ns.Game.IsOwned(id) and true or false)
   layoutInfo(pane, content)
 end
@@ -328,18 +322,14 @@ local function build(parent)
     end)
     pane.Rider = rider
   end
-  local bigIcon = modelArea:CreateTexture(nil, "ARTWORK")
-  bigIcon:SetSize(96, 96)
-  bigIcon:SetPoint("CENTER", modelArea, "CENTER", 0, 0)
-  bigIcon:Hide()
-  pane.BigIcon = bigIcon
 
-  -- Header: icon, name, a check when owned.
-  local icon = pane:CreateTexture(nil, "ARTWORK")
-  icon:SetSize(32, 32)
-  icon:SetPoint("TOPLEFT", modelArea, "BOTTOMLEFT", PAD, -8)
-  UI.StyleIcon(pane, icon)
-  pane.Icon = icon
+  -- Header: the name (no icon: the model shows the mount), a check when
+  -- owned, the buttons on the right; a 32 px band under the model.
+  local header = CreateFrame("Frame", nil, pane)
+  header:SetHeight(32)
+  header:SetPoint("TOPLEFT", modelArea, "BOTTOMLEFT", PAD, -8)
+  header:SetPoint("TOPRIGHT", modelArea, "BOTTOMRIGHT", -PAD, -8)
+  pane.Header = header
   -- "+ List": add the mount to a custom list (a flat menu of the lists,
   -- each toggled; "New list..." asks for a name).
   local addList = UI.FlatButton(pane, L["+ List"], "gold", 18)
@@ -364,29 +354,10 @@ local function build(parent)
   end)
   wowhead:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   pane.Wowhead = wowhead
-  -- "Guide": follow a guide written for this mount (UI/Guides.lua); only
-  -- when one exists (narrowed to nothing otherwise, so the name keeps room).
-  local guide = UI.FlatButton(pane, L["Guide"], "gold", 18)
-  guide:SetPoint("RIGHT", wowhead, "LEFT", -4, 0)
-  guide:SetScript("OnClick", function(self)
-    local guides = pane.mountID and UI.GuidesForMount and UI.GuidesForMount(pane.mountID) or {}
-    if #guides == 1 then
-      UI.StartGuide(guides[1].id)
-    elseif #guides > 1 then
-      local items = { { title = L["Guides"] } }
-      for _, g in ipairs(guides) do
-        items[#items + 1] = { text = g.title, onClick = function() UI.StartGuide(g.id) end }
-      end
-      UI.ShowMenu(self, items, "cursor")
-    end
-  end)
-  guide:SetScript("OnEnter", function(self) UI.ShowHint(self, L["Guide"], L["Follow a step-by-step guide for this mount."]) end)
-  guide:SetScript("OnLeave", function(self) UI.HideHint(self) end)
-  pane.Guide = guide
 
   local name = pane:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalLarge"))
-  name:SetPoint("LEFT", icon, "RIGHT", 8, 0)
-  name:SetPoint("RIGHT", guide, "LEFT", -22, 0)
+  name:SetPoint("LEFT", header, "LEFT", 0, 0)
+  name:SetPoint("RIGHT", wowhead, "LEFT", -22, 0)
   name:SetJustifyH("LEFT")
   name:SetWordWrap(true)
   if name.SetMaxLines then name:SetMaxLines(2) end
@@ -404,7 +375,7 @@ local function build(parent)
 
   -- Scrolling info: flavor text and the tooltip's lines.
   local scroll = CreateFrame("ScrollFrame", nil, pane)
-  scroll:SetPoint("TOPLEFT", icon, "BOTTOMLEFT", 0, -10)
+  scroll:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -10)
   scroll:SetPoint("BOTTOMRIGHT", pane, "BOTTOMRIGHT", -PAD, 8)
   if scroll.EnableMouseWheel then scroll:EnableMouseWheel(true) end
   local info = CreateFrame("Frame", nil, scroll)
@@ -417,20 +388,12 @@ local function build(parent)
   end)
   pane.Scroll, pane.Info = scroll, info
 
-  local empty = pane:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisable"))
-  empty:SetPoint("TOPLEFT", modelArea, "BOTTOMLEFT", PAD, -20)
-  empty:SetPoint("TOPRIGHT", modelArea, "BOTTOMRIGHT", -PAD, -20)
-  empty:SetText(L["Click a mount to see it here"])
-  pane.Empty = empty
-
   function pane:SetMount(mountID, routeBoss)
     local changed = mountID ~= self.mountID
     self.mountID, self.routeBoss = mountID, routeBoss
     if changed then
       local shown = mountID ~= nil and self.Scene ~= nil and UI.ShowMountModel(self.Scene, mountID)
       if self.Scene then self.Scene:SetShown(mountID ~= nil and shown) end
-      self.BigIcon:SetShown(mountID ~= nil and not shown)
-      if mountID then self.BigIcon:SetTexture(UI.MountIcon(mountID)) end
     end
     paint(self)
   end
@@ -442,7 +405,6 @@ local function build(parent)
   -- A new width (UI.SetPaneWidth): the pane, its buttons and its lines.
   function pane:SetPaneWidth(w)
     self.paneWidth = w
-    self:SetWidth(w)
     self.Info:SetWidth(w - 2 * PAD)
     paint(self)
   end
@@ -477,6 +439,15 @@ function UI.ShowListMenu(owner, mountID)
     local page = UI.CurrentListPage and UI.CurrentListPage()
     local here = page and page.kind == "list" and ns.Lists.Get(store, page.list)
     if here and ns.Lists.Has(store, page.list, mountID) then
+      -- On one of your list's pages: move it in that list, or take it off.
+      items[#items + 1] = { text = L["Move up"], onClick = function()
+        ns.Lists.Move(store, page.list, mountID, -1)
+        ns.Refresh()
+      end }
+      items[#items + 1] = { text = L["Move down"], onClick = function()
+        ns.Lists.Move(store, page.list, mountID, 1)
+        ns.Refresh()
+      end }
       items[#items + 1] = { text = string.format(L["Remove from %s"], here.name), onClick = function()
         ns.Lists.Remove(store, page.list, mountID)
         ns.Refresh()

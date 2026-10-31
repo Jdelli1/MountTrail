@@ -360,9 +360,9 @@ local function buildPanel(frame)
   rule:SetPoint("TOPRIGHT", strip, "BOTTOMRIGHT", 0, 0)
   rule:SetColorTexture(1, 0.82, 0, 0.25)
 
-  local close = CreateFrame("Button", nil, p, "UIPanelCloseButton")
-  close:SetSize(BUTTON_SIZE + 4, BUTTON_SIZE + 4)
-  close:SetPoint("TOPRIGHT", p, "TOPRIGHT", -4, -6)
+  local close = UI.FlatButton(p, "x", "plain", 18)
+  close:SetWidth(18)
+  close:SetPoint("TOPRIGHT", p, "TOPRIGHT", -5, -5)
   close:SetScript("OnClick", function() UI.SetZonePanelOpen(false) end)
   p.CloseButton = close
 

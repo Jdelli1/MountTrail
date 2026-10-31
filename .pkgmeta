@@ -13,6 +13,7 @@ ignore:
   - .github
   - .claude
   - .gitignore
+  - .gitattributes
   - .pkgmeta
   - .luacheckrc
   - CLAUDE.md

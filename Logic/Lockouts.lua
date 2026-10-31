@@ -183,16 +183,9 @@ function Lockouts.Progress(spec, snap)
   return out
 end
 
--- A camp spec ({ camp = true, zone = }): a rare spawn with no known kill
--- flag and no reset. Nothing the game reports marks it, no hand tick spends
--- it, it never counts attempts; it stays on the checklist until the mount is
--- owned (Checklist.Build's "camp" list).
-function Lockouts.IsCamp(spec)
-  return type(spec) == "table" and spec.camp == true
-end
-
 -- spec nil -> nil (not tracked); else "done" | "open" | "manual" | "camp"
--- (Lockouts.IsCamp: never done).
+-- (a camp spec, { camp = true }: a rare spawn with no kill flag and no
+-- reset, never done; it stays on the checklist until the mount is owned).
 function Lockouts.State(spec, snap, isQuestDone, isLfgDone)
   if not spec then return nil end
   if spec.camp then return "camp" end

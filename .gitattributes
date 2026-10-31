@@ -1,0 +1,5 @@
+# GitHub's language bar counts the addon only: the data builders (Python),
+# the tests and the AddOns-folder link helper (PowerShell) are development
+# tools and never ship (.pkgmeta leaves them out of the package).
+tools/** linguist-detectable=false
+tests/** linguist-detectable=false

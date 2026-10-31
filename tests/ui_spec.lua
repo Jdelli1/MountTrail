@@ -63,7 +63,8 @@ describe("ui", function()
     eq(f.Inset.Fill, nil, "the views sit on the window's own fill, as in a pop-out")
     eq(next(ns.UI.TemplateFallbacks), nil, "no fallback used")
     eq(ns.UI.CurrentTab(), "journal", "Home by default")
-    ok(f.Nav.Buttons[1].selected and f.Nav.Buttons[1].Bar:IsShown(), "Home marked")
+    ok(f.Nav.Buttons[1].selected and f.Nav.Buttons[1].Selected:IsShown(), "Home marked")
+    eq(f.Nav.Buttons[1].Text.font, ns.UI.Font("GameFontNormal"), "in gold")
     eq(UISpecialFrames, { "MountTrailFrame" })
     ns.ToggleWindow()
     ok(not f:IsShown(), "second toggle hides")
@@ -158,6 +159,21 @@ describe("ui", function()
     eq(leftInset(button("Lockouts")), 12)
   end)
 
+  it("section headings look like a pop-out's group headers, in the window's header colour", function()
+    local ns = loadUI()
+    ns.ToggleWindow()
+    local nav = ns.UI.frame.Nav
+    local h = nav.Headings[1]
+    eq(h.Text:GetText(), "- Browse")
+    eq(h.Text.textColor, { 1, 0.82, 0 }, "gold by default")
+    eq(h.Rule.color, { 1, 0.82, 0, 0.35 }, "a thin rule under it")
+    ns.db.global.popouts = { main = { style = { header = { 1, 1, 1 } } } }
+    ns.UI.RefreshNav()
+    eq(h.Text.textColor, { 1, 1, 1 }, "the appearance menu's header colour")
+    eq(h.Rule.color, { 1, 1, 1, 0.35 })
+    eq(nav.Edge.width, 1, "a 1 px line on the column's right edge")
+  end)
+
   it("the navigation's text is the font object's size plus the bonus, however often it repaints", function()
     local ns = loadUI()
     -- As in the game: a size set with SetFont survives SetFontObject.
@@ -178,6 +194,34 @@ describe("ui", function()
     eq(nav.Headings[1].Text.fontSize, 12 + ns.UI.NAV_FONT_BONUS)
     for _, name in ipairs(fonts) do _G[name] = nil end
     mt.SetFont, mt.GetFont = savedSet, savedGet
+  end)
+
+  it("the left column follows its own size only: Headers and Mount names and text leave it alone", function()
+    local ns = loadUI()
+    local probe = CreateFrame("Frame")
+    local mt = getmetatable(probe:CreateFontString(nil, "OVERLAY", "GameFontHighlight")).__index
+    local savedSet = mt.SetFont
+    mt.SetFont = function(self, path, size) self.fontPath, self.fontSize = path, size end
+    local fonts = { "GameFontHighlight", "GameFontNormal", "GameFontNormalSmall", "GameFontDisableSmall" }
+    for _, name in ipairs(fonts) do
+      _G[name] = { GetFont = function() return "Fonts\\FRIZQT__.TTF", 12, "" end }
+    end
+    local sizes = { header = 0, body = 0, detail = 0 }
+    ns.Options = { TextSize = function(role) return sizes[role] end, NavTextSize = function() return 2 end }
+    ns.ToggleWindow()
+    local nav = ns.UI.frame.Nav
+    local row, heading = nav.Buttons[2], nav.Headings[1]
+    local rowH = row.height
+    eq({ row.Text.fontSize, heading.Text.fontSize }, { 14, 14 }, "the game's size + the Left column's 2")
+    sizes.header, sizes.body = 4, 4
+    ns.UI.RefreshNav()
+    eq({ row.Text.fontSize, heading.Text.fontSize }, { 14, 14 }, "the other sizes don't move it")
+    eq(row.height, rowH, "nor its rows' height")
+    ns.Options.NavTextSize = function() return 5 end
+    ns.UI.RefreshNav()
+    eq(row.Text.fontSize, 17, "the Left column size does")
+    for _, name in ipairs(fonts) do _G[name] = nil end
+    mt.SetFont = savedSet
   end)
 
   it("drag the navigation's right edge to resize it (saved, clamped); right-click: the default", function()
@@ -216,7 +260,8 @@ describe("ui", function()
     ns.Options = {
       SCALE_RANGE = { min = 80, max = 150, step = 5 }, TEXT_RANGE = { min = -2, max = 6, step = 1 },
       NAV_TEXT_RANGE = { min = 0, max = 6, step = 1 },
-      TEXT_LABELS = { header = "Gold text size", body = "White text size", detail = "Grey text size" },
+      TEXT_LABELS = { header = "Headers", body = "Mount names and text", detail = "Small notes" },
+      TEXT_ORDER = { "header", "body", "detail" }, SCALE_LABEL = "Whole window", NAV_LABEL = "Left column",
       WindowScale = function() return 100 end, TextSize = function() return 0 end, NavTextSize = function() return 2 end,
       Set = function(name, v) applied[#applied + 1] = { name, v } end,
       SetTextSize = function(role, v) applied[#applied + 1] = { role, v } end,
@@ -230,12 +275,21 @@ describe("ui", function()
     local shown
     ns.UI.ShowMenu = function(owner, items) shown = type(items) == "function" and items() or items end
     cog:RunScript("OnClick", "LeftButton")
-    eq(shown[1].title, "Settings")
+    eq(shown[1].title, "Size")
+    local order = {}
+    for _, it in ipairs(shown) do
+      if it.slider then order[#order + 1] = it.text elseif it.title then order[#order + 1] = "# " .. it.title end
+    end
+    eq({ order[1], order[2], order[3], order[4], order[5], order[6], order[7], order[8] },
+      { "# Size", "Whole window", "# Text size", "Left column", "Headers", "Mount names and text", "Small notes", "# Settings" },
+      "named by what they size, in the window's order")
     local byText = {}
     for _, it in ipairs(shown) do if it.text then byText[it.text] = it end end
-    ok(byText["Window scale"].slider and byText["Gold text size"].slider and byText["Grey text size"].slider)
-    byText["Window scale"].onChange(120)
-    byText["White text size"].onChange(3)
+    for text in pairs(byText) do
+      ok(not text:find("Count towards the total", 1, true), "the unobtainable count is on the AddOns page only")
+    end
+    byText["Whole window"].onChange(120)
+    byText["Mount names and text"].onChange(3)
     byText["Show unobtainable mounts"].onClick()
     byText["Reset text sizes"].onClick()
     byText["All options..."].onClick()
@@ -264,22 +318,18 @@ describe("ui", function()
     sizes.header = 6
     ns.UI.ApplyTextSizes()
     eq(_G.MountTrailGameFontNormal.size, 18, "follows the setting")
-    eq(ns.UI.RowHeight(40), 46, "rows grow with gold and grey (grey smaller: no shrink)")
+    sizes.body = 2
+    eq(ns.UI.RowHeight(22), 24, "one-line rows grow with the white text")
+    sizes.body = -1
+    eq(ns.UI.RowHeight(22), 22, "smaller text never shrinks a row")
     eq(ns.UI.HeaderHeight(24), 30)
     CreateFont = nil
     for _, name in ipairs({ "GameFontNormal", "GameFontHighlightSmall", "GameFontDisableSmall",
       "MountTrailGameFontNormal", "MountTrailGameFontDisableSmall" }) do _G[name] = nil end
   end)
 
-  it("UI.NavMove / UI.ApplyNavOrder: one place up or down, never across the favourites' line", function()
+  it("UI.ApplyNavOrder: the saved order first, the rest after", function()
     local ns = loadUI()
-    local fav = { a = true }
-    local isFav = function(k) return fav[k] == true end
-    eq(ns.UI.NavMove({ "a", "b", "c" }, "c", -1, isFav), { "a", "c", "b" })
-    eq(ns.UI.NavMove({ "a", "b", "c" }, "b", -1, isFav), nil, "a list never goes above a favourite")
-    eq(ns.UI.NavMove({ "a", "b", "c" }, "a", 1, isFav), nil, "nor a favourite below the rest")
-    eq(ns.UI.NavMove({ "a", "b", "c" }, "c", 1), nil, "at the end")
-    eq(ns.UI.NavMove({ "a", "b", "c" }, "a", 1), { "b", "a", "c" }, "no favourites: anywhere")
     local function keys(list) local out = {} for i, e in ipairs(list) do out[i] = e.key end return out end
     eq(keys(ns.UI.ApplyNavOrder({ { key = "x" }, { key = "y" }, { key = "z" } }, { "z", "x" })), { "z", "x", "y" },
       "saved order first, the rest after")

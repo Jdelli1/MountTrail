@@ -5,12 +5,18 @@ move an item out when it ships.
 
 ## Planned
 
-- **Custom route planning.** The guide framework (Guides in the README) is
-  the base: turn a list into a guide. Build a farming route from a list: the order to
+- **Mount guides (to come back).** Step-by-step directions for a mount
+  (goto points on TomTom, steps done by a quest, items in bags, the mount, or
+  reaching a spot; macros; a plain-text format to write and share). Built and
+  then taken out before release so the rest could ship first; the whole
+  feature is in git history at commit c0fdff1 (Logic/Guide.lua,
+  UI/Guides.lua, UI/GuideWindow.lua, UI/GuideEditor.lua, docs/GUIDES.md).
+  Players' own guides stay in their saved variables (`global.guides`).
+- **Custom route planning.** Build a farming route from a list: the order to
   visit its mounts' bosses, rares and vendors (by continent, nearest first),
-  with "next" moving the TomTom waypoint along. Routes would share like lists
-  (`MountTrail: !MT1!...` lines, or a `!MR1!` route line), so guides and
-  guildmates can post a ready-made route. Builds on Logic/Lists.lua,
+  with "next" moving the TomTom waypoint along (the mount guides above would
+  be its base). Routes would share like lists (`MountTrail: !MT1!...` lines,
+  or a `!MR1!` route line), so guildmates can post a ready-made route. Builds on Logic/Lists.lua,
   Logic/Share.lua, Data/Route.lua (bosses and instances) and
   Integrations/Map.lua (waypoints).
 

@@ -24,7 +24,10 @@ local function fakeSettings()
     local category = { name = name }
     function category:GetID() return 77 end
     S.category = category
-    return category, { initializers = {} }
+    local layout = { initializers = {} }
+    function layout:AddInitializer(init) self.initializers[#self.initializers + 1] = init end
+    S.layout = layout
+    return category, layout
   end
   function S.RegisterProxySetting(category, variable, varType, name, default, get, set)
     rec("Setting", variable)
@@ -117,26 +120,44 @@ describe("options", function()
         { "Category", "MountTrail" },
         { "Setting", "MOUNTTRAIL_UNOBTAINABLE" },
         { "Checkbox", "MOUNTTRAIL_UNOBTAINABLE" },
+        { "Setting", "MOUNTTRAIL_COUNT_UNOBTAINABLE" },
+        { "Checkbox", "MOUNTTRAIL_COUNT_UNOBTAINABLE" },
+        { "Setting", "MOUNTTRAIL_COUNT_SHOP" },
+        { "Checkbox", "MOUNTTRAIL_COUNT_SHOP" },
+        { "Setting", "MOUNTTRAIL_COUNT_TRADINGPOST" },
+        { "Checkbox", "MOUNTTRAIL_COUNT_TRADINGPOST" },
+        { "Setting", "MOUNTTRAIL_COUNT_PROMOTION" },
+        { "Checkbox", "MOUNTTRAIL_COUNT_PROMOTION" },
+        { "Setting", "MOUNTTRAIL_COUNT_BMAH" },
+        { "Checkbox", "MOUNTTRAIL_COUNT_BMAH" },
         { "Setting", "MOUNTTRAIL_RARITY_COLORS" },
         { "Checkbox", "MOUNTTRAIL_RARITY_COLORS" },
+        { "Setting", "MOUNTTRAIL_RARITY_COLORS_MAIN" },
+        { "Checkbox", "MOUNTTRAIL_RARITY_COLORS_MAIN" },
         { "Setting", "MOUNTTRAIL_DIFFICULTY_WARNING" },
         { "Checkbox", "MOUNTTRAIL_DIFFICULTY_WARNING" },
         { "Setting", "MOUNTTRAIL_WINDOW_SCALE" },
         { "Slider", "MOUNTTRAIL_WINDOW_SCALE" },
+        { "Setting", "MOUNTTRAIL_NAV_TEXT" },
+        { "Slider", "MOUNTTRAIL_NAV_TEXT" },
         { "Setting", "MOUNTTRAIL_TEXT_HEADER" },
         { "Slider", "MOUNTTRAIL_TEXT_HEADER" },
         { "Setting", "MOUNTTRAIL_TEXT_BODY" },
         { "Slider", "MOUNTTRAIL_TEXT_BODY" },
         { "Setting", "MOUNTTRAIL_TEXT_DETAIL" },
         { "Slider", "MOUNTTRAIL_TEXT_DETAIL" },
-        { "Setting", "MOUNTTRAIL_NAV_TEXT" },
-        { "Slider", "MOUNTTRAIL_NAV_TEXT" },
         { "Setting", "MOUNTTRAIL_SHOW_LISTS" },
         { "Checkbox", "MOUNTTRAIL_SHOW_LISTS" },
         { "Setting", "MOUNTTRAIL_SHOW_QUICK" },
         { "Checkbox", "MOUNTTRAIL_SHOW_QUICK" },
         { "Setting", "MOUNTTRAIL_MINIMAP" },
         { "Checkbox", "MOUNTTRAIL_MINIMAP" },
+        { "Setting", "MOUNTTRAIL_DROP_CHIME" },
+        { "Checkbox", "MOUNTTRAIL_DROP_CHIME" },
+        { "Setting", "MOUNTTRAIL_DROP_SOUND" },
+        { "Dropdown", "MOUNTTRAIL_DROP_SOUND" },
+        { "Setting", "MOUNTTRAIL_COLORBLIND" },
+        { "Checkbox", "MOUNTTRAIL_COLORBLIND" },
         { "Setting", "MOUNTTRAIL_DEBUG" },
         { "Checkbox", "MOUNTTRAIL_DEBUG" },
         { "AddOnCategory", category },
@@ -396,5 +417,263 @@ describe("options", function()
         eq(ns.Options.category, nil)
       end)
     end)
+  end)
+end)
+
+describe("reset all settings", function()
+  it("ResetAll puts every setting back and keeps the player's own data", function()
+    local ns = loadOptions()
+    local g, c = ns.db.global, ns.db.char
+    g.settings.windowScale, g.settings.textBody, g.settings.rarityColors = 130, 4, true
+    g.window.width, g.window.navWidth, g.window.tab = 1200, 240, "checklist"
+    g.filters.collected = true
+    g.minimap.hide = true
+    g.debug = true
+    g.popoutStyle = { alpha = 0.5 }
+    g.popouts = { main = { style = { alpha = 0.4 } },
+      ["daily:all"] = { open = true, source = { kind = "daily", all = true }, style = { size = 14 },
+        width = 300, height = 200, point = "CENTER", x = 5, y = 6, order = { 1, 2 } } }
+    g.altsWindow.point = "TOP"
+    g.lists = { [1] = { name = "Mine", mounts = { 6 } } }
+    g.guides = { mine = "#guide Mine" }
+    g.attemptsByChar = { ["Me-Realm"] = { [6] = 3 } }
+    g.navFavorites = { ["list:1"] = true }
+    c.checklistFilters = { rares = false }
+    c.checklistShow = "weekly"
+    c.ticks = { [7] = { kind = "daily", at = 1 } }
+
+    ns.Options.ResetAll(g, c)
+    eq(g.settings, { showUnobtainable = false, rarityColors = false }, "options and text sizes")
+    eq(g.window, {}, "window size, position, view and column widths")
+    eq(g.filters, { collected = false })
+    eq(g.minimap, { hide = false })
+    eq(g.debug, false)
+    eq(g.popoutStyle, nil, "the shared look")
+    eq(g.popouts.main.style, nil, "the main window's look")
+    local p = g.popouts["daily:all"]
+    eq({ p.style, p.width, p.height, p.point, p.x, p.y }, {}, "a pop-out's look, size and place")
+    ok(p.open and p.source and p.order, "the open pop-out itself and its order stay")
+    eq(g.altsWindow, {})
+    eq(c.checklistFilters, {})
+    eq(c.checklistShow, nil)
+    eq(g.lists[1].name, "Mine", "lists kept")
+    eq(g.guides.mine, "#guide Mine", "guides kept")
+    eq(g.attemptsByChar["Me-Realm"][6], 3, "attempts kept")
+    eq(g.navFavorites["list:1"], true, "favourites kept")
+    ok(c.ticks[7], "lockout ticks kept")
+  end)
+
+  it("a Reset all settings button on the AddOns page warns first, then resets and reloads", function()
+    local ns = loadOptions()
+    local S = fakeSettings()
+    local made
+    local oldInit, oldShow, oldReload = CreateSettingsButtonInitializer, StaticPopup_Show, ReloadUI
+    CreateSettingsButtonInitializer = function(name, text, click, tooltip, search)
+      made = { name = name, text = text, click = click, tooltip = tooltip, search = search }
+      return made
+    end
+    local shown, reloaded
+    StaticPopupDialogs = StaticPopupDialogs or {}
+    StaticPopup_Show = function(which) shown = which end
+    ReloadUI = function() reloaded = true end
+    local good, err = pcall(function()
+      ns.Options.Register(S)
+      ok(made, "the button")
+      eq({ made.name, made.text }, { "Reset all settings", "Reset" })
+      eq(S.layout.initializers[1], made, "on the page's layout")
+      ns.db.global.settings.windowScale = 140
+      made.click()
+      eq(shown, ns.Options.RESET_POPUP, "a warning first")
+      eq(ns.db.global.settings.windowScale, 140, "nothing reset yet")
+      local dialog = StaticPopupDialogs[ns.Options.RESET_POPUP]
+      ok(dialog.showAlert and dialog.text:find("kept", 1, true), "an alert that says what is kept")
+      eq({ dialog.button1, dialog.button2 }, { "Reset", "Cancel" })
+      dialog.OnAccept()
+      eq(ns.db.global.settings.windowScale, nil, "reset")
+      eq(reloaded, true, "then the interface reloads")
+    end)
+    CreateSettingsButtonInitializer, StaticPopup_Show, ReloadUI = oldInit, oldShow, oldReload
+    if not good then error(err, 0) end
+  end)
+
+  it("no button (and no error) on clients without CreateSettingsButtonInitializer", function()
+    local ns = loadOptions()
+    local S = fakeSettings()
+    local old = CreateSettingsButtonInitializer
+    CreateSettingsButtonInitializer = nil
+    ok(ns.Options.Register(S), "the page still registers")
+    eq(#S.layout.initializers, 0)
+    CreateSettingsButtonInitializer = old
+  end)
+end)
+
+describe("counting options", function()
+  it("a section turned off stays listed but leaves the collected numbers, owned or not", function()
+    local ns = loadOptions()
+    local J = ns.Journal
+    local yes = function() return true end
+    local shop = { section = "shop", tab = "journal", exp = "Legion" }
+    local mounts = { [1] = shop, [2] = { section = "vendor", tab = "journal", exp = "Legion" } }
+    eq(ns.Options.Counted("shop"), true, "counted by default")
+    eq({ J.Counts(mounts, "Legion", yes, yes, nil) }, { 2, 2 })
+    ns.Options.SetCounted("shop", false)
+    eq(ns.db.global.settings.excluded, { shop = true })
+    eq(J.Gate(1, shop, yes, yes, nil), true, "still listed (the gate keeps it)")
+    eq({ J.Counts(mounts, "Legion", yes, yes, nil) }, { 1, 1 }, "out of the numbers, owned or not")
+    ns.Options.Set("count:shop", true)
+    eq({ J.Counts(mounts, "Legion", yes, yes, nil) }, { 2, 2 }, "counted again")
+    -- After a reload the saved choice is handed to the counts.
+    ns.db.global.settings.excluded = { shop = true }
+    ns.Options.ApplyCounting()
+    eq({ J.Counts(mounts, "Legion", yes, yes, nil) }, { 1, 1 })
+    ns.Options.ResetAll(ns.db.global, ns.db.char)
+    eq({ J.Counts(mounts, "Legion", yes, yes, nil) }, { 2, 2 }, "a reset counts everything again")
+  end)
+
+  it("unobtainable: Show lists them; its Count towards the total adds the unowned ones to the numbers", function()
+    local ns = loadOptions()
+    local J = ns.Journal
+    local yes, no = function() return true end, function() return false end
+    local mounts = {
+      [1] = { section = "pvp", tab = "journal", exp = "Legion", unobtainable = true },
+      [2] = { section = "vendor", tab = "journal", exp = "Legion" },
+    }
+    local function counts() return { J.Counts(mounts, "Legion", no, yes, nil) } end
+    eq(counts(), { 0, 1 }, "default: an unowned unobtainable mount is not counted")
+    ns.Options.Set("countUnobtainable", true)
+    eq(counts(), { 0, 1 }, "Count on its own does nothing while Show is off")
+    ns.Options.Set("showUnobtainable", true)
+    eq(counts(), { 0, 2 }, "Show + Count: counted")
+    ns.Options.Set("countUnobtainable", false)
+    eq(counts(), { 0, 1 }, "Show alone: listed, not counted")
+    eq({ J.Counts(mounts, "Legion", yes, yes, nil) }, { 2, 2 }, "owned ones always count")
+  end)
+
+  it("rarity colours: the pop-outs' and the main window's lists are separate settings", function()
+    local ns = loadOptions()
+    ns.Options.Set("rarityColorsMain", true)
+    eq(ns.db.global.settings.rarityColorsMain, true)
+    eq(ns.db.global.settings.rarityColors, false, "the pop-outs' stays off")
+    eq(ns.Options.RarityColorsMain(), true)
+    eq(ns.Options.RarityColors(), false)
+  end)
+
+  it("a Browse category with nothing counted stays in the navigation (still listed)", function()
+    local ns = load_addon((function()
+      reset_ui_stub()
+      local files = toc_lua_files()
+      files[#files + 1] = "UI/Frame.lua" -- with UI/Nav.lua (COMPANIONS)
+      return files
+    end)())
+    ns.addon:OnInitialize()
+    local function keys()
+      local out = {}
+      for _, e in ipairs(ns.UI.NavBrowseEntries(ns.Browse.CATEGORIES)) do out[e.key] = true end
+      return out
+    end
+    ns.Journal.SetExcluded({ shop = true })
+    ok(keys()["browse:shop"], "In-game Shop still browsable")
+    eq(ns.Browse.Shown(ns.Browse.Get("shop")), false, "but nothing of it counted (Home leaves its row out)")
+    ns.Journal.SetExcluded({})
+  end)
+
+  it("/mtrail hide and /mtrail show set the minimap button", function()
+    local ns = loadOptions()
+    run_slash(ns.addon, "mtrail", "hide")
+    eq(ns.db.global.minimap.hide, true)
+    run_slash(ns.addon, "mtrail", "show")
+    eq(ns.db.global.minimap.hide, false)
+    run_slash(ns.addon, "mtrail", "help")
+    local found = false
+    for _, line in ipairs(ns.addon.printed or {}) do if line:find("^/mtrail hide") then found = true end end
+    ok(found, "help lists it")
+  end)
+
+  it("colour-blind marks follow the game's Colorblind Mode until set", function()
+    local ns = loadOptions()
+    local cvar = false
+    local old = GetCVarBool
+    GetCVarBool = function(name) return name == "colorblindMode" and cvar end
+    eq(ns.Options.ColorblindMarks(), false, "game's mode off")
+    cvar = true
+    eq(ns.Options.ColorblindMarks(), true, "game's mode on: on too")
+    ns.Options.Set("colorblindMarks", false)
+    eq(ns.Options.ColorblindMarks(), false, "the player's choice wins")
+    ns.Options.Set("colorblindMarks", true)
+    cvar = false
+    eq(ns.Options.ColorblindMarks(), true)
+    ns.Options.ResetAll(ns.db.global, ns.db.char)
+    eq(ns.Options.ColorblindMarks(), false, "a reset follows the game again")
+    GetCVarBool = old
+  end)
+
+  it("the drop chime: off by default; a sound from the set list (picking one plays it)", function()
+    local ns = load_addon((function()
+      reset_ui_stub()
+      local files = toc_lua_files()
+      files[#files + 1] = "UI/Frame.lua"
+      files[#files + 1] = "UI/Tooltip.lua"
+      files[#files + 1] = "UI/DropAlert.lua"
+      files[#files + 1] = "UI/Options.lua"
+      return files
+    end)())
+    ns.addon:OnInitialize()
+    local played = {}
+    local oldKit, oldPlay = SOUNDKIT, PlaySound
+    SOUNDKIT = { UI_EPICLOOT_TOAST = 1, READY_CHECK = 2 }
+    PlaySound = function(id) played[#played + 1] = id end
+    local good, err = pcall(function()
+      eq(ns.Options.DropChime(), false, "off by default")
+      eq(ns.Options.DropSound(), "UI_EPICLOOT_TOAST", "the first sound by default")
+      local keys = {}
+      for _, s in ipairs(ns.UI.DropSounds()) do keys[#keys + 1] = s.key end
+      eq(keys, { "UI_EPICLOOT_TOAST", "READY_CHECK" }, "only the sounds this client has")
+      ns.Options.Set("dropSound", "READY_CHECK")
+      eq(played, { 2 }, "picking a sound plays it")
+      -- Learning a tracked mount: the chat line; no chime while it is off.
+      ns.Data.Mounts[900] = { name = "Test Drake", chance = 100, tab = "journal", section = "raid" }
+      ns.UI.MountAttempts = function() return { this = 30, total = 30 } end
+      ns.addon.printed = {}
+      ns.UI.OnMountLearned(900)
+      eq(#played, 1, "no chime while the option is off")
+      ok((ns.addon.printed[1] or ""):find("Test Drake collected after 30 attempts", 1, true), tostring(ns.addon.printed[1]))
+      ok(ns.addon.printed[1]:find("luckier than 74% of players", 1, true), "1 - (1 - 1/100)^30 = 26% had it by now")
+      ns.Options.Set("dropChime", true)
+      ns.UI.OnMountLearned(900)
+      eq(#played, 1, "once per mount and session")
+      ns.UI.ForgetDropWatch(true)
+      ns.UI.OnMountLearned(900)
+      eq(played[2], 2, "the chosen sound")
+      -- The bag check: the mount's item arriving is the drop.
+      ns.UI.ForgetDropWatch(true)
+      ns.Data.Mounts[902] = { name = "Bag Drake", chance = 50, item = 7777, tab = "journal", section = "raid" }
+      local bag = { [7777] = 0 }
+      ns.Game.ItemCount = function(id) return bag[id] or 0 end
+      ns.Game.IsOwned = function() return false end
+      ns.addon.printed = {}
+      ns.UI.CheckBagsForMounts()
+      eq(#ns.addon.printed, 0, "the first check only records what is there")
+      bag[7777] = 1
+      ns.UI.CheckBagsForMounts()
+      ok((ns.addon.printed[1] or ""):find("Bag Drake collected", 1, true), "looted: the alert")
+      eq(played[3], 2, "and the chime")
+      ns.UI.CheckBagsForMounts()
+      ns.UI.OnMountLearned(902)
+      eq(#ns.addon.printed, 1, "learning it later stays quiet")
+      eq(#played, 3)
+      -- An item already in the bags at login never alerts.
+      ns.UI.ForgetDropWatch(true)
+      ns.addon.printed = {}
+      ns.UI.CheckBagsForMounts()
+      ns.UI.CheckBagsForMounts()
+      eq(#ns.addon.printed, 0)
+      -- A mount MountTrail does not track (a vendor's): nothing.
+      ns.Data.Mounts[901] = { name = "Shop Horse", tab = "misc", section = "shop" }
+      ns.addon.printed = {}
+      ns.UI.OnMountLearned(901)
+      eq(#ns.addon.printed, 0)
+    end)
+    SOUNDKIT, PlaySound = oldKit, oldPlay
+    if not good then error(err, 0) end
   end)
 end)

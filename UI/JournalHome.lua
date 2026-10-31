@@ -1,16 +1,23 @@
 local ADDON, ns = ...
 
--- Journal tab: a front page with a slim summary strip (title, collected
--- totals over every tab's mounts, a 4 px gold bar, then one chip per tab with
--- its own owned / total; a chip click opens that tab) above a 4 x 3 grid of flat
--- expansion tiles (logo, a 3 px bar, owned / total and percent); clicking a
--- tile opens that expansion's mount list, and Back returns.
--- Tiles follow the current flat panel style: a dark flat fill with a 1 px
--- subtle edge; hover brightens the fill and turns the edge gold. A completed
--- expansion gets a green bar and a check in its top-right corner.
--- A search box in the strip searches every mount (Logic/Search.lua): typing
--- opens the search page, a list of results grouped by what matched, whose
--- own box takes over the typing; Back returns home.
+-- Journal tab: a front page in the pop-outs' look. A slim summary strip
+-- (title, collected totals over every tab's mounts, a search box, a 4 px
+-- bar) over two columns:
+--   left   "Expansions": one row per expansion (its tag, its name in its
+--          colour, a bar, owned / total and percent; a click opens its mount
+--          list, Back returns), then "By source": the same rows for the
+--          Journal, Holidays, Achievements, Timewalking and Misc tabs (a
+--          click opens that tab);
+--   right  "Today": the daily / weekly lockouts and rare spawns left and the
+--          player's lists with lockouts open (a click opens them);
+--          "Nearby": the first mounts still to get in the player's zone
+--          (Zone.MountsFor, worked out again on a new zone or once a minute;
+--          a click is the waypoint, the last line opens Current Zone).
+-- Every bar takes its completion colour (UI.ProgressColor); a complete row
+-- gets a check. Headings are a pop-out's group headers (UI.HeaderColor).
+-- The search box searches every mount (Logic/Search.lua): typing opens the
+-- search page, a list of results grouped by what matched, whose own box
+-- takes over the typing; Back returns home.
 -- A list (Logic/Lists.lua, Logic/QuickLists.lua; picked in the window's
 -- navigation column, UI/Frame.lua) opens here as a page like an
 -- expansion's (UI.ShowListPage): its mounts by source, Collected and the
@@ -22,35 +29,25 @@ local L = ns.L
 local UI = ns.UI or {}
 ns.UI = UI
 
--- Layout. The content area of the 800 x 560 window is 780 x 486 (inset 6 px
--- in and 60 px down for the portrait and top tabs, content 4 px inside it).
--- Strip: title and totals in the top 32 px, the bar at 32-36 px, the tab
--- chips at 42-58 px. With the 900 x 560 window and its 156 px navigation
--- column the view area is 726 x 518: the grid from 68 px down is
--- 12 + 4 x 165 + 3 x 12 = 708 wide (12 px right margin) and 68 + 3 x 128 + 2 x 12 = 476 tall.
+-- Layout: margins, the strip, the right column's width, row heights.
 local G = {
-  cols = 4,
-  tileW = 165, tileH = 128,
-  gap = 12,
-  left = 12, top = -68,
-  stripH = 36,
-  chipsY = -42, chipsH = 16, chipGap = 18,
+  left = 12, top = -58, stripH = 46,
+  sideW = 230, gap = 20,
+  row = 22, heading = 22, sectionGap = 10,
 }
 UI.HomeLayout = G
 
-local LOGO_W, LOGO_H = 150, 75 -- 2:1, the shape of the client's expansion logos
-local LOGO_BASE = math.min(165 / 180, 128 / 128) -- the default tile's logo scale
-local LOGO_Y = 15 -- centre of the area above the bar: (30 + 128) / 2 - 128 / 2
-local TILE_BAR_H, SUMMARY_BAR_H = 3, 4
+local SUMMARY_BAR_H, ROW_BAR_H = 12, 6
 local BAR_TEXTURE = "Interface\\Buttons\\WHITE8X8" -- flat fill, tinted below
-local FILL = { 0.07, 0.07, 0.08, 0.9 }
-local FILL_HOVER = { 0.12, 0.12, 0.14, 0.95 }
-local EDGE = { 1, 1, 1, 0.1 }
-local EDGE_HOVER = { 1, 0.82, 0, 0.6 }
 local GOLD = { 1, 0.82, 0, 1 }
 local GREEN = { 0.25, 0.78, 0.35, 1 }
+local GREEN_TEXT = "|cff40c040"
+local GREY_TEXT = "|cff9d9d9d"
+local NEARBY_MAX, TODAY_LISTS_MAX = 5, 3
+local TAG_COLUMN = 62 -- room for the widest expansion tag (CLASSIC at 10 pt) and a gap
+local NEARBY_TTL = 60 -- seconds the Nearby list is kept for one zone
 
--- Progress colours (tiles and the summary bar): red under 25 %, yellow
+-- Progress colours (rows and the summary bar): red under 25 %, yellow
 -- under 75 %, green below complete, blue once complete.
 local RED = { 0.85, 0.22, 0.2, 1 }
 local BLUE = { 0.25, 0.6, 1, 1 }
@@ -73,18 +70,7 @@ local CHECK_TEXTURE = "Interface\\Scenarios\\ScenarioIcon-Check"
 
 local home, listPage, list, title
 local searchPage, searchList
-local cards = {}
 local currentExp
-
--- The tabs that list mounts, in tab order; the summary counts all of them.
-local CHIPS = {
-  { key = "journal", label = "Journal" },
-  { key = "holidays", label = "Holidays" },
-  { key = "achievements", label = "Achievements" },
-  { key = "timewalking", label = "Timewalking" },
-  { key = "misc", label = "Misc" },
-}
-UI.HomeChips = CHIPS
 
 local function expansions()
   return (ns.Data and ns.Data.Expansions) or {}
@@ -97,21 +83,25 @@ function UI.HomePercent(have, total)
   return math.floor((have or 0) * 100 / total)
 end
 
--- Owned / total per tab (Journal.ViewOf without options, so an unobtainable
--- mount counts on its own tab) through the list gate (known to the client,
--- this faction, obtainable or owned) -> { [view] = { have =, total = } },
--- plus all = the sum over the CHIPS tabs.
-function UI.HomeTabCounts(mounts, isOwned, exists, faction)
+-- Owned / total per source, the Browse categories (Logic/Browse.lua: a
+-- category with its own view, Achievements / Holidays / Timewalking, by
+-- Journal.ViewOf), through the list gate (known to the client, this faction,
+-- obtainable or owned) and the counted sections only (Journal.IsExcluded)
+-- -> { [category key] = { have =,
+-- total = } }, plus all = every mount the gate keeps. sourceText as
+-- Journal.SectionOf (refines delves and caches).
+function UI.HomeSourceCounts(mounts, isOwned, exists, faction, sourceText)
   local out = { all = { have = 0, total = 0 } }
-  for _, chip in ipairs(CHIPS) do out[chip.key] = { have = 0, total = 0 } end
+  for _, c in ipairs(ns.Browse.CATEGORIES) do out[c.key] = { have = 0, total = 0 } end
   for id, m in pairs(mounts or {}) do
-    local c = out[ns.Journal.ViewOf(m)]
-    if c and c ~= out.all then
-      local o = ns.Journal.Gate(id, m, isOwned, exists, faction)
-      if o ~= nil then
-        c.total, out.all.total = c.total + 1, out.all.total + 1
-        if o then c.have, out.all.have = c.have + 1, out.all.have + 1 end
-      end
+    local o = ns.Journal.Gate(id, m, isOwned, exists, faction, ns.Journal.countUnobtainable)
+    -- A section the player does not count (Options) stays listed but is
+    -- left out of these numbers.
+    if o ~= nil and not ns.Journal.IsExcluded(m) then
+      local key = ns.Browse.CategoryOf(id, m, sourceText) or ns.Journal.ViewOf(m)
+      local c = out[key] or out.other
+      c.total, out.all.total = c.total + 1, out.all.total + 1
+      if o then c.have, out.all.have = c.have + 1, out.all.have + 1 end
     end
   end
   return out
@@ -132,22 +122,251 @@ local function flatBar(parent, height)
   return bar
 end
 
-local function paintTile(card, have, total)
-  card.have, card.total = have, total
-  card:ResetLook() -- a tile clicked while hovered gets no OnLeave
-  card.Count:SetText(string.format(L["%d / %d"], have, total))
-  card.Percent:SetText(string.format(L["%d%%"], UI.HomePercent(have, total)))
-  card.Bar:SetMinMaxValues(0, math.max(total, 1))
-  card.Bar:SetValue(have)
-  local complete = total > 0 and have >= total
-  card.Bar:SetStatusBarColor(unpack(UI.ProgressColor(have, total)))
-  card.Check:SetShown(complete)
+-- A heading, as a pop-out's group header: its text in the header colour
+-- over a thin rule of it (repainted with the window's appearance).
+local function heading(parent, text)
+  local h = CreateFrame("Frame", nil, parent)
+  h:SetHeight(G.heading)
+  local fs = h:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormal"))
+  fs:SetPoint("LEFT", h, "LEFT", 2, 0)
+  fs:SetText(text)
+  h.Text = fs
+  local rule = h:CreateTexture(nil, "BORDER")
+  rule:SetHeight(1)
+  rule:SetPoint("BOTTOMLEFT", h, "BOTTOMLEFT", 0, 1)
+  rule:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", 0, 1)
+  h.Rule = rule
+  return h
+end
+
+local function paintHeading(h)
+  local c = UI.HeaderColor and UI.HeaderColor({ depth = 1 }) or GOLD
+  h.Text:SetTextColor(c[1], c[2], c[3])
+  h.Rule:SetColorTexture(c[1], c[2], c[3], 0.35)
+end
+
+-- A hover band and, every other row, a faint stripe (the lists' look).
+local function rowLook(b, alt)
+  local stripe = b:CreateTexture(nil, "BACKGROUND")
+  stripe:SetAllPoints(b)
+  stripe:SetColorTexture(1, 1, 1, 0.025)
+  stripe:SetShown(alt)
+  b.Stripe = stripe
+  local hl = b:CreateTexture(nil, "HIGHLIGHT")
+  hl:SetAllPoints(b)
+  hl:SetColorTexture(1, 1, 1, 0.07)
+end
+
+-- A progress row: [tag] name, a bar, owned / total and percent; a check
+-- once complete. withTag: room for an expansion tag before the name.
+local function progressRow(parent, i, withTag)
+  local b = CreateFrame("Button", nil, parent)
+  b:SetHeight(G.row)
+  rowLook(b, i % 2 == 0)
+  local nameLeft = 4
+  if withTag then
+    local tag = UI.ExpansionBadge(b)
+    tag:SetPoint("LEFT", b, "LEFT", 4, 0)
+    b.Tag = tag
+    nameLeft = 4 + TAG_COLUMN
+  end
+  local name = b:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlight"))
+  name:SetPoint("LEFT", b, "LEFT", nameLeft, 0)
+  name:SetWidth(withTag and 140 or 190)
+  name:SetJustifyH("LEFT")
+  name:SetWordWrap(false)
+  b.Name = name
+  local pct = b:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisable"))
+  pct:SetPoint("RIGHT", b, "RIGHT", -4, 0)
+  pct:SetWidth(40)
+  pct:SetJustifyH("RIGHT")
+  b.Percent = pct
+  local count = b:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlight"))
+  count:SetPoint("RIGHT", pct, "LEFT", -6, 0)
+  count:SetWidth(80)
+  count:SetJustifyH("RIGHT")
+  b.Count = count
+  local check = b:CreateTexture(nil, "OVERLAY")
+  check:SetSize(14, 14)
+  check:SetPoint("RIGHT", count, "LEFT", -4, 0)
+  if UI.AtlasExists(CHECK_ATLAS) then check:SetAtlas(CHECK_ATLAS) else check:SetTexture(CHECK_TEXTURE) end
+  check:Hide()
+  b.Check = check
+  local bar = flatBar(b, ROW_BAR_H)
+  bar:SetPoint("LEFT", name, "RIGHT", 8, 0)
+  bar:SetPoint("RIGHT", check, "LEFT", -6, 0)
+  b.Bar = bar
+  return b
+end
+
+local function paintProgress(b, have, total)
+  b.have, b.total = have, total
+  b.Count:SetText(string.format(L["%d / %d"], have, total))
+  b.Percent:SetText(string.format(L["%d%%"], UI.HomePercent(have, total)))
+  b.Bar:SetMinMaxValues(0, math.max(total, 1))
+  b.Bar:SetValue(have)
+  b.Bar:SetStatusBarColor(unpack(UI.ProgressColor(have, total)))
+  b.Check:SetShown(total > 0 and have >= total)
+end
+
+-- A text row of the right column: a label left, a value right.
+local function sideRow(parent, i)
+  local b = CreateFrame("Button", nil, parent)
+  b:SetHeight(G.row)
+  rowLook(b, false)
+  local value = b:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlight"))
+  value:SetPoint("RIGHT", b, "RIGHT", -4, 0)
+  value:SetJustifyH("RIGHT")
+  b.Value = value
+  local label = b:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlight"))
+  label:SetPoint("LEFT", b, "LEFT", 4, 0)
+  label:SetPoint("RIGHT", value, "LEFT", -6, 0)
+  label:SetJustifyH("LEFT")
+  label:SetWordWrap(false)
+  b.Label = label
+  b:SetScript("OnClick", function(self) if self.onClick then self.onClick() end end)
+  return b
+end
+
+-- A Nearby row: the mount's expansion tag and name; a click is the
+-- waypoint, the hover its tooltip.
+local function nearbyRow(parent)
+  local b = CreateFrame("Button", nil, parent)
+  b:SetHeight(G.row)
+  rowLook(b, false)
+  local tag = UI.ExpansionBadge(b)
+  tag:SetPoint("LEFT", b, "LEFT", 4, 0)
+  b.Tag = tag
+  local name = b:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlight"))
+  name:SetPoint("LEFT", b, "LEFT", 4 + TAG_COLUMN, 0)
+  name:SetPoint("RIGHT", b, "RIGHT", -4, 0)
+  name:SetJustifyH("LEFT")
+  name:SetWordWrap(false)
+  b.Name = name
+  b:SetScript("OnClick", function(self) if self.mountID and UI.GoTo then UI.GoTo(self.mountID) end end)
+  b:SetScript("OnEnter", function(self) if self.mountID then UI.ShowMountTooltip(self, self.mountID) end end)
+  b:SetScript("OnLeave", function() UI.HideMountTooltip() end)
+  return b
+end
+
+-- The right column's parts, placed top to bottom by their contents.
+local function place(f, side, y, h)
+  f:ClearAllPoints()
+  f:SetPoint("TOPLEFT", side, "TOPLEFT", 0, -y)
+  f:SetPoint("TOPRIGHT", side, "TOPRIGHT", 0, -y)
+  if h then f:SetHeight(h) end
+  f:Show()
+  return y + (h or f:GetHeight() or G.row)
+end
+
+-- Today's rows -> { { label =, value =, open = bool, click = fn } }: the
+-- daily / weekly lockouts and rare spawns left (Lockouts on that group),
+-- then the player's lists with lockouts open today (at most
+-- TODAY_LISTS_MAX; their page).
+function UI.HomeToday(built, filters, lists)
+  local left = UI.ChecklistLeft and UI.ChecklistLeft(built or {}, filters) or {}
+  local out = {}
+  for _, g in ipairs(UI.NAV_LOCKOUT_GROUPS or {}) do
+    local n = left[g.show] or 0
+    out[#out + 1] = { label = L[g.label], value = string.format(L["%d left"], n), open = n > 0,
+      click = function() UI.NavClick({ show = g.show }) end }
+  end
+  local shown = 0
+  for _, l in ipairs(lists or {}) do
+    if shown >= TODAY_LISTS_MAX then break end
+    if l.open > 0 then
+      shown = shown + 1
+      out[#out + 1] = { label = l.name, value = string.format(L["%d left"], l.open), open = true,
+        click = function() UI.NavClick({ source = l.source }) end }
+    end
+  end
+  return out
+end
+
+-- The Nearby list, kept per zone (Zone.Key) for NEARBY_TTL seconds.
+local nearby = { key = nil, at = nil, list = {}, zone = nil }
+
+function UI.HomeNearby(now)
+  local Game = ns.Game
+  local good, ctx = pcall(UI.ZoneContext)
+  if not good or not ctx then return {}, nil end
+  local mapID = Game.PlayerMap()
+  local okKey, key = pcall(ns.Zone.Key, mapID, ctx)
+  if not okKey then key = nil end
+  if nearby.key == key and nearby.at and now and now - nearby.at < NEARBY_TTL then
+    return nearby.list, nearby.zone
+  end
+  local found, zone = UI.ZoneMounts(mapID, ctx)
+  nearby.key, nearby.at, nearby.list, nearby.zone = key, now, found or {}, zone
+  return nearby.list, zone
+end
+
+function UI.ForgetHomeNearby()
+  nearby.key, nearby.at, nearby.list, nearby.zone = nil, nil, {}, nil
+end
+
+local function refreshSide()
+  local side = home.Side
+  local Game = ns.Game
+  local y = 0
+  -- Today.
+  paintHeading(side.TodayHeading)
+  y = place(side.TodayHeading, side, y, G.heading)
+  local built = UI.ChecklistBuild and UI.ChecklistBuild(Game.Now()) or {}
+  local char = ns.db and ns.db.char
+  local filters = char and type(char.checklistFilters) == "table" and char.checklistFilters or nil
+  local lists = {}
+  local store = UI.ListsDB and UI.ListsDB()
+  for _, l in ipairs(store and ns.Lists.Sorted(store) or {}) do
+    local source = { kind = "list", list = l.id }
+    local stats = UI.ListCardStatsFor and UI.ListCardStatsFor(source, built) or { open = 0 }
+    lists[#lists + 1] = { name = l.name, open = stats.open, source = source }
+  end
+  local today = UI.HomeToday(built, filters, lists)
+  for i, t in ipairs(today) do
+    local b = side.Today[i] or sideRow(side, i)
+    side.Today[i] = b
+    b.Label:SetText(t.label)
+    b.Value:SetText((t.open and GREEN_TEXT or GREY_TEXT) .. t.value .. "|r")
+    b.onClick = t.click
+    y = place(b, side, y, G.row)
+  end
+  for i = #today + 1, #side.Today do side.Today[i]:Hide() end
+  y = y + G.sectionGap
+
+  -- Nearby.
+  paintHeading(side.NearbyHeading)
+  y = place(side.NearbyHeading, side, y, G.heading)
+  local near, zone = UI.HomeNearby(Game.Now())
+  for i = 1, NEARBY_MAX do
+    local b = side.Nearby[i] or nearbyRow(side)
+    side.Nearby[i] = b
+    local e = near[i]
+    if e then
+      b.mountID = e.id
+      UI.SetExpansionBadge(b.Tag, e.m and e.m.exp)
+      b.Tag:EnableMouse(false)
+      b.Name:SetText(Game.MountInfo(e.id) or (e.m and e.m.name) or tostring(e.id))
+      y = place(b, side, y, G.row)
+    else
+      b.mountID = nil
+      b:Hide()
+    end
+  end
+  local more = side.NearbyMore
+  if #near == 0 then
+    more:SetText(GREY_TEXT .. L["Nothing left to collect here"] .. "|r")
+  else
+    more:SetText(GREY_TEXT .. string.format(L["%d in %s: open Current Zone"], #near,
+      zone and zone.name or L["this zone"]) .. "|r")
+  end
+  place(more, side, y, G.row)
 end
 
 local function refreshHome()
   local mounts = (ns.Data and ns.Data.Mounts) or {}
   local Game = ns.Game
-  -- Ask the client about each mount at most once for all tiles.
+  -- Ask the client about each mount at most once for all rows.
   local owned, known = {}, {}
   local function isOwned(id)
     if owned[id] == nil then owned[id] = Game.IsOwned(id) and true or false end
@@ -159,24 +378,27 @@ local function refreshHome()
   end
   local faction = Game.Faction()
 
+  paintHeading(home.ExpHeading)
   for i, name in ipairs(expansions()) do
-    local card = cards[i]
-    if card then
-      local logo = Game.ExpansionLogo(i)
-      if type(logo) == "number" and logo > 0 then
-        card.Logo:SetTexture(logo)
-        card.Logo:Show()
-        card.Name:Hide()
-      else
-        card.Logo:Hide()
-        card.Name:Show()
-      end
+    local b = home.Expansions[i]
+    if b then
+      UI.SetExpansionBadge(b.Tag, name)
+      b.Tag:EnableMouse(false) -- the row takes the clicks
+      local c = UI.EXPANSION_COLORS and UI.EXPANSION_COLORS[name]
+      if c then b.Name:SetTextColor(c[1], c[2], c[3]) end
       local have, total = ns.Journal.Counts(mounts, name, isOwned, exists, faction, Game.MountSourceText)
-      paintTile(card, have, total)
+      paintProgress(b, have, total)
     end
   end
 
-  local counts = UI.HomeTabCounts(mounts, isOwned, exists, faction)
+  local sourceText = UI.MemoText and UI.MemoText(Game.MountSourceText) or Game.MountSourceText
+  local counts = UI.HomeSourceCounts(mounts, isOwned, exists, faction, sourceText)
+  paintHeading(home.SourceHeading)
+  for _, b in ipairs(home.Sources) do
+    local c = counts[b.key] or { have = 0, total = 0 }
+    paintProgress(b, c.have, c.total)
+  end
+  home.LayoutMain()
   local sumHave, sumTotal = counts.all.have, counts.all.total
   local s = home.Summary
   s.have, s.total = sumHave, sumTotal
@@ -185,12 +407,8 @@ local function refreshHome()
   s.Bar:SetMinMaxValues(0, math.max(sumTotal, 1))
   s.Bar:SetValue(sumHave)
   s.Bar:SetStatusBarColor(unpack(UI.ProgressColor(sumHave, sumTotal)))
-  for _, chip in ipairs(s.Chips) do
-    local c = counts[chip.key]
-    chip.have, chip.total = c.have, c.total
-    chip.Text:SetText(string.format(L["|cffffd100%s|r  %d / %d"], L[chip.label], c.have, c.total))
-    chip:SetWidth(chip.Text:GetStringWidth() + 8)
-  end
+  local good, err = pcall(refreshSide)
+  if not good and Game.ReportError then Game.ReportError(err) end
 end
 
 local myListPage, myList, myListTitle
@@ -245,122 +463,18 @@ local function showList(name)
   list:Refresh(true)
 end
 
-local function createCard(i, name)
-  local card = CreateFrame("Button", nil, home)
-  card:SetSize(G.tileW, G.tileH)
-  local col = (i - 1) % G.cols
-  local row = math.floor((i - 1) / G.cols)
-  card:SetPoint("TOPLEFT", home, "TOPLEFT", G.left + col * (G.tileW + G.gap), G.top - row * (G.tileH + G.gap))
-
-  -- Flat fill and a 1 px subtle edge; no frame art (it reads as a heavy
-  -- border at this size).
-  local bg = card:CreateTexture(nil, "BACKGROUND")
-  bg:SetAllPoints(card)
-  bg:SetColorTexture(unpack(FILL))
-  card.Bg = bg
-
-  local edge = UI.FlatBorder(card, unpack(EDGE))
-  card.Edge = edge
-
-  -- Logo centred in the space above the bar, in a 2:1 box.
-  local logo = card:CreateTexture(nil, "ARTWORK")
-  logo:SetSize(LOGO_W, LOGO_H)
-  logo:SetPoint("CENTER", card, "CENTER", 0, LOGO_Y)
-  card.Logo = logo
-
-  -- Fallback when the client has no logo for this expansion.
-  local label = card:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalLarge"))
-  label:SetPoint("CENTER", logo, "CENTER", 0, 0)
-  label:SetWidth(G.tileW - 16)
-  label:SetText(L[name])
-  card.Name = label
-
-  -- Bottom area: a slim bar across the tile, owned / total left, percent right.
-  local count = card:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlightSmall"))
-  count:SetPoint("BOTTOMLEFT", card, "BOTTOMLEFT", 10, 9)
-  card.Count = count
-
-  local pct = card:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisableSmall"))
-  pct:SetPoint("BOTTOMRIGHT", card, "BOTTOMRIGHT", -10, 9)
-  card.Percent = pct
-
-  local bar = flatBar(card, TILE_BAR_H)
-  bar:SetPoint("BOTTOMLEFT", card, "BOTTOMLEFT", 10, 26)
-  bar:SetPoint("BOTTOMRIGHT", card, "BOTTOMRIGHT", -10, 26)
-  card.Bar = bar
-
-  -- Completed: a small check in the top-right corner.
-  local check = card:CreateTexture(nil, "OVERLAY")
-  check:SetSize(18, 18)
-  check:SetPoint("TOPRIGHT", card, "TOPRIGHT", -6, -6)
-  if UI.AtlasExists(CHECK_ATLAS) then
-    check:SetAtlas(CHECK_ATLAS)
-  else
-    check:SetTexture(CHECK_TEXTURE)
-  end
-  check:Hide()
-  card.Check = check
-
-  card:SetScript("OnEnter", function()
-    bg:SetColorTexture(unpack(FILL_HOVER))
-    edge:SetColor(unpack(EDGE_HOVER))
-  end)
-  -- Plain look; also on hide, so a tile clicked while hovered (hidden with
-  -- the home, no OnLeave) does not come back from Back still lit.
-  function card:ResetLook()
-    bg:SetColorTexture(unpack(FILL))
-    edge:SetColor(unpack(EDGE))
-  end
-  card:SetScript("OnLeave", card.ResetLook)
-  card:SetScript("OnHide", card.ResetLook)
-  card:SetScript("OnClick", function() showList(name) end)
-  return card
-end
-
--- One chip per tab under the bar: "<Tab>  owned / total", left to right;
--- hover lights it, a click opens that tab.
-local function createChips(s)
-  s.Chips = {}
-  local prev
-  for i, info in ipairs(CHIPS) do
-    local chip = CreateFrame("Button", nil, s)
-    chip:SetHeight(G.chipsH)
-    if prev then
-      chip:SetPoint("LEFT", prev, "RIGHT", G.chipGap, 0)
-    else
-      chip:SetPoint("TOPLEFT", s, "TOPLEFT", -4, G.chipsY)
-    end
-    chip.key, chip.label = info.key, info.label
-    local glow = chip:CreateTexture(nil, "BACKGROUND")
-    glow:SetAllPoints(chip)
-    glow:SetColorTexture(1, 1, 1, 0.08)
-    glow:Hide()
-    chip.Glow = glow
-    local text = chip:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlightSmall"))
-    text:SetPoint("LEFT", chip, "LEFT", 4, 0)
-    chip.Text = text
-    chip:SetScript("OnEnter", function() glow:Show() end)
-    chip:SetScript("OnLeave", function() glow:Hide() end)
-    chip:SetScript("OnHide", function() glow:Hide() end)
-    chip:SetScript("OnClick", function() UI.SelectTab(info.key) end)
-    s.Chips[i] = chip
-    prev = chip
-  end
-end
-
--- The summary strip: "Mount Collection" left, the totals over every tab
--- right, a full-width 4 px gold bar along its bottom edge, the tab chips
--- below it.
+-- The summary strip: "Mount Collection" and the search box left, the totals
+-- over every tab right, a full-width 4 px bar along its bottom edge.
 local function createSummary()
   local s = CreateFrame("Frame", nil, home)
   s:SetPoint("TOPLEFT", home, "TOPLEFT", G.left, 0)
   s:SetPoint("TOPRIGHT", home, "TOPRIGHT", -G.left, 0)
   s:SetHeight(G.stripH)
 
-  local heading = s:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalLarge"))
-  heading:SetPoint("TOPLEFT", s, "TOPLEFT", 0, -8)
-  heading:SetText(L["Mount Collection"])
-  s.Title = heading
+  local titleText = s:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalLarge"))
+  titleText:SetPoint("TOPLEFT", s, "TOPLEFT", 0, -8)
+  titleText:SetText(L["Mount Collection"])
+  s.Title = titleText
 
   local totals = s:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlight"))
   totals:SetPoint("TOPRIGHT", s, "TOPRIGHT", 0, -10)
@@ -370,13 +484,12 @@ local function createSummary()
   bar:SetPoint("BOTTOMLEFT", s, "BOTTOMLEFT", 0, 0)
   bar:SetPoint("BOTTOMRIGHT", s, "BOTTOMRIGHT", 0, 0)
   s.Bar = bar
-  createChips(s)
 
   -- Search box after the title; the first typed letter opens the search page.
   local search = CreateFrame("EditBox", nil, s, "SearchBoxTemplate")
   search:SetAutoFocus(false)
-  search:SetSize(240, 20)
-  search:SetPoint("LEFT", heading, "RIGHT", 24, 0)
+  search:SetSize(220, 20)
+  search:SetPoint("LEFT", titleText, "RIGHT", 24, 0)
   -- A short one-line hint (a long one wrapped onto two lines); the tooltip
   -- says what else it finds.
   local hint = search.Instructions
@@ -398,40 +511,98 @@ local function createSummary()
   return s
 end
 
--- Tile sizes for a home of `width` x `height` (the window can be resized):
--- the grid keeps G.cols columns and fills the space below the strip with
--- the same margins and gaps; never smaller than the
--- defaults' 80%. Unknown size (0) -> the defaults. -> tileW, tileH, logo
--- scale (against the 180 x 128 tile the logo size was drawn for).
-function UI.HomeTileSize(width, height, count)
-  local rows = math.max(1, math.ceil((count or 12) / G.cols))
-  if not (width and width > 0 and height and height > 0) then return G.tileW, G.tileH, LOGO_BASE end
-  local w = math.floor((width - 2 * G.left - (G.cols - 1) * G.gap) / G.cols)
-  local h = math.floor((height + G.top - 10 - (rows - 1) * G.gap) / rows)
-  w = math.max(w, math.floor(G.tileW * 0.8))
-  h = math.max(h, math.floor(G.tileH * 0.8))
-  return w, h, math.min(w / 180, h / 128)
-end
+-- The left column: Expansions and By source (the Browse categories, the
+-- navigation's order; a category the player does not count is left out),
+-- one progress row each, in a column that scrolls when the window is short.
+local function createColumns()
+  local main = CreateFrame("ScrollFrame", nil, home)
+  main:SetPoint("TOPLEFT", home, "TOPLEFT", G.left, G.top)
+  main:SetPoint("BOTTOMRIGHT", home, "BOTTOMRIGHT", -(G.left + G.sideW + G.gap), 0)
+  local content = CreateFrame("Frame", nil, main)
+  content:SetSize(1, 1)
+  main:SetScrollChild(content)
+  if main.EnableMouseWheel then main:EnableMouseWheel(true) end
+  main:SetScript("OnMouseWheel", function(self, delta)
+    local max = math.max(0, (home.mainHeight or 0) - (self:GetHeight() or 0))
+    self:SetVerticalScroll(math.min(max, math.max(0, (self:GetVerticalScroll() or 0) - delta * 30)))
+  end)
+  main:SetScript("OnSizeChanged", function(self, w) content:SetWidth(w or self:GetWidth() or 1) end)
+  home.Main, home.MainContent = main, content
 
--- Re-lays the tiles for the home's current size.
-local function layoutTiles()
-  if not home then return end
-  local w, h, s = UI.HomeTileSize(home:GetWidth(), home:GetHeight(), #cards)
-  home.tileW, home.tileH = w, h
-  for i, card in ipairs(cards) do
-    local col = (i - 1) % G.cols
-    local row = math.floor((i - 1) / G.cols)
-    card:SetSize(w, h)
-    card:ClearAllPoints()
-    card:SetPoint("TOPLEFT", home, "TOPLEFT", G.left + col * (w + G.gap), G.top - row * (h + G.gap))
-    local ls = math.min(s, 1.6)
-    card.Logo:SetSize(LOGO_W * ls, LOGO_H * ls)
-    card.Logo:ClearAllPoints()
-    card.Logo:SetPoint("CENTER", card, "CENTER", 0, (30 + h) / 2 - h / 2)
-    card.Name:SetWidth(w - 16)
+  home.ExpHeading = heading(content, L["Expansions"])
+  home.Expansions = {}
+  for i, name in ipairs(expansions()) do
+    local b = progressRow(content, i, true)
+    b.Name:SetText(L[name])
+    b.exp = name
+    b:SetScript("OnClick", function() showList(name) end)
+    home.Expansions[i] = b
   end
+  home.SourceHeading = heading(content, L["By source"])
+  home.Sources = {}
+  for i, c in ipairs(ns.Browse.CATEGORIES) do
+    local b = progressRow(content, i, false)
+    b.key, b.category = c.key, c
+    b.Name:SetText(L[c.label])
+    b.Name:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
+    b:SetScript("OnClick", function()
+      if c.view then UI.SelectTab(c.view) elseif UI.ShowBrowse then UI.ShowBrowse(c.key) end
+    end)
+    home.Sources[i] = b
+  end
+
+  -- Places the column's rows top to bottom (a source left out takes no room),
+  -- striping the shown ones afresh.
+  function home.LayoutMain()
+    local y = 0
+    local function add(f, h)
+      f:ClearAllPoints()
+      f:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -y)
+      f:SetPoint("TOPRIGHT", content, "TOPRIGHT", 0, -y)
+      f:Show()
+      y = y + h
+    end
+    add(home.ExpHeading, G.heading)
+    for _, b in ipairs(home.Expansions) do add(b, G.row) end
+    y = y + G.sectionGap
+    add(home.SourceHeading, G.heading)
+    local n = 0
+    for _, b in ipairs(home.Sources) do
+      if ns.Browse.Shown(b.category) then
+        n = n + 1
+        b.Stripe:SetShown(n % 2 == 0)
+        add(b, G.row)
+      else
+        b:Hide()
+      end
+    end
+    home.mainHeight = y
+    content:SetHeight(math.max(y, 1))
+  end
+  home.LayoutMain()
+
+  -- The right column: Today, Nearby (placed by refreshSide).
+  local side = CreateFrame("Frame", nil, home)
+  side:SetPoint("TOPRIGHT", home, "TOPRIGHT", -G.left, G.top)
+  side:SetPoint("BOTTOMRIGHT", home, "BOTTOMRIGHT", -G.left, 0)
+  side:SetWidth(G.sideW)
+  home.Side = side
+  side.TodayHeading = heading(side, L["Today"])
+  side.Today = {}
+  side.NearbyHeading = heading(side, L["Nearby"])
+  side.Nearby = {}
+  local more = CreateFrame("Button", nil, side)
+  more:SetHeight(G.row)
+  local mt = more:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlight"))
+  mt:SetPoint("LEFT", more, "LEFT", 4, 0)
+  mt:SetPoint("RIGHT", more, "RIGHT", -4, 0)
+  mt:SetJustifyH("LEFT")
+  mt:SetWordWrap(false)
+  more.Text = mt
+  function more:SetText(text) self.Text:SetText(text) end
+  more:SetScript("OnClick", function() UI.SelectTab("here") end)
+  side.NearbyMore = more
 end
-UI.HomeLayoutTiles = layoutTiles
 
 -- Lists column ----------------------------------------------------------------------
 
@@ -487,53 +658,49 @@ local function showMyList(source)
   myList:Refresh(true)
 end
 
+-- How the list page shows its list: a custom list's own sort
+-- (Lists.SortOf: "added", "expansion"); a quick list keeps its order.
+local function listSort(source)
+  if not (source and source.kind == "list") then return "added" end
+  local store = UI.ListsDB and UI.ListsDB()
+  return store and ns.Lists.SortOf(store, source.list) or "added"
+end
+
 -- The list page's mounts (UI.List's select): the list's mounts the list gate
--- keeps (owned ones too: Collected decides), grouped by source in
--- Journal.SOURCE_ORDER, then by name; the search box narrows by name.
+-- keeps (owned ones too: Collected decides), in the list's order (moved by
+-- the player), or by expansion (each expansion a section, the list's order
+-- inside) when the list is sorted so; the search box narrows by name.
 local function myListSelect(mounts, query)
   local ids = currentList and listMounts(currentList) or {}
   local needle = query.search and string.lower(query.search) or ""
   -- The home page's fuzzy search (tbc, a boss, a zone...).
   local match = UI.SearchMatches and UI.SearchMatches(ids, query.search, query.sourceText) or nil
+  local byExp = listSort(currentList) == "expansion"
   local out = {}
-  for _, id in ipairs(ids) do
+  for _, o in ipairs(ns.Lists.Ordered(ids, mounts, byExp and "expansion" or "added", expansions())) do
+    local id = o.id
     local m = mounts[id]
     if m and ns.Journal.Gate(id, m, query.isOwned, query.exists, query.faction, true) ~= nil then
       local name = (ns.Game.MountInfo and ns.Game.MountInfo(id)) or m.name or ""
       local hit
       if match then hit = match[id] == true else hit = needle == "" or string.find(string.lower(name), needle, 1, true) end
       if hit then
-        out[#out + 1] = { id = id, m = m, section = m.section or "other", name = string.lower(name) }
+        out[#out + 1] = { id = id, m = m, section = byExp and (m.exp or "Other") or "list" }
       end
     end
   end
-  table.sort(out, function(a, b)
-    local ra, rb = ns.Journal.SourceRank(a.section), ns.Journal.SourceRank(b.section)
-    if ra ~= rb then return ra < rb end
-    if a.name ~= b.name then return a.name < b.name end
-    return a.id < b.id
-  end)
   return out
 end
 
--- A page under a flat strip with Back and a title -> page, holder, back, title.
+-- A page under a flat header (UI.PageHeader) with Back and a title -> page,
+-- holder, back, title.
 local function pageWithStrip(parent)
   local page = CreateFrame("Frame", nil, parent)
   page:SetAllPoints(parent)
   page:Hide()
-  local strip = page:CreateTexture(nil, "BACKGROUND")
-  strip:SetPoint("TOPLEFT", page, "TOPLEFT", 0, 0)
-  strip:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, 0)
-  strip:SetHeight(30)
-  strip:SetColorTexture(1, 1, 1, 0.04)
-  local back = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
-  back:SetSize(80, 22)
-  back:SetPoint("TOPLEFT", page, "TOPLEFT", 4, -4)
-  back:SetText(L["Back"])
-  local t = page:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalLarge"))
-  t:SetPoint("LEFT", back, "RIGHT", 12, 0)
+  local back, t = UI.PageHeader(page, true)
   local holder = CreateFrame("Frame", nil, page)
-  holder:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -36)
+  holder:SetPoint("TOPLEFT", page, "TOPLEFT", 0, UI.PAGE_TOP)
   holder:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", 0, 0)
   return page, holder, back, t
 end
@@ -541,65 +708,21 @@ end
 local function build(parent)
   home = CreateFrame("Frame", nil, parent)
   home:SetAllPoints(parent)
-  -- Tiles first, so home.children[i] is expansion i's tile.
-  for i, name in ipairs(expansions()) do
-    cards[i] = createCard(i, name)
-  end
   home.Summary = createSummary()
-  layoutTiles()
-  home:SetScript("OnSizeChanged", layoutTiles)
+  createColumns()
 
-  listPage = CreateFrame("Frame", nil, parent)
-  listPage:SetAllPoints(parent)
-  listPage:Hide()
-
-  -- Flat header strip: Back (UIPanelButtonTemplate, which carries the
-  -- current red button art since Dragonflight) and the expansion name.
-  local strip = listPage:CreateTexture(nil, "BACKGROUND")
-  strip:SetPoint("TOPLEFT", listPage, "TOPLEFT", 0, 0)
-  strip:SetPoint("TOPRIGHT", listPage, "TOPRIGHT", 0, 0)
-  strip:SetHeight(30)
-  strip:SetColorTexture(1, 1, 1, 0.04)
-  local rule = listPage:CreateTexture(nil, "BORDER")
-  rule:SetHeight(1)
-  rule:SetPoint("TOPLEFT", strip, "BOTTOMLEFT", 0, 0)
-  rule:SetPoint("TOPRIGHT", strip, "BOTTOMRIGHT", 0, 0)
-  rule:SetColorTexture(1, 1, 1, 0.1)
-
-  local back = CreateFrame("Button", nil, listPage, "UIPanelButtonTemplate")
-  back:SetSize(80, 22)
-  back:SetPoint("TOPLEFT", listPage, "TOPLEFT", 4, -4)
-  back:SetText(L["Back"])
+  -- An expansion's page: Back and the expansion's name over its list.
+  local holder, back
+  listPage, holder, back, title = pageWithStrip(parent)
   back:SetScript("OnClick", showHome)
-
-  title = listPage:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalLarge"))
-  title:SetPoint("LEFT", back, "RIGHT", 12, 0)
-
-  local holder = CreateFrame("Frame", nil, listPage)
-  holder:SetPoint("TOPLEFT", listPage, "TOPLEFT", 0, -36)
-  holder:SetPoint("BOTTOMRIGHT", listPage, "BOTTOMRIGHT", 0, 0)
   list = UI.List(holder, function()
     return { view = "journal", exp = currentExp, sourceText = ns.Game.MountSourceText }
   end)
 
-  searchPage = CreateFrame("Frame", nil, parent)
-  searchPage:SetAllPoints(parent)
-  searchPage:Hide()
-  local sStrip = searchPage:CreateTexture(nil, "BACKGROUND")
-  sStrip:SetPoint("TOPLEFT", searchPage, "TOPLEFT", 0, 0)
-  sStrip:SetPoint("TOPRIGHT", searchPage, "TOPRIGHT", 0, 0)
-  sStrip:SetHeight(30)
-  sStrip:SetColorTexture(1, 1, 1, 0.04)
-  local sBack = CreateFrame("Button", nil, searchPage, "UIPanelButtonTemplate")
-  sBack:SetSize(80, 22)
-  sBack:SetPoint("TOPLEFT", searchPage, "TOPLEFT", 4, -4)
-  sBack:SetText(L["Back"])
-  local sTitle = searchPage:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalLarge"))
-  sTitle:SetPoint("LEFT", sBack, "RIGHT", 12, 0)
+  -- The search page.
+  local sHolder, sBack, sTitle
+  searchPage, sHolder, sBack, sTitle = pageWithStrip(parent)
   sTitle:SetText(L["Search all mounts"])
-  local sHolder = CreateFrame("Frame", nil, searchPage)
-  sHolder:SetPoint("TOPLEFT", searchPage, "TOPLEFT", 0, -36)
-  sHolder:SetPoint("BOTTOMRIGHT", searchPage, "BOTTOMRIGHT", 0, 0)
   searchList = UI.List(sHolder, function()
     return { view = "search", sourceText = ns.Game.MountSourceText }
   end, { select = searchSelect })
@@ -609,21 +732,39 @@ local function build(parent)
     showHome()
   end)
 
-  -- A list's page (a home card's click): its mounts as a list by source.
+  -- A list's page (the navigation's lists): its mounts as a list by source.
   local mHolder, mBack
   myListPage, mHolder, mBack, myListTitle = pageWithStrip(parent)
   mBack:SetScript("OnClick", showHome)
-  local pop = CreateFrame("Button", nil, myListPage, "UIPanelButtonTemplate")
-  pop:SetSize(90, 22)
-  pop:SetPoint("TOPRIGHT", myListPage, "TOPRIGHT", -4, -4)
-  pop:SetText(L["Pop out"])
+  local pop = UI.PageButton(myListPage, L["Pop out"])
   pop:SetScript("OnClick", function() if currentList and UI.OpenPopout then UI.OpenPopout(currentList) end end)
   myListPage.PopOut = pop
   myList = UI.List(mHolder, function()
     local key = currentList and (currentList.kind == "quick" and ("q" .. tostring(currentList.key))
       or tostring(currentList.list)) or ""
-    return { view = "mylist", exp = key, sourceText = ns.Game.MountSourceText }
-  end, { select = myListSelect })
+    return { view = "mylist", exp = key, sourceText = ns.Game.MountSourceText,
+      bare = listSort(currentList) ~= "expansion" }
+  end, {
+    select = myListSelect,
+    -- A custom list's sort, after the Filter menu's choices.
+    menu = {
+      items = function()
+        if not (currentList and currentList.kind == "list") then return {} end
+        local sort = listSort(currentList)
+        return {
+          { kind = "title", label = L["Sort"] },
+          { kind = "radio", key = "sort:added", label = L["Order added"], checked = sort == "added" },
+          { kind = "radio", key = "sort:expansion", label = L["By expansion"], checked = sort == "expansion" },
+        }
+      end,
+      onChange = function(kind, value)
+        if kind ~= "radio" or not (currentList and currentList.kind == "list") then return false end
+        local store = UI.ListsDB and UI.ListsDB()
+        if store then ns.Lists.SetSort(store, currentList.list, value == "sort:expansion" and "expansion" or "added") end
+        return true
+      end,
+    },
+  })
   myListPage.List = myList
   myListPage.Title = myListTitle
 end

@@ -422,14 +422,6 @@ function Game.HolidaySchedule()
   return { now = today, occurrences = cache.occurrences }
 end
 
--- index: position in Data.Expansions (1 = Classic); the API takes the
--- 0-based expansion level. -> logo fileID or nil.
-function Game.ExpansionLogo(index)
-  if not (GetExpansionDisplayInfo and index) then return nil end
-  local info = GetExpansionDisplayInfo(index - 1)
-  return info and info.logo or nil
-end
-
 -- "Name-Realm" for this character.
 function Game.CharKey()
   local name = UnitName and UnitName("player") or "?"
@@ -740,14 +732,6 @@ function Game.AddChatFilter(event, fn)
   return pcall(add, event, fn)
 end
 
--- Whether `value` is a Midnight secret value (unreadable chat text in an
--- encounter): addons must not touch those.
-function Game.IsSecret(value)
-  return type(issecretvalue) == "function" and issecretvalue(value) == true
-end
-
--- Guides (UI/Guides.lua) ---------------------------------------------------------
-
 -- How many of an item are in the bags (bank and reagent bank not counted).
 function Game.ItemCount(itemID)
   local item = C_Item
@@ -757,78 +741,31 @@ function Game.ItemCount(itemID)
   return good and type(n) == "number" and n or 0
 end
 
--- An item's name, or nil while the client has not loaded it.
-function Game.ItemName(itemID)
-  local item = C_Item
-  local fn = (item and item.GetItemNameByID) or (GetItemInfo and function(id) return (GetItemInfo(id)) end)
-  if type(fn) ~= "function" then return nil end
-  local good, name = pcall(fn, itemID)
-  return good and type(name) == "string" and name or nil
+-- Whether the client has the sound SOUNDKIT[key].
+function Game.HasSoundKit(key)
+  return type(SOUNDKIT) == "table" and type(key) == "string" and SOUNDKIT[key] ~= nil
 end
 
--- A quest's title, or nil when the client does not know it yet.
-function Game.QuestName(questID)
-  local log = C_QuestLog
-  if not (log and log.GetTitleForQuestID) then return nil end
-  local good, name = pcall(log.GetTitleForQuestID, questID)
-  return good and type(name) == "string" and name ~= "" and name or nil
+-- Plays SOUNDKIT[key] on the Master channel (heard with the sound effects
+-- off) -> true when played.
+function Game.PlaySoundKit(key)
+  if not (Game.HasSoundKit(key) and type(PlaySound) == "function") then return false end
+  local good = pcall(PlaySound, SOUNDKIT[key], "Master")
+  return good
 end
 
--- An item's link (quality colour and all), or nil while it is not loaded.
-function Game.ItemLink(itemID)
-  local item = C_Item
-  local fn = (item and item.GetItemInfo) or GetItemInfo
-  if type(fn) ~= "function" then return nil end
-  local good, _, link = pcall(fn, itemID)
-  return good and type(link) == "string" and link or nil
+-- Whether the game's Colorblind Mode (Options > Accessibility) is on; false
+-- when the setting cannot be read.
+function Game.ColorblindMode()
+  if type(GetCVarBool) ~= "function" then return false end
+  local good, on = pcall(GetCVarBool, "colorblindMode")
+  return good and on == true
 end
 
--- Asks the client to load an item / a quest (GET_ITEM_INFO_RECEIVED /
--- QUEST_DATA_LOAD_RESULT follow).
-function Game.RequestItem(itemID)
-  local item = C_Item
-  if item and item.RequestLoadItemDataByID then pcall(item.RequestLoadItemDataByID, itemID) end
-end
-
-function Game.RequestQuest(questID)
-  local log = C_QuestLog
-  if log and log.RequestLoadQuestByID then pcall(log.RequestLoadQuestByID, questID) end
-end
-
-function Game.SpellName(spellID)
-  local spell = C_Spell
-  local fn = (spell and spell.GetSpellName) or (GetSpellInfo and function(id) return (GetSpellInfo(id)) end)
-  if type(fn) ~= "function" then return nil end
-  local good, name = pcall(fn, spellID)
-  return good and type(name) == "string" and name or nil
-end
-
--- An achievement's link, or nil.
-function Game.AchievementLink(achievementID)
-  if type(GetAchievementLink) ~= "function" then return nil end
-  local good, link = pcall(GetAchievementLink, achievementID)
-  return good and type(link) == "string" and link ~= "" and link or nil
-end
-
--- Makes (or updates) the account-wide macro `name` with `body` and puts it on
--- the cursor to drop on an action bar -> true, or false and why ("combat",
--- "full", "error").
-function Game.MakeMacro(name, body)
-  if type(InCombatLockdown) == "function" and InCombatLockdown() then return false, "combat" end
-  if type(CreateMacro) ~= "function" or type(GetMacroIndexByName) ~= "function" then return false, "error" end
-  local icon = "INV_MISC_QUESTIONMARK"
-  local good, index = pcall(GetMacroIndexByName, name)
-  index = good and index or 0
-  if index and index > 0 and type(EditMacro) == "function" then
-    good = pcall(EditMacro, index, name, icon, body)
-  else
-    local made
-    good, made = pcall(CreateMacro, name, icon, body, false)
-    if not good or not made then return false, "full" end
-  end
-  if not good then return false, "error" end
-  if type(PickupMacro) == "function" then pcall(PickupMacro, name) end
-  return true
+-- Whether `value` is a Midnight secret value (unreadable chat text in an
+-- encounter): addons must not touch those.
+function Game.IsSecret(value)
+  return type(issecretvalue) == "function" and issecretvalue(value) == true
 end
 
 -- Where the player is: instance ID (GetInstanceInfo's 8th return, the saved
