@@ -1,6 +1,5 @@
 local ADDON, ns = ...
 
-ns.version = "0.1.0"
 
 -- UI hook: re-renders the visible tab. A no-op until UI\Frame.lua (loaded after
 -- this file) replaces it; always call it as ns.Refresh() so the replacement is
