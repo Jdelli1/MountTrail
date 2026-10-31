@@ -139,7 +139,11 @@ Working with the column:
 ### Mount lists
 
 Every list (an expansion, a Browse page, a list page, Holidays, Achievements,
-Timewalking) groups its mounts under headers.
+Timewalking, Lockouts, Current Zone, the zone panel) looks the same, as a
+pop-out does: one line per mount (its small icon, its expansion tag, the
+name, and where it comes from on the right) under headers. Top-level
+headers are gold; groups under them are in their expansion's colour when
+they are one, else light grey.
 
 - **Tooltip**: drop details, your attempts on this character and in total over
   all your characters (the game's kill statistics where it keeps them, else

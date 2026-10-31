@@ -173,7 +173,8 @@ describe("ui build", function()
     for _, f in ipairs(frames) do
       if f.Stripe then
         if f.Stripe:IsShown() then sawStripe = true else sawPlain = true end
-        ok(f.Name.font == ns.UI.Font("GameFontNormal") or f.Name.font == ns.UI.OwnedFont(), "GameFont family")
+        ok(f.Name.font == ns.UI.Font("GameFontHighlight") or f.Name.font == ns.UI.OwnedFont(), "GameFont family")
+        eq(f.Icon.width, 16, "a small icon on a one-line row, as every list's")
       end
     end
     ok(sawStripe and sawPlain, "every other row striped")
@@ -200,12 +201,12 @@ describe("ui build", function()
     eq(f.Name.font, ns.UI.OwnedFont(), "light green name")
     local p = frames[plain]
     ok(not p.Owned:IsShown(), "missing mounts: no green")
-    eq(p.Name.font, ns.UI.Font("GameFontNormal"))
+    eq(p.Name.font, ns.UI.Font("GameFontHighlight"), "white, as on every list")
     eq(p.Icon.desaturated, false)
     -- A recycled frame drops the green look.
     list.ScrollBox.view.factory(function(_, init) init(f, rows[plain]) end, rows[plain])
     ok(not f.Owned:IsShown(), "recycled: green off")
-    eq(f.Name.font, ns.UI.Font("GameFontNormal"))
+    eq(f.Name.font, ns.UI.Font("GameFontHighlight"))
     list.ScrollBox.view.factory(function(_, init) init(f, rows[owned]) end, rows[owned])
     ok(f.Owned:IsShown(), "and on again")
   end)
@@ -286,15 +287,17 @@ describe("ui build", function()
     eq(boxes, 13, "Misc: Collected + its twelve categories")
   end)
 
-  it("source lines use the dimmed highlight font", function()
+  it("source lines use the body text's font, dimmed", function()
     local ns = loadUI()
+    GameFontHighlight = { name = "GameFontHighlight" }
     local list = openJournalList(ns)
     local frames = render(list.ScrollBox)
     local row
     for _, f in ipairs(frames) do if f.Source then row = f; break end end
     eq(row.Source.template, "MountTrailFontSource")
-    eq(MountTrailFontSource.base, GameFontHighlightSmall)
+    eq(MountTrailFontSource.base, _G[ns.UI.Font("GameFontHighlight")], "the body size, not the small font")
     eq(MountTrailFontSource.color, { 0.7, 0.7, 0.7 })
+    GameFontHighlight = nil
   end)
 
   it("falls back to the checkbox panel without the dropdown template", function()
@@ -1424,12 +1427,12 @@ describe("ui build", function()
     ok(not row.entry.spec.manual, "the first daily entry is game-tracked")
     eq(row.depth, 3, "under its category header")
     eq(f.Check:IsShown(), false, "no tick box on a game-tracked lockout")
-    eq(f.Icon:IsShown(), false, "a pop-out's one-line row: no icon")
-    eq(box.view.extent(1, row), 22, "one line tall")
-    eq({ f.Tag:GetPoint(1) }, { "LEFT", f, "LEFT", 6 + 18 + 4 + 32, 0 }, "expansion tag after the tick-box column, indented")
+    eq(box.view.extent(1, row), 22, "one line tall, as every list's rows")
+    eq({ f.Icon:GetPoint(1) }, { "LEFT", f, "LEFT", 6 + 18 + 4 + 32, 0 }, "small icon after the tick-box column, indented")
+    eq({ f.Tag:GetPoint(1) }, { "LEFT", f.Icon, "RIGHT", 5, 0 }, "then the expansion tag")
     ok(f.Tag:IsShown() == (ns.UI.ExpansionTag(row.m.exp) ~= nil), "the mount's expansion tag")
     eq(f.Source.justifyH, "RIGHT", "boss / instance on the right")
-    eq(f.Source.font, ns.UI.CompactSourceFont(), "at the body text's size, not the small font")
+    eq(f.Source.template, ns.UI.SourceFont(), "at the body text's size, not the small font")
     eq({ f.Check:GetPoint(1) }, { "LEFT", f, "LEFT", 6 + 32, 0 }, "tick-box column indented")
     eq(f.Pin:IsShown(), row.id % 2 == 0)
     ok(f.Source:GetText() ~= "", "grey description line")

@@ -280,7 +280,10 @@ describe("ui", function()
     sizes.header = 6
     ns.UI.ApplyTextSizes()
     eq(_G.MountTrailGameFontNormal.size, 18, "follows the setting")
-    eq(ns.UI.RowHeight(40), 46, "rows grow with gold and grey (grey smaller: no shrink)")
+    sizes.body = 2
+    eq(ns.UI.RowHeight(22), 24, "one-line rows grow with the white text")
+    sizes.body = -1
+    eq(ns.UI.RowHeight(22), 22, "smaller text never shrinks a row")
     eq(ns.UI.HeaderHeight(24), 30)
     CreateFont = nil
     for _, name in ipairs({ "GameFontNormal", "GameFontHighlightSmall", "GameFontDisableSmall",

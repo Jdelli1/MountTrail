@@ -66,17 +66,12 @@ function UI.Font(name)
   return mine
 end
 
--- Taller rows for larger text: a mount row (gold name over a grey line)
--- grows by both sizes' extra points, a header by the gold one's (smaller
--- text never shrinks a row).
+-- Taller rows for larger text: a mount row (one line of white text, a
+-- pop-out's) grows by the white text's extra points, a header by the gold
+-- one's (smaller text never shrinks a row).
 local function grow(role) return math.max(0, UI.TextSize(role)) end
 
 function UI.RowHeight(base)
-  return base + grow("header") + grow("detail")
-end
-
--- A one-line row (a pop-out's) grows with the white text only.
-function UI.CompactRowHeight(base)
   return base + grow("body")
 end
 

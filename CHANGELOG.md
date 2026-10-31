@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Every list uses the same one-line row (small icon, expansion tag, name,
+  source on the right) and the same header colours, so My lists, Browse,
+  expansions and Lockouts look alike.
 - Options > AddOns > MountTrail: `Reset all settings`, after a warning, puts
   every setting (options, text sizes, window, every window's and pop-out's
   look) back to its default and reloads; lists, guides, attempts and lockouts

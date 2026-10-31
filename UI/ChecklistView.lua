@@ -453,7 +453,7 @@ end
 
 local CHECK_SIZE = 18
 local CHECK_LEFT = 6
-local ICON_LEFT = CHECK_LEFT + CHECK_SIZE + 4 -- where a row's expansion tag starts
+local ICON_LEFT = CHECK_LEFT + CHECK_SIZE + 4 -- where a row's icon starts
 local SUB_OFFSET = 16 -- per header level under the reset header (UI/List.lua: sub-header indicator 22 vs 6, +16 per level)
 local TOP_HEIGHT = 96 -- the tab's own header: name, summary, flavour line, chips
 local HEADER_HEIGHT = 24 -- UI/List.lua section headers
@@ -571,12 +571,12 @@ local function onTick(self, button)
   ns.Refresh()
 end
 
--- A compact mount row (UI.InitMountRow, a pop-out's: expansion tag, name,
--- the boss / instance on the right) with a tick box in front; done entries
--- are dimmed (GameFontDisable name).
+-- A mount row (UI.InitMountRow, a pop-out's: icon, expansion tag, name, the
+-- boss / instance on the right) with a tick box in front; done entries are
+-- dimmed (GameFontDisable name, grey icon).
 local function initRow(row, data)
   local inset = math.max(0, (data.depth or 1) - 1) * SUB_OFFSET
-  data.compact, data.left = true, ICON_LEFT + inset
+  data.left = ICON_LEFT + inset
   UI.InitMountRow(row, data)
   if not row.Check then
     local check = CreateFrame("CheckButton", nil, row,
@@ -913,7 +913,7 @@ function view.Build(parent)
   local listView = CreateScrollBoxListLinearView()
   listView:SetElementExtentCalculator(function(_, row)
     if row.header then return UI.HeaderHeight((row.depth or 1) >= 2 and SUB_HEADER_HEIGHT or HEADER_HEIGHT) end
-    return UI.CompactRowHeight(UI.COMPACT_ROW_HEIGHT)
+    return UI.RowHeight(UI.MOUNT_ROW_HEIGHT)
   end)
   listView:SetElementFactory(function(factory, row)
     if row.header then

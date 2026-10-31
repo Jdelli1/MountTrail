@@ -887,8 +887,8 @@ local INDICATOR_SIZE = 14
 local SUB_INDENT = 22 -- sub-header indicator inset (section headers: 6); icons of rows under it
 local DEPTH_STEP = 16 -- each deeper header level (the checklist's depth 3) moves in this much more
 local ROW_ICON_LEFT = 4 -- icon inset of other mount rows
-local ROW_HEIGHT = 40
-local ICON_SIZE = 32
+local ROW_HEIGHT = 22 -- one line, as a pop-out's rows
+local ICON_SIZE = 16
 local CHECK_SIZE = 24
 local PIN_SIZE, PIN_RIGHT = 16, 8 -- the location pin on a row's right end
 -- Rounded icon mask of the current action bars; used only when the client
@@ -896,39 +896,22 @@ local PIN_SIZE, PIN_RIGHT = 16, 8 -- the location pin on a row's right end
 local ICON_MASK = "UI-HUD-ActionBar-IconFrame-Mask"
 local ICON_CROP = 0.08
 
--- Source line font: GameFontHighlightSmall dimmed to 70 % grey (readable on
--- the dark fill); GameFontDisableSmall when the client has no CreateFont.
+-- Source line font: the body text's size (GameFontHighlight, following the
+-- text size sliders) dimmed to 70 % grey; GameFontDisable when the client
+-- has no CreateFont.
 local SOURCE_FONT = "MountTrailFontSource"
 local sourceFont
 function UI.SourceFont()
   if sourceFont then return sourceFont end
-  if type(CreateFont) == "function" and GameFontHighlightSmall then
+  if type(CreateFont) == "function" and GameFontHighlight then
     local font = _G[SOURCE_FONT] or CreateFont(SOURCE_FONT)
-    font:SetFontObject(GameFontHighlightSmall)
+    font:SetFontObject(_G[UI.Font("GameFontHighlight")] or GameFontHighlight)
     font:SetTextColor(0.7, 0.7, 0.7)
     sourceFont = SOURCE_FONT
   else
-    sourceFont = UI.Font("GameFontDisableSmall")
+    sourceFont = UI.Font("GameFontDisable")
   end
   return sourceFont
-end
-
--- The compact rows' source line: the body text's size (GameFontHighlight,
--- following the text size sliders) dimmed to 70 % grey; GameFontDisable
--- when the client has no CreateFont.
-local COMPACT_SOURCE_FONT = "MountTrailFontSourceLine"
-local compactSourceFont
-function UI.CompactSourceFont()
-  if compactSourceFont then return compactSourceFont end
-  if type(CreateFont) == "function" and GameFontHighlight then
-    local font = _G[COMPACT_SOURCE_FONT] or CreateFont(COMPACT_SOURCE_FONT)
-    font:SetFontObject(_G[UI.Font("GameFontHighlight")] or GameFontHighlight)
-    font:SetTextColor(0.7, 0.7, 0.7)
-    compactSourceFont = COMPACT_SOURCE_FONT
-  else
-    compactSourceFont = UI.Font("GameFontDisable")
-  end
-  return compactSourceFont
 end
 
 -- Name font of owned (collected) mount rows: GameFontNormal in a light green
@@ -991,10 +974,11 @@ local function collapsedDB()
   return global.collapsed
 end
 
--- Header colours, as a pop-out's group headers: an expansion's header
--- (depth 2 with `exp`, the Lockouts' expansions) in that expansion's colour,
--- deeper ones (the Lockouts' categories) light grey, the rest in the main
--- window's header colour (its appearance, UI/Style.lua), else gold.
+-- Header colours, the same in every list, as a pop-out's group headers: a
+-- top-level header (depth 1) in the main window's header colour (its
+-- appearance, UI/Style.lua), else gold; an expansion's header (depth 2 with
+-- `exp`, the Lockouts' expansions) in that expansion's colour; every other
+-- group (instances, zones, the Lockouts' categories) light grey.
 local GOLD = { 1, 0.82, 0 }
 local LIGHT = { 0.85, 0.85, 0.85 }
 function UI.HeaderColor(data)
@@ -1002,7 +986,7 @@ function UI.HeaderColor(data)
   if depth == 2 and data.exp and UI.EXPANSION_COLORS and UI.EXPANSION_COLORS[data.exp] then
     return UI.EXPANSION_COLORS[data.exp]
   end
-  if depth >= 3 then return LIGHT end
+  if depth >= 2 then return LIGHT end
   local style = UI.frame and UI.PopoutStyleOf and UI.PopoutStyleOf(UI.frame)
   return style and style.header or GOLD
 end
@@ -1176,16 +1160,16 @@ local function setupRow(row)
 
   local icon = row:CreateTexture(nil, "ARTWORK")
   icon:SetSize(ICON_SIZE, ICON_SIZE)
-  icon:SetPoint("LEFT", row, "LEFT", ROW_ICON_LEFT, 0)
   UI.StyleIcon(row, icon)
   row.Icon = icon
+  row.Tag = UI.ExpansionBadge(row)
 
   -- Location pin on the right end (rows with a waypoint target only).
   local pin = UI.CreatePin(row)
   pin:SetPoint("RIGHT", row, "RIGHT", -PIN_RIGHT, 0)
   row.Pin = pin
 
-  local name = row:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormal"))
+  local name = row:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlight"))
   name:SetWordWrap(false)
   row.Name = name
 
@@ -1224,34 +1208,20 @@ end
 
 local function noTooltip() end
 
--- The full row: icon, the name over its source line. Same-edge anchor pairs
--- only (a RIGHT anchor would also pin the vertical centre). The 32 px icon
--- is centred in the 40 px row, so its top is at -4 and the name's at -6;
--- the right edge stops 8 px left of the pin.
-local function anchorFull(row)
-  local name, source = row.Name, row.Source
-  name:ClearAllPoints()
-  name:SetPoint("TOPLEFT", row.Icon, "TOPRIGHT", 8, -2)
-  name:SetPoint("TOPRIGHT", row, "TOPRIGHT", -UI.PIN_ROOM, -((ROW_HEIGHT - 32) / 2 + 2))
-  name:SetJustifyH("LEFT")
-  source:ClearAllPoints()
-  source:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -3)
-  source:SetPoint("TOPRIGHT", name, "BOTTOMRIGHT", 0, -3)
-  source:SetJustifyH("LEFT")
-end
-
--- The compact row, a pop-out's: the expansion tag at `left`, the name after
--- it, the source line right-aligned in the row's right half (left of the
--- pin), all on one line.
-local function anchorCompact(row, left)
-  local tag, name, source = row.Tag, row.Name, row.Source
+-- The row, a pop-out's: the mount's small icon at `left`, its expansion tag,
+-- the name, and the source line right-aligned in the row's right half (left
+-- of the pin), all on one line.
+local function anchorRow(row, left)
+  local icon, tag, name, source = row.Icon, row.Tag, row.Name, row.Source
+  icon:ClearAllPoints()
+  icon:SetPoint("LEFT", row, "LEFT", left, 0)
   tag:ClearAllPoints()
-  tag:SetPoint("LEFT", row, "LEFT", left, 0)
+  tag:SetPoint("LEFT", icon, "RIGHT", 5, 0)
   name:ClearAllPoints()
   if tag:IsShown() then
     name:SetPoint("LEFT", tag, "RIGHT", 6, 0)
   else
-    name:SetPoint("LEFT", row, "LEFT", left, 0)
+    name:SetPoint("LEFT", icon, "RIGHT", 6, 0)
   end
   name:SetPoint("RIGHT", row, "CENTER", 4, 0)
   name:SetJustifyH("LEFT")
@@ -1269,60 +1239,45 @@ local function initRow(row, data)
   row.Selected:SetShown(data.selected == true)
   row.routeBoss = data.routeBoss
   row.eventMap = data.eventMap
-  local compact = data.compact == true
-  local name = data.name or ns.Game.MountInfo(data.id)
-  row.Icon:SetShown(not compact)
-  if compact then
-    if not row.Tag then row.Tag = UI.ExpansionBadge(row) end
-    UI.SetExpansionBadge(row.Tag, data.m and data.m.exp)
-    row.Tag:EnableMouse(false) -- the row takes the clicks
-    anchorCompact(row, data.left or ROW_ICON_LEFT)
-  else
-    if row.Tag then row.Tag:Hide() end
-    -- Under a sub-header the icon lines up with the sub-header's indicator.
-    row.Icon:SetPoint("LEFT", row, "LEFT", data.depth == 2 and SUB_INDENT or ROW_ICON_LEFT, 0)
-    row.Icon:SetTexture(UI.MountIcon(data.id))
-    anchorFull(row)
-  end
-  name = name or data.m.name or tostring(data.id)
-  if compact and data.suffix then name = name .. "  " .. data.suffix end
+  row.Icon:SetTexture(UI.MountIcon(data.id))
+  UI.SetExpansionBadge(row.Tag, data.m and data.m.exp)
+  row.Tag:EnableMouse(false) -- the row takes the clicks
+  -- Under a sub-header the icon lines up with the sub-header's glyph.
+  anchorRow(row, data.left or (data.depth == 2 and SUB_INDENT or ROW_ICON_LEFT))
+  local name = data.name or ns.Game.MountInfo(data.id) or data.m.name or tostring(data.id)
+  if data.suffix then name = name .. "  " .. data.suffix end
   row.Name:SetText(name)
-  row.Source:SetFontObject(compact and UI.CompactSourceFont() or UI.SourceFont())
   row.Source:SetText(UI.RowSourceText(data))
   row.Stripe:SetShown(data.alt == true)
   UI.ShowPin(row.Pin, data.pin)
-  -- Owned (collected) mounts: green tint and a light green name, the icon
-  -- in full colour; everything reset for a recycled frame. A compact row's
-  -- name is white (in its rarity's colour with the pop-outs' option on).
+  -- Owned (collected) mounts: green tint and a light green name; others
+  -- white (in their rarity's colour with the pop-outs' option on).
+  -- Everything reset for a recycled frame.
   row.Owned:SetShown(data.owned == true)
   if data.owned then
     row.Name:SetFontObject(UI.OwnedFont())
-  elseif compact then
+  else
     row.Name:SetFontObject(UI.Font("GameFontHighlight"))
     local c = UI.PopoutRarityColor and UI.PopoutRarityColor(data.id)
     if c then row.Name:SetTextColor(c[1], c[2], c[3]) end
-  else
-    row.Name:SetFontObject(UI.Font("GameFontNormal"))
   end
   row.Icon:SetDesaturated(false)
 end
 
--- The mount row look, shared by other mount lists (the zone panel): a
--- ScrollBox element initializer for "Button" frames. data: { id=, m=,
--- owned=, depth= (2: indented), desc= (UI.RowDescription), tag=, alt=
--- (striped), pin= (UI.HasLocation), name= (overrides the mount's name),
--- tooltip= (function(row) shown on hover instead of the mount tooltip),
--- onSelect= (function(mountID): a plain left-click selects instead of the
--- waypoint; the detail pane's lists), selected= (the selected row's look),
--- routeBoss= (the row's route boss, passed to the click: UI.HandleRowClick,
--- and to the hover: UI.ShowMountTooltip's lockout line), compact= (a
--- pop-out's one-line row: expansion tag, name, the source line on the
--- right; no icon), left= (a compact row's left inset), suffix= (a compact
--- row's text after the name: the Lockouts' light blue status) }.
--- Rows are UI.MOUNT_ROW_HEIGHT tall, compact ones UI.COMPACT_ROW_HEIGHT.
+-- The mount row, every list's (the lists, Lockouts, the zone panel, the map
+-- tab), a pop-out's: a ScrollBox element initializer for "Button" frames.
+-- data: { id=, m=, owned=, depth= (2: indented), left= (the icon's inset,
+-- overriding depth), desc= (UI.RowDescription), tag=, alt= (striped), pin=
+-- (UI.HasLocation), name= (overrides the mount's name), suffix= (text after
+-- the name: the Lockouts' light blue status), tooltip= (function(row)
+-- shown on hover instead of the mount tooltip), onSelect=
+-- (function(mountID): a plain left-click selects instead of the waypoint;
+-- the detail pane's lists), selected= (the selected row's look), routeBoss=
+-- (the row's route boss, passed to the click: UI.HandleRowClick, and to the
+-- hover: UI.ShowMountTooltip's lockout line) }. Rows are
+-- UI.MOUNT_ROW_HEIGHT tall (UI.RowHeight for the text size).
 UI.InitMountRow = initRow
 UI.MOUNT_ROW_HEIGHT = ROW_HEIGHT
-UI.COMPACT_ROW_HEIGHT = 22
 
 -- Fallback panel checkbox; its label is one line kept inside the panel
 -- (long "Show ..." labels are cut, not run under the list).
