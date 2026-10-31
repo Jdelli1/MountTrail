@@ -732,6 +732,19 @@ function Game.AddChatFilter(event, fn)
   return pcall(add, event, fn)
 end
 
+-- Whether the client has the sound SOUNDKIT[key].
+function Game.HasSoundKit(key)
+  return type(SOUNDKIT) == "table" and type(key) == "string" and SOUNDKIT[key] ~= nil
+end
+
+-- Plays SOUNDKIT[key] on the Master channel (heard with the sound effects
+-- off) -> true when played.
+function Game.PlaySoundKit(key)
+  if not (Game.HasSoundKit(key) and type(PlaySound) == "function") then return false end
+  local good = pcall(PlaySound, SOUNDKIT[key], "Master")
+  return good
+end
+
 -- Whether the game's Colorblind Mode (Options > Accessibility) is on; false
 -- when the setting cannot be read.
 function Game.ColorblindMode()

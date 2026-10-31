@@ -424,6 +424,22 @@ function UI.SettingsMenuItems()
     function() O.Set("rarityColors", saved.rarityColors ~= true) end)
   items[#items + 1] = check(L["Colour list names by rarity"], saved.rarityColorsMain == true,
     function() O.Set("rarityColorsMain", saved.rarityColorsMain ~= true) end)
+  items[#items + 1] = check(L["Chime when a mount drops"], O.DropChime and O.DropChime(),
+    function() O.Set("dropChime", not (O.DropChime and O.DropChime())) end)
+  if O.DropSound and UI.DropSounds then
+    local current = O.DropSound()
+    items[#items + 1] = { text = L["Drop sound"], submenu = function()
+      local list = { { title = L["Drop sound"] } }
+      for _, s in ipairs(UI.DropSounds()) do
+        -- A pick plays the sound and stays open, to try the next one.
+        list[#list + 1] = { text = L[s.label], checked = s.key == current, keepOpen = true,
+          onClick = function() O.Set("dropSound", s.key); current = s.key end }
+      end
+      list[#list + 1] = { separator = true }
+      list[#list + 1] = { text = L["Back"], submenu = UI.SettingsMenuItems }
+      return list
+    end }
+  end
   items[#items + 1] = check(L["Colour-blind marks"], O.ColorblindMarks and O.ColorblindMarks() == true,
     function() O.Set("colorblindMarks", not (O.ColorblindMarks and O.ColorblindMarks())) end)
   items[#items + 1] = check(L["Warn about the wrong difficulty"], saved.difficultyWarnOff ~= true,

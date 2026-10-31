@@ -40,6 +40,8 @@ Options.MINIMAP = "MOUNTTRAIL_MINIMAP"
 Options.RARITY_COLORS = "MOUNTTRAIL_RARITY_COLORS"
 Options.RARITY_COLORS_MAIN = "MOUNTTRAIL_RARITY_COLORS_MAIN"
 Options.COLORBLIND = "MOUNTTRAIL_COLORBLIND"
+Options.DROP_CHIME = "MOUNTTRAIL_DROP_CHIME"
+Options.DROP_SOUND = "MOUNTTRAIL_DROP_SOUND"
 Options.WINDOW_SCALE = "MOUNTTRAIL_WINDOW_SCALE"
 Options.SHOW_LISTS = "MOUNTTRAIL_SHOW_LISTS"
 Options.SHOW_QUICK = "MOUNTTRAIL_SHOW_QUICK"
@@ -173,6 +175,33 @@ local function setRarityColorsMain(on)
   ns.Refresh()
 end
 
+-- The drop alert's chime (UI/DropAlert.lua): off by default; the sound one of
+-- UI.DROP_SOUNDS (settings.dropSound, the first by default).
+function Options.DropChime()
+  local global = ns.db and ns.db.global
+  local saved = global and global.settings
+  return type(saved) == "table" and saved.dropChime == true
+end
+
+function Options.DropSound()
+  local global = ns.db and ns.db.global
+  local saved = global and type(global.settings) == "table" and global.settings.dropSound
+  local list = ns.UI and ns.UI.DROP_SOUNDS or {}
+  for _, s in ipairs(list) do if s.key == saved then return saved end end
+  return list[1] and list[1].key or nil
+end
+
+local function setDropChime(on)
+  settings().dropChime = on and true or nil
+end
+
+-- Picking a sound plays it, so the player hears what they chose.
+local function setDropSound(key)
+  settings().dropSound = key
+  if ns.Game and ns.Game.PlaySoundKit then ns.Game.PlaySoundKit(key) end
+end
+Options.SetDropSound = setDropSound
+
 -- Accessibility: "Colour-blind marks" (settings.colorblindMarks): a tick on
 -- finished lockouts and collected mounts, "open" on the left column's green
 -- badges, the owners' share after rarity-coloured names. Until the player
@@ -280,6 +309,8 @@ function Options.Set(name, value)
   elseif name == "rarityColorsMain" then setRarityColorsMain(value)
   elseif name == "countUnobtainable" then setCountUnobtainable(value)
   elseif name == "colorblindMarks" then setColorblindMarks(value)
+  elseif name == "dropChime" then setDropChime(value)
+  elseif name == "dropSound" then setDropSound(value)
   elseif name == "difficultyWarning" then setDifficultyWarning(value)
   elseif name == "minimap" then Options.SetMinimap(value)
   elseif name == "showLists" or name == "showQuick" then
@@ -291,7 +322,8 @@ function Options.Set(name, value)
     Options.SetCounted(string.sub(name, 7), value)
   end
   for _, var in pairs({ Options.WINDOW_SCALE, Options.NAV_TEXT, Options.UNOBTAINABLE, Options.RARITY_COLORS,
-    Options.RARITY_COLORS_MAIN, Options.COUNT_UNOBTAINABLE, Options.COLORBLIND, Options.MINIMAP, Options.SHOW_LISTS, Options.SHOW_QUICK,
+    Options.RARITY_COLORS_MAIN, Options.COUNT_UNOBTAINABLE, Options.COLORBLIND, Options.DROP_CHIME,
+    Options.DROP_SOUND, Options.MINIMAP, Options.SHOW_LISTS, Options.SHOW_QUICK,
     Options.DIFFICULTY_WARNING }) do
     Options.Changed(var)
   end
@@ -477,6 +509,21 @@ local function build(api)
   local minimap = api.RegisterProxySetting(category, Options.MINIMAP, VarType.Boolean or "boolean",
     L["Show minimap button"], true, getMinimap, setMinimap)
   api.CreateCheckbox(category, minimap, L["Show the MountTrail button on the minimap."])
+
+  -- The drop alert's chime and its sound (a dropdown where the client has one).
+  local chime = api.RegisterProxySetting(category, Options.DROP_CHIME, VarType.Boolean or "boolean",
+    L["Chime when a mount drops"], false, Options.DropChime, setDropChime)
+  api.CreateCheckbox(category, chime,
+    L["Play a sound when you learn a mount MountTrail tracks (the chat line says how many attempts it took either way)."])
+  if type(api.CreateDropdown) == "function" and type(api.CreateControlTextContainer) == "function" then
+    local sound = api.RegisterProxySetting(category, Options.DROP_SOUND, VarType.String or "string",
+      L["Drop sound"], ns.UI and ns.UI.DROP_SOUNDS[1] and ns.UI.DROP_SOUNDS[1].key or "", Options.DropSound, setDropSound)
+    api.CreateDropdown(category, sound, function()
+      local container = api.CreateControlTextContainer()
+      for _, s in ipairs(ns.UI and ns.UI.DropSounds and ns.UI.DropSounds() or {}) do container:Add(s.key, L[s.label]) end
+      return container:GetData()
+    end, L["The chime's sound; picking one plays it."])
+  end
 
   -- Accessibility (a section header where the client has one).
   if layout and type(layout.AddInitializer) == "function"

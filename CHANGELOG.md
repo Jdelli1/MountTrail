@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Drop alert: a chat line with the attempts it took when you learn a tracked
+  mount; `Chime when a mount drops` (off by default) with a choice of sounds.
 - Accessibility: `Colour-blind marks` (follows the game's Colorblind Mode until
   set): ticks on finished lockouts and collected mounts, "open" on your lists'
   green counts, the owners' share after rarity-coloured names.

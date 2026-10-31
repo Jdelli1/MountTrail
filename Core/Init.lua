@@ -261,8 +261,14 @@ function addon:OnEnteringWorld()
   ns.RefreshSoon()
 end
 
-function addon:OnLockoutEvent(event)
+function addon:OnLockoutEvent(event, ...)
   if event == "UPDATE_INSTANCE_INFO" then ready.instances = true end
+  -- A mount learned: the drop alert (UI/DropAlert.lua), before the attempts
+  -- update below can tidy anything away.
+  if event == "NEW_MOUNT_ADDED" and ns.UI and ns.UI.OnMountLearned then
+    local good, err = pcall(ns.UI.OnMountLearned, ...)
+    if not good and ns.Game.ReportError then ns.Game.ReportError(err) end
+  end
   if event == "LFG_UPDATE_RANDOM_INFO" then ready.lfg = true end
   ns.UpdateAttempts(event == "UPDATE_INSTANCE_INFO")
   if event == "UPDATE_INSTANCE_INFO" then ns.UpdateStats() end

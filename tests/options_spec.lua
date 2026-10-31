@@ -152,6 +152,10 @@ describe("options", function()
         { "Checkbox", "MOUNTTRAIL_SHOW_QUICK" },
         { "Setting", "MOUNTTRAIL_MINIMAP" },
         { "Checkbox", "MOUNTTRAIL_MINIMAP" },
+        { "Setting", "MOUNTTRAIL_DROP_CHIME" },
+        { "Checkbox", "MOUNTTRAIL_DROP_CHIME" },
+        { "Setting", "MOUNTTRAIL_DROP_SOUND" },
+        { "Dropdown", "MOUNTTRAIL_DROP_SOUND" },
         { "Setting", "MOUNTTRAIL_COLORBLIND" },
         { "Checkbox", "MOUNTTRAIL_COLORBLIND" },
         { "Setting", "MOUNTTRAIL_DEBUG" },
@@ -601,5 +605,49 @@ describe("counting options", function()
     ns.Options.ResetAll(ns.db.global, ns.db.char)
     eq(ns.Options.ColorblindMarks(), false, "a reset follows the game again")
     GetCVarBool = old
+  end)
+
+  it("the drop chime: off by default; a sound from the set list (picking one plays it)", function()
+    local ns = load_addon((function()
+      reset_ui_stub()
+      local files = toc_lua_files()
+      files[#files + 1] = "UI/Frame.lua"
+      files[#files + 1] = "UI/Tooltip.lua"
+      files[#files + 1] = "UI/DropAlert.lua"
+      files[#files + 1] = "UI/Options.lua"
+      return files
+    end)())
+    ns.addon:OnInitialize()
+    local played = {}
+    local oldKit, oldPlay = SOUNDKIT, PlaySound
+    SOUNDKIT = { UI_EPICLOOT_TOAST = 1, READY_CHECK = 2 }
+    PlaySound = function(id) played[#played + 1] = id end
+    local good, err = pcall(function()
+      eq(ns.Options.DropChime(), false, "off by default")
+      eq(ns.Options.DropSound(), "UI_EPICLOOT_TOAST", "the first sound by default")
+      local keys = {}
+      for _, s in ipairs(ns.UI.DropSounds()) do keys[#keys + 1] = s.key end
+      eq(keys, { "UI_EPICLOOT_TOAST", "READY_CHECK" }, "only the sounds this client has")
+      ns.Options.Set("dropSound", "READY_CHECK")
+      eq(played, { 2 }, "picking a sound plays it")
+      -- Learning a tracked mount: the chat line; no chime while it is off.
+      ns.Data.Mounts[900] = { name = "Test Drake", chance = 100, tab = "journal", section = "raid" }
+      ns.UI.MountAttempts = function() return { this = 30, total = 30 } end
+      ns.addon.printed = {}
+      ns.UI.OnMountLearned(900)
+      eq(#played, 1, "no chime while the option is off")
+      ok((ns.addon.printed[1] or ""):find("Test Drake collected after 30 attempts", 1, true), tostring(ns.addon.printed[1]))
+      ok(ns.addon.printed[1]:find("luckier than 74% of players", 1, true), "1 - (1 - 1/100)^30 = 26% had it by now")
+      ns.Options.Set("dropChime", true)
+      ns.UI.OnMountLearned(900)
+      eq(played[2], 2, "the chosen sound")
+      -- A mount MountTrail does not track (a vendor's): nothing.
+      ns.Data.Mounts[901] = { name = "Shop Horse", tab = "misc", section = "shop" }
+      ns.addon.printed = {}
+      ns.UI.OnMountLearned(901)
+      eq(#ns.addon.printed, 0)
+    end)
+    SOUNDKIT, PlaySound = oldKit, oldPlay
+    if not good then error(err, 0) end
   end)
 end)

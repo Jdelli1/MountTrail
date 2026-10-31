@@ -152,6 +152,11 @@ local function attempts(mountID, m)
   })
 end
 
+-- The same for other views (the drop alert, UI/DropAlert.lua).
+function UI.MountAttempts(mountID, m)
+  return attempts(mountID, m or mountData(mountID) or {})
+end
+
 -- Whether attempts are worth showing for a mount: it has a drop chance,
 -- kill statistics, or a lockout spec (Lockouts.SpecFor, incl. the route
 -- boss's BossLockouts; `routeBoss` as UI.LockoutStatus). Shop / vendor /

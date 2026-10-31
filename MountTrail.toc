@@ -70,6 +70,7 @@ UI\AltsWindow.lua
 UI\Popouts.lua
 UI\PopoutRows.lua
 UI\DifficultyCheck.lua
+UI\DropAlert.lua
 UI\HereView.lua
 UI\BrowseView.lua
 UI\Share.lua
