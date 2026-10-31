@@ -638,6 +638,18 @@ end
 
 local function noTooltip() end
 
+-- A list name's colour when "Colour list names by rarity" is on (the main
+-- window's own setting, apart from the pop-outs') and MountsRarity knows the
+-- mount (ns.Owners), else nil.
+function UI.ListRarityColor(mountID)
+  local global = ns.db and ns.db.global
+  local settings = global and global.settings
+  local owners = ns.Owners
+  if not (type(settings) == "table" and settings.rarityColorsMain == true and owners) then return nil end
+  local pct = owners.Percent(mountID)
+  return pct and owners.Color(pct) or nil
+end
+
 -- The row, a pop-out's: the mount's small icon at `left`, its expansion tag,
 -- the name, and the source line right-aligned in the row's right half (left
 -- of the pin), all on one line.
@@ -688,7 +700,7 @@ local function initRow(row, data)
     row.Name:SetFontObject(UI.OwnedFont())
   else
     row.Name:SetFontObject(UI.Font("GameFontHighlight"))
-    local c = UI.PopoutRarityColor and UI.PopoutRarityColor(data.id)
+    local c = UI.ListRarityColor(data.id)
     if c then row.Name:SetTextColor(c[1], c[2], c[3]) end
   end
   row.Icon:SetDesaturated(false)

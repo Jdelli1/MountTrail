@@ -37,6 +37,7 @@ ns.Options = Options
 Options.UNOBTAINABLE = "MOUNTTRAIL_UNOBTAINABLE"
 Options.MINIMAP = "MOUNTTRAIL_MINIMAP"
 Options.RARITY_COLORS = "MOUNTTRAIL_RARITY_COLORS"
+Options.RARITY_COLORS_MAIN = "MOUNTTRAIL_RARITY_COLORS_MAIN"
 Options.WINDOW_SCALE = "MOUNTTRAIL_WINDOW_SCALE"
 Options.SHOW_LISTS = "MOUNTTRAIL_SHOW_LISTS"
 Options.SHOW_QUICK = "MOUNTTRAIL_SHOW_QUICK"
@@ -141,6 +142,64 @@ local function setRarityColors(on)
   ns.Refresh()
 end
 
+-- Whether the main window's list names take their rarity colour (UI/List.lua
+-- reads it: UI.ListRarityColor); apart from the pop-outs' (rarityColors).
+function Options.RarityColorsMain()
+  local global = ns.db and ns.db.global
+  local saved = global and global.settings
+  return type(saved) == "table" and saved.rarityColorsMain == true
+end
+
+local function setRarityColorsMain(on)
+  settings().rarityColorsMain = on and true or nil
+  ns.Refresh()
+end
+
+-- Counting: sections whose mounts the player can leave out of every list
+-- and count (Journal.excluded; owned or not), each a checkbox, on by
+-- default (stored as settings.excluded[section] = true when off).
+Options.COUNT_SECTIONS = {
+  { section = "shop", var = "MOUNTTRAIL_COUNT_SHOP", label = "Count in-game shop mounts",
+    tip = "Mounts bought with real money in the in-game shop. Off: left out of every list and every count." },
+  { section = "tradingpost", var = "MOUNTTRAIL_COUNT_TRADINGPOST", label = "Count Trading Post mounts",
+    tip = "Mounts from the monthly Trading Post. Off: left out of every list and every count." },
+  { section = "promotion", var = "MOUNTTRAIL_COUNT_PROMOTION", label = "Count promotional mounts",
+    tip = "Trading card game, Recruit-a-Friend, collector's editions, BlizzCon and other promotions. Off: left out of every list and every count." },
+  { section = "bmah", var = "MOUNTTRAIL_COUNT_BMAH", label = "Count Black Market mounts",
+    tip = "Mounts only sold on the Black Market Auction House. Off: left out of every list and every count." },
+}
+
+local function excludedStore()
+  local s = settings()
+  if type(s.excluded) ~= "table" then s.excluded = {} end
+  return s.excluded
+end
+
+-- Whether a section's mounts are counted (on by default).
+function Options.Counted(section)
+  local global = ns.db and ns.db.global
+  local saved = global and type(global.settings) == "table" and global.settings.excluded
+  return not (type(saved) == "table" and saved[section] == true)
+end
+
+-- Hands the saved choices to the gate (Journal.SetExcluded).
+function Options.ApplyCounting()
+  if not (ns.db and ns.Journal) then return end
+  local set = {}
+  for _, c in ipairs(Options.COUNT_SECTIONS) do
+    if not Options.Counted(c.section) then set[c.section] = true end
+  end
+  ns.Journal.SetExcluded(set)
+end
+
+function Options.SetCounted(section, on)
+  if not ns.db then return end
+  excludedStore()[section] = (not on) or nil
+  Options.ApplyCounting()
+  if ns.UI and ns.UI.ForgetHomeNearby then ns.UI.ForgetHomeNearby() end
+  ns.Refresh()
+end
+
 -- Whether the wrong-difficulty warning is on (UI/DifficultyCheck.lua; on by
 -- default: stored as settings.difficultyWarnOff).
 function Options.DifficultyWarning()
@@ -183,6 +242,7 @@ function Options.Set(name, value)
   elseif name == "navTextSize" then setNavTextSize(value)
   elseif name == "showUnobtainable" then setUnobtainable(value)
   elseif name == "rarityColors" then setRarityColors(value)
+  elseif name == "rarityColorsMain" then setRarityColorsMain(value)
   elseif name == "difficultyWarning" then setDifficultyWarning(value)
   elseif name == "minimap" then Options.SetMinimap(value)
   elseif name == "showLists" or name == "showQuick" then
@@ -190,10 +250,15 @@ function Options.Set(name, value)
     settings()[name == "showLists" and "navHideLists" or "navHideQuick"] = (not value) or nil
     if ns.UI and ns.UI.RefreshNav then ns.UI.RefreshNav() end
   end
+  if type(name) == "string" and string.sub(name, 1, 6) == "count:" then
+    Options.SetCounted(string.sub(name, 7), value)
+  end
   for _, var in pairs({ Options.WINDOW_SCALE, Options.NAV_TEXT, Options.UNOBTAINABLE, Options.RARITY_COLORS,
-    Options.MINIMAP, Options.SHOW_LISTS, Options.SHOW_QUICK, Options.DIFFICULTY_WARNING }) do
+    Options.RARITY_COLORS_MAIN, Options.MINIMAP, Options.SHOW_LISTS, Options.SHOW_QUICK,
+    Options.DIFFICULTY_WARNING }) do
     Options.Changed(var)
   end
+  for _, c in ipairs(Options.COUNT_SECTIONS) do Options.Changed(c.var) end
 end
 
 -- Every text size back to the game's (0), the navigation's to +2.
@@ -249,6 +314,7 @@ end
 function Options.ResetAll(global, char)
   if type(global) ~= "table" then return end
   global.settings = { showUnobtainable = false, rarityColors = false }
+  if ns.Journal and ns.Journal.SetExcluded then ns.Journal.SetExcluded({}) end
   global.window = {}
   global.filters = {}
   for k, v in pairs(ns.Journal and ns.Journal.DefaultFilters or {}) do
@@ -309,10 +375,22 @@ local function build(api)
   api.CreateCheckbox(category, unobtainable,
     L["List mounts you can no longer get on the Misc tab, under Unobtainable. Collected ones stay where they are."])
 
+  -- What is counted: each optional section (in-game shop, ...).
+  for _, c in ipairs(Options.COUNT_SECTIONS) do
+    local setting = api.RegisterProxySetting(category, c.var, VarType.Boolean or "boolean", L[c.label], true,
+      function() return Options.Counted(c.section) end, function(on) Options.SetCounted(c.section, on) end)
+    api.CreateCheckbox(category, setting, L[c.tip])
+  end
+
   local rarity = api.RegisterProxySetting(category, Options.RARITY_COLORS, VarType.Boolean or "boolean",
     L["Colour pop-out names by rarity"], false, Options.RarityColors, setRarityColors)
   api.CreateCheckbox(category, rarity,
     L["Colour each pop-out row by how many characters own the mount (legendary under 2 %, epic under 10 %, rare under 20 %, uncommon under 50 %). Needs Mount Journal Enhanced or the MountsRarity add-on."])
+
+  local rarityMain = api.RegisterProxySetting(category, Options.RARITY_COLORS_MAIN, VarType.Boolean or "boolean",
+    L["Colour list names by rarity"], false, Options.RarityColorsMain, setRarityColorsMain)
+  api.CreateCheckbox(category, rarityMain,
+    L["The same colours for the mount names in the main window's lists (Lockouts, Browse, your lists...). Needs Mount Journal Enhanced or the MountsRarity add-on."])
 
   local difficulty = api.RegisterProxySetting(category, Options.DIFFICULTY_WARNING, VarType.Boolean or "boolean",
     L["Warn about the wrong difficulty"], true, Options.DifficultyWarning, setDifficultyWarning)
@@ -422,12 +500,14 @@ function Options.Changed(variable, api)
 end
 
 if IsLoggedIn() then
+  Options.ApplyCounting()
   Options.Register()
 else
   local loginFrame = CreateFrame("Frame")
   loginFrame:RegisterEvent("PLAYER_LOGIN")
   loginFrame:SetScript("OnEvent", function(self)
     self:UnregisterEvent("PLAYER_LOGIN")
+    Options.ApplyCounting()
     Options.Register()
   end)
 end

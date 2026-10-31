@@ -32,13 +32,13 @@ ns.UI = UI
 
 -- Layout: margins, the strip, the right column's width, row heights.
 local G = {
-  left = 12, top = -48, stripH = 36,
+  left = 12, top = -58, stripH = 46,
   sideW = 230, gap = 20,
   row = 22, heading = 22, sectionGap = 10,
 }
 UI.HomeLayout = G
 
-local SUMMARY_BAR_H, ROW_BAR_H = 4, 6
+local SUMMARY_BAR_H, ROW_BAR_H = 12, 6
 local BAR_TEXTURE = "Interface\\Buttons\\WHITE8X8" -- flat fill, tinted below
 local GOLD = { 1, 0.82, 0, 1 }
 local GREEN = { 0.25, 0.78, 0.35, 1 }
@@ -73,17 +73,6 @@ local home, listPage, list, title
 local searchPage, searchList
 local currentExp
 
--- The tabs that list mounts, in tab order; the summary counts all of them
--- and "By source" has a row each.
-local SOURCES = {
-  { key = "journal", label = "Journal" },
-  { key = "holidays", label = "Holidays" },
-  { key = "achievements", label = "Achievements" },
-  { key = "timewalking", label = "Timewalking" },
-  { key = "misc", label = "Misc" },
-}
-UI.HomeSources = SOURCES
-
 local function expansions()
   return (ns.Data and ns.Data.Expansions) or {}
 end
@@ -95,21 +84,22 @@ function UI.HomePercent(have, total)
   return math.floor((have or 0) * 100 / total)
 end
 
--- Owned / total per tab (Journal.ViewOf without options, so an unobtainable
--- mount counts on its own tab) through the list gate (known to the client,
--- this faction, obtainable or owned) -> { [view] = { have =, total = } },
--- plus all = the sum over the SOURCES tabs.
-function UI.HomeTabCounts(mounts, isOwned, exists, faction)
+-- Owned / total per source, the Browse categories (Logic/Browse.lua: a
+-- category with its own view, Achievements / Holidays / Timewalking, by
+-- Journal.ViewOf), through the list gate (known to the client, this faction,
+-- obtainable or owned, a counted section) -> { [category key] = { have =,
+-- total = } }, plus all = every mount the gate keeps. sourceText as
+-- Journal.SectionOf (refines delves and caches).
+function UI.HomeSourceCounts(mounts, isOwned, exists, faction, sourceText)
   local out = { all = { have = 0, total = 0 } }
-  for _, src in ipairs(SOURCES) do out[src.key] = { have = 0, total = 0 } end
+  for _, c in ipairs(ns.Browse.CATEGORIES) do out[c.key] = { have = 0, total = 0 } end
   for id, m in pairs(mounts or {}) do
-    local c = out[ns.Journal.ViewOf(m)]
-    if c and c ~= out.all then
-      local o = ns.Journal.Gate(id, m, isOwned, exists, faction)
-      if o ~= nil then
-        c.total, out.all.total = c.total + 1, out.all.total + 1
-        if o then c.have, out.all.have = c.have + 1, out.all.have + 1 end
-      end
+    local o = ns.Journal.Gate(id, m, isOwned, exists, faction)
+    if o ~= nil then
+      local key = ns.Browse.CategoryOf(id, m, sourceText) or ns.Journal.ViewOf(m)
+      local c = out[key] or out.other
+      c.total, out.all.total = c.total + 1, out.all.total + 1
+      if o then c.have, out.all.have = c.have + 1, out.all.have + 1 end
     end
   end
   return out
@@ -429,12 +419,14 @@ local function refreshHome()
     end
   end
 
-  local counts = UI.HomeTabCounts(mounts, isOwned, exists, faction)
+  local sourceText = UI.MemoText and UI.MemoText(Game.MountSourceText) or Game.MountSourceText
+  local counts = UI.HomeSourceCounts(mounts, isOwned, exists, faction, sourceText)
   paintHeading(home.SourceHeading)
   for _, b in ipairs(home.Sources) do
-    local c = counts[b.key]
+    local c = counts[b.key] or { have = 0, total = 0 }
     paintProgress(b, c.have, c.total)
   end
+  home.LayoutMain()
   local sumHave, sumTotal = counts.all.have, counts.all.total
   local s = home.Summary
   s.have, s.total = sumHave, sumTotal
@@ -507,10 +499,10 @@ local function createSummary()
   s:SetPoint("TOPRIGHT", home, "TOPRIGHT", -G.left, 0)
   s:SetHeight(G.stripH)
 
-  local heading = s:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalLarge"))
-  heading:SetPoint("TOPLEFT", s, "TOPLEFT", 0, -8)
-  heading:SetText(L["Mount Collection"])
-  s.Title = heading
+  local titleText = s:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalLarge"))
+  titleText:SetPoint("TOPLEFT", s, "TOPLEFT", 0, -8)
+  titleText:SetText(L["Mount Collection"])
+  s.Title = titleText
 
   local totals = s:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlight"))
   totals:SetPoint("TOPRIGHT", s, "TOPRIGHT", 0, -10)
@@ -525,7 +517,7 @@ local function createSummary()
   local search = CreateFrame("EditBox", nil, s, "SearchBoxTemplate")
   search:SetAutoFocus(false)
   search:SetSize(220, 20)
-  search:SetPoint("LEFT", heading, "RIGHT", 24, 0)
+  search:SetPoint("LEFT", titleText, "RIGHT", 24, 0)
   -- A short one-line hint (a long one wrapped onto two lines); the tooltip
   -- says what else it finds.
   local hint = search.Instructions
@@ -547,43 +539,75 @@ local function createSummary()
   return s
 end
 
--- The left column: Expansions and By source, one progress row each.
+-- The left column: Expansions and By source (the Browse categories, the
+-- navigation's order; a category the player does not count is left out),
+-- one progress row each, in a column that scrolls when the window is short.
 local function createColumns()
-  local main = CreateFrame("Frame", nil, home)
+  local main = CreateFrame("ScrollFrame", nil, home)
   main:SetPoint("TOPLEFT", home, "TOPLEFT", G.left, G.top)
   main:SetPoint("BOTTOMRIGHT", home, "BOTTOMRIGHT", -(G.left + G.sideW + G.gap), 0)
-  home.Main = main
-  local y = 0
-  local function add(f, h)
-    f:SetPoint("TOPLEFT", main, "TOPLEFT", 0, -y)
-    f:SetPoint("TOPRIGHT", main, "TOPRIGHT", 0, -y)
-    y = y + h
-  end
-  home.ExpHeading = heading(main, L["Expansions"])
-  add(home.ExpHeading, G.heading)
+  local content = CreateFrame("Frame", nil, main)
+  content:SetSize(1, 1)
+  main:SetScrollChild(content)
+  if main.EnableMouseWheel then main:EnableMouseWheel(true) end
+  main:SetScript("OnMouseWheel", function(self, delta)
+    local max = math.max(0, (home.mainHeight or 0) - (self:GetHeight() or 0))
+    self:SetVerticalScroll(math.min(max, math.max(0, (self:GetVerticalScroll() or 0) - delta * 30)))
+  end)
+  main:SetScript("OnSizeChanged", function(self, w) content:SetWidth(w or self:GetWidth() or 1) end)
+  home.Main, home.MainContent = main, content
+
+  home.ExpHeading = heading(content, L["Expansions"])
   home.Expansions = {}
   for i, name in ipairs(expansions()) do
-    local b = progressRow(main, i, true)
+    local b = progressRow(content, i, true)
     b.Name:SetText(L[name])
     b.exp = name
     b:SetScript("OnClick", function() showList(name) end)
-    add(b, G.row)
     home.Expansions[i] = b
   end
-  y = y + G.sectionGap
-  home.SourceHeading = heading(main, L["By source"])
-  add(home.SourceHeading, G.heading)
+  home.SourceHeading = heading(content, L["By source"])
   home.Sources = {}
-  for i, src in ipairs(SOURCES) do
-    local b = progressRow(main, i, false)
-    b.key = src.key
-    b.Name:SetText(L[src.label])
+  for i, c in ipairs(ns.Browse.CATEGORIES) do
+    local b = progressRow(content, i, false)
+    b.key, b.category = c.key, c
+    b.Name:SetText(L[c.label])
     b.Name:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
-    b:SetScript("OnClick", function() UI.SelectTab(src.key) end)
-    add(b, G.row)
+    b:SetScript("OnClick", function()
+      if c.view then UI.SelectTab(c.view) elseif UI.ShowBrowse then UI.ShowBrowse(c.key) end
+    end)
     home.Sources[i] = b
   end
-  home.mainHeight = y
+
+  -- Places the column's rows top to bottom (a source left out takes no room),
+  -- striping the shown ones afresh.
+  function home.LayoutMain()
+    local y = 0
+    local function add(f, h)
+      f:ClearAllPoints()
+      f:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -y)
+      f:SetPoint("TOPRIGHT", content, "TOPRIGHT", 0, -y)
+      f:Show()
+      y = y + h
+    end
+    add(home.ExpHeading, G.heading)
+    for _, b in ipairs(home.Expansions) do add(b, G.row) end
+    y = y + G.sectionGap
+    add(home.SourceHeading, G.heading)
+    local n = 0
+    for _, b in ipairs(home.Sources) do
+      if ns.Browse.Shown(b.category) then
+        n = n + 1
+        b.Stripe:SetShown(n % 2 == 0)
+        add(b, G.row)
+      else
+        b:Hide()
+      end
+    end
+    home.mainHeight = y
+    content:SetHeight(math.max(y, 1))
+  end
+  home.LayoutMain()
 
   -- The right column: Today, Following, Nearby (placed by refreshSide).
   local side = CreateFrame("Frame", nil, home)

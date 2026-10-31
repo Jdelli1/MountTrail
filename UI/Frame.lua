@@ -421,6 +421,8 @@ function UI.SettingsMenuItems()
     function() O.Set("showUnobtainable", not (saved.showUnobtainable == true)) end)
   items[#items + 1] = check(L["Colour pop-out names by rarity"], saved.rarityColors == true,
     function() O.Set("rarityColors", not (saved.rarityColors == true)) end)
+  items[#items + 1] = check(L["Colour list names by rarity"], saved.rarityColorsMain == true,
+    function() O.Set("rarityColorsMain", not (saved.rarityColorsMain == true)) end)
   items[#items + 1] = check(L["Warn about the wrong difficulty"], saved.difficultyWarnOff ~= true,
     function() O.Set("difficultyWarning", saved.difficultyWarnOff == true) end)
   items[#items + 1] = check(L["Show My lists"], saved.navHideLists ~= true,
@@ -429,6 +431,14 @@ function UI.SettingsMenuItems()
     function() O.Set("showQuick", saved.navHideQuick == true) end)
   items[#items + 1] = check(L["Show minimap button"], not (global and global.minimap and global.minimap.hide),
     function() O.Set("minimap", global and global.minimap and global.minimap.hide == true) end)
+  -- What is counted (Options.COUNT_SECTIONS).
+  if O.COUNT_SECTIONS and O.Counted then
+    items[#items + 1] = { title = L["Count"] }
+    for _, c in ipairs(O.COUNT_SECTIONS) do
+      local on = O.Counted(c.section)
+      items[#items + 1] = check(L[c.label], on, function() O.Set("count:" .. c.section, not on) end)
+    end
+  end
   items[#items + 1] = { separator = true }
   items[#items + 1] = { text = L["Reset text sizes"], onClick = function() O.ResetTextSizes() end }
   items[#items + 1] = { text = L["All options..."], onClick = function() O.Open() end }

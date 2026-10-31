@@ -180,11 +180,29 @@ local function factionOk(m, faction)
   return m.faction == faction
 end
 
--- Common gate for Select and Counts: known to this client, right faction, and
--- obtainable (or already owned; or any unobtainable one with
--- showUnobtainable, which only Select passes). Returns owned (boolean) or nil
--- when excluded.
+-- Sections the player chose not to count (Options: "Count in-game shop
+-- mounts" and the like): { [section] = true }. Their mounts, owned or not,
+-- are left out of every list and every count (the gate below). Set by
+-- UI/Options.lua (Journal.SetExcluded).
+Journal.excluded = {}
+
+-- The data sections a counting option can leave out, in the order offered.
+Journal.OPTIONAL_SECTIONS = { "shop", "tradingpost", "promotion", "bmah" }
+
+function Journal.SetExcluded(set)
+  Journal.excluded = type(set) == "table" and set or {}
+end
+
+function Journal.IsExcluded(m)
+  return m ~= nil and m.section ~= nil and Journal.excluded[m.section] == true
+end
+
+-- Common gate for Select and Counts: known to this client, right faction, a
+-- section the player counts (Journal.excluded), and obtainable (or already
+-- owned; or any unobtainable one with showUnobtainable, which only Select
+-- passes). Returns owned (boolean) or nil when excluded.
 local function gate(id, m, isOwned, exists, faction, showUnobtainable)
+  if Journal.IsExcluded(m) then return nil end
   if not exists(id) then return nil end
   if not factionOk(m, faction) then return nil end
   local owned = isOwned(id) and true or false

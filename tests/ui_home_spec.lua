@@ -2,7 +2,7 @@
 -- summary strip (title, totals, search, 4 px bar), the Expansions and By
 -- source progress rows, and the Today / Following / Nearby column.
 
-local UI_FILES = { "UI/Frame.lua", "UI/Tooltip.lua", "UI/List.lua", "UI/JournalHome.lua" }
+local UI_FILES = { "UI/Frame.lua", "UI/Tooltip.lua", "UI/List.lua", "UI/JournalHome.lua", "UI/BrowseView.lua" }
 
 -- Widget methods the home and the list page call that the base stub lacks;
 -- the StatusBar ones record what they were given.
@@ -101,7 +101,7 @@ describe("journal home", function()
     eq(summary.Title:GetText(), "Mount Collection")
     eq(summary.Title.template, ns.UI.Font("GameFontNormalLarge"))
     eq(summary.Totals.template, ns.UI.Font("GameFontHighlight"))
-    eq(summary.Bar.height, 4, "4 px summary bar")
+    eq(summary.Bar.height, 12, "a thick 12 px total bar")
     eq(summary.Bar:GetNumPoints(), 2, "full width: anchored left and right")
     eq(summary.Bar.barColor, ns.UI.ProgressColor(summary.have, summary.total), "its percent's colour")
     eq(home.ExpHeading.Text:GetText(), "Expansions")
@@ -117,9 +117,10 @@ describe("journal home", function()
       eq(row.Stripe:IsShown(), i % 2 == 0, "striped every other row")
     end
     eq(home.SourceHeading.Text:GetText(), "By source")
-    eq(#home.Sources, 5)
+    eq(#home.Sources, #ns.Browse.CATEGORIES, "a row per Browse source, not Misc")
+    eq(home.Sources[1].Name:GetText(), "Drops")
     ok(home.Side and home.Side.TodayHeading:IsShown(), "the right column")
-    eq({ home.Side:GetPoint(1) }, { "TOPRIGHT", home, "TOPRIGHT", -12, -48 })
+    eq({ home.Side:GetPoint(1) }, { "TOPRIGHT", home, "TOPRIGHT", -12, -58 })
   end)
 
   it("expansion counts and percents match their text", function()
@@ -157,15 +158,27 @@ describe("journal home", function()
     eq(s.Bar.max, 7)
     eq(s.Bar.value, 3)
     local want = {
-      journal = { 1, 2 }, holidays = { 1, 1 }, achievements = { 0, 1 }, timewalking = { 0, 1 }, misc = { 1, 2 },
+      drops = { 1, 2 }, holidays = { 1, 1 }, achievements = { 0, 1 }, timewalking = { 0, 1 }, shop = { 1, 2 },
     }
+    local byKey = {}
     for i, row in ipairs(home.Sources) do
-      eq(row.key, ns.UI.HomeSources[i].key)
-      eq({ row.have, row.total }, want[row.key], row.key)
+      eq(row.key, ns.Browse.CATEGORIES[i].key)
+      eq({ row.have, row.total }, want[row.key] or { 0, 0 }, row.key)
       eq(row.Count:GetText(), string.format("%d / %d", row.have, row.total))
+      byKey[row.key] = row
     end
-    home.Sources[5]:RunScript("OnClick", "LeftButton")
-    ok(ns.UI.frame.Contents.misc:IsShown(), "the Misc row opens the Misc tab")
+    byKey.shop:RunScript("OnClick", "LeftButton")
+    ok(ns.UI.frame.Contents.browse:IsShown(), "In-game Shop opens its Browse page")
+    eq(ns.UI.BrowseCategory(), "shop")
+    byKey.achievements:RunScript("OnClick", "LeftButton")
+    ok(ns.UI.frame.Contents.achievements:IsShown(), "Achievements opens its own view")
+    -- Not counting the in-game shop: out of the totals, its row gone.
+    ns.UI.SelectTab("journal")
+    ns.Journal.SetExcluded({ shop = true })
+    ns.Refresh()
+    eq({ s.have, s.total }, { 2, 5 }, "the shop's two mounts left out, the owned one too")
+    ok(not byKey.shop:IsShown(), "no In-game Shop row")
+    ns.Journal.SetExcluded({})
   end)
 
   it("percent rounds down and is 0 without mounts", function()
@@ -328,15 +341,15 @@ describe("journal home", function()
     eq(list.SearchBox:GetText(), "", "search cleared")
   end)
 
-  it("the rows fit the view area of the 900 x 560 window beside the navigation", function()
+  it("the rows fit the width of the 900 x 560 window beside the navigation; the column scrolls", function()
     local ns = loadUI()
     local G = ns.UI.HomeLayout
     local home = openHome(ns)
     -- Window 900 x 560: the navigation column (6 + NAV_WIDTH + 4) on the
-    -- left, 6 px right; views from 32 px down to 6 px from the bottom; 4 px inside.
+    -- left, 6 px right; 4 px inside.
     local contentW = 900 - (6 + ns.UI.NAV_WIDTH + 4) - 6 - 8
-    local contentH = 560 - 32 - 6 - 8
-    ok(-G.top + home.mainHeight <= contentH, "the left column fits the height: " .. (-G.top + home.mainHeight))
+    eq(home.Main.kind, "ScrollFrame", "the left column scrolls")
+    eq(home.MainContent.height, home.mainHeight, "its content as tall as its rows")
     local leftW = contentW - 2 * G.left - G.sideW - G.gap
     -- tag 62, name 140, gap 8, a 60 px bar at least, check 6 + 14 + 4, count 80, gap 6, percent 40, 4.
     ok(leftW >= 62 + 140 + 8 + 60 + 6 + 14 + 4 + 80 + 6 + 40 + 4, "room for tag, name, bar, count and percent: " .. leftW)

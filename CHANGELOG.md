@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Options: `Count in-game shop mounts`, `Count Trading Post mounts`, `Count
+  promotional mounts`, `Count Black Market mounts` (on by default): off leaves
+  those mounts out of every list and count, owned or not.
+- Options: `Colour list names by rarity`, the main window's own, apart from
+  `Colour pop-out names by rarity`.
+- Home: By source lists every Browse source instead of Misc; the left column
+  scrolls; a thicker total bar.
 - Sizes named by what they size: `Whole window`, then `Left column`,
   `Headers`, `Mount names and text` and `Small notes` (were Window scale and
   Gold / White / Grey / Navigation text size). A row's source line and

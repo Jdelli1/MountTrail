@@ -120,8 +120,18 @@ describe("options", function()
         { "Category", "MountTrail" },
         { "Setting", "MOUNTTRAIL_UNOBTAINABLE" },
         { "Checkbox", "MOUNTTRAIL_UNOBTAINABLE" },
+        { "Setting", "MOUNTTRAIL_COUNT_SHOP" },
+        { "Checkbox", "MOUNTTRAIL_COUNT_SHOP" },
+        { "Setting", "MOUNTTRAIL_COUNT_TRADINGPOST" },
+        { "Checkbox", "MOUNTTRAIL_COUNT_TRADINGPOST" },
+        { "Setting", "MOUNTTRAIL_COUNT_PROMOTION" },
+        { "Checkbox", "MOUNTTRAIL_COUNT_PROMOTION" },
+        { "Setting", "MOUNTTRAIL_COUNT_BMAH" },
+        { "Checkbox", "MOUNTTRAIL_COUNT_BMAH" },
         { "Setting", "MOUNTTRAIL_RARITY_COLORS" },
         { "Checkbox", "MOUNTTRAIL_RARITY_COLORS" },
+        { "Setting", "MOUNTTRAIL_RARITY_COLORS_MAIN" },
+        { "Checkbox", "MOUNTTRAIL_RARITY_COLORS_MAIN" },
         { "Setting", "MOUNTTRAIL_DIFFICULTY_WARNING" },
         { "Checkbox", "MOUNTTRAIL_DIFFICULTY_WARNING" },
         { "Setting", "MOUNTTRAIL_WINDOW_SCALE" },
@@ -486,5 +496,63 @@ describe("reset all settings", function()
     ok(ns.Options.Register(S), "the page still registers")
     eq(#S.layout.initializers, 0)
     CreateSettingsButtonInitializer = old
+  end)
+end)
+
+describe("counting options", function()
+  it("a section turned off leaves its mounts out of every list and count, owned or not", function()
+    local ns = loadOptions()
+    local J = ns.Journal
+    local yes = function() return true end
+    local shop = { section = "shop", tab = "misc" }
+    eq(ns.Options.Counted("shop"), true, "counted by default")
+    eq(J.Gate(1, shop, yes, yes, nil), true, "owned and counted")
+    ns.Options.SetCounted("shop", false)
+    eq(ns.db.global.settings.excluded, { shop = true })
+    eq(J.Gate(1, shop, yes, yes, nil), nil, "off: left out even when owned")
+    eq(J.Gate(2, { section = "vendor" }, yes, yes, nil), true, "other sections untouched")
+    local mounts = { [1] = shop, [2] = { section = "vendor", tab = "misc" } }
+    local total = 0
+    for id, m in pairs(mounts) do if J.Gate(id, m, yes, yes, nil) ~= nil then total = total + 1 end end
+    eq(total, 1, "out of the counts")
+    ns.Options.Set("count:shop", true)
+    eq(J.Gate(1, shop, yes, yes, nil), true, "on again")
+    -- After a reload the saved choice is handed to the gate.
+    ns.db.global.settings.excluded = { tradingpost = true }
+    ns.Options.ApplyCounting()
+    eq(J.Gate(3, { section = "tradingpost" }, yes, yes, nil), nil)
+    ns.Options.ResetAll(ns.db.global, ns.db.char)
+    eq(J.Gate(3, { section = "tradingpost" }, yes, yes, nil), true, "a reset counts everything again")
+  end)
+
+  it("rarity colours: the pop-outs' and the main window's lists are separate settings", function()
+    local ns = loadOptions()
+    ns.Options.Set("rarityColorsMain", true)
+    eq(ns.db.global.settings.rarityColorsMain, true)
+    eq(ns.db.global.settings.rarityColors, false, "the pop-outs' stays off")
+    eq(ns.Options.RarityColorsMain(), true)
+    eq(ns.Options.RarityColors(), false)
+  end)
+
+  it("a Browse category with nothing counted leaves the navigation (no empty page)", function()
+    local ns = load_addon((function()
+      reset_ui_stub()
+      local files = toc_lua_files()
+      files[#files + 1] = "UI/Frame.lua" -- with UI/Nav.lua (COMPANIONS)
+      return files
+    end)())
+    ns.addon:OnInitialize()
+    local function keys()
+      local out = {}
+      for _, e in ipairs(ns.UI.NavBrowseEntries(ns.Browse.CATEGORIES)) do out[e.key] = true end
+      return out
+    end
+    ok(keys()["browse:shop"], "shown while counted")
+    ns.Journal.SetExcluded({ shop = true })
+    eq(keys()["browse:shop"], nil, "In-game Shop gone")
+    ok(keys()["browse:other"], "Other stays while any of its sections is counted")
+    ns.Journal.SetExcluded({ promotion = true })
+    ok(keys()["browse:other"], "promotions off: Other still has racial, class...")
+    ns.Journal.SetExcluded({})
   end)
 end)
