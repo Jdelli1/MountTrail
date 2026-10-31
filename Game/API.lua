@@ -732,6 +732,15 @@ function Game.AddChatFilter(event, fn)
   return pcall(add, event, fn)
 end
 
+-- How many of an item are in the bags (bank and reagent bank not counted).
+function Game.ItemCount(itemID)
+  local item = C_Item
+  local fn = (item and item.GetItemCount) or GetItemCount
+  if type(fn) ~= "function" then return 0 end
+  local good, n = pcall(fn, itemID)
+  return good and type(n) == "number" and n or 0
+end
+
 -- Whether the client has the sound SOUNDKIT[key].
 function Game.HasSoundKit(key)
   return type(SOUNDKIT) == "table" and type(key) == "string" and SOUNDKIT[key] ~= nil

@@ -640,7 +640,33 @@ describe("counting options", function()
       ok(ns.addon.printed[1]:find("luckier than 74% of players", 1, true), "1 - (1 - 1/100)^30 = 26% had it by now")
       ns.Options.Set("dropChime", true)
       ns.UI.OnMountLearned(900)
+      eq(#played, 1, "once per mount and session")
+      ns.UI.ForgetDropWatch(true)
+      ns.UI.OnMountLearned(900)
       eq(played[2], 2, "the chosen sound")
+      -- The bag check: the mount's item arriving is the drop.
+      ns.UI.ForgetDropWatch(true)
+      ns.Data.Mounts[902] = { name = "Bag Drake", chance = 50, item = 7777, tab = "journal", section = "raid" }
+      local bag = { [7777] = 0 }
+      ns.Game.ItemCount = function(id) return bag[id] or 0 end
+      ns.Game.IsOwned = function() return false end
+      ns.addon.printed = {}
+      ns.UI.CheckBagsForMounts()
+      eq(#ns.addon.printed, 0, "the first check only records what is there")
+      bag[7777] = 1
+      ns.UI.CheckBagsForMounts()
+      ok((ns.addon.printed[1] or ""):find("Bag Drake collected", 1, true), "looted: the alert")
+      eq(played[3], 2, "and the chime")
+      ns.UI.CheckBagsForMounts()
+      ns.UI.OnMountLearned(902)
+      eq(#ns.addon.printed, 1, "learning it later stays quiet")
+      eq(#played, 3)
+      -- An item already in the bags at login never alerts.
+      ns.UI.ForgetDropWatch(true)
+      ns.addon.printed = {}
+      ns.UI.CheckBagsForMounts()
+      ns.UI.CheckBagsForMounts()
+      eq(#ns.addon.printed, 0)
       -- A mount MountTrail does not track (a vendor's): nothing.
       ns.Data.Mounts[901] = { name = "Shop Horse", tab = "misc", section = "shop" }
       ns.addon.printed = {}
