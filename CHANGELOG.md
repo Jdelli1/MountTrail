@@ -2,7 +2,8 @@
 
 ## Unreleased
 
-- The world map tab's rows show each mount's icon again.
+- The world map tab's rows show each mount's icon again, bigger, and drop the
+  source column (the map already is the zone).
 - The drop sound is picked on the AddOns settings page only; the cogwheel
   menu keeps the "Chime when a mount drops" switch.
 

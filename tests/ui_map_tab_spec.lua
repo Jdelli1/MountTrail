@@ -179,6 +179,8 @@ describe("world map tab", function()
     ns.Game.MountInfo = savedInfo
     ok(row.Icon and row.Icon:IsShown(), "the mount's icon")
     eq(row.Icon.texture, 1000 + data.id)
+    eq({ row.Icon:GetSize() }, { 26, 26 }, "bigger than the text")
+    ok(not row.Source:IsShown(), "no source: the map shows the zone")
 
     WorldMapFrame.mapID = 71
     hooks.secure.OnMapChanged()
