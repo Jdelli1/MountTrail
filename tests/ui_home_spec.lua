@@ -252,25 +252,6 @@ describe("journal home", function()
     eq(today[2].Value:GetText(), "|cff9d9d9d0 left|r", "grey when none")
   end)
 
-  it("Following: the guide followed, its step and Resume; else a hint", function()
-    local ns = loadUI()
-    local home = openHome(ns)
-    local f = home.Side.Follow
-    ok(f.None:IsShown() and not f.Resume:IsShown(), "no guide: the hint")
-    local guide = { title = "Serpent", guide = { steps = { { text = "Fly" }, { text = "Wait" }, { text = "Done" } } } }
-    ns.UI.ActiveGuide = function() return guide, 2 end
-    ns.UI.GuideText = function(t) return t end
-    local opened
-    ns.UI.ShowGuideWindow = function(on) opened = on end
-    ns.Refresh()
-    eq(f.Title:GetText(), "Serpent")
-    eq(f.Step:GetText(), "Step 2 of 3  |cff9d9d9dWait|r")
-    eq({ f.Bar.max, f.Bar.value }, { 3, 2 })
-    ok(f.Resume:IsShown() and not f.None:IsShown())
-    f.Resume:RunScript("OnClick", "LeftButton")
-    eq(opened, true, "Resume opens the guide window")
-  end)
-
   it("Nearby: the first mounts of the zone, kept per zone for a minute; the last line opens Current Zone", function()
     local ns = loadUI()
     local calls = 0

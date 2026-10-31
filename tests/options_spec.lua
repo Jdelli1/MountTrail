@@ -570,4 +570,16 @@ describe("counting options", function()
     eq(ns.Browse.Shown(ns.Browse.Get("shop")), false, "but nothing of it counted (Home leaves its row out)")
     ns.Journal.SetExcluded({})
   end)
+
+  it("/mtrail hide and /mtrail show set the minimap button", function()
+    local ns = loadOptions()
+    run_slash(ns.addon, "mtrail", "hide")
+    eq(ns.db.global.minimap.hide, true)
+    run_slash(ns.addon, "mtrail", "show")
+    eq(ns.db.global.minimap.hide, false)
+    run_slash(ns.addon, "mtrail", "help")
+    local found = false
+    for _, line in ipairs(ns.addon.printed or {}) do if line:find("^/mtrail hide") then found = true end end
+    ok(found, "help lists it")
+  end)
 end)

@@ -2,7 +2,7 @@ local ADDON, ns = ...
 
 -- The look shared by MountTrail's own windows: the pop-outs (UI/Popouts.lua),
 -- the main window (UI/Frame.lua) and the extra windows (the alt lockout
--- matrix, the guide window). A window's style is its own (saved under its
+-- matrix). A window's style is its own (saved under its
 -- key in ns.db.global.popouts), else the shared one ("Apply to all
 -- pop-outs", ns.db.global.popoutStyle), over the defaults. Right-click a
 -- window's title for its appearance menu (UI.PopoutStyleMenu).
@@ -313,7 +313,7 @@ function UI.PopoutStyleMenu(w, back)
       end },
     }
   end
-  -- Show completed is a pop-out's own (the Alts and guide windows list no
+  -- Show completed is a pop-out's own (the Alts window lists no
   -- lockouts to complete).
   local build = main
   main = function()

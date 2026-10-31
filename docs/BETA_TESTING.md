@@ -48,17 +48,6 @@ after updating, except when an update adds files: then restart the game.
 - [ ] `/mtrail sharetest` reports sharing set up (addon messages on, chat
       filters > 0).
 
-## Guides
-
-- [ ] Guides > Thundering Ruby Cloud Serpent: Next plots the step's points on
-      TomTom, Back takes them off, the last step's Finish closes it.
-- [ ] A step with `reach` moves on by itself near its point (outside
-      instances); one with `item` when the items are in your bags.
-- [ ] Links in a guide show the game's tooltip; `Go to: [place]` sets a
-      waypoint; Make macro puts a macro on the cursor.
-- [ ] New guide / Import guide / Edit a copy / Export work; the editor points
-      at a mistake's line.
-
 ## Reporting
 
 Include: what you did, what you expected, what happened, your MountTrail

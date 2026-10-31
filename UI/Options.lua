@@ -78,7 +78,7 @@ Options.TEXT_TIPS = {
 -- The order the sizes are offered in: the window's areas, left to right.
 Options.TEXT_ORDER = { "header", "body", "detail" }
 Options.NAV_LABEL = "Left column"
-Options.NAV_TIP = "Home, Lockouts, Current Zone, Browse, your lists and guides: the window's left column."
+Options.NAV_TIP = "Home, Lockouts, Current Zone, Alts, Browse and your lists: the window's left column."
 Options.SCALE_LABEL = "Whole window"
 Options.SCALE_TIP = "Everything in the MountTrail window at once, text included. Use the sizes below for just one kind of text."
 
@@ -326,7 +326,7 @@ end
 -- window (size, position, view, column widths), the appearance of every
 -- window and pop-out (and their sizes and positions), the minimap button,
 -- the list filters, the zone panel, debug, and this character's Lockouts
--- filters. Kept: lists, guides, attempts, kill statistics, lockout ticks,
+-- filters. Kept: lists, attempts, kill statistics, lockout ticks,
 -- rare-spawn checks, the alts, collapsed headers and the navigation's order
 -- and favourites (the player's own data, not settings). global / char:
 -- ns.db.global / ns.db.char.
@@ -344,7 +344,6 @@ function Options.ResetAll(global, char)
   global.minimap = { hide = false }
   global.zonePanel = { open = false }
   global.altsWindow = {}
-  global.guideWindow = {}
   global.debug = false
   global.popoutStyle = nil
   for _, state in pairs(type(global.popouts) == "table" and global.popouts or {}) do
@@ -366,7 +365,7 @@ Options.RESET_POPUP = "MOUNTTRAIL_RESET_SETTINGS"
 function Options.ConfirmReset()
   if type(StaticPopupDialogs) ~= "table" or type(StaticPopup_Show) ~= "function" then return false end
   StaticPopupDialogs[Options.RESET_POPUP] = StaticPopupDialogs[Options.RESET_POPUP] or {
-    text = L["Reset every MountTrail setting to its default?\n\nOptions, text sizes, window size and position, and the look of every window and pop-out go back to the defaults. Your lists, guides, attempts and lockouts are kept.\n\nThe interface reloads."],
+    text = L["Reset every MountTrail setting to its default?\n\nOptions, text sizes, window size and position, and the look of every window and pop-out go back to the defaults. Your lists, attempts and lockouts are kept.\n\nThe interface reloads."],
     button1 = L["Reset"],
     button2 = L["Cancel"],
     showAlert = true,
@@ -470,7 +469,7 @@ local function build(api)
   if layout and type(layout.AddInitializer) == "function" and type(CreateSettingsButtonInitializer) == "function" then
     layout:AddInitializer(CreateSettingsButtonInitializer(L["Reset all settings"], L["Reset"],
       function() Options.ConfirmReset() end,
-      L["Every MountTrail setting back to its default, after a warning. Your lists, guides, attempts and lockouts are kept."],
+      L["Every MountTrail setting back to its default, after a warning. Your lists, attempts and lockouts are kept."],
       true))
   end
 

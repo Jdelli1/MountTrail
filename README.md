@@ -6,8 +6,8 @@
 
 MountTrail is a World of Warcraft Retail (Midnight 12.x) addon that tracks
 which mounts you are missing and the daily / weekly lockouts this character
-has left to farm them, with step-by-step mount guides, your own shareable
-lists, and pop-out windows to keep on screen while you farm.
+has left to farm them, with your own shareable lists and pop-out windows to
+keep on screen while you farm.
 
 ## Features at a glance
 
@@ -19,13 +19,11 @@ lists, and pop-out windows to keep on screen while you farm.
   by themselves, plus long-respawn rares; an **Alts** matrix shows who is
   still unsaved across your characters.
 - **Waypoints** (TomTom) to the vendor, the rare's spawn points or the
-  dungeon / raid entrance, from any list, pop-out or guide.
+  dungeon / raid entrance, from any list or pop-out.
 - **Pop-outs**: small always-on-screen windows for any set, styled your way,
   that follow your zone when you want.
 - **Your lists**: build them from any mount, and **share** them as a
   clickable chat line, a whisper or a text you can paste anywhere.
-- **Guides**: step-by-step mount guides with waypoints, auto-advance, item
-  tooltips and macros; write your own in plain text and share them.
 - **Wrong-difficulty warning** when you zone into a raid on a difficulty
   where your target mount doesn't drop (from the Encounter Journal).
 - **Search** everywhere, typo-tolerant, with short names (`tbc`, `icc`, `wod`).
@@ -43,7 +41,6 @@ lists, and pop-out windows to keep on screen while you farm.
 - [Alt lockout matrix](#alt-lockout-matrix)
 - [Search](#search)
 - [Your lists](#your-lists)
-- [Guides](#guides)
 - [Sharing lists](#sharing-lists)
 - [Options](#options)
 - [Slash commands](#slash-commands)
@@ -98,22 +95,20 @@ The left column:
   (every mount that drops in Mythic dungeons), yours to edit, rename or delete.
 - **Quick lists**: the built-in ones. Daily lockouts, Weekly lockouts and Rare
   Spawns each open Lockouts on that group, with what is left as the badge.
-- **Guides**: every [guide](#guides), with `+` to write or import one; a
-  guide you are following shows its step (`2/5`, green).
 
 Working with the column:
 
 - Click a list to open it as a page: its mounts by source, Collected and the
   detail pane as on any list, and a `Pop out` button.
 - Right-click a list to pop it out; Shift-right-click one of your own lists to
-  share, rename or delete it. Right-click a guide for its menu.
+  share, rename or delete it.
 - Click a list's star to make it a favourite, pinned to the top of its section
   (click again to unpin).
-- Alt-drag an entry of My lists, Quick lists, Browse or Guides to put the
+- Alt-drag an entry of My lists, Quick lists or Browse to put the
   section in your own order (saved; a list never moves above a favourite).
 - Headings look like a pop-out's group headers ("- Browse" over a thin rule,
-  in the window's header colour). Click one (Browse, My lists, Quick lists,
-  Guides) to collapse or expand it (saved; "+" while collapsed).
+  in the window's header colour). Click one (Browse, My lists, Quick lists)
+  to collapse or expand it (saved; "+" while collapsed).
 - Lockouts, the lockout groups and your lists count what is left ("48
   left"); the entry you are on is gold.
 - The settings can hide My lists or Quick lists (`Show My lists`,
@@ -134,7 +129,6 @@ Working with the column:
   when the window is short.
 - **Today**: the daily and weekly lockouts and rare spawns left, and your
   lists with lockouts open today (click one to open it).
-- **Following**: the guide you are following, its step and `Resume guide`.
 - **Nearby**: the first mounts still to get in your zone (click one for its
   waypoint); the line under them opens Current Zone.
 - Every bar takes its completion colour: red under 25 %, yellow under 75 %,
@@ -198,7 +192,6 @@ shows:
   Thundering Ruby Cloud Serpent, ...).
 - `+ List` adds the mount to your lists (it reads `Lists (2)` once it is on
   some; see [Your lists](#your-lists)).
-- `Guide`, when a guide exists for the mount: follow it.
 - `Wowhead`: the mount's Wowhead page (guides, comments) as a link to copy.
 - With Mount Journal Enhanced or MountsRarity, how many characters own it.
 
@@ -440,7 +433,7 @@ column, headers, mount names, small notes).
 | `Show unobtainable mounts` | Lists unobtainable mounts you do not own under "Unobtainable" (off by default; owned ones stay where they are; Home's numbers leave the unowned ones out unless `Count towards the total` is on). |
 | `Count towards the total` (under it; Options > AddOns only, not the cogwheel menu) | Off by default; only while `Show unobtainable mounts` is on. On: the unobtainable mounts you do not own also count in Home's collected numbers (the total and its bar, their expansion's and source's rows). Owned ones always count. |
 | `Whole window` | 80-150 %: everything in the window at once, text included. |
-| `Left column` | The navigation column's text (Home, Lockouts, Browse, your lists, guides), +0 to +6. |
+| `Left column` | The navigation column's text (Home, Lockouts, Browse, your lists), +0 to +6. |
 | `Headers` | List headers (Classic, Wrath of the Lich King...), page titles and the detail pane's labels, -2 to +6. |
 | `Mount names and text` | Every mount's name and where it comes from, in every list, Lockouts and Home, and the detail pane's text, -2 to +6. Rows grow to fit. |
 | `Small notes` | Counts and percentages, hints and greyed-out text, -2 to +6. |
@@ -451,7 +444,7 @@ column, headers, mount names, small notes).
 | `Warn about the wrong difficulty` | On by default: entering an instance on a difficulty where a mount in your open pop-outs does not drop (Normal instead of Heroic, Heroic instead of Mythic, 10 instead of 25...) shows a warning on screen and in chat, e.g. "Wrong difficulty for Invincible: you are on 25 Player, it drops on 25 Player (Heroic)." Once per instance and difficulty; mounts you own are left out. |
 | `Show minimap button` | Shows or hides the minimap button. |
 | Debug messages | The same as `/mtrail debug`. |
-| `Reset all settings` | After a warning, puts every setting back to its default and reloads the interface: these options and text sizes, the window's size, position and column widths, the look, size and place of the window and every pop-out, the minimap button, the list filters and this character's Lockouts filters. Your lists, guides, attempts, lockouts, alts, collapsed headers and the navigation's order and favourites are kept. |
+| `Reset all settings` | After a warning, puts every setting back to its default and reloads the interface: these options and text sizes, the window's size, position and column widths, the look, size and place of the window and every pop-out, the minimap button, the list filters and this character's Lockouts filters. Your lists, attempts, lockouts, alts, collapsed headers and the navigation's order and favourites are kept. |
 
 ## Your lists
 
@@ -469,58 +462,6 @@ column, headers, mount names, small notes).
   or the pop-out's title menu (right-click its title). Saved per list.
 - `+` next to My lists starts an empty list or imports one.
 
-## Guides
-
-Step-by-step directions for a mount, like a leveling guide: what to do, where
-to go (plotted on TomTom), and when a step is done.
-
-- The **Guides** section of the navigation column lists them. Click one to
-  follow it: a small window shows the guide's title and authors, the current
-  step (or every step), with **Back** and **Next**.
-- **Next** plots the next step's points on TomTom; **Back** takes them off and
-  returns to the step before; on the last step Next reads **Finish** and
-  closes the guide. Each character keeps its own place in every guide, and the
-  guide comes back after a /reload.
-- A step's places show as links, `Go to: [Alani (north)]`: click one for its
-  waypoint, Shift-click for the map, hover for the coordinates. Item, quest
-  and mount links show the game's tooltip (Shift-click puts them in chat).
-- A step with a macro has **Copy macro** and **Make macro** (puts a ready
-  macro on your cursor to drop on a bar).
-- Right-click the window's title: every step or the current one only,
-  `Change appearance` (the pop-outs' look options), edit, export, back to step
-  1, close. Drag its corner to any size.
-- A step moves on by itself when its done lines hold (a quest turned in, items
-  in your bags, the mount learned, a spot reached), except right after Back.
-- A mount with a guide shows a **Guide** button in the detail pane.
-- `+` next to Guides: **New guide...** (a template to fill in) or **Import
-  guide...** (paste one). Right-click a guide to edit it (a built-in one as a
-  copy), export it (its text, ready to copy), go back to step 1 or delete it.
-
-A guide is plain text, one keyword per line, so it can be written anywhere and
-shared by copy and paste. `**words**` are highlighted, and `[item:ID]`,
-`[quest:ID]`, `[mount:ID]`, `[spell:ID]` or `[achievement:ID]` become the
-game's links with their tooltips. A `macro` line gives the step **Copy macro**
-and **Make macro** buttons, and `#author` / `#credit` lines credit the people
-behind a guide. **[docs/GUIDES.md](docs/GUIDES.md) explains
-how to write guides**: every keyword, done lines, highlighting, links, finding
-IDs and coordinates, and what the editor's messages mean.
-
-```
-#guide Thundering Ruby Cloud Serpent
-#mount 517
-#author MountTrail
-step Travel to the **Vale of Eternal Blossoms**
-  goto 390 56.2 42.6 Vale of Eternal Blossoms
-  reach 200
-step Kill mobs in the Vale until you have **ten** [item:86547]
-  item 86547 10
-step Find **Alani**, use the [item:86546] near her, then kill her
-  goto 390 35.6 26 Alani (north)
-  macro /tar Alani
-step Loot her: [mount:517] drops every time
-  mount 517
-```
-
 ## Sharing lists
 
 Shift-right-click one of your lists in the navigation column for:
@@ -534,7 +475,7 @@ Shift-right-click one of your lists in the navigation column for:
 - **Send to player...**: sends the list straight to a player by name
   (`Name-Realm` for another realm). They are asked whether to import it.
 - **Export...**: the list as one line of text (`MountTrail: !MT1!...`) to copy with
-  Ctrl+C and paste anywhere: Discord, a guide, a forum post.
+  Ctrl+C and paste anywhere: Discord, a forum post.
 
 To import a pasted line, click `+` next to My lists and pick `Import list...`
 (or type `/mtrail import`). Every import asks first, lets you rename the list,
@@ -552,6 +493,7 @@ doesn't know are left out.
 | `/mtrail import` | Paste a list someone shared |
 | `/mtrail sharetest` | Check that sharing is set up; shows one of your lists as a clickable link (only you see it) |
 | `/mtrail options` | Open the MountTrail page in Options > AddOns |
+| `/mtrail hide`, `/mtrail show` | Hide or show the minimap button (the same as `Show minimap button` in the settings) |
 | `/mtrail dump` | List saved instances (instance ID, difficulty ID, bosses) for checking `Data/Lockouts.lua` |
 | `/mtrail debug` | Toggle debug mode: errors MountTrail catches around maps and waypoints go to the error handler (off by default) |
 | `/mtrail help` | List the commands |
@@ -579,8 +521,8 @@ None of these are required; MountTrail uses them when they are loaded.
   [docs/BETA_TESTING.md](docs/BETA_TESTING.md) for what beta testers can help
   with.
 - **Midnight's addon limits**: inside instances addons can't read chat during
-  encounters, your exact position, or the combat log, so guides and shared
-  chat links work around those (see [docs/GUIDES.md](docs/GUIDES.md)).
+  encounters, your exact position, or the combat log, so shared chat links
+  and lockout tracking work around those.
 - **Event rares** never show as "up": the game's data cannot tell which
   assault or warfront phase spawns them (see [Lockouts](#lockouts)).
 

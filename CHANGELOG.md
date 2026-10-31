@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `/mtrail hide` and `/mtrail show`: hide or show the minimap button.
+- Mount guides are taken out for now (see docs/ROADMAP.md: they may come
+  back). Guides you wrote stay in your saved variables.
 - Options: `Count towards the total` under `Show unobtainable mounts`: the
   unobtainable mounts you do not own also count in Home's numbers.
 - No mount icons on list rows or beside the detail pane's name: the pane's
@@ -28,7 +31,7 @@
   expansions and Lockouts look alike.
 - Options > AddOns > MountTrail: `Reset all settings`, after a warning, puts
   every setting (options, text sizes, window, every window's and pop-out's
-  look) back to its default and reloads; lists, guides, attempts and lockouts
+  look) back to its default and reloads; lists, attempts and lockouts
   are kept.
 - The main window takes the pop-outs' look throughout:
   - a flat panel with a slim title strip instead of Blizzard's portrait

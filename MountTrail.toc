@@ -1,6 +1,6 @@
 ## Interface: 120105
 ## Title: MountTrail
-## Notes: A mount-collection guide: tracks the mounts you are missing and the daily / weekly lockouts left to farm them. Requires TomTom.
+## Notes: A mount-collection companion: tracks the mounts you are missing and the daily / weekly lockouts left to farm them. Requires TomTom.
 ## Author: Jdelli1
 ## Version: @project-version@
 ## SavedVariables: MountTrailDB
@@ -43,13 +43,11 @@ Logic\QuickLists.lua
 Logic\Share.lua
 Logic\Search.lua
 Logic\Browse.lua
-Logic\Guide.lua
 Game\API.lua
 Integrations\Map.lua
 Integrations\Rarity.lua
 Integrations\AchievementScan.lua
 Integrations\MountsRarity.lua
-Guides\ThunderingRubyCloudSerpent.lua
 Integrations\Notes.lua
 Core\Init.lua
 UI\Frame.lua
@@ -75,9 +73,6 @@ UI\DifficultyCheck.lua
 UI\HereView.lua
 UI\BrowseView.lua
 UI\Share.lua
-UI\Guides.lua
-UI\GuideWindow.lua
-UI\GuideEditor.lua
 UI\ZonePanel.lua
 UI\MapTab.lua
 UI\Options.lua

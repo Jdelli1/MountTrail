@@ -10,7 +10,6 @@ local ADDON, ns = ...
 --          click opens that tab);
 --   right  "Today": the daily / weekly lockouts and rare spawns left and the
 --          player's lists with lockouts open (a click opens them);
---          "Following": the guide being followed, its step and Resume;
 --          "Nearby": the first mounts still to get in the player's zone
 --          (Zone.MountsFor, worked out again on a new zone or once a minute;
 --          a click is the waypoint, the last line opens Current Zone).
@@ -335,36 +334,6 @@ local function refreshSide()
   for i = #today + 1, #side.Today do side.Today[i]:Hide() end
   y = y + G.sectionGap
 
-  -- Following.
-  paintHeading(side.FollowHeading)
-  y = place(side.FollowHeading, side, y, G.heading)
-  local entry, n
-  if UI.ActiveGuide then entry, n = UI.ActiveGuide() end
-  local f = side.Follow
-  if entry then
-    local steps = entry.guide.steps
-    f.Title:SetText(entry.title)
-    local step = steps[n]
-    f.Step:SetText(string.format(L["Step %d of %d"], n, #steps)
-      .. (step and step.text and ("  " .. GREY_TEXT .. UI.GuideText(step.text) .. "|r") or ""))
-    f.Bar:SetMinMaxValues(0, math.max(#steps, 1))
-    f.Bar:SetValue(n)
-    f.Title:Show()
-    f.Step:Show()
-    f.Bar:Show()
-    f.Resume:Show()
-    f.None:Hide()
-    y = place(f, side, y, 76)
-  else
-    f.Title:Hide()
-    f.Step:Hide()
-    f.Bar:Hide()
-    f.Resume:Hide()
-    f.None:Show()
-    y = place(f, side, y, 40)
-  end
-  y = y + G.sectionGap
-
   -- Nearby.
   paintHeading(side.NearbyHeading)
   y = place(side.NearbyHeading, side, y, G.heading)
@@ -612,7 +581,7 @@ local function createColumns()
   end
   home.LayoutMain()
 
-  -- The right column: Today, Following, Nearby (placed by refreshSide).
+  -- The right column: Today, Nearby (placed by refreshSide).
   local side = CreateFrame("Frame", nil, home)
   side:SetPoint("TOPRIGHT", home, "TOPRIGHT", -G.left, G.top)
   side:SetPoint("BOTTOMRIGHT", home, "BOTTOMRIGHT", -G.left, 0)
@@ -620,36 +589,6 @@ local function createColumns()
   home.Side = side
   side.TodayHeading = heading(side, L["Today"])
   side.Today = {}
-  side.FollowHeading = heading(side, L["Following"])
-  local f = CreateFrame("Frame", nil, side)
-  local ft = f:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlight"))
-  ft:SetPoint("TOPLEFT", f, "TOPLEFT", 4, -4)
-  ft:SetPoint("TOPRIGHT", f, "TOPRIGHT", -4, -4)
-  ft:SetJustifyH("LEFT")
-  ft:SetWordWrap(false)
-  f.Title = ft
-  local fs = f:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlight"))
-  fs:SetPoint("TOPLEFT", ft, "BOTTOMLEFT", 0, -3)
-  fs:SetPoint("TOPRIGHT", ft, "BOTTOMRIGHT", 0, -3)
-  fs:SetJustifyH("LEFT")
-  fs:SetWordWrap(false)
-  f.Step = fs
-  local fb = flatBar(f, 4)
-  fb:SetPoint("TOPLEFT", fs, "BOTTOMLEFT", 0, -5)
-  fb:SetPoint("TOPRIGHT", fs, "BOTTOMRIGHT", 0, -5)
-  fb:SetStatusBarColor(unpack(GOLD))
-  f.Bar = fb
-  local resume = UI.FlatButton(f, L["Resume guide"], "green", 18)
-  resume:SetPoint("TOPLEFT", fb, "BOTTOMLEFT", 0, -6)
-  resume:SetScript("OnClick", function() if UI.ShowGuideWindow then UI.ShowGuideWindow(true) end end)
-  f.Resume = resume
-  local none = f:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisable"))
-  none:SetPoint("TOPLEFT", f, "TOPLEFT", 4, -4)
-  none:SetPoint("TOPRIGHT", f, "TOPRIGHT", -4, -4)
-  none:SetJustifyH("LEFT")
-  none:SetText(L["No guide followed: pick one under Guides."])
-  f.None = none
-  side.Follow = f
   side.NearbyHeading = heading(side, L["Nearby"])
   side.Nearby = {}
   local more = CreateFrame("Button", nil, side)

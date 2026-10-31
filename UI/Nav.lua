@@ -40,7 +40,6 @@ UI.NAV_WIDTH = 176
 -- The collapse keys of the My lists and Quick lists sections.
 UI.NAV_LISTS_KEY, UI.NAV_QUICK_KEY = "nav|lists", "nav|quick"
 UI.NAV_BROWSE_KEY = "nav|browse"
-UI.NAV_GUIDES_KEY = "nav|guides"
 -- A list entry's favourite star (the Auction House's: filled / hollow). A
 -- favourite (ns.db.global.navFavorites[entry key]) is pinned to the top of
 -- its section.
@@ -259,18 +258,11 @@ end
 
 -- A badge for an entry (right-aligned, grey or green), as the pop-outs
 -- count: Lockouts or one of its groups -> "<n> left", a list -> its
--- lockouts open today, "<n> left" (green), a guide -> its step "2/5". (Here has none:
+-- lockouts open today, "<n> left" (green). (Here has none:
 -- working out the zone's mounts on every refresh costs too much.) nil: none. Errors are swallowed (nil).
 -- built() -> the Checklist.Build output to count from (one per repaint).
 function UI.NavBadge(entry, built)
   local good, text, green = pcall(function()
-    -- A guide: the step it is on, once started; green while followed.
-    if entry.guide then
-      local state = ns.db and ns.db.char and ns.db.char.guides
-      local step = state and state.steps and state.steps[entry.guide]
-      if not step then return nil end
-      return string.format("%d/%d", step, entry.steps or step), state.active == entry.guide
-    end
     if entry.key == "checklist" and built then
       local char = ns.db and ns.db.char
       local filters = char and type(char.checklistFilters) == "table" and char.checklistFilters or nil
@@ -337,10 +329,6 @@ local function navButton(parent)
     local e = self.entry
     if not e then return end
     if button == "RightButton" then
-      if e.guide then
-        UI.ShowGuideMenu(e.guide, self)
-        return
-      end
       if e.key == "here" then
         if UI.ToggleZoneMountsPopout then UI.ToggleZoneMountsPopout() end
         return
@@ -375,12 +363,7 @@ local function navButton(parent)
   b:SetScript("OnEnter", function(self)
     local e = self.entry
     local reorder = e and e.section and ("\n" .. L["Alt-drag to reorder."]) or ""
-    if e and e.guide then
-      local entry = UI.GuideById and UI.GuideById(e.guide)
-      local credits = entry and UI.GuideCreditsText and UI.GuideCreditsText(entry.guide) or ""
-      UI.ShowHint(self, e.label, (credits ~= "" and (credits .. "\n") or "")
-        .. L["Click: follow this guide. Right-click: edit, export, reset or delete."] .. reorder)
-    elseif e and e.source then
+    if e and e.source then
       UI.ShowHint(self, e.label, (e.source.kind == "list" and L["Click: open. Right-click: pop out. Shift-right-click: share, rename or delete"]
         or L["Click: open. Right-click: pop out"]) .. reorder)
     elseif e and e.section then
@@ -456,10 +439,6 @@ end
 function UI.NavClick(e)
   if e.action == "alts" then
     if UI.ToggleAltsWindow then UI.ToggleAltsWindow() end
-    return
-  end
-  if e.guide then
-    if UI.StartGuide then UI.StartGuide(e.guide) end
     return
   end
   if e.category then
@@ -592,21 +571,6 @@ function UI.CreateNav(frame)
   end)
   add:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   n.AddList = add
-
-  local addGuide = UI.FlatButton(content, "+", "gold", 16)
-  addGuide:SetWidth(20)
-  addGuide:SetScript("OnClick", function(self)
-    UI.ShowMenu(self, {
-      { title = L["Guides"] },
-      { text = L["New guide..."], onClick = function() UI.NewGuide() end },
-      { text = L["Import guide..."], onClick = function() UI.ImportGuide() end },
-    }, "cursor")
-  end)
-  addGuide:SetScript("OnEnter", function(self)
-    UI.ShowHint(self, L["New or imported guide"], L["Write a step-by-step guide, or paste one someone shared."])
-  end)
-  addGuide:SetScript("OnLeave", function(self) UI.HideHint(self) end)
-  n.AddGuide = addGuide
 
   local empty = content:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisableSmall"))
   empty:SetJustifyH("LEFT")
@@ -755,21 +719,6 @@ function UI.RefreshNav()
     if not heading(L["Quick lists"], false, UI.NAV_QUICK_KEY) then
       for _, e in ipairs(quick) do entry(e, true) end
     end
-  end
-  -- Guides (with +): every guide, by title or the player's order.
-  local guides = {}
-  for _, g in ipairs(UI.GuideList and UI.GuideList() or {}) do
-    guides[#guides + 1] = { key = "guide:" .. g.id, label = g.title, guide = g.id, steps = #g.guide.steps }
-  end
-  guides = UI.ApplyNavOrder(guides, navOrders().guides)
-  record("guides", guides)
-  if UI.GuideList and UI.NavSectionShown("guides") then
-    y = y + 4
-    if not heading(L["Guides"], nav.AddGuide, UI.NAV_GUIDES_KEY) then
-      for _, e in ipairs(guides) do entry(e, true) end
-    end
-  else
-    nav.AddGuide:Hide()
   end
   for i = nb + 1, #nav.Buttons do nav.Buttons[i]:Hide() end
   for i = nh + 1, #nav.Headings do nav.Headings[i]:Hide() end
