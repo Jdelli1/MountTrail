@@ -419,11 +419,7 @@ function UI.SettingsMenuItems()
   items[#items + 1] = { separator = true }
   items[#items + 1] = check(L["Show unobtainable mounts"], saved.showUnobtainable == true,
     function() O.Set("showUnobtainable", saved.showUnobtainable ~= true) end)
-  -- Its sub-option, indented, greyed out while Show is off.
-  local sub = check("   " .. L["Count towards the total"], saved.countUnobtainable == true,
-    function() O.Set("countUnobtainable", saved.countUnobtainable ~= true) end)
-  sub.disabled = saved.showUnobtainable ~= true
-  items[#items + 1] = sub
+  -- (Its "Count towards the total" is on the AddOns page only: All options...)
   items[#items + 1] = check(L["Colour pop-out names by rarity"], saved.rarityColors == true,
     function() O.Set("rarityColors", saved.rarityColors ~= true) end)
   items[#items + 1] = check(L["Colour list names by rarity"], saved.rarityColorsMain == true,

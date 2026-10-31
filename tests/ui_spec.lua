@@ -285,6 +285,9 @@ describe("ui", function()
       "named by what they size, in the window's order")
     local byText = {}
     for _, it in ipairs(shown) do if it.text then byText[it.text] = it end end
+    for text in pairs(byText) do
+      ok(not text:find("Count towards the total", 1, true), "the unobtainable count is on the AddOns page only")
+    end
     byText["Whole window"].onChange(120)
     byText["Mount names and text"].onChange(3)
     byText["Show unobtainable mounts"].onClick()
