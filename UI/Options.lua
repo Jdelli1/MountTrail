@@ -155,18 +155,18 @@ local function setRarityColorsMain(on)
   ns.Refresh()
 end
 
--- Counting: sections whose mounts the player can leave out of every list
--- and count (Journal.excluded; owned or not), each a checkbox, on by
--- default (stored as settings.excluded[section] = true when off).
+-- Counting: sections whose mounts the player can leave out of the collected
+-- numbers (Journal.excluded; owned or not; still listed), each a checkbox,
+-- on by default (stored as settings.excluded[section] = true when off).
 Options.COUNT_SECTIONS = {
   { section = "shop", var = "MOUNTTRAIL_COUNT_SHOP", label = "Count in-game shop mounts",
-    tip = "Mounts bought with real money in the in-game shop. Off: left out of every list and every count." },
+    tip = "Mounts bought with real money in the in-game shop. Off: still listed, but left out of the collected numbers on Home." },
   { section = "tradingpost", var = "MOUNTTRAIL_COUNT_TRADINGPOST", label = "Count Trading Post mounts",
-    tip = "Mounts from the monthly Trading Post. Off: left out of every list and every count." },
+    tip = "Mounts from the monthly Trading Post. Off: still listed, but left out of the collected numbers on Home." },
   { section = "promotion", var = "MOUNTTRAIL_COUNT_PROMOTION", label = "Count promotional mounts",
-    tip = "Trading card game, Recruit-a-Friend, collector's editions, BlizzCon and other promotions. Off: left out of every list and every count." },
+    tip = "Trading card game, Recruit-a-Friend, collector's editions, BlizzCon and other promotions. Off: still listed, but left out of the collected numbers on Home." },
   { section = "bmah", var = "MOUNTTRAIL_COUNT_BMAH", label = "Count Black Market mounts",
-    tip = "Mounts only sold on the Black Market Auction House. Off: left out of every list and every count." },
+    tip = "Mounts only sold on the Black Market Auction House. Off: still listed, but left out of the collected numbers on Home." },
 }
 
 local function excludedStore()

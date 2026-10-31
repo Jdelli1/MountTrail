@@ -34,9 +34,10 @@ for _, c in ipairs(Browse.CATEGORIES) do
   for _, s in ipairs(c.sections or {}) do bySection[s] = c.key end
 end
 
--- Whether a category has anything left to show: false when every one of its
+-- Whether a category has anything counted: false when every one of its
 -- sections is one the player does not count (Journal.excluded; e.g. In-game
--- Shop with "Count in-game shop mounts" off).
+-- Shop with "Count in-game shop mounts" off): Home leaves its row out (its
+-- Browse page stays).
 function Browse.Shown(c)
   if not (c and c.sections) then return true end
   for _, s in ipairs(c.sections) do

@@ -28,11 +28,9 @@ UI.NAV = {
 function UI.NavBrowseEntries(categories)
   local out = {}
   for _, c in ipairs(categories or {}) do
-    -- A category with nothing counted (Browse.Shown) is left out: no empty page.
-    local shown = not (ns.Browse and not ns.Browse.Shown(c))
-    if shown and c.view then
+    if c.view then
       out[#out + 1] = { key = c.view, label = c.label }
-    elseif shown then
+    else
       out[#out + 1] = { key = "browse:" .. c.key, label = c.label, category = c.key }
     end
   end

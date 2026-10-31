@@ -87,7 +87,8 @@ end
 -- Owned / total per source, the Browse categories (Logic/Browse.lua: a
 -- category with its own view, Achievements / Holidays / Timewalking, by
 -- Journal.ViewOf), through the list gate (known to the client, this faction,
--- obtainable or owned, a counted section) -> { [category key] = { have =,
+-- obtainable or owned) and the counted sections only (Journal.IsExcluded)
+-- -> { [category key] = { have =,
 -- total = } }, plus all = every mount the gate keeps. sourceText as
 -- Journal.SectionOf (refines delves and caches).
 function UI.HomeSourceCounts(mounts, isOwned, exists, faction, sourceText)
@@ -95,7 +96,9 @@ function UI.HomeSourceCounts(mounts, isOwned, exists, faction, sourceText)
   for _, c in ipairs(ns.Browse.CATEGORIES) do out[c.key] = { have = 0, total = 0 } end
   for id, m in pairs(mounts or {}) do
     local o = ns.Journal.Gate(id, m, isOwned, exists, faction)
-    if o ~= nil then
+    -- A section the player does not count (Options) stays listed but is
+    -- left out of these numbers.
+    if o ~= nil and not ns.Journal.IsExcluded(m) then
       local key = ns.Browse.CategoryOf(id, m, sourceText) or ns.Journal.ViewOf(m)
       local c = out[key] or out.other
       c.total, out.all.total = c.total + 1, out.all.total + 1

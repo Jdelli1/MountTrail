@@ -5,8 +5,9 @@
 - No mount icons on list rows or beside the detail pane's name: the pane's
   3D model shows the mount (and nothing shows when there is no model).
 - Options: `Count in-game shop mounts`, `Count Trading Post mounts`, `Count
-  promotional mounts`, `Count Black Market mounts` (on by default): off leaves
-  those mounts out of every list and count, owned or not.
+  promotional mounts`, `Count Black Market mounts` (on by default): off keeps
+  those mounts listed but leaves them out of Home's collected numbers, owned
+  or not.
 - Options: `Colour list names by rarity`, the main window's own, apart from
   `Colour pop-out names by rarity`.
 - Home: By source lists every Browse source instead of Misc; the left column

@@ -129,7 +129,8 @@ Working with the column:
   row for its mount list.
 - **By source**: the same rows for every source of the navigation's Browse
   section (Drops, Vendors & Reputation, ... Trading Post); click one to open
-  it. A source you do not count (Options) is left out. The column scrolls
+  it. A source you do not count (Options) is left out of Home (its Browse
+  page stays). The column scrolls
   when the window is short.
 - **Today**: the daily and weekly lockouts and rare spawns left, and your
   lists with lockouts open today (click one to open it).
@@ -443,7 +444,7 @@ column, headers, mount names, small notes).
 | `Mount names and text` | Every mount's name and where it comes from, in every list, Lockouts and Home, and the detail pane's text, -2 to +6. Rows grow to fit. |
 | `Small notes` | Counts and percentages, hints and greyed-out text, -2 to +6. |
 | `Show My lists`, `Show Quick lists` | Show or hide those navigation sections. |
-| `Count in-game shop mounts`, `Count Trading Post mounts`, `Count promotional mounts`, `Count Black Market mounts` | On by default. Off: those mounts (owned or not) are left out of every list and every count (Home's totals and bars, the expansions' and sources' numbers, the lists, Lockouts, Current Zone), and a Browse source with nothing left (In-game Shop, Trading Post) leaves the navigation. |
+| `Count in-game shop mounts`, `Count Trading Post mounts`, `Count promotional mounts`, `Count Black Market mounts` | On by default. Off: those mounts stay listed everywhere (Browse, your lists, Lockouts, Current Zone), but, owned or not, they are left out of the collected numbers on Home: the total and its bar, the expansions' rows, and their source's row (a source with nothing counted, such as In-game Shop, leaves Home). |
 | `Colour pop-out names by rarity` | Off by default; needs Mount Journal Enhanced or MountsRarity. |
 | `Colour list names by rarity` | The same for the main window's lists, set apart from the pop-outs'. Off by default. |
 | `Warn about the wrong difficulty` | On by default: entering an instance on a difficulty where a mount in your open pop-outs does not drop (Normal instead of Heroic, Heroic instead of Mythic, 10 instead of 25...) shows a warning on screen and in chat, e.g. "Wrong difficulty for Invincible: you are on 25 Player, it drops on 25 Player (Heroic)." Once per instance and difficulty; mounts you own are left out. |
