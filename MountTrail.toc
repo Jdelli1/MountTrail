@@ -10,9 +10,9 @@
 ## Category: Collections
 ## X-License: GPL-2.0
 ## X-Website: https://github.com/jdelli1/mounttrail
-# Fill these in once the CurseForge and Wago projects exist (the release
-# workflow's packager reads them):
-# ## X-Curse-Project-ID: 000000
+## X-Curse-Project-ID: 1756952
+# Fill this in once the Wago project exists (the release workflow's packager
+# reads it):
 # ## X-Wago-ID: xxxxxxxx
 
 embeds.xml
