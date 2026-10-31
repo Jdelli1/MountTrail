@@ -287,6 +287,7 @@ describe("ui", function()
     for _, it in ipairs(shown) do if it.text then byText[it.text] = it end end
     for text in pairs(byText) do
       ok(not text:find("Count towards the total", 1, true), "the unobtainable count is on the AddOns page only")
+      ok(not text:find("Colour-blind", 1, true), "accessibility is on the AddOns page only")
     end
     byText["Whole window"].onChange(120)
     byText["Mount names and text"].onChange(3)
