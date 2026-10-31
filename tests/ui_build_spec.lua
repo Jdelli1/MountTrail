@@ -197,6 +197,7 @@ describe("ui build", function()
     eq(f.Owned.layer, "BACKGROUND")
     eq(f.Owned.sublevel, 1, "above the stripe")
     eq(f.Strike, nil, "no strikethrough")
+    eq(f.Icon, nil, "no mount icon on the lists' rows (the map tab's only)")
     eq(f.Name.font, ns.UI.OwnedFont(), "light green name")
     ok(not f.Name:GetText():find(ns.UI.MARK_DONE, 1, true), "no tick while the colour-blind marks are off")
     -- Colour-blind marks: a tick says "owned" too, not only the green.

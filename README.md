@@ -388,7 +388,8 @@ mount you can still get whose location is your current zone.
 
 **World map tab.** A MountTrail tab in the Map & Quest Log's side tabs (under
 Quests, Events and Map Legend). Select it to see "Mounts in <zone>" for the map
-you are looking at, with the same rows as the zone panel, grouped by source
+you are looking at, each with its icon (a bag slot's size) and name (no
+expansion tag or source: the map is the zone), grouped by source
 (Vendors, Drops, Achievements, ...) under headers: click one to collapse it,
 Shift-click to collapse or expand them all (remembered, apart from the zone
 panel's).
@@ -454,7 +455,7 @@ column, headers, mount names, small notes).
 | `Colour list names by rarity` | The same for the main window's lists, set apart from the pop-outs'. Off by default. |
 | `Warn about the wrong difficulty` | On by default: entering an instance on a difficulty where a mount in your open pop-outs does not drop (Normal instead of Heroic, Heroic instead of Mythic, 10 instead of 25...) shows a warning on screen and in chat, e.g. "Wrong difficulty for Invincible: you are on 25 Player, it drops on 25 Player (Heroic)." Once per instance and difficulty; mounts you own are left out. |
 | `Show minimap button` | Shows or hides the minimap button. |
-| `Chime when a mount drops`, `Drop sound` | Off by default. When a mount MountTrail tracks drops (its item lands in your bags; or, for a mount with no item, when you learn it), chat always says how long it took ("Invincible collected after 87 attempts (1 in 100: luckier than 42% of players)"); with the chime on, a sound of your choice (a short list of the game's own; picking one plays it) plays too. |
+| `Chime when a mount drops`, `Drop sound` (the sound: Options > AddOns only; the chime is in the cogwheel menu too) | Off by default. When a mount MountTrail tracks drops (its item lands in your bags; or, for a mount with no item, when you learn it), chat always says how long it took ("Invincible collected after 87 attempts (1 in 100: luckier than 42% of players)"); with the chime on, a sound of your choice (a short list of the game's own; picking one plays it) plays too. |
 | `Colour-blind marks` (Accessibility; Options > AddOns only, not the cogwheel menu) | Says in text or shape what a colour says: a tick on finished lockouts and collected mounts, "12 open" instead of a green "12 left" on your lists, and the share of characters owning a mount after a rarity-coloured name ("(2%)"). Until you set it, it follows the game's own Colorblind Mode (Options > Accessibility). |
 | Debug messages | The same as `/mtrail debug`. |
 | `Reset all settings` | After a warning, puts every setting back to its default and reloads the interface: these options and text sizes, the window's size, position and column widths, the look, size and place of the window and every pop-out, the minimap button, the list filters and this character's Lockouts filters. Your lists, attempts, lockouts, alts, collapsed headers and the navigation's order and favourites are kept. |

@@ -227,7 +227,7 @@ local function buildPanel(qmf)
   local view = CreateScrollBoxListLinearView()
   view:SetElementExtentCalculator(function(_, row)
     if row.header then return UI.HeaderHeight(SOURCE_HEADER_HEIGHT) end
-    return UI.RowHeight(UI.MOUNT_ROW_HEIGHT)
+    return UI.RowHeight(UI.ICON_ROW_HEIGHT)
   end)
   view:SetElementFactory(function(factory, row)
     if row.header then
@@ -253,7 +253,11 @@ local function buildPanel(qmf)
         UI.InitListHeader(f, data)
       end)
     else
-      factory("Button", UI.InitMountRow)
+      -- The map tab's rows: the mount's icon, no source (the map is the zone).
+      factory("Button", function(row, data)
+        row.withIcon = true
+        UI.InitMountRow(row, data)
+      end)
     end
   end)
   ScrollUtil.InitScrollBoxListWithScrollBar(scrollBox, scrollBar, view)

@@ -344,6 +344,13 @@ local ROW_HEIGHT = 22 -- one line, as a pop-out's rows
 local PIN_SIZE, PIN_RIGHT = 16, 8 -- the location pin on a row's right end
 -- Map item icons are cropped past their baked-in edge (the pin).
 local ICON_CROP = 0.08
+-- The world map tab's rows (row.withIcon): the mount's icon at a bag slot's
+-- size, the name across the row, no expansion tag and no source (the map
+-- shows the zone already).
+local ICON_SIZE = 37
+local ICON_ROW_HEIGHT = 41
+-- Rounded icon mask of the current action bars, when the client has it.
+local ICON_MASK = "UI-HUD-ActionBar-IconFrame-Mask"
 
 -- A row's "where it comes from" line: the mount names' font (GameFontHighlight,
 -- so "Mount names and text" sizes both) dimmed to 70 % grey; GameFontDisable
@@ -634,9 +641,32 @@ end
 -- The row, a pop-out's: the mount's expansion tag at `left`, the name, and
 -- the source line right-aligned in the row's right half (left of the pin),
 -- all on one line (no icon: the detail pane shows the mount).
+-- The mount's icon, made the first time a row shows one (row.withIcon),
+-- cropped past its edge and rounded.
+local function rowIcon(row)
+  if row.Icon then return row.Icon end
+  local icon = row:CreateTexture(nil, "ARTWORK")
+  icon:SetSize(ICON_SIZE, ICON_SIZE)
+  icon:SetTexCoord(ICON_CROP, 1 - ICON_CROP, ICON_CROP, 1 - ICON_CROP)
+  if UI.AtlasExists(ICON_MASK) and row.CreateMaskTexture and icon.AddMaskTexture then
+    local mask = row:CreateMaskTexture()
+    mask:SetAtlas(ICON_MASK)
+    mask:SetAllPoints(icon)
+    icon:AddMaskTexture(mask)
+  end
+  row.Icon = icon
+  return icon
+end
+
 local function anchorRow(row, left)
   local tag, name, source = row.Tag, row.Name, row.Source
   tag:ClearAllPoints()
+  if row.withIcon then
+    local icon = rowIcon(row)
+    icon:ClearAllPoints()
+    icon:SetPoint("LEFT", row, "LEFT", left, 0)
+    left = left + ICON_SIZE + 8
+  end
   tag:SetPoint("LEFT", row, "LEFT", left, 0)
   name:ClearAllPoints()
   if tag:IsShown() then
@@ -644,9 +674,14 @@ local function anchorRow(row, left)
   else
     name:SetPoint("LEFT", row, "LEFT", left, 0)
   end
-  name:SetPoint("RIGHT", row, "CENTER", 4, 0)
   name:SetJustifyH("LEFT")
   source:ClearAllPoints()
+  if row.withIcon then
+    -- No source: the name runs up to the pin.
+    name:SetPoint("RIGHT", row, "RIGHT", -UI.PIN_ROOM, 0)
+    return
+  end
+  name:SetPoint("RIGHT", row, "CENTER", 4, 0)
   source:SetPoint("LEFT", row, "CENTER", 12, 0)
   source:SetPoint("RIGHT", row, "RIGHT", -UI.PIN_ROOM, 0)
   source:SetJustifyH("RIGHT")
@@ -661,15 +696,21 @@ local function initRow(row, data)
   row.routeBoss = data.routeBoss
   row.eventMap = data.eventMap
   UI.SetExpansionBadge(row.Tag, data.m and data.m.exp)
+  if row.withIcon then row.Tag:Hide() end
   row.Tag:EnableMouse(false) -- the row takes the clicks
   -- Under a sub-header the tag lines up with the sub-header's glyph.
   anchorRow(row, data.left or (data.depth == 2 and SUB_INDENT or ROW_ICON_LEFT))
+  if row.Icon then
+    row.Icon:SetShown(row.withIcon == true)
+    if row.withIcon then row.Icon:SetTexture(select(2, ns.Game.MountInfo(data.id))) end
+  end
   local name = data.name or ns.Game.MountInfo(data.id) or data.m.name or tostring(data.id)
   -- Colour-blind marks: a tick on owned rows (the green says it otherwise).
   if data.owned and UI.ColorblindMarks and UI.ColorblindMarks() then name = UI.MARK_DONE .. " " .. name end
   if data.suffix then name = name .. "  " .. data.suffix end
   row.Name:SetText(name)
   row.Source:SetText(UI.RowSourceText(data))
+  row.Source:SetShown(not row.withIcon)
   row.Stripe:SetShown(data.alt == true)
   UI.ShowPin(row.Pin, data.pin)
   -- Owned (collected) mounts: green tint and a light green name; others
@@ -700,9 +741,12 @@ end
 -- the detail pane's lists), selected= (the selected row's look), routeBoss=
 -- (the row's route boss, passed to the click: UI.HandleRowClick, and to the
 -- hover: UI.ShowMountTooltip's lockout line) }. Rows are
--- UI.MOUNT_ROW_HEIGHT tall (UI.RowHeight for the text size).
+-- UI.MOUNT_ROW_HEIGHT tall (UI.RowHeight for the text size). A row with
+-- row.withIcon set (the world map tab's) shows the mount's icon first and no
+-- source, UI.ICON_ROW_HEIGHT tall.
 UI.InitMountRow = initRow
 UI.MOUNT_ROW_HEIGHT = ROW_HEIGHT
+UI.ICON_ROW_HEIGHT = ICON_ROW_HEIGHT
 
 function UI.List(parent, getQuery, opts)
   local list = CreateFrame("Frame", nil, parent)
