@@ -11,24 +11,35 @@ keep on screen while you farm.
 
 ## Features at a glance
 
-- **Every mount you're missing**, by expansion or by source (drops, vendors,
-  quests, achievements, professions, shop, Trading Post, PvP, Mythic+,
-  holidays, Timewalking), with a 3D preview, drop chance, your attempts and
-  where to find it.
+- **Every mount you're missing**, by expansion or by source (drops, vendors &
+  reputation, quests, achievements, professions, in-game shop, Trading Post,
+  PvP, Mythic+, holidays, Timewalking), with a 3D preview, drop chance, your
+  attempts, its lockout and where to find it.
+- **Home**: your collection at a glance (a total, a bar per expansion and per
+  source), today's lockouts left, and the mounts still to get in your zone.
 - **Lockouts**: this character's daily and weekly mount lockouts, ticked off
-  by themselves, plus long-respawn rares; an **Alts** matrix shows who is
-  still unsaved across your characters.
+  by themselves (old 10 / 25-player raids' shared lockouts included, one
+  lockout per difficulty for newer raids), plus long-respawn rares; a chat
+  line when a kill uses one. An **Alts** matrix shows who is still unsaved
+  across your characters.
+- **Drop alert**: when a mount you were farming drops, chat says how many
+  attempts it took and how lucky you were; an optional chime with a choice
+  of sounds.
 - **Waypoints** (TomTom) to the vendor, the rare's spawn points or the
   dungeon / raid entrance, from any list or pop-out.
-- **Pop-outs**: small always-on-screen windows for any set, styled your way,
-  that follow your zone when you want.
-- **Your lists**: build them from any mount, and **share** them as a
-  clickable chat line, a whisper or a text you can paste anywhere.
+- **Pop-outs**: small always-on-screen windows for any set (dailies,
+  weeklies, rares, your zone's mounts, your lists), styled your way, that
+  snap together and follow your zone when you want.
+- **Your lists**: build them from any mount, put them in your order or by
+  expansion, and **share** them as a clickable chat line, a whisper or a text
+  you can paste anywhere.
 - **Wrong-difficulty warning** when you zone into a raid on a difficulty
   where your target mount doesn't drop (from the Encounter Journal).
 - **Search** everywhere, typo-tolerant, with short names (`tbc`, `icc`, `wod`).
-- **Your look**: one flat design for the window and every pop-out, with
-  your opacity, colours, font and sizes (window scale and text sizes too).
+- **Your way**: choose what counts towards your collection (in-game shop,
+  Trading Post, promotions, Black Market, unobtainable mounts), one flat look
+  for the window and every pop-out with your opacity, colours, font and
+  sizes, rarity colours, and colour-blind marks.
 
 ## Contents
 
@@ -575,4 +586,6 @@ Notes:
 
 ## License
 
-GNU General Public License v2.0, see [LICENSE](LICENSE).
+MountTrail is Copyright (C) 2026 Jdelli1, licensed under the GNU General Public
+License v2.0: see [LICENSE](LICENSE) and [NOTICE](NOTICE) (the data and
+libraries it includes, with their own licences).
