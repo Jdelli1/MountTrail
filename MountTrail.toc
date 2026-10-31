@@ -67,6 +67,7 @@ UI\JournalHome.lua
 UI\Tabs.lua
 UI\LockoutHelpers.lua
 UI\ChecklistView.lua
+UI\ChecklistStatus.lua
 UI\AltsWindow.lua
 UI\Popouts.lua
 UI\DifficultyCheck.lua

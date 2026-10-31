@@ -111,6 +111,7 @@ changed addon gives `nil`, never an error.
 | `Tabs.lua` | The Holidays, Achievements, Timewalking and Misc views. |
 | `LockoutHelpers.lua` | Lockout state per boss, hand ticks, header lines (shared by the Checklist). |
 | `ChecklistView.lua` | The Lockouts view (daily, weekly, rare spawns). |
+| `ChecklistStatus.lua` | The Lockouts view's live status for event rares (assaults, warfronts): `UI.EventStatusTexts`, `UI.EventStatusChanged`, the event-map click. |
 | `AltsWindow.lua` | The alt lockout matrix window. |
 | `Popouts.lua` | Pop-out windows, their snapping and order (their look: `Style.lua`). |
 | `HereView.lua` | The Current Zone view. |
