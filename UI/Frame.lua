@@ -419,6 +419,11 @@ function UI.SettingsMenuItems()
   items[#items + 1] = { separator = true }
   items[#items + 1] = check(L["Show unobtainable mounts"], saved.showUnobtainable == true,
     function() O.Set("showUnobtainable", not (saved.showUnobtainable == true)) end)
+  -- Its sub-option, indented, greyed out while Show is off.
+  local sub = check("   " .. L["Count towards the total"], saved.countUnobtainable == true,
+    function() O.Set("countUnobtainable", not (saved.countUnobtainable == true)) end)
+  sub.disabled = saved.showUnobtainable ~= true
+  items[#items + 1] = sub
   items[#items + 1] = check(L["Colour pop-out names by rarity"], saved.rarityColors == true,
     function() O.Set("rarityColors", not (saved.rarityColors == true)) end)
   items[#items + 1] = check(L["Colour list names by rarity"], saved.rarityColorsMain == true,

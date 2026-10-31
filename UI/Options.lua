@@ -35,6 +35,7 @@ ns.Options = Options
 
 -- Proxy setting variable names: global to the settings system, so prefixed.
 Options.UNOBTAINABLE = "MOUNTTRAIL_UNOBTAINABLE"
+Options.COUNT_UNOBTAINABLE = "MOUNTTRAIL_COUNT_UNOBTAINABLE"
 Options.MINIMAP = "MOUNTTRAIL_MINIMAP"
 Options.RARITY_COLORS = "MOUNTTRAIL_RARITY_COLORS"
 Options.RARITY_COLORS_MAIN = "MOUNTTRAIL_RARITY_COLORS_MAIN"
@@ -126,6 +127,22 @@ end
 -- Saves the choice and redraws the open window (UI\List.lua reads it).
 local function setUnobtainable(on)
   settings().showUnobtainable = on and true or false
+  Options.ApplyCounting()
+  ns.Refresh()
+end
+
+-- "Count towards the total", under Show unobtainable mounts: the not-owned
+-- unobtainable mounts it lists count in Home's numbers too (off by default;
+-- only while they are shown).
+function Options.CountUnobtainable()
+  local global = ns.db and ns.db.global
+  local saved = global and global.settings
+  return type(saved) == "table" and saved.countUnobtainable == true
+end
+
+local function setCountUnobtainable(on)
+  settings().countUnobtainable = on and true or nil
+  Options.ApplyCounting()
   ns.Refresh()
 end
 
@@ -190,6 +207,7 @@ function Options.ApplyCounting()
     if not Options.Counted(c.section) then set[c.section] = true end
   end
   ns.Journal.SetExcluded(set)
+  ns.Journal.countUnobtainable = Options.ShowUnobtainable() and Options.CountUnobtainable()
 end
 
 function Options.SetCounted(section, on)
@@ -243,6 +261,7 @@ function Options.Set(name, value)
   elseif name == "showUnobtainable" then setUnobtainable(value)
   elseif name == "rarityColors" then setRarityColors(value)
   elseif name == "rarityColorsMain" then setRarityColorsMain(value)
+  elseif name == "countUnobtainable" then setCountUnobtainable(value)
   elseif name == "difficultyWarning" then setDifficultyWarning(value)
   elseif name == "minimap" then Options.SetMinimap(value)
   elseif name == "showLists" or name == "showQuick" then
@@ -254,7 +273,7 @@ function Options.Set(name, value)
     Options.SetCounted(string.sub(name, 7), value)
   end
   for _, var in pairs({ Options.WINDOW_SCALE, Options.NAV_TEXT, Options.UNOBTAINABLE, Options.RARITY_COLORS,
-    Options.RARITY_COLORS_MAIN, Options.MINIMAP, Options.SHOW_LISTS, Options.SHOW_QUICK,
+    Options.RARITY_COLORS_MAIN, Options.COUNT_UNOBTAINABLE, Options.MINIMAP, Options.SHOW_LISTS, Options.SHOW_QUICK,
     Options.DIFFICULTY_WARNING }) do
     Options.Changed(var)
   end
@@ -315,6 +334,7 @@ function Options.ResetAll(global, char)
   if type(global) ~= "table" then return end
   global.settings = { showUnobtainable = false, rarityColors = false }
   if ns.Journal and ns.Journal.SetExcluded then ns.Journal.SetExcluded({}) end
+  if ns.Journal then ns.Journal.countUnobtainable = false end
   global.window = {}
   global.filters = {}
   for k, v in pairs(ns.Journal and ns.Journal.DefaultFilters or {}) do
@@ -372,8 +392,17 @@ local function build(api)
 
   local unobtainable = api.RegisterProxySetting(category, Options.UNOBTAINABLE, VarType.Boolean or "boolean",
     L["Show unobtainable mounts"], false, Options.ShowUnobtainable, setUnobtainable)
-  api.CreateCheckbox(category, unobtainable,
+  local showInit = api.CreateCheckbox(category, unobtainable,
     L["List mounts you can no longer get on the Misc tab, under Unobtainable. Collected ones stay where they are."])
+  -- Its sub-option: greyed out while Show is off (where the client can).
+  local countUnobtainable = api.RegisterProxySetting(category, Options.COUNT_UNOBTAINABLE,
+    VarType.Boolean or "boolean", L["Count towards the total"], false, Options.CountUnobtainable,
+    setCountUnobtainable)
+  local countInit = api.CreateCheckbox(category, countUnobtainable,
+    L["Also count the unobtainable mounts you do not own in Home's collected numbers (total, expansions, sources). Owned ones always count."])
+  if type(countInit) == "table" and type(countInit.SetParentInitializer) == "function" and showInit then
+    countInit:SetParentInitializer(showInit, function() return Options.ShowUnobtainable() end)
+  end
 
   -- What is counted: each optional section (in-game shop, ...).
   for _, c in ipairs(Options.COUNT_SECTIONS) do

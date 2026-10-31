@@ -95,7 +95,7 @@ function UI.HomeSourceCounts(mounts, isOwned, exists, faction, sourceText)
   local out = { all = { have = 0, total = 0 } }
   for _, c in ipairs(ns.Browse.CATEGORIES) do out[c.key] = { have = 0, total = 0 } end
   for id, m in pairs(mounts or {}) do
-    local o = ns.Journal.Gate(id, m, isOwned, exists, faction)
+    local o = ns.Journal.Gate(id, m, isOwned, exists, faction, ns.Journal.countUnobtainable)
     -- A section the player does not count (Options) stays listed but is
     -- left out of these numbers.
     if o ~= nil and not ns.Journal.IsExcluded(m) then

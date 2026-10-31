@@ -438,6 +438,7 @@ column, headers, mount names, small notes).
 | Setting | Does |
 | --- | --- |
 | `Show unobtainable mounts` | Lists unobtainable mounts you do not own under "Unobtainable" (off by default; owned ones stay where they are, and the Journal counts never include them). |
+| `Count towards the total` (under it) | Off by default; only while `Show unobtainable mounts` is on. On: the unobtainable mounts you do not own also count in Home's collected numbers (the total and its bar, their expansion's and source's rows). Owned ones always count. |
 | `Whole window` | 80-150 %: everything in the window at once, text included. |
 | `Left column` | The navigation column's text (Home, Lockouts, Browse, your lists, guides), +0 to +6. |
 | `Headers` | List headers (Classic, Wrath of the Lich King...), page titles and the detail pane's labels, -2 to +6. |

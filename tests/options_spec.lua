@@ -120,6 +120,8 @@ describe("options", function()
         { "Category", "MountTrail" },
         { "Setting", "MOUNTTRAIL_UNOBTAINABLE" },
         { "Checkbox", "MOUNTTRAIL_UNOBTAINABLE" },
+        { "Setting", "MOUNTTRAIL_COUNT_UNOBTAINABLE" },
+        { "Checkbox", "MOUNTTRAIL_COUNT_UNOBTAINABLE" },
         { "Setting", "MOUNTTRAIL_COUNT_SHOP" },
         { "Checkbox", "MOUNTTRAIL_COUNT_SHOP" },
         { "Setting", "MOUNTTRAIL_COUNT_TRADINGPOST" },
@@ -520,6 +522,25 @@ describe("counting options", function()
     eq({ J.Counts(mounts, "Legion", yes, yes, nil) }, { 1, 1 })
     ns.Options.ResetAll(ns.db.global, ns.db.char)
     eq({ J.Counts(mounts, "Legion", yes, yes, nil) }, { 2, 2 }, "a reset counts everything again")
+  end)
+
+  it("unobtainable: Show lists them; its Count towards the total adds the unowned ones to the numbers", function()
+    local ns = loadOptions()
+    local J = ns.Journal
+    local yes, no = function() return true end, function() return false end
+    local mounts = {
+      [1] = { section = "pvp", tab = "journal", exp = "Legion", unobtainable = true },
+      [2] = { section = "vendor", tab = "journal", exp = "Legion" },
+    }
+    local function counts() return { J.Counts(mounts, "Legion", no, yes, nil) } end
+    eq(counts(), { 0, 1 }, "default: an unowned unobtainable mount is not counted")
+    ns.Options.Set("countUnobtainable", true)
+    eq(counts(), { 0, 1 }, "Count on its own does nothing while Show is off")
+    ns.Options.Set("showUnobtainable", true)
+    eq(counts(), { 0, 2 }, "Show + Count: counted")
+    ns.Options.Set("countUnobtainable", false)
+    eq(counts(), { 0, 1 }, "Show alone: listed, not counted")
+    eq({ J.Counts(mounts, "Legion", yes, yes, nil) }, { 2, 2 }, "owned ones always count")
   end)
 
   it("rarity colours: the pop-outs' and the main window's lists are separate settings", function()

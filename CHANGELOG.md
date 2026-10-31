@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Options: `Count towards the total` under `Show unobtainable mounts`: the
+  unobtainable mounts you do not own also count in Home's numbers.
 - No mount icons on list rows or beside the detail pane's name: the pane's
   3D model shows the mount (and nothing shows when there is no model).
 - Options: `Count in-game shop mounts`, `Count Trading Post mounts`, `Count

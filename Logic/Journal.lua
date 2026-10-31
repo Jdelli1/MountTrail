@@ -190,6 +190,11 @@ Journal.excluded = {}
 -- The data sections a counting option can leave out, in the order offered.
 Journal.OPTIONAL_SECTIONS = { "shop", "tradingpost", "promotion", "bmah" }
 
+-- Whether not-owned unobtainable mounts count in the collected numbers
+-- (Options: "Show unobtainable mounts" and its "Count towards the total";
+-- owned ones always count). Set by UI/Options.lua.
+Journal.countUnobtainable = false
+
 function Journal.SetExcluded(set)
   Journal.excluded = type(set) == "table" and set or {}
 end
@@ -354,7 +359,7 @@ function Journal.Counts(mounts, exp, isOwned, exists, faction, sourceText)
   local owned, total = 0, 0
   for id, m in pairs(mounts) do
     if (exp == nil or m.exp == exp) and Journal.ViewOf(m) == "journal" and not Journal.IsExcluded(m) then
-      local o = gate(id, m, isOwned, exists, faction)
+      local o = gate(id, m, isOwned, exists, faction, Journal.countUnobtainable)
       if o ~= nil then
         total = total + 1
         if o then owned = owned + 1 end
