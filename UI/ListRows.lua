@@ -2,7 +2,7 @@ local ADDON, ns = ...
 
 -- The mount list's row model, split out of UI/List.lua (loads right after
 -- it): the pure helpers a row reads (route index, UI.SourceLine,
--- UI.MountIcon, UI.SectionLabel), sub-groups (UI.SubGroup, UI.GroupKey),
+-- UI.SectionLabel), sub-groups (UI.SubGroup, UI.GroupKey),
 -- collapse keys (UI.CollapseKey, UI.ToggleCollapsed, UI.ToggleAllCollapsed),
 -- the header / mount rows (UI.ListRows) and the header and row text
 -- (UI.HeaderHint, UI.HeaderGlyph, UI.HeaderText, UI.RowSourceText). No
@@ -112,17 +112,6 @@ function UI.SourceLine(mountID)
   end
   if group and where then return group .. " · " .. where end
   return group or where or ""
-end
-
--- Icon for a row: the client's icon first, else the data's (file ID or
--- Interface\Icons name), else the question mark.
-function UI.MountIcon(mountID)
-  local _, icon = ns.Game.MountInfo(mountID)
-  if icon then return icon end
-  local m = mountData(mountID)
-  if m and type(m.icon) == "number" then return m.icon end
-  if m and type(m.icon) == "string" and m.icon ~= "" then return "Interface\\Icons\\" .. m.icon end
-  return 134400 -- INV_Misc_QuestionMark
 end
 
 local SECTION_NAMES = {

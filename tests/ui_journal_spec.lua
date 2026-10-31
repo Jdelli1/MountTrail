@@ -69,7 +69,7 @@ describe("ui journal", function()
   it("loads the UI files and registers the journal view without building it", function()
     local ns = loadUI()
     for _, name in ipairs({ "ShowMountTooltip", "LockoutStatus", "TooltipLines", "List",
-      "SourceLine", "MountIcon", "SectionLabel", "ListRows", "PreviewMount", "FilterMenuItems",
+      "SourceLine", "SectionLabel", "ListRows", "PreviewMount", "FilterMenuItems",
       "FilterChecked", "ToggleFilter", "ApplyFilterAction", "FiltersAreDefault", "FilterLabel",
       "CreateFilterDropdown" }) do
       eq(type(ns.UI[name]), "function", name)
@@ -103,23 +103,6 @@ describe("ui journal", function()
     it("uses the route alone when the mount has no group", function()
       local ns = loadUI(nil, { Mounts = { [395] = { name = "x" } }, Route = ROUTE })
       eq(ns.UI.SourceLine(395), "Altairus (Vortex Pinnacle (Dungeon))")
-    end)
-  end)
-
-  describe("MountIcon", function()
-    it("prefers the client icon, then the data file ID, then the icon name", function()
-      local ns = loadUI({
-        MountInfo = function(id) if id == 1 then return "One", 123456, 99 end end,
-      }, { Mounts = {
-        [1] = { name = "One", icon = "ignored" },
-        [2] = { name = "Two", icon = 654321 },
-        [3] = { name = "Three", icon = "ability_mount_ridinghorse" },
-        [4] = { name = "Four" },
-      } })
-      eq(ns.UI.MountIcon(1), 123456)
-      eq(ns.UI.MountIcon(2), 654321)
-      eq(ns.UI.MountIcon(3), "Interface\\Icons\\ability_mount_ridinghorse")
-      eq(ns.UI.MountIcon(4), 134400, "question mark fallback")
     end)
   end)
 

@@ -13,8 +13,9 @@ local ADDON, ns = ...
 --   local pane = UI.CreateDetailPane(parent)
 --   pane:SetMount(mountID[, routeBoss])   -- nil: folded away (1 px wide)
 --   pane:Refresh()                        -- same mount, fresh numbers
--- The model is reloaded only when the mount changes. Clients without the
--- model scene template show the large icon instead.
+-- The model is reloaded only when the mount changes. Without a model (the
+-- client lacks the scene template, or the mount has none) the model area
+-- stays empty.
 -- Its width is shared by every pane and saved (ns.db.global.window.
 -- paneWidth, UI.PANE_MIN..UI.PANE_MAX): drag its left edge (UI.Splitter),
 -- right-click there for the default.
@@ -329,11 +330,6 @@ local function build(parent)
     end)
     pane.Rider = rider
   end
-  local bigIcon = modelArea:CreateTexture(nil, "ARTWORK")
-  bigIcon:SetSize(96, 96)
-  bigIcon:SetPoint("CENTER", modelArea, "CENTER", 0, 0)
-  bigIcon:Hide()
-  pane.BigIcon = bigIcon
 
   -- Header: the name (no icon: the model shows the mount), a check when
   -- owned, the buttons on the right; a 32 px band under the model.
@@ -425,8 +421,6 @@ local function build(parent)
     if changed then
       local shown = mountID ~= nil and self.Scene ~= nil and UI.ShowMountModel(self.Scene, mountID)
       if self.Scene then self.Scene:SetShown(mountID ~= nil and shown) end
-      self.BigIcon:SetShown(mountID ~= nil and not shown)
-      if mountID then self.BigIcon:SetTexture(UI.MountIcon(mountID)) end
     end
     paint(self)
   end

@@ -3,7 +3,7 @@
 ## Unreleased
 
 - No mount icons on list rows or beside the detail pane's name: the pane's
-  3D model shows the mount.
+  3D model shows the mount (and nothing shows when there is no model).
 - Options: `Count in-game shop mounts`, `Count Trading Post mounts`, `Count
   promotional mounts`, `Count Black Market mounts` (on by default): off leaves
   those mounts out of every list and count, owned or not.

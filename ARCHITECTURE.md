@@ -102,7 +102,7 @@ changed addon gives `nil`, never an error.
 | `Nav.lua` | The navigation column: entries, favourites, ordering, Alt-drag, badges, `UI.RefreshNav`. |
 | `Tooltip.lua` | The mount tooltip and `UI.TooltipLines`. |
 | `List.lua` | The shared mount list widget (`UI.List`): row and header frames (`UI.InitMountRow`, `UI.InitListHeader`, `UI.HeaderColor`), pins, row clicks (`UI.PaneRowAction`, `UI.HandleRowClick`). |
-| `ListRows.lua` | The list's row model, split out of `List.lua`: `UI.ListRows`, sub-groups (`UI.SubGroup`), collapse keys (`UI.CollapseKey`, `UI.ToggleCollapsed`, `UI.ToggleAllCollapsed`), header / row text (`UI.HeaderGlyph`, `UI.HeaderText`, `UI.RowSourceText`), `UI.SourceLine`, `UI.MountIcon`, `UI.SectionLabel`. |
+| `ListRows.lua` | The list's row model, split out of `List.lua`: `UI.ListRows`, sub-groups (`UI.SubGroup`), collapse keys (`UI.CollapseKey`, `UI.ToggleCollapsed`, `UI.ToggleAllCollapsed`), header / row text (`UI.HeaderGlyph`, `UI.HeaderText`, `UI.RowSourceText`), `UI.SourceLine`, `UI.SectionLabel`. |
 | `ListFilter.lua` | The list's Filter menu, split out of `List.lua`: `UI.FilterMenuItems`, `UI.ToggleFilter`, `UI.ApplyFilterAction`, `UI.FiltersAreDefault`, the dropdown (`UI.CreateFilterDropdown`, `UI.ListFilterDropdown`) and the fallback checkbox panel. |
 | `SourceText.lua` | Reading a mount's source text: `UI.StripMarkup`, `UI.SourcePairs`, `UI.SourceZone(s)`, `UI.RowDescription`. |
 | `Search.lua` | Search glue: the shared search cache, `UI.SearchMatches` (with its expansion fallback), `UI.SearchFields`. |
