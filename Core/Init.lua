@@ -357,6 +357,15 @@ function addon:OnSlash(input)
     else
       self:Print(L["The window is not available yet. Type /mtrail help for commands."])
     end
+  elseif cmd == "hide" or cmd == "show" then
+    -- The minimap button (the same setting as Options' Show minimap button).
+    if ns.Options and ns.Options.Set then
+      ns.Options.Set("minimap", cmd == "show")
+      self:Print(cmd == "show" and L["Minimap button shown."]
+        or L["Minimap button hidden. /mtrail show brings it back; /mtrail opens the window."])
+    else
+      self:Print(L["The options page is not available on this client."])
+    end
   elseif cmd == "options" then
     if ns.Options and ns.Options.Open then
       ns.Options.Open()
@@ -386,6 +395,7 @@ function addon:OnSlash(input)
     self:Print(L["/mtrail rares - show or hide the rare spawns of your zone"])
     self:Print(L["/mtrail zone - show or hide every mount still to get in your zone"])
     self:Print(L["/mtrail options - open the MountTrail options (Options > AddOns)"])
+    self:Print(L["/mtrail hide / show - hide or show the minimap button"])
     self:Print(L["/mtrail alts - show or hide the alt lockout matrix (who is still unsaved)"])
     self:Print(L["/mtrail import - paste a list someone shared"])
     self:Print(L["/mtrail sharetest - check that sharing works on this client"])
