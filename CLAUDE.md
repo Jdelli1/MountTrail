@@ -23,3 +23,6 @@ and put it there.
 - Tell the user when a change adds or removes a file: that needs a full game
   restart, not /reload.
 - Develop on the branch the session names and push after each feature.
+- Commit messages in plain words, no `feat:` / `fix:` / `chore:` style
+  prefixes: say what changed for the player, e.g. "Drop alert: chime when a
+  mount reaches your bags".
