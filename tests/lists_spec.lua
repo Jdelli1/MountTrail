@@ -43,4 +43,37 @@ describe("Lists", function()
     eq(#L.Sorted(store), 1)
     eq(L.Get(store, a), nil)
   end)
+
+  it("moves a mount one place, or before another; the ends hold", function()
+    local L = load()
+    local store = {}
+    local id = L.Create(store, "A")
+    for _, m in ipairs({ 1, 2, 3, 4 }) do L.Add(store, id, m) end
+    eq(L.Move(store, id, 3, -1), true)
+    eq(L.Get(store, id).mounts, { 1, 3, 2, 4 })
+    eq(L.Move(store, id, 1, -1), false, "already first")
+    eq(L.Move(store, id, 4, 1), false, "already last")
+    eq(L.Move(store, id, 99, 1), false, "not on the list")
+    eq(L.MoveBefore(store, id, 4, 1), true)
+    eq(L.Get(store, id).mounts, { 4, 1, 3, 2 })
+    eq(L.MoveBefore(store, id, 4, nil), true, "nil: to the end")
+    eq(L.Get(store, id).mounts, { 1, 3, 2, 4 })
+    eq(L.MoveBefore(store, id, 2, 4), false, "already there: no change")
+  end)
+
+  it("a list's sort: in the order added by default, or by expansion", function()
+    local L = load()
+    local store = {}
+    local id = L.Create(store, "A")
+    eq(L.SortOf(store, id), "added", "the default")
+    L.SetSort(store, id, "expansion")
+    eq(L.SortOf(store, id), "expansion")
+    L.SetSort(store, id, "added")
+    eq(L.Get(store, id).sort, nil, "the default stores nothing")
+    local mounts = { [1] = { exp = "Legion" }, [2] = { exp = "Classic" }, [3] = {}, [4] = { exp = "Legion" } }
+    local function ids(t) local o = {} for i, e in ipairs(t) do o[i] = e.id end return o end
+    eq(ids(L.Ordered({ 4, 3, 2, 1 }, mounts, "added", { "Classic", "Legion" })), { 4, 3, 2, 1 })
+    eq(ids(L.Ordered({ 4, 3, 2, 1 }, mounts, "expansion", { "Classic", "Legion" })), { 2, 4, 1, 3 },
+      "Classic, then Legion in the list's order, unknown last")
+  end)
 end)

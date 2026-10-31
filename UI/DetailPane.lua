@@ -473,6 +473,15 @@ function UI.ShowListMenu(owner, mountID)
     local page = UI.CurrentListPage and UI.CurrentListPage()
     local here = page and page.kind == "list" and ns.Lists.Get(store, page.list)
     if here and ns.Lists.Has(store, page.list, mountID) then
+      -- On one of your list's pages: move it in that list, or take it off.
+      items[#items + 1] = { text = L["Move up"], onClick = function()
+        ns.Lists.Move(store, page.list, mountID, -1)
+        ns.Refresh()
+      end }
+      items[#items + 1] = { text = L["Move down"], onClick = function()
+        ns.Lists.Move(store, page.list, mountID, 1)
+        ns.Refresh()
+      end }
       items[#items + 1] = { text = string.format(L["Remove from %s"], here.name), onClick = function()
         ns.Lists.Remove(store, page.list, mountID)
         ns.Refresh()

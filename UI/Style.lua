@@ -255,6 +255,7 @@ function UI.PopoutStyleMenu(w, back)
           UI.RefreshPopouts()
         end },
       { separator = true, popoutOnly = true },
+      { extra = true },
       { slider = true, text = L["Opacity"], min = math.floor(ALPHA_MIN * 100 + 0.5), max = 100, step = 1,
         value = math.floor(s.alpha * 100 + 0.5), format = "%d%%",
         onChange = function(pct) setStyle(w, function(st) st.alpha = pct / 100 end, true) end },
@@ -318,7 +319,12 @@ function UI.PopoutStyleMenu(w, back)
   main = function()
     local out = {}
     for _, it in ipairs(build()) do
-      if not it.popoutOnly or (UI.PopoutWindows or {})[w.key] == w then out[#out + 1] = it end
+      if it.extra then
+        -- The window's own items (a custom list's sort, UI.PopoutMenuExtra).
+        for _, x in ipairs(UI.PopoutMenuExtra and UI.PopoutMenuExtra(w) or {}) do out[#out + 1] = x end
+      elseif not it.popoutOnly or (UI.PopoutWindows or {})[w.key] == w then
+        out[#out + 1] = it
+      end
     end
     if back then
       out[#out + 1] = { separator = true }

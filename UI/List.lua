@@ -26,8 +26,10 @@ local ADDON, ns = ...
 -- badge after the header text; grey when the second return is true),
 -- headerActive = fn(sectionKey) -> bool (the
 -- header text in green), rowTag = fn(mountID, m) -> string|nil (a green tag
--- after the row's source line) }. The base query may carry pin =
--- {[section]=true} (Journal.Select: those sections first).
+-- after the row's source line), menu = { items =, onChange = } (the list's
+-- own choices after the Filter menu's: createFilterDropdown) }. The base
+-- query may carry pin = {[section]=true} (Journal.Select: those sections
+-- first) and bare = true (no headers: the mounts in the order selected).
 -- Rows are a tree (UI.ListRows): section headers, sub-headers (dungeon / raid
 -- by instance, world by zone, reputation by faction group), mounts. Headers
 -- show +/- and (owned/total) over every mount the view's filters select,
@@ -348,13 +350,28 @@ end
 -- UI.HeaderText paints it green), rowTag =
 -- fn(id, m) -> tag, view =, exp = (collapse keys), collapsed = { [key] = true },
 -- hideOwned = true (drop owned mount rows: the Collected filter is off),
--- sourceText = fn(id), mapName = fn(mapID) (UI.SubGroup's ctx).
+-- sourceText = fn(id), mapName = fn(mapID) (UI.SubGroup's ctx), bare = true
+-- (the mounts in the order given, no headers). A section that is an
+-- expansion carries exp = its name (its colour, UI.HeaderColor).
 function UI.ListRows(selected, isOwned, opts)
   opts = opts or {}
   local headerSuffix, rowTag, headerActive = opts.headerSuffix, opts.rowTag, opts.headerActive
   local collapsed = opts.collapsed or {}
   local hideOwned = opts.hideOwned == true
   local ctx = { sourceText = opts.sourceText, mapName = opts.mapName }
+  -- Bare: the mounts in the given order, no headers (a list in the order
+  -- its mounts were added).
+  if opts.bare then
+    local rows = {}
+    for _, entry in ipairs(selected or {}) do
+      local owned = (isOwned and isOwned(entry.id)) and true or false
+      if not (hideOwned and owned) then
+        rows[#rows + 1] = { id = entry.id, m = entry.m, owned = owned,
+          tag = rowTag and rowTag(entry.id, entry.m) or nil }
+      end
+    end
+    return rows
+  end
 
   local sections, bySection = {}, {}
   for _, entry in ipairs(selected or {}) do
@@ -412,6 +429,8 @@ function UI.ListRows(selected, isOwned, opts)
       if headerSuffix then badge, muted = headerSuffix(sec.key) end
       rows[#rows + 1] = {
         header = true, depth = 1, section = sec.key, key = key, text = UI.SectionLabel(sec.key),
+        -- A section that is an expansion takes its colour (UI.HeaderColor).
+        exp = (UI.EXPANSION_COLORS and UI.EXPANSION_COLORS[sec.key]) and sec.key or nil,
         badge = badge or nil, badgeMuted = (badge and muted) and true or nil,
         owned = owned, total = total, collapsed = isCollapsed,
         active = (headerActive and headerActive(sec.key)) and true or nil,
@@ -975,15 +994,16 @@ local function collapsedDB()
 end
 
 -- Header colours, the same in every list, as a pop-out's group headers: a
+-- header of an expansion (depth 1 or 2 with `exp`: the Lockouts'
+-- expansions, a list by expansion) in that expansion's colour; any other
 -- top-level header (depth 1) in the main window's header colour (its
--- appearance, UI/Style.lua), else gold; an expansion's header (depth 2 with
--- `exp`, the Lockouts' expansions) in that expansion's colour; every other
--- group (instances, zones, the Lockouts' categories) light grey.
+-- appearance, UI/Style.lua), else gold; every other group (instances,
+-- zones, the Lockouts' categories) light grey.
 local GOLD = { 1, 0.82, 0 }
 local LIGHT = { 0.85, 0.85, 0.85 }
 function UI.HeaderColor(data)
   local depth = data and data.depth or 1
-  if depth == 2 and data.exp and UI.EXPANSION_COLORS and UI.EXPANSION_COLORS[data.exp] then
+  if depth <= 2 and data.exp and UI.EXPANSION_COLORS and UI.EXPANSION_COLORS[data.exp] then
     return UI.EXPANSION_COLORS[data.exp]
   end
   if depth >= 2 then return LIGHT end
@@ -1415,7 +1435,7 @@ function UI.CreateFilterDropdown(parent, opts)
     local items = opts.items() or {}
     checked = {}
     for _, item in ipairs(items) do
-      if item.kind == "checkbox" then checked[item.key] = item.checked == true end
+      if item.kind == "checkbox" or item.kind == "radio" then checked[item.key] = item.checked == true end
     end
     return items
   end
@@ -1434,6 +1454,10 @@ function UI.CreateFilterDropdown(parent, opts)
         local key = item.key
         root:CreateCheckbox(item.label, function() return isChecked(key) end,
           function() changed("toggle", key) end)
+      elseif item.kind == "radio" and type(root.CreateRadio) == "function" then
+        local key = item.key
+        root:CreateRadio(item.label, function() return isChecked(key) end,
+          function() changed("radio", key) end)
       elseif item.kind == "divider" then
         root:CreateDivider()
       elseif item.kind == "title" then
@@ -1462,12 +1486,26 @@ end
 
 -- The list's Filter button: UI.FilterMenuItems of the list's view over
 -- ns.db.global.filters; every change writes them and calls ns.Refresh().
-local function createFilterDropdown(list)
+-- extra (optional): { items = fn() -> more items after the filters (a
+-- "radio" item: { kind = "radio", key =, label =, checked = }), onChange =
+-- fn(kind, value) -> true when it handled the change }: a list's own
+-- choices (a list page's sort).
+local function createFilterDropdown(list, extra)
   return UI.CreateFilterDropdown(list, {
     items = function()
-      return UI.FilterMenuItems(list.tab, filtersDB() or ns.Journal.DefaultFilters)
+      local items = UI.FilterMenuItems(list.tab, filtersDB() or ns.Journal.DefaultFilters)
+      local more = extra and extra.items and extra.items() or {}
+      if #more > 0 then
+        items[#items + 1] = { kind = "divider" }
+        for _, it in ipairs(more) do items[#items + 1] = it end
+      end
+      return items
     end,
     onChange = function(kind, value)
+      if extra and extra.onChange and extra.onChange(kind, value) then
+        ns.Refresh()
+        return
+      end
       local filters = filtersDB()
       if not filters then return end
       if kind == "toggle" then
@@ -1514,7 +1552,7 @@ function UI.List(parent, getQuery, opts)
 
   -- Top row: search box + Filter button. Fallback: the left filter panel
   -- (search box on top of it).
-  local dropdown = createFilterDropdown(list)
+  local dropdown = createFilterDropdown(list, opts and opts.menu)
   list.FilterDropdown = dropdown
   local searchParent = list
   if not dropdown then searchParent = buildFilterPanel(list) end
@@ -1649,6 +1687,7 @@ function UI.List(parent, getQuery, opts)
     end
     local selected = select((ns.Data and ns.Data.Mounts) or {}, query)
     local rows = UI.ListRows(selected, query.isOwned, {
+      bare = query.bare,
       headerSuffix = opts and opts.headerSuffix,
       headerActive = opts and opts.headerActive,
       rowTag = opts and opts.rowTag,

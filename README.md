@@ -326,8 +326,10 @@ In a pop-out:
   TomTom), Shift-click opens the world map there and Ctrl-click previews it.
 - `Plot all` in the title puts the spawn points of every row whose box is not
   ticked on TomTom at once.
-- Right-click a row of your own list to take it off the list.
-- Alt-drag a row to reorder it (saved per window).
+- Right-click a row of your own list to move it up or down, or take it off
+  the list.
+- Alt-drag a row to reorder it (saved per window; in your own list it moves
+  the mount in the list itself).
 - Windows that span several expansions group their rows under expansion
   headers; click one to collapse it, Shift-click to collapse or expand all.
   Each row carries a small expansion tag.
@@ -445,8 +447,14 @@ window's title bar has the same settings, plus `Reset text sizes` and
   list (or `New list...` to start one with it). The button reads `Lists (2)`
   once the mount is on some of your lists.
 - **Remove a mount**: the same menu, untick the list. On a list's own page the
-  menu starts with `Remove from <list>`. In a list's pop-out, right-click the
-  mount's row.
+  menu starts with `Move up`, `Move down` and `Remove from <list>`. In a
+  list's pop-out, right-click the mount's row for the same three.
+- **Order**: a list keeps the order you added its mounts in. Move one with
+  `Move up` / `Move down` (above), or Alt-drag its row in the list's pop-out:
+  the list itself changes, so its page and pop-out always agree.
+- **Sort**: `Order added` (the default) or `By expansion` (a header per
+  expansion, your order inside each), from the Filter menu on the list's page
+  or the pop-out's title menu (right-click its title). Saved per list.
 - `+` next to My lists starts an empty list or imports one.
 
 ## Guides

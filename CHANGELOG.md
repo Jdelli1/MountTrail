@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Your lists: sort `Order added` (default) or `By expansion` from the list
+  page's Filter menu or the pop-out's title menu; move mounts with `Move up`
+  / `Move down` (detail pane, pop-out row) or Alt-drag in the pop-out; remove
+  them from either.
 - Every list uses the same one-line row (small icon, expansion tag, name,
   source on the right) and the same header colours, so My lists, Browse,
   expansions and Lockouts look alike.

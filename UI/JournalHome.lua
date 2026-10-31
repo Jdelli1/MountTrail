@@ -692,32 +692,37 @@ local function showMyList(source)
   myList:Refresh(true)
 end
 
+-- How the list page shows its list: a custom list's own sort
+-- (Lists.SortOf: "added", "expansion"); a quick list keeps its order.
+local function listSort(source)
+  if not (source and source.kind == "list") then return "added" end
+  local store = UI.ListsDB and UI.ListsDB()
+  return store and ns.Lists.SortOf(store, source.list) or "added"
+end
+
 -- The list page's mounts (UI.List's select): the list's mounts the list gate
--- keeps (owned ones too: Collected decides), grouped by source in
--- Journal.SOURCE_ORDER, then by name; the search box narrows by name.
+-- keeps (owned ones too: Collected decides), in the list's order (moved by
+-- the player), or by expansion (each expansion a section, the list's order
+-- inside) when the list is sorted so; the search box narrows by name.
 local function myListSelect(mounts, query)
   local ids = currentList and listMounts(currentList) or {}
   local needle = query.search and string.lower(query.search) or ""
   -- The home page's fuzzy search (tbc, a boss, a zone...).
   local match = UI.SearchMatches and UI.SearchMatches(ids, query.search, query.sourceText) or nil
+  local byExp = listSort(currentList) == "expansion"
   local out = {}
-  for _, id in ipairs(ids) do
+  for _, o in ipairs(ns.Lists.Ordered(ids, mounts, byExp and "expansion" or "added", expansions())) do
+    local id = o.id
     local m = mounts[id]
     if m and ns.Journal.Gate(id, m, query.isOwned, query.exists, query.faction, true) ~= nil then
       local name = (ns.Game.MountInfo and ns.Game.MountInfo(id)) or m.name or ""
       local hit
       if match then hit = match[id] == true else hit = needle == "" or string.find(string.lower(name), needle, 1, true) end
       if hit then
-        out[#out + 1] = { id = id, m = m, section = m.section or "other", name = string.lower(name) }
+        out[#out + 1] = { id = id, m = m, section = byExp and (m.exp or "Other") or "list" }
       end
     end
   end
-  table.sort(out, function(a, b)
-    local ra, rb = ns.Journal.SourceRank(a.section), ns.Journal.SourceRank(b.section)
-    if ra ~= rb then return ra < rb end
-    if a.name ~= b.name then return a.name < b.name end
-    return a.id < b.id
-  end)
   return out
 end
 
@@ -771,8 +776,29 @@ local function build(parent)
   myList = UI.List(mHolder, function()
     local key = currentList and (currentList.kind == "quick" and ("q" .. tostring(currentList.key))
       or tostring(currentList.list)) or ""
-    return { view = "mylist", exp = key, sourceText = ns.Game.MountSourceText }
-  end, { select = myListSelect })
+    return { view = "mylist", exp = key, sourceText = ns.Game.MountSourceText,
+      bare = listSort(currentList) ~= "expansion" }
+  end, {
+    select = myListSelect,
+    -- A custom list's sort, after the Filter menu's choices.
+    menu = {
+      items = function()
+        if not (currentList and currentList.kind == "list") then return {} end
+        local sort = listSort(currentList)
+        return {
+          { kind = "title", label = L["Sort"] },
+          { kind = "radio", key = "sort:added", label = L["Order added"], checked = sort == "added" },
+          { kind = "radio", key = "sort:expansion", label = L["By expansion"], checked = sort == "expansion" },
+        }
+      end,
+      onChange = function(kind, value)
+        if kind ~= "radio" or not (currentList and currentList.kind == "list") then return false end
+        local store = UI.ListsDB and UI.ListsDB()
+        if store then ns.Lists.SetSort(store, currentList.list, value == "sort:expansion" and "expansion" or "added") end
+        return true
+      end,
+    },
+  })
   myListPage.List = myList
   myListPage.Title = myListTitle
 end

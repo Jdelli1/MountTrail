@@ -144,8 +144,9 @@ end
 
 -- The rows of a set -> list of { key =, id =, entry =, name =, zone =, done
 -- =, camp =, checked = (a rare spawn's last check), spots = Map.Spots, listOnly
--- = (a custom list's mount the Checklist does not track) } - open ones first,
--- then by name - and how many are left (not done).
+-- = (a custom list's mount the Checklist does not track), index = (its place
+-- in a custom list) } - open ones first, then by name (a custom list: in its
+-- own order) - and how many are left (not done).
 -- ctx: { zoneIDs = { [mountID] = true } (kind "zone"), zoneMounts = the
 -- zone's mount IDs in the zone panel's order (kind "zonemounts"), campStore =
 -- ns.db.char.campChecked, store = the lists store (kind "list"), isOwned =
@@ -162,7 +163,7 @@ function UI.PopoutRows(source, built, ctx)
     if not zone and spots[1] and ns.Game.MapName then zone = ns.Game.MapName(spots[1].pts[1]) end
     local camp = e.reset == "camp"
     local row = { key = e.key, id = e.id, entry = e, name = name, zone = zone, done = e.done == true,
-      camp = camp, spots = spots, listOnly = e.listOnly }
+      camp = camp, spots = spots, listOnly = e.listOnly, index = opts and opts.index }
     if camp and type(ctx.campStore) == "table" then row.checked = ctx.campStore[e.key] end
     if not row.done then left = left + 1 end
     rows[#rows + 1] = row
@@ -207,7 +208,7 @@ function UI.PopoutRows(source, built, ctx)
       end
     end
     local mounts = (ns.Data and ns.Data.Mounts) or {}
-    for _, id in ipairs(ids) do
+    for i, id in ipairs(ids) do
       local m = mounts[id]
       local mountName = (ns.Game.MountInfo and ns.Game.MountInfo(id)) or (m and m.name) or tostring(id)
       -- Mounts already known are left out (the Checklist's entries are
@@ -215,16 +216,18 @@ function UI.PopoutRows(source, built, ctx)
       local owned = ctx.isOwned and ctx.isOwned(id) and true or false
       local e = byMount[id]
       if e then
-        add(e, { name = mountName })
+        add(e, { name = mountName, index = i })
       elseif not owned then
         -- A mount the Checklist does not track: a plain row (no box).
         add({ id = id, m = m, key = "list:" .. tostring(id), name = mountName, listOnly = true,
-          mounts = { id } }, { name = mountName })
+          mounts = { id } }, { name = mountName, index = i })
       end
     end
   end
   table.sort(rows, function(a, b)
     if a.done ~= b.done then return not a.done end
+    -- A custom list keeps its own order (the player's: Lists.Move).
+    if kind == "list" and a.index and b.index and a.index ~= b.index then return a.index < b.index end
     if a.name ~= b.name then return string.lower(a.name) < string.lower(b.name) end
     return tostring(a.key) < tostring(b.key)
   end)
@@ -347,7 +350,9 @@ function UI.PopoutGroups(rows, source, expansions)
       return out
     end
   end
-  if source.kind ~= "list" then
+  -- A custom list groups by expansion only when sorted so (source.byExpansion,
+  -- refreshWindow's copy of the source).
+  if source.kind ~= "list" or source.byExpansion then
     local seen, n = {}, 0
     for _, row in ipairs(rows) do
       local e = expOf(row) or "?"
@@ -499,13 +504,20 @@ local function rowFrame(w, i)
       UI.PopoutGo(data)
     elseif button == "RightButton" and w.source.kind == "list" and self.data then
       local data = self.data
+      local function edit(fn)
+        return function()
+          local store = listsDB()
+          if store then fn(store) end
+          ns.Refresh()
+        end
+      end
       UI.ShowMenu(self, {
         { title = data.name },
-        { text = string.format(L["Remove from %s"], UI.PopoutTitle(w.source, listsDB())), onClick = function()
-          local store = listsDB()
-          if store then ns.Lists.Remove(store, w.source.list, data.id) end
-          ns.Refresh()
-        end },
+        { text = L["Move up"], onClick = edit(function(store) ns.Lists.Move(store, w.source.list, data.id, -1) end) },
+        { text = L["Move down"], onClick = edit(function(store) ns.Lists.Move(store, w.source.list, data.id, 1) end) },
+        { separator = true },
+        { text = string.format(L["Remove from %s"], UI.PopoutTitle(w.source, listsDB())),
+          onClick = edit(function(store) ns.Lists.Remove(store, w.source.list, data.id) end) },
       }, "cursor")
     end
   end)
@@ -583,10 +595,23 @@ function UI.PopoutDragDrop(w)
       if row.key == key and #keys < to then to = to - 1 end -- its own slot goes away
     end
   end
+  local moved = UI.MoveKey(keys, key, to)
+  local store = listsDB()
+  if w.source.kind == "list" and store then
+    -- A custom list: the mount moves in the list itself, before the row now
+    -- after it (the main window's list page shows the same order).
+    local idOf = {}
+    for _, row in ipairs(w.rows or {}) do idOf[row.key] = row.id end
+    local nextKey
+    for i, k in ipairs(moved) do if k == key then nextKey = moved[i + 1] end end
+    ns.Lists.MoveBefore(store, w.source.list, idOf[key], nextKey and idOf[nextKey] or nil)
+    ns.Refresh()
+    return
+  end
   local db = popoutsDB()
   if db then
     db[w.key] = db[w.key] or {}
-    db[w.key].order = UI.MoveKey(keys, key, to)
+    db[w.key].order = moved
   end
   UI.RefreshPopouts()
 end
@@ -697,13 +722,19 @@ local function refreshWindow(w, built)
     for _, row in ipairs(rows) do if not row.done then open[#open + 1] = row end end
     rows = open
   end
-  UI.ApplyOrder(rows, state and state.order)
+  -- A custom list keeps its own order (Alt-drag moves the mount in the
+  -- list); other windows keep theirs per window.
+  if w.source.kind ~= "list" then UI.ApplyOrder(rows, state and state.order) end
   local style = styleOf(w)
   applyChrome(w, style)
   local rowHeight = math.max(ROW_HEIGHT, (style.size or 11) + 9)
   local groupHeight = math.max(GROUP_HEIGHT, (style.size or 11) + 7)
   w.rowHeight = rowHeight
-  local groups = UI.PopoutGroups(rows, w.source)
+  local groupSource = w.source
+  if w.source.kind == "list" and store and ns.Lists.SortOf(store, w.source.list) == "expansion" then
+    groupSource = { kind = "list", list = w.source.list, byExpansion = true }
+  end
+  local groups = UI.PopoutGroups(rows, groupSource)
   -- w.rows in display order (Plot all, Alt-drag); w.slots: where each open
   -- row sits (the drop slots).
   w.rows, w.slots = {}, {}
@@ -980,6 +1011,26 @@ local function build(key, source)
   return w
 end
 
+
+-- A custom list window's own items for its title menu (UI.PopoutStyleMenu):
+-- its sort, in the order added or by expansion (Lists.SetSort; the list
+-- page follows). {} for other windows.
+function UI.PopoutMenuExtra(w)
+  local store = listsDB()
+  if not (w and w.source and w.source.kind == "list" and store and ns.Lists.Get(store, w.source.list)) then return {} end
+  local sort = ns.Lists.SortOf(store, w.source.list)
+  local function choose(value)
+    return function()
+      ns.Lists.SetSort(store, w.source.list, value)
+      ns.Refresh()
+    end
+  end
+  return {
+    { text = L["Sort: order added"], checked = sort == "added", keepOpen = true, onClick = choose("added") },
+    { text = L["Sort: by expansion"], checked = sort == "expansion", keepOpen = true, onClick = choose("expansion") },
+    { separator = true },
+  }
+end
 
 -- Opens (or brings back) the pop-out of `source` -> its window.
 function UI.OpenPopout(source)
