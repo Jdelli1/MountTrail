@@ -70,6 +70,7 @@ UI\ChecklistView.lua
 UI\ChecklistStatus.lua
 UI\AltsWindow.lua
 UI\Popouts.lua
+UI\PopoutRows.lua
 UI\DifficultyCheck.lua
 UI\HereView.lua
 UI\BrowseView.lua

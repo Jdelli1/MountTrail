@@ -113,7 +113,8 @@ changed addon gives `nil`, never an error.
 | `ChecklistView.lua` | The Lockouts view (daily, weekly, rare spawns). |
 | `ChecklistStatus.lua` | The Lockouts view's live status for event rares (assaults, warfronts): `UI.EventStatusTexts`, `UI.EventStatusChanged`, the event-map click. |
 | `AltsWindow.lua` | The alt lockout matrix window. |
-| `Popouts.lua` | Pop-out windows, their snapping and order (their look: `Style.lua`). |
+| `Popouts.lua` | Pop-out windows: frames, rows, dragging, snapping and open / close (their look: `Style.lua`). |
+| `PopoutRows.lua` | A pop-out's pure side (split out of `Popouts.lua`): key, title, rows, groups, saved order and the snapping maths (`UI.SnapRect`, `UI.SnapChain`). |
 | `HereView.lua` | The Current Zone view. |
 | `BrowseView.lua` | Browse-by-source pages. |
 | `DifficultyCheck.lua` | The wrong-difficulty warning: on entering an instance, the open pop-outs' mounts that drop here but not on this difficulty (`Lockouts.WrongDifficulty`). |
@@ -223,7 +224,7 @@ created on first use by their owner.
 | Fix a hand-written lockout | `Data/Lockouts.lua` (shapes in its header), then `python3 tools/verify_data.py`. |
 | Add a navigation entry | `UI.NAV` (fixed entries), `UI.NavBrowseEntries` / `Logic/Browse.lua` (Browse), `UI.NavListEntries` (lists), click handling in `UI.NavClick`: all in `UI/Nav.lua`. A new view also needs its key in `TABS` (`UI/Frame.lua`) and a `UI.RegisterView` call. |
 | Add an option | Default in `Core/Init.lua` (`settings`), the proxy setting and `Options.Set` in `UI/Options.lua`, the cogwheel item in `UI.SettingsMenuItems` (`UI/Frame.lua`), strings in `Core/Locale.lua`, a case in `tests/options_spec.lua`. |
-| Add a pop-out kind | `UI/Popouts.lua`: `UI.PopoutKey`, `UI.PopoutTitle`, `UI.PopoutRows`, `UI.PopoutGroups`, and `refreshWindow` if it follows the player; open it with `UI.OpenPopout({ kind = ... })`. |
+| Add a pop-out kind | `UI/PopoutRows.lua`: `UI.PopoutKey`, `UI.PopoutTitle`, `UI.PopoutRows`, `UI.PopoutGroups`; `UI/Popouts.lua`: `refreshWindow` if it follows the player; open it with `UI.OpenPopout({ kind = ... })`. |
 | Change a row's click | `UI/List.lua`: `UI.PaneRowAction` / `UI.PaneRowHint` (lists with the detail pane), `UI.RowClickAction` / `UI.HandleRowClick` (zone panel, map tab), the row's `OnClick` in `rowFrame` in `UI/Popouts.lua` (pop-outs). Keep the hint in step with the action. |
 | Add a locale string | `Core/Locale.lua`, under the heading of the file that uses it: `L["Text"] = "Text"`. Use it as `L["Text"]`. |
 | Change the search | Scoring in `Logic/Search.lua`; what each mount offers to it in `UI.SearchFields` (`UI/Search.lua`). |
