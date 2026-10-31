@@ -143,8 +143,9 @@ Working with the column:
 
 Every list (an expansion, a Browse page, a list page, Holidays, Achievements,
 Timewalking, Lockouts, Current Zone, the zone panel) looks the same, as a
-pop-out does: one line per mount (its small icon, its expansion tag, the
-name, and where it comes from on the right) under headers. Top-level
+pop-out does: one line per mount (its expansion tag, the name, and where it
+comes from on the right; the detail pane shows the mount itself) under
+headers. Top-level
 headers are gold; groups under them are in their expansion's colour when
 they are one, else light grey.
 

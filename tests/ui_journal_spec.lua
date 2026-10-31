@@ -71,7 +71,7 @@ describe("ui journal", function()
     for _, name in ipairs({ "ShowMountTooltip", "LockoutStatus", "TooltipLines", "List",
       "SourceLine", "MountIcon", "SectionLabel", "ListRows", "PreviewMount", "FilterMenuItems",
       "FilterChecked", "ToggleFilter", "ApplyFilterAction", "FiltersAreDefault", "FilterLabel",
-      "CreateFilterDropdown", "StyleIcon" }) do
+      "CreateFilterDropdown" }) do
       eq(type(ns.UI[name]), "function", name)
     end
     eq(ns.UI.frame, nil, "no window until toggled")

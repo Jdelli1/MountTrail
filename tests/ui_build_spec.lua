@@ -174,7 +174,7 @@ describe("ui build", function()
       if f.Stripe then
         if f.Stripe:IsShown() then sawStripe = true else sawPlain = true end
         ok(f.Name.font == ns.UI.Font("GameFontHighlight") or f.Name.font == ns.UI.OwnedFont(), "GameFont family")
-        eq(f.Icon.width, 16, "a small icon on a one-line row, as every list's")
+        eq(f.Icon, nil, "no icon on a row: the detail pane shows the mount")
       end
     end
     ok(sawStripe and sawPlain, "every other row striped")
@@ -196,13 +196,11 @@ describe("ui build", function()
     eq(f.Owned.color, { 0.25, 0.85, 0.35, 0.14 })
     eq(f.Owned.layer, "BACKGROUND")
     eq(f.Owned.sublevel, 1, "above the stripe")
-    eq(f.Icon.desaturated, false, "full-colour icon")
     eq(f.Strike, nil, "no strikethrough")
     eq(f.Name.font, ns.UI.OwnedFont(), "light green name")
     local p = frames[plain]
     ok(not p.Owned:IsShown(), "missing mounts: no green")
     eq(p.Name.font, ns.UI.Font("GameFontHighlight"), "white, as on every list")
-    eq(p.Icon.desaturated, false)
     -- A recycled frame drops the green look.
     list.ScrollBox.view.factory(function(_, init) init(f, rows[plain]) end, rows[plain])
     ok(not f.Owned:IsShown(), "recycled: green off")
@@ -1016,11 +1014,11 @@ describe("ui build", function()
     end
     ok(subHeader and nested, "a nested mount row")
     local inset = select(4, subHeader.Glyph:GetPoint(1))
-    eq(select(4, frames[nested].Icon:GetPoint(1)), inset, "icon lines up with the sub-header indicator")
+    eq(select(4, frames[nested].Tag:GetPoint(1)), inset, "the tag lines up with the sub-header's glyph")
     -- The same frame recycled for a flat row goes back to the normal inset.
     local flat = { id = rows[nested].id, m = rows[nested].m, owned = false }
     initFor(list.ScrollBox, flat)(frames[nested], flat)
-    eq(select(4, frames[nested].Icon:GetPoint(1)), 4)
+    eq(select(4, frames[nested].Tag:GetPoint(1)), 4)
   end)
 
   it("other tabs collapse their (flat) sections under their own view key", function()
@@ -1432,8 +1430,7 @@ describe("ui build", function()
     eq(row.depth, 3, "under its category header")
     eq(f.Check:IsShown(), false, "no tick box on a game-tracked lockout")
     eq(box.view.extent(1, row), 22, "one line tall, as every list's rows")
-    eq({ f.Icon:GetPoint(1) }, { "LEFT", f, "LEFT", 6 + 18 + 4 + 32, 0 }, "small icon after the tick-box column, indented")
-    eq({ f.Tag:GetPoint(1) }, { "LEFT", f.Icon, "RIGHT", 5, 0 }, "then the expansion tag")
+    eq({ f.Tag:GetPoint(1) }, { "LEFT", f, "LEFT", 6 + 18 + 4 + 32, 0 }, "the expansion tag after the tick-box column, indented")
     ok(f.Tag:IsShown() == (ns.UI.ExpansionTag(row.m.exp) ~= nil), "the mount's expansion tag")
     eq(f.Source.justifyH, "RIGHT", "boss / instance on the right")
     eq(f.Source.template, ns.UI.SourceFont(), "at the body text's size, not the small font")

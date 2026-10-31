@@ -341,11 +341,8 @@ local SUB_INDENT = 22 -- sub-header indicator inset (section headers: 6); icons 
 local DEPTH_STEP = 16 -- each deeper header level (the checklist's depth 3) moves in this much more
 local ROW_ICON_LEFT = 4 -- icon inset of other mount rows
 local ROW_HEIGHT = 22 -- one line, as a pop-out's rows
-local ICON_SIZE = 16
 local PIN_SIZE, PIN_RIGHT = 16, 8 -- the location pin on a row's right end
--- Rounded icon mask of the current action bars; used only when the client
--- has it (UI.AtlasExists). Icons are also cropped past their baked-in edge.
-local ICON_MASK = "UI-HUD-ActionBar-IconFrame-Mask"
+-- Map item icons are cropped past their baked-in edge (the pin).
 local ICON_CROP = 0.08
 
 -- A row's "where it comes from" line: the mount names' font (GameFontHighlight,
@@ -507,18 +504,6 @@ end
 -- frame.onToggle(key) for clicks.
 UI.InitListHeader = initHeader
 
--- Crops `icon` past its baked-in edge and, when the client has the modern
--- rounded icon mask, masks it.
-function UI.StyleIcon(owner, icon)
-  icon:SetTexCoord(ICON_CROP, 1 - ICON_CROP, ICON_CROP, 1 - ICON_CROP)
-  if UI.AtlasExists(ICON_MASK) and owner.CreateMaskTexture and icon.AddMaskTexture then
-    local mask = owner:CreateMaskTexture()
-    mask:SetAtlas(ICON_MASK)
-    mask:SetAllPoints(icon)
-    icon:AddMaskTexture(mask)
-  end
-end
-
 -- Paints a row's location icon for UI.LocationIcon's kind: the map pin
 -- (UI.PinIcon) for "spot" (true counts as "spot"), the map item icon for
 -- "zone".
@@ -588,10 +573,6 @@ local function setupRow(row)
     IsShown = function() return selected:IsShown() end,
   }
 
-  local icon = row:CreateTexture(nil, "ARTWORK")
-  icon:SetSize(ICON_SIZE, ICON_SIZE)
-  UI.StyleIcon(row, icon)
-  row.Icon = icon
   row.Tag = UI.ExpansionBadge(row)
 
   -- Location pin on the right end (rows with a waypoint target only).
@@ -650,20 +631,18 @@ function UI.ListRarityColor(mountID)
   return pct and owners.Color(pct) or nil
 end
 
--- The row, a pop-out's: the mount's small icon at `left`, its expansion tag,
--- the name, and the source line right-aligned in the row's right half (left
--- of the pin), all on one line.
+-- The row, a pop-out's: the mount's expansion tag at `left`, the name, and
+-- the source line right-aligned in the row's right half (left of the pin),
+-- all on one line (no icon: the detail pane shows the mount).
 local function anchorRow(row, left)
-  local icon, tag, name, source = row.Icon, row.Tag, row.Name, row.Source
-  icon:ClearAllPoints()
-  icon:SetPoint("LEFT", row, "LEFT", left, 0)
+  local tag, name, source = row.Tag, row.Name, row.Source
   tag:ClearAllPoints()
-  tag:SetPoint("LEFT", icon, "RIGHT", 5, 0)
+  tag:SetPoint("LEFT", row, "LEFT", left, 0)
   name:ClearAllPoints()
   if tag:IsShown() then
     name:SetPoint("LEFT", tag, "RIGHT", 6, 0)
   else
-    name:SetPoint("LEFT", icon, "RIGHT", 6, 0)
+    name:SetPoint("LEFT", row, "LEFT", left, 0)
   end
   name:SetPoint("RIGHT", row, "CENTER", 4, 0)
   name:SetJustifyH("LEFT")
@@ -674,17 +653,16 @@ local function anchorRow(row, left)
 end
 
 local function initRow(row, data)
-  if not row.Icon then setupRow(row) end
+  if not row.Name then setupRow(row) end
   row.mountID = data.id
   row.tooltip = data.tooltip
   row.onSelect = data.onSelect
   row.Selected:SetShown(data.selected == true)
   row.routeBoss = data.routeBoss
   row.eventMap = data.eventMap
-  row.Icon:SetTexture(UI.MountIcon(data.id))
   UI.SetExpansionBadge(row.Tag, data.m and data.m.exp)
   row.Tag:EnableMouse(false) -- the row takes the clicks
-  -- Under a sub-header the icon lines up with the sub-header's glyph.
+  -- Under a sub-header the tag lines up with the sub-header's glyph.
   anchorRow(row, data.left or (data.depth == 2 and SUB_INDENT or ROW_ICON_LEFT))
   local name = data.name or ns.Game.MountInfo(data.id) or data.m.name or tostring(data.id)
   if data.suffix then name = name .. "  " .. data.suffix end
@@ -703,7 +681,6 @@ local function initRow(row, data)
     local c = UI.ListRarityColor(data.id)
     if c then row.Name:SetTextColor(c[1], c[2], c[3]) end
   end
-  row.Icon:SetDesaturated(false)
 end
 
 -- The mount row, every list's (the lists, Lockouts, the zone panel, the map
