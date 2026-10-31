@@ -424,6 +424,8 @@ function UI.SettingsMenuItems()
     function() O.Set("rarityColors", saved.rarityColors ~= true) end)
   items[#items + 1] = check(L["Colour list names by rarity"], saved.rarityColorsMain == true,
     function() O.Set("rarityColorsMain", saved.rarityColorsMain ~= true) end)
+  items[#items + 1] = check(L["Colour-blind marks"], O.ColorblindMarks and O.ColorblindMarks() == true,
+    function() O.Set("colorblindMarks", not (O.ColorblindMarks and O.ColorblindMarks())) end)
   items[#items + 1] = check(L["Warn about the wrong difficulty"], saved.difficultyWarnOff ~= true,
     function() O.Set("difficultyWarning", saved.difficultyWarnOff == true) end)
   items[#items + 1] = check(L["Show My lists"], saved.navHideLists ~= true,

@@ -198,6 +198,16 @@ describe("ui build", function()
     eq(f.Owned.sublevel, 1, "above the stripe")
     eq(f.Strike, nil, "no strikethrough")
     eq(f.Name.font, ns.UI.OwnedFont(), "light green name")
+    ok(not f.Name:GetText():find(ns.UI.MARK_DONE, 1, true), "no tick while the colour-blind marks are off")
+    -- Colour-blind marks: a tick says "owned" too, not only the green.
+    ns.Options = ns.Options or {}
+    local savedMarks = ns.Options.ColorblindMarks
+    ns.Options.ColorblindMarks = function() return true end
+    list.ScrollBox.view.factory(function(_, init) init(f, rows[owned]) end, rows[owned])
+    ok(f.Name:GetText():find(ns.UI.MARK_DONE, 1, true), "a tick on the owned row")
+    list.ScrollBox.view.factory(function(_, init) init(frames[plain], rows[plain]) end, rows[plain])
+    ok(not frames[plain].Name:GetText():find(ns.UI.MARK_DONE, 1, true), "none on a missing one")
+    ns.Options.ColorblindMarks = savedMarks
     local p = frames[plain]
     ok(not p.Owned:IsShown(), "missing mounts: no green")
     eq(p.Name.font, ns.UI.Font("GameFontHighlight"), "white, as on every list")

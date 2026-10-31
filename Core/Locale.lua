@@ -546,3 +546,6 @@ L["Also count the unobtainable mounts you do not own in Home's collected numbers
 L["Minimap button shown."] = "Minimap button shown."
 L["Minimap button hidden. /mtrail show brings it back; /mtrail opens the window."] = "Minimap button hidden. /mtrail show brings it back; /mtrail opens the window."
 L["/mtrail hide / show - hide or show the minimap button"] = "/mtrail hide / show - hide or show the minimap button"
+L["Accessibility"] = "Accessibility"
+L["Colour-blind marks"] = "Colour-blind marks"
+L["Say in text or shape what a colour says: a tick on finished lockouts and collected mounts, \"open\" on your lists' green counts, the share of characters owning a mount after a rarity-coloured name. Starts as the game's Colorblind Mode (Options > Accessibility)."] = "Say in text or shape what a colour says: a tick on finished lockouts and collected mounts, \"open\" on your lists' green counts, the share of characters owning a mount after a rarity-coloured name. Starts as the game's Colorblind Mode (Options > Accessibility)."

@@ -732,6 +732,14 @@ function Game.AddChatFilter(event, fn)
   return pcall(add, event, fn)
 end
 
+-- Whether the game's Colorblind Mode (Options > Accessibility) is on; false
+-- when the setting cannot be read.
+function Game.ColorblindMode()
+  if type(GetCVarBool) ~= "function" then return false end
+  local good, on = pcall(GetCVarBool, "colorblindMode")
+  return good and on == true
+end
+
 -- Whether `value` is a Midnight secret value (unreadable chat text in an
 -- encounter): addons must not touch those.
 function Game.IsSecret(value)

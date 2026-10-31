@@ -152,6 +152,8 @@ describe("options", function()
         { "Checkbox", "MOUNTTRAIL_SHOW_QUICK" },
         { "Setting", "MOUNTTRAIL_MINIMAP" },
         { "Checkbox", "MOUNTTRAIL_MINIMAP" },
+        { "Setting", "MOUNTTRAIL_COLORBLIND" },
+        { "Checkbox", "MOUNTTRAIL_COLORBLIND" },
         { "Setting", "MOUNTTRAIL_DEBUG" },
         { "Checkbox", "MOUNTTRAIL_DEBUG" },
         { "AddOnCategory", category },
@@ -581,5 +583,23 @@ describe("counting options", function()
     local found = false
     for _, line in ipairs(ns.addon.printed or {}) do if line:find("^/mtrail hide") then found = true end end
     ok(found, "help lists it")
+  end)
+
+  it("colour-blind marks follow the game's Colorblind Mode until set", function()
+    local ns = loadOptions()
+    local cvar = false
+    local old = GetCVarBool
+    GetCVarBool = function(name) return name == "colorblindMode" and cvar end
+    eq(ns.Options.ColorblindMarks(), false, "game's mode off")
+    cvar = true
+    eq(ns.Options.ColorblindMarks(), true, "game's mode on: on too")
+    ns.Options.Set("colorblindMarks", false)
+    eq(ns.Options.ColorblindMarks(), false, "the player's choice wins")
+    ns.Options.Set("colorblindMarks", true)
+    cvar = false
+    eq(ns.Options.ColorblindMarks(), true)
+    ns.Options.ResetAll(ns.db.global, ns.db.char)
+    eq(ns.Options.ColorblindMarks(), false, "a reset follows the game again")
+    GetCVarBool = old
   end)
 end)

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Accessibility: `Colour-blind marks` (follows the game's Colorblind Mode until
+  set): ticks on finished lockouts and collected mounts, "open" on your lists'
+  green counts, the owners' share after rarity-coloured names.
 - `/mtrail hide` and `/mtrail show`: hide or show the minimap button.
 - Mount guides are taken out for now (see docs/ROADMAP.md: they may come
   back). Guides you wrote stay in your saved variables.

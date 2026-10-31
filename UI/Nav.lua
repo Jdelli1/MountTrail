@@ -277,7 +277,11 @@ function UI.NavBadge(entry, built)
     end
     if entry.source and UI.ListCardStatsFor and built then
       local stats = UI.ListCardStatsFor(entry.source, built())
-      if stats and stats.open > 0 then return string.format(L["%d left"], stats.open), true end
+      if stats and stats.open > 0 then
+        -- Green says "open today"; the colour-blind marks say it in words.
+        local fmt = (UI.ColorblindMarks and UI.ColorblindMarks()) and L["%d open"] or L["%d left"]
+        return string.format(fmt, stats.open), true
+      end
     end
     return nil
   end)

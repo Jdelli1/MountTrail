@@ -122,6 +122,25 @@ UI.PopoutStyleText = styleText
 UI.PopoutStyleHeader = headerText
 UI.PopoutApplyChrome = applyChrome
 
+-- Accessibility: marks that say in text or shape what a colour says, for
+-- colour-blind players (Options: "Colour-blind marks", following the game's
+-- Colorblind Mode until set). The ready-check tick (an inline texture: the
+-- game fonts have no check glyph).
+UI.MARK_DONE = "|TInterface\\RaidFrame\\ReadyCheck-Ready:0|t"
+
+function UI.ColorblindMarks()
+  return ns.Options ~= nil and ns.Options.ColorblindMarks ~= nil and ns.Options.ColorblindMarks() == true
+end
+
+-- A rarity colour's meaning as text: " (2%)" of characters owning the mount
+-- (MountsRarity, ns.Owners) while the marks are on, else "".
+function UI.RarityTag(mountID)
+  if not UI.ColorblindMarks() then return "" end
+  local pct = ns.Owners and ns.Owners.Percent and ns.Owners.Percent(mountID)
+  if type(pct) ~= "number" then return "" end
+  return pct < 1 and string.format(" (%.1f%%)", pct) or string.format(" (%d%%)", math.floor(pct + 0.5))
+end
+
 -- A page's 30 px header in the pop-outs' look (no band, a thin rule under
 -- it): a flat Back button when `withBack`, then the title -> back|nil, title.
 -- The page's content starts UI.PAGE_TOP down.

@@ -52,7 +52,7 @@ read_globals = {
   "ColorPickerFrame", "AchievementFrame", "AchievementFrame_SelectAchievement",
   "AchievementFrame_ToggleAchievementFrame", "OpenAchievementFrameToAchievement",
   "ShowAchievementFrameForAchievement", "ShowUIPanel", "OpenWorldMap",
-  "StaticPopup_Show", "SetPortraitToTexture", "CreateSettingsButtonInitializer", "ReloadUI",
+  "StaticPopup_Show", "SetPortraitToTexture", "CreateSettingsButtonInitializer", "CreateSettingsListSectionHeaderInitializer", "ReloadUI",
   "DressUpMount", "DressUpMountLink", "PlaySound", "SOUNDKIT",
   "GameFontNormal", "GameFontHighlight", "GameFontHighlightSmall", "UiMapPoint", "Item", "Enum",
 

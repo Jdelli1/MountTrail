@@ -39,6 +39,7 @@ Options.COUNT_UNOBTAINABLE = "MOUNTTRAIL_COUNT_UNOBTAINABLE"
 Options.MINIMAP = "MOUNTTRAIL_MINIMAP"
 Options.RARITY_COLORS = "MOUNTTRAIL_RARITY_COLORS"
 Options.RARITY_COLORS_MAIN = "MOUNTTRAIL_RARITY_COLORS_MAIN"
+Options.COLORBLIND = "MOUNTTRAIL_COLORBLIND"
 Options.WINDOW_SCALE = "MOUNTTRAIL_WINDOW_SCALE"
 Options.SHOW_LISTS = "MOUNTTRAIL_SHOW_LISTS"
 Options.SHOW_QUICK = "MOUNTTRAIL_SHOW_QUICK"
@@ -172,6 +173,22 @@ local function setRarityColorsMain(on)
   ns.Refresh()
 end
 
+-- Accessibility: "Colour-blind marks" (settings.colorblindMarks): a tick on
+-- finished lockouts and collected mounts, "open" on the left column's green
+-- badges, the owners' share after rarity-coloured names. Until the player
+-- sets it, it follows the game's Colorblind Mode (Game.ColorblindMode).
+function Options.ColorblindMarks()
+  local global = ns.db and ns.db.global
+  local saved = global and type(global.settings) == "table" and global.settings.colorblindMarks
+  if saved == true or saved == false then return saved end
+  return ns.Game ~= nil and ns.Game.ColorblindMode ~= nil and ns.Game.ColorblindMode() == true
+end
+
+local function setColorblindMarks(on)
+  settings().colorblindMarks = on and true or false
+  ns.Refresh()
+end
+
 -- Counting: sections whose mounts the player can leave out of the collected
 -- numbers (Journal.excluded; owned or not; still listed), each a checkbox,
 -- on by default (stored as settings.excluded[section] = true when off).
@@ -262,6 +279,7 @@ function Options.Set(name, value)
   elseif name == "rarityColors" then setRarityColors(value)
   elseif name == "rarityColorsMain" then setRarityColorsMain(value)
   elseif name == "countUnobtainable" then setCountUnobtainable(value)
+  elseif name == "colorblindMarks" then setColorblindMarks(value)
   elseif name == "difficultyWarning" then setDifficultyWarning(value)
   elseif name == "minimap" then Options.SetMinimap(value)
   elseif name == "showLists" or name == "showQuick" then
@@ -273,7 +291,7 @@ function Options.Set(name, value)
     Options.SetCounted(string.sub(name, 7), value)
   end
   for _, var in pairs({ Options.WINDOW_SCALE, Options.NAV_TEXT, Options.UNOBTAINABLE, Options.RARITY_COLORS,
-    Options.RARITY_COLORS_MAIN, Options.COUNT_UNOBTAINABLE, Options.MINIMAP, Options.SHOW_LISTS, Options.SHOW_QUICK,
+    Options.RARITY_COLORS_MAIN, Options.COUNT_UNOBTAINABLE, Options.COLORBLIND, Options.MINIMAP, Options.SHOW_LISTS, Options.SHOW_QUICK,
     Options.DIFFICULTY_WARNING }) do
     Options.Changed(var)
   end
@@ -459,6 +477,16 @@ local function build(api)
   local minimap = api.RegisterProxySetting(category, Options.MINIMAP, VarType.Boolean or "boolean",
     L["Show minimap button"], true, getMinimap, setMinimap)
   api.CreateCheckbox(category, minimap, L["Show the MountTrail button on the minimap."])
+
+  -- Accessibility (a section header where the client has one).
+  if layout and type(layout.AddInitializer) == "function"
+    and type(CreateSettingsListSectionHeaderInitializer) == "function" then
+    layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(L["Accessibility"]))
+  end
+  local colorblind = api.RegisterProxySetting(category, Options.COLORBLIND, VarType.Boolean or "boolean",
+    L["Colour-blind marks"], false, Options.ColorblindMarks, setColorblindMarks)
+  api.CreateCheckbox(category, colorblind,
+    L["Say in text or shape what a colour says: a tick on finished lockouts and collected mounts, \"open\" on your lists' green counts, the share of characters owning a mount after a rarity-coloured name. Starts as the game's Colorblind Mode (Options > Accessibility)."])
 
   local debug = api.RegisterProxySetting(category, Options.DEBUG, VarType.Boolean or "boolean",
     L["Debug messages"], false, getDebug, setDebug)

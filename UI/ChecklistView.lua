@@ -501,6 +501,10 @@ local function initRow(row, data)
   row.Check:SetShown(enabled and true or false)
   if data.done then
     row.Name:SetFontObject("GameFontDisable")
+    -- Colour-blind marks: a tick, not only the grey.
+    if UI.ColorblindMarks and UI.ColorblindMarks() then
+      row.Name:SetText(row.Name:GetText() .. " " .. UI.MARK_DONE)
+    end
   end
 end
 

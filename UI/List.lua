@@ -665,6 +665,8 @@ local function initRow(row, data)
   -- Under a sub-header the tag lines up with the sub-header's glyph.
   anchorRow(row, data.left or (data.depth == 2 and SUB_INDENT or ROW_ICON_LEFT))
   local name = data.name or ns.Game.MountInfo(data.id) or data.m.name or tostring(data.id)
+  -- Colour-blind marks: a tick on owned rows (the green says it otherwise).
+  if data.owned and UI.ColorblindMarks and UI.ColorblindMarks() then name = UI.MARK_DONE .. " " .. name end
   if data.suffix then name = name .. "  " .. data.suffix end
   row.Name:SetText(name)
   row.Source:SetText(UI.RowSourceText(data))
@@ -679,7 +681,11 @@ local function initRow(row, data)
   else
     row.Name:SetFontObject(UI.Font("GameFontHighlight"))
     local c = UI.ListRarityColor(data.id)
-    if c then row.Name:SetTextColor(c[1], c[2], c[3]) end
+    if c then
+      row.Name:SetTextColor(c[1], c[2], c[3])
+      -- The colour's meaning as text too (colour-blind marks).
+      if UI.RarityTag then row.Name:SetText(row.Name:GetText() .. UI.RarityTag(data.id)) end
+    end
   end
 end
 

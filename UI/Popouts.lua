@@ -458,10 +458,14 @@ local function refreshWindow(w, built)
       r:SetPoint("TOPLEFT", w.Content, "TOPLEFT", 0, -y)
       r:SetWidth(width)
       r:Show()
-      r.Name:SetText(row.name)
       UI.SetExpansionBadge(r.Badge, row.entry and (row.entry.exp or (row.entry.m and row.entry.m.exp)))
+      local rarity = not row.done and UI.PopoutRarityColor(row.id) or nil
+      -- Colour-blind marks: done rows get a tick, rarity colours their share.
+      local marks = UI.ColorblindMarks()
+      r.Name:SetText(row.name .. ((marks and row.done) and (" " .. UI.MARK_DONE) or "")
+        .. (rarity and UI.RarityTag(row.id) or ""))
       styleText(r.Name, style, row.done and UI.Font("GameFontDisableSmall") or UI.Font("GameFontHighlightSmall"), 0,
-        row.done and { 0.5, 0.5, 0.5 } or UI.PopoutRarityColor(row.id))
+        row.done and { 0.5, 0.5, 0.5 } or rarity)
       styleText(r.Zone, style, UI.Font("GameFontDisableSmall"), -1, { 0.55, 0.55, 0.55 })
       local zoneText = row.zone or ""
       if row.camp and row.checked then
