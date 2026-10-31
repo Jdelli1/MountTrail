@@ -170,6 +170,15 @@ describe("world map tab", function()
     eq(QuestMapFrame.displayMode, 1, "Blizzard's mode untouched")
     ok(panel.Title:GetText():find("Uldum", 1, true), "viewed map, not the player's")
     eq(#panel.ScrollBox.provider.rows, 1)
+    -- The map tab's rows show the mount's icon before the expansion tag.
+    local data = panel.ScrollBox.provider.rows[1]
+    local row = CreateFrame("Button")
+    local savedInfo = ns.Game.MountInfo
+    ns.Game.MountInfo = function(id) return "Mount " .. id, 1000 + id end
+    panel.ScrollBox.view.factory(function(_, init) init(row, data) end, data)
+    ns.Game.MountInfo = savedInfo
+    ok(row.Icon and row.Icon:IsShown(), "the mount's icon")
+    eq(row.Icon.texture, 1000 + data.id)
 
     WorldMapFrame.mapID = 71
     hooks.secure.OnMapChanged()

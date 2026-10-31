@@ -253,7 +253,11 @@ local function buildPanel(qmf)
         UI.InitListHeader(f, data)
       end)
     else
-      factory("Button", UI.InitMountRow)
+      -- The map tab's rows show the mount's icon (the lists' do not).
+      factory("Button", function(row, data)
+        row.withIcon = true
+        UI.InitMountRow(row, data)
+      end)
     end
   end)
   ScrollUtil.InitScrollBoxListWithScrollBar(scrollBox, scrollBar, view)

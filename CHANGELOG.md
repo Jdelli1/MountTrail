@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- The world map tab's rows show each mount's icon again.
+- The drop sound is picked on the AddOns settings page only; the cogwheel
+  menu keeps the "Chime when a mount drops" switch.
+
 ## 0.9.0-beta (first public beta)
 
 The first public release. Highlights:
