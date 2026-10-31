@@ -426,14 +426,18 @@ matched; Back returns home.
 
 Options > AddOns > MountTrail (or `/mtrail options`). The cogwheel in the
 window's title bar has the same settings, plus `Reset text sizes` and
-`All options...`.
+`All options...`. Sizes come first: the whole window, then one slider per
+kind of text, named after what it sizes, in the window's order (the left
+column, headers, mount names, small notes).
 
 | Setting | Does |
 | --- | --- |
 | `Show unobtainable mounts` | Lists unobtainable mounts you do not own under "Unobtainable" (off by default; owned ones stay where they are, and the Journal counts never include them). |
-| `Window scale` | 80-150 %: everything in the window, text included. |
-| `Gold text size`, `White text size`, `Grey text size` | Text by colour (headers, titles and mount names; body text; second lines): -2 to +6 points each. Rows grow to fit. |
-| `Navigation text size` | The navigation column's text, +0 to +6. |
+| `Whole window` | 80-150 %: everything in the window at once, text included. |
+| `Left column` | The navigation column's text (Home, Lockouts, Browse, your lists, guides), +0 to +6. |
+| `Headers` | List headers (Classic, Wrath of the Lich King...), page titles and the detail pane's labels, -2 to +6. |
+| `Mount names and text` | Every mount's name and where it comes from, in every list, Lockouts and Home, and the detail pane's text, -2 to +6. Rows grow to fit. |
+| `Small notes` | Counts and percentages, hints and greyed-out text, -2 to +6. |
 | `Show My lists`, `Show Quick lists` | Show or hide those navigation sections. |
 | `Colour pop-out names by rarity` | Off by default; needs Mount Journal Enhanced or MountsRarity. |
 | `Warn about the wrong difficulty` | On by default: entering an instance on a difficulty where a mount in your open pop-outs does not drop (Normal instead of Heroic, Heroic instead of Mythic, 10 instead of 25...) shows a warning on screen and in chat, e.g. "Wrong difficulty for Invincible: you are on 25 Player, it drops on 25 Player (Heroic)." Once per instance and difficulty; mounts you own are left out. |

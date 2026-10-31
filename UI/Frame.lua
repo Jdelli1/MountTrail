@@ -66,6 +66,23 @@ function UI.Font(name)
   return mine
 end
 
+-- A coloured copy of game font `base` (named `name`) that follows `base`'s
+-- role like UI.Font's copies (the text size sliders resize it) -> its name;
+-- `fallback` (a font name) without CreateFont or the game font.
+function UI.TintedFont(name, base, r, g, b, fallback)
+  if fonts[name] then return name end
+  local role = UI.FONT_ROLES[base]
+  local baseObject = _G[base]
+  if not role or type(CreateFont) ~= "function" or type(baseObject) ~= "table" then return fallback or base end
+  local good, object = pcall(CreateFont, name)
+  if not (good and object) then return fallback or base end
+  if object.CopyFontObject then object:CopyFontObject(baseObject) elseif object.SetFontObject then object:SetFontObject(baseObject) end
+  if object.SetTextColor then object:SetTextColor(r, g, b) end
+  fonts[name] = { base = base, role = role, object = object }
+  sizeFont(fonts[name])
+  return name
+end
+
 -- Taller rows for larger text: a mount row (one line of white text, a
 -- pop-out's) grows by the white text's extra points, a header by the gold
 -- one's (smaller text never shrinks a row).
@@ -307,7 +324,7 @@ local function createSizeGrip(frame)
   return grip
 end
 
--- The window's scale: Options' "Window scale" (80-150 %, default 100).
+-- The window's scale: Options' "Whole window" (80-150 %, default 100).
 function UI.WindowScale()
   local options = ns.Options
   local pct = options and options.WindowScale and options.WindowScale() or 100
@@ -380,20 +397,25 @@ function UI.SettingsMenuItems()
   local function check(text, on, flip)
     return { text = text, checked = on, keepOpen = true, onClick = flip }
   end
+  -- The whole window first, then one kind of text each (named by what it
+  -- sizes: the left column, headers, mount names, small notes).
   local items = {
-    { title = L["Settings"] },
-    { slider = true, text = L["Window scale"], min = O.SCALE_RANGE.min, max = O.SCALE_RANGE.max,
+    { title = L["Size"] },
+    { slider = true, text = L[O.SCALE_LABEL], min = O.SCALE_RANGE.min, max = O.SCALE_RANGE.max,
       step = O.SCALE_RANGE.step, value = O.WindowScale(), format = "%d%%",
       onChange = function(v) O.Set("windowScale", v) end },
+    { title = L["Text size"] },
+    { slider = true, text = L[O.NAV_LABEL], min = O.NAV_TEXT_RANGE.min,
+      max = O.NAV_TEXT_RANGE.max, step = 1, value = O.NavTextSize(), format = "+%d",
+      onChange = function(v) O.Set("navTextSize", v) end },
   }
-  for _, role in ipairs(UI.TEXT_ROLES) do
+  for _, role in ipairs(O.TEXT_ORDER) do
     items[#items + 1] = { slider = true, text = L[O.TEXT_LABELS[role]], min = O.TEXT_RANGE.min,
       max = O.TEXT_RANGE.max, step = 1, value = O.TextSize(role), format = "%+d",
       onChange = function(v) O.SetTextSize(role, v) end }
   end
-  items[#items + 1] = { slider = true, text = L["Navigation text size"], min = O.NAV_TEXT_RANGE.min,
-    max = O.NAV_TEXT_RANGE.max, step = 1, value = O.NavTextSize(), format = "+%d",
-    onChange = function(v) O.Set("navTextSize", v) end }
+  items[#items + 1] = { separator = true }
+  items[#items + 1] = { title = L["Settings"] }
   items[#items + 1] = { separator = true }
   items[#items + 1] = check(L["Show unobtainable mounts"], saved.showUnobtainable == true,
     function() O.Set("showUnobtainable", not (saved.showUnobtainable == true)) end)

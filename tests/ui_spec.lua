@@ -232,7 +232,8 @@ describe("ui", function()
     ns.Options = {
       SCALE_RANGE = { min = 80, max = 150, step = 5 }, TEXT_RANGE = { min = -2, max = 6, step = 1 },
       NAV_TEXT_RANGE = { min = 0, max = 6, step = 1 },
-      TEXT_LABELS = { header = "Gold text size", body = "White text size", detail = "Grey text size" },
+      TEXT_LABELS = { header = "Headers", body = "Mount names and text", detail = "Small notes" },
+      TEXT_ORDER = { "header", "body", "detail" }, SCALE_LABEL = "Whole window", NAV_LABEL = "Left column",
       WindowScale = function() return 100 end, TextSize = function() return 0 end, NavTextSize = function() return 2 end,
       Set = function(name, v) applied[#applied + 1] = { name, v } end,
       SetTextSize = function(role, v) applied[#applied + 1] = { role, v } end,
@@ -246,12 +247,18 @@ describe("ui", function()
     local shown
     ns.UI.ShowMenu = function(owner, items) shown = type(items) == "function" and items() or items end
     cog:RunScript("OnClick", "LeftButton")
-    eq(shown[1].title, "Settings")
+    eq(shown[1].title, "Size")
+    local order = {}
+    for _, it in ipairs(shown) do
+      if it.slider then order[#order + 1] = it.text elseif it.title then order[#order + 1] = "# " .. it.title end
+    end
+    eq({ order[1], order[2], order[3], order[4], order[5], order[6], order[7], order[8] },
+      { "# Size", "Whole window", "# Text size", "Left column", "Headers", "Mount names and text", "Small notes", "# Settings" },
+      "named by what they size, in the window's order")
     local byText = {}
     for _, it in ipairs(shown) do if it.text then byText[it.text] = it end end
-    ok(byText["Window scale"].slider and byText["Gold text size"].slider and byText["Grey text size"].slider)
-    byText["Window scale"].onChange(120)
-    byText["White text size"].onChange(3)
+    byText["Whole window"].onChange(120)
+    byText["Mount names and text"].onChange(3)
     byText["Show unobtainable mounts"].onClick()
     byText["Reset text sizes"].onClick()
     byText["All options..."].onClick()

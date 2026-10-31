@@ -211,13 +211,17 @@ describe("ui build", function()
     ok(f.Owned:IsShown(), "and on again")
   end)
 
-  it("UI.OwnedFont: a light green copy of GameFontNormal, GameFontGreen without CreateFont", function()
+  it("UI.OwnedFont: a light green copy of the mount names' font, sized with them; GameFontGreen without it", function()
     local ns = loadUI()
-    local name = ns.UI.OwnedFont()
+    eq(ns.UI.OwnedFont(), ns.UI.Font("GameFontGreen"), "no GameFontHighlight: the fallback")
+    local ns2 = loadUI()
+    GameFontHighlight = { name = "GameFontHighlight" }
+    local name = ns2.UI.OwnedFont()
     eq(name, "MountTrailFontOwned")
     local font = _G[name]
-    eq(font.base, _G[ns.UI.Font("GameFontNormal")], "from the sized copy of GameFontNormal")
+    eq(font.base, GameFontHighlight, "from GameFontHighlight: \"Mount names and text\" sizes it")
     eq(font.color, { 0.55, 0.95, 0.6 })
+    GameFontHighlight = nil
   end)
 
   it("the Filter menu writes ns.db.global.filters, refreshes and drives the reset arrow", function()
@@ -295,7 +299,7 @@ describe("ui build", function()
     local row
     for _, f in ipairs(frames) do if f.Source then row = f; break end end
     eq(row.Source.template, "MountTrailFontSource")
-    eq(MountTrailFontSource.base, _G[ns.UI.Font("GameFontHighlight")], "the body size, not the small font")
+    eq(MountTrailFontSource.base, GameFontHighlight, "the mount names' font: one slider sizes both")
     eq(MountTrailFontSource.color, { 0.7, 0.7, 0.7 })
     GameFontHighlight = nil
   end)

@@ -12,11 +12,13 @@ local ADDON, ns = ...
 --   "Colour pop-out names by rarity" (ns.db.global.settings.rarityColors: off
 --                by default; pop-out rows take the quality colour of how many
 --                characters own the mount, Integrations/MountsRarity.lua),
---   "Window scale" (ns.db.global.settings.windowScale, 80-150 %: everything in
---                the main window, text included, UI.ApplyWindowScale) and
---                "Navigation text size" (settings.navTextSize, points added to
---                the navigation column's fonts, 0-6, default 2): sliders,
---                when the client has Settings.CreateSlider,
+--   "Whole window" (ns.db.global.settings.windowScale, 80-150 %: everything in
+--                the main window, text included, UI.ApplyWindowScale), "Left
+--                column" (settings.navTextSize, points added to the
+--                navigation column's fonts, 0-6, default 2) and the text
+--                sizes "Headers", "Mount names and text", "Small notes"
+--                (Options.TEXT_LABELS): sliders, when the client has
+--                Settings.CreateSlider,
 --   "Show minimap button" (ns.db.global.minimap.hide, LibDBIcon Show / Hide),
 --   "Debug messages" (ns.db.global.debug, the same flag as /mtrail debug),
 --   "Reset all settings" (a button, when the client has
@@ -63,12 +65,20 @@ end
 Options.TEXT_RANGE = { min = -2, max = 6, step = 1 }
 Options.TEXT_KEYS = { header = "textHeader", body = "textBody", detail = "textDetail" }
 Options.TEXT_VARS = { header = "MOUNTTRAIL_TEXT_HEADER", body = "MOUNTTRAIL_TEXT_BODY", detail = "MOUNTTRAIL_TEXT_DETAIL" }
-Options.TEXT_LABELS = { header = "Gold text size", body = "White text size", detail = "Grey text size" }
+-- Named by what they size on screen (the roles are the fonts' colours:
+-- header = gold, body = white, detail = grey).
+Options.TEXT_LABELS = { header = "Headers", body = "Mount names and text", detail = "Small notes" }
 Options.TEXT_TIPS = {
-  header = "Headers, titles and mount names (the gold text).",
-  body = "The white text: row names, counts and lines in the detail pane.",
-  detail = "The grey second lines: sources, zones and hints.",
+  header = "List headers (Classic, Wrath of the Lich King...), page titles and the labels in the detail pane.",
+  body = "Every mount's name and where it comes from, in every list, Lockouts and Home, and the detail pane's text.",
+  detail = "Counts and percentages, hints and greyed-out text.",
 }
+-- The order the sizes are offered in: the window's areas, left to right.
+Options.TEXT_ORDER = { "header", "body", "detail" }
+Options.NAV_LABEL = "Left column"
+Options.NAV_TIP = "Home, Lockouts, Current Zone, Browse, your lists and guides: the window's left column."
+Options.SCALE_LABEL = "Whole window"
+Options.SCALE_TIP = "Everything in the MountTrail window at once, text included. Use the sizes below for just one kind of text."
 
 function Options.TextSize(role)
   local key = Options.TEXT_KEYS[role]
@@ -312,20 +322,20 @@ local function build(api)
   -- The sliders, on clients that have them.
   if type(api.CreateSlider) == "function" and type(api.CreateSliderOptions) == "function" then
     local scale = api.RegisterProxySetting(category, Options.WINDOW_SCALE, VarType.Number or "number",
-      L["Window scale"], 100, Options.WindowScale, setWindowScale)
+      L[Options.SCALE_LABEL], 100, Options.WindowScale, setWindowScale)
     slider(api, category, scale, Options.SCALE_RANGE, function(v) return string.format("%d%%", v) end,
-      L["Size of the MountTrail window and everything in it, text included."])
-    for _, role in ipairs({ "header", "body", "detail" }) do
+      L[Options.SCALE_TIP])
+    local navText = api.RegisterProxySetting(category, Options.NAV_TEXT, VarType.Number or "number",
+      L[Options.NAV_LABEL], 2, Options.NavTextSize, setNavTextSize)
+    slider(api, category, navText, Options.NAV_TEXT_RANGE, function(v) return string.format("+%d", v) end,
+      L[Options.NAV_TIP])
+    for _, role in ipairs(Options.TEXT_ORDER) do
       local setting = api.RegisterProxySetting(category, Options.TEXT_VARS[role], VarType.Number or "number",
         L[Options.TEXT_LABELS[role]], 0, function() return Options.TextSize(role) end,
         function(v) Options.SetTextSize(role, v) end)
       slider(api, category, setting, Options.TEXT_RANGE, function(v) return string.format("%+d", v) end,
         L[Options.TEXT_TIPS[role]])
     end
-    local navText = api.RegisterProxySetting(category, Options.NAV_TEXT, VarType.Number or "number",
-      L["Navigation text size"], 2, Options.NavTextSize, setNavTextSize)
-    slider(api, category, navText, Options.NAV_TEXT_RANGE, function(v) return string.format("+%d", v) end,
-      L["Points added to the text of the window's left column."])
   end
 
   -- The navigation's list sections.

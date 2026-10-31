@@ -915,41 +915,18 @@ local PIN_SIZE, PIN_RIGHT = 16, 8 -- the location pin on a row's right end
 local ICON_MASK = "UI-HUD-ActionBar-IconFrame-Mask"
 local ICON_CROP = 0.08
 
--- Source line font: the body text's size (GameFontHighlight, following the
--- text size sliders) dimmed to 70 % grey; GameFontDisable when the client
--- has no CreateFont.
-local SOURCE_FONT = "MountTrailFontSource"
-local sourceFont
+-- A row's "where it comes from" line: the mount names' font (GameFontHighlight,
+-- so "Mount names and text" sizes both) dimmed to 70 % grey; GameFontDisable
+-- when the client has no CreateFont.
 function UI.SourceFont()
-  if sourceFont then return sourceFont end
-  if type(CreateFont) == "function" and GameFontHighlight then
-    local font = _G[SOURCE_FONT] or CreateFont(SOURCE_FONT)
-    font:SetFontObject(_G[UI.Font("GameFontHighlight")] or GameFontHighlight)
-    font:SetTextColor(0.7, 0.7, 0.7)
-    sourceFont = SOURCE_FONT
-  else
-    sourceFont = UI.Font("GameFontDisable")
-  end
-  return sourceFont
+  return UI.TintedFont("MountTrailFontSource", "GameFontHighlight", 0.7, 0.7, 0.7, UI.Font("GameFontDisable"))
 end
 
--- Name font of owned (collected) mount rows: GameFontNormal in a light green
--- (readable on the dark fill and the green row tint); GameFontGreen when the
--- client has no CreateFont.
-local OWNED_FONT = "MountTrailFontOwned"
-local ownedFont
+-- Name font of owned (collected) mount rows: the other names' font in a
+-- light green (readable on the dark fill and the green row tint), so it
+-- sizes with them; GameFontGreen when the client has no CreateFont.
 function UI.OwnedFont()
-  if ownedFont then return ownedFont end
-  if type(CreateFont) == "function" and GameFontNormal then
-    local font = _G[OWNED_FONT] or CreateFont(OWNED_FONT)
-    -- From the add-on's sized copy, so it follows the gold text size.
-    font:SetFontObject(_G[UI.Font("GameFontNormal")] or GameFontNormal)
-    font:SetTextColor(0.55, 0.95, 0.6)
-    ownedFont = OWNED_FONT
-  else
-    ownedFont = UI.Font("GameFontGreen")
-  end
-  return ownedFont
+  return UI.TintedFont("MountTrailFontOwned", "GameFontHighlight", 0.55, 0.95, 0.6, UI.Font("GameFontGreen"))
 end
 
 local function filtersDB()
