@@ -14,6 +14,10 @@
 - The main window has the same dim gold frame; the left column's section
   labels are in capitals, the entry you are on sits on a gold-tinted band,
   and counts sit on a small dark box.
+- Home in the Blend A look: the summary, Expansions, By source and Nearby
+  are cards; expansion names carry their colour (no tag); Nearby rows show
+  the mount's icon, where it comes from and its drop chance. The Today
+  column is gone (Lockouts in the left column counts what is left).
 - The left column has one **Lists** section instead of My lists and Quick
   lists: the built-in lists (Daily / Weekly lockouts, Rare Spawns) come first,
   tagged `auto`, then your own. The settings are now `Show your lists` and

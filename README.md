@@ -16,7 +16,7 @@ keep on screen while you farm.
   PvP, Mythic+, holidays, Timewalking), with a 3D preview, drop chance, your
   attempts, its lockout and where to find it.
 - **Home**: your collection at a glance (a total, a bar per expansion and per
-  source), today's lockouts left, and the mounts still to get in your zone.
+  source) and the mounts still to get in your zone, each part on a card.
 - **Lockouts**: this character's daily and weekly mount lockouts, ticked off
   by themselves (old 10 / 25-player raids' shared lockouts included, one
   lockout per difficulty for newer raids), plus long-respawn rares; a chat
@@ -134,7 +134,7 @@ Working with the column:
 - Your collected total (count, percent and a thick bar) over every mount you
   count (see the `Count ...` options) and a search box over every mount (see
   [Search](#search)).
-- **Expansions**: a row per expansion, its tag and name in its colour, a
+- **Expansions**: a row per expansion, its name in its colour, a
   progress bar, owned / total and percent (a check once complete). Click a
   row for its mount list.
 - **By source**: the same rows for every source of the navigation's Browse
@@ -142,10 +142,10 @@ Working with the column:
   it. A source you do not count (Options) is left out of Home (its Browse
   page stays). The column scrolls
   when the window is short.
-- **Today**: the daily and weekly lockouts and rare spawns left, and your
-  lists with lockouts open today (click one to open it).
-- **Nearby**: the first mounts still to get in your zone (click one for its
-  waypoint); the line under them opens Current Zone.
+- **Nearby**: the first mounts still to get in your zone, each with its icon
+  (boxed in its rarity's colour), where it comes from and its drop chance
+  (click one for its waypoint); the line under them opens Current Zone. What
+  is left to farm today is under Lockouts in the left column.
 - Every bar takes its completion colour: red under 25 %, yellow under 75 %,
   green below complete and blue once complete (the total bar too).
 

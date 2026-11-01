@@ -106,7 +106,10 @@ describe("journal home", function()
     eq(summary.Bar.barColor, ns.UI.ProgressColor(summary.have, summary.total), "its percent's colour")
     eq(home.ExpHeading.Text:GetText(), "Expansions")
     eq(home.ExpHeading.Text.textColor, { 1, 0.82, 0 }, "a pop-out header: gold by default")
-    eq(home.ExpHeading.Rule.color, { 1, 0.82, 0, 0.35 })
+    eq(home.ExpHeading.Rule.color, { 0.15, 0.13, 0.07, 1 }, "a faint rule inside the card")
+    ok(home.ExpCard.Fill:IsShown() and home.ExpCard.Edge:IsShown(), "Expansions on a card")
+    ok(home.SourceCard.Fill:IsShown(), "By source on a card")
+    ok(summary.Card.Edge:IsShown(), "the summary on a card")
     eq(#home.Expansions, #ns.Data.Expansions)
     for i, row in ipairs(home.Expansions) do
       eq(row.kind, "Button", "row " .. i)
@@ -119,8 +122,9 @@ describe("journal home", function()
     eq(home.SourceHeading.Text:GetText(), "By source")
     eq(#home.Sources, #ns.Browse.CATEGORIES, "a row per Browse source, not Misc")
     eq(home.Sources[1].Name:GetText(), "Drops")
-    ok(home.Side and home.Side.TodayHeading:IsShown(), "the right column")
-    eq({ home.Side:GetPoint(1) }, { "TOPRIGHT", home, "TOPRIGHT", -12, -58 })
+    ok(home.Side and home.Side.NearbyHeading:IsShown(), "the right column: Nearby")
+    eq(home.Side.TodayHeading, nil, "no Today")
+    eq({ home.Side:GetPoint(1) }, { "TOPRIGHT", home, "TOPRIGHT", -12, -66 })
   end)
 
   it("expansion counts and percents match their text", function()
@@ -226,32 +230,6 @@ describe("journal home", function()
     ok(home:IsShown() and not listPage:IsShown(), "Back returns home")
   end)
 
-  it("Today: the lockouts left per group and your lists with lockouts open; a click opens them", function()
-    local ns = loadUI()
-    local built = { daily = {}, weekly = {}, camp = {} }
-    ns.UI.ChecklistLeft = function() return { daily = 4, weekly = 0, camp = 2 } end
-    local rows = ns.UI.HomeToday(built, nil, {
-      { name = "Mine", open = 3, source = { kind = "list", list = 1 } },
-      { name = "Done", open = 0, source = { kind = "list", list = 2 } },
-    })
-    eq(#rows, 4, "three groups and the list with something open")
-    eq({ rows[1].label, rows[1].value, rows[1].open }, { "Daily lockouts", "4 left", true })
-    eq({ rows[2].value, rows[2].open }, { "0 left", false })
-    eq({ rows[4].label, rows[4].value }, { "Mine", "3 left" })
-    local clicked
-    ns.UI.NavClick = function(e) clicked = e end
-    rows[1].click()
-    eq(clicked, { show = "daily" })
-    rows[4].click()
-    eq(clicked.source, { kind = "list", list = 1 })
-    -- On the page.
-    local home = openHome(ns)
-    local today = home.Side.Today
-    eq(today[1].Label:GetText(), "Daily lockouts")
-    eq(today[1].Value:GetText(), "|cff40c0404 left|r", "green while some are left")
-    eq(today[2].Value:GetText(), "|cff9d9d9d0 left|r", "grey when none")
-  end)
-
   it("Nearby: the first mounts of the zone, kept per zone for a minute; the last line opens Current Zone", function()
     local ns = loadUI()
     local calls = 0
@@ -262,7 +240,7 @@ describe("journal home", function()
     ns.Zone.Key = function() return "107" end
     local now = 1700000000
     ns.Game.Now = function() return now end
-    ns.Game.MountInfo = function() return nil end
+    ns.Game.MountInfo = function(id) return nil, 7000 + id end
     local home = openHome(ns)
     local side = home.Side
     eq(calls, 1)
@@ -270,7 +248,9 @@ describe("journal home", function()
     for _, b in ipairs(side.Nearby) do if b:IsShown() then shown = shown + 1 end end
     eq(shown, 5, "the first five")
     eq(side.Nearby[1].Name:GetText(), "Mount 1")
-    eq(side.Nearby[1].Tag.exp, ns.Data.Expansions[2], "its expansion tag")
+    eq(side.Nearby[1].Icon.texture, 7001, "its icon")
+    ok(side.Nearby[1].IconBox:IsShown(), "boxed")
+    ok(side.Card.Fill:IsShown(), "Nearby on a card")
     eq(side.NearbyMore.Text:GetText(), "|cff9d9d9d7 in Nagrand: open Current Zone|r")
     ns.Refresh()
     eq(calls, 1, "same zone within a minute: kept")
@@ -332,9 +312,10 @@ describe("journal home", function()
     eq(home.Main.kind, "ScrollFrame", "the left column scrolls")
     eq(home.MainContent.height, home.mainHeight, "its content as tall as its rows")
     local leftW = contentW - 2 * G.left - G.sideW - G.gap
-    -- tag 62, name 140, gap 8, a 60 px bar at least, check 6 + 14 + 4, count 80, gap 6, percent 40, 4.
-    ok(leftW >= 62 + 140 + 8 + 60 + 6 + 14 + 4 + 80 + 6 + 40 + 4, "room for tag, name, bar, count and percent: " .. leftW)
-    eq(select(4, home.Expansions[1].Name:GetPoint(1)), 4 + 62, "names start past the widest tag (CLASSIC)")
+    -- The card's insets 10 + 6, name 4 + 150, gap 8, a 60 px bar at least,
+    -- check 6 + 14 + 4, count 80, gap 6, percent 40, 4.
+    ok(leftW >= 16 + 154 + 8 + 60 + 6 + 14 + 4 + 80 + 6 + 40 + 4, "room for name, bar, count and percent: " .. leftW)
+    eq(select(4, home.Expansions[1].Name:GetPoint(1)), 4, "no tag column: names start at the row's edge")
   end)
 end)
 

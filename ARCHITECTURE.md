@@ -106,7 +106,7 @@ changed addon gives `nil`, never an error.
 | `SourceText.lua` | Reading a mount's source text: `UI.StripMarkup`, `UI.SourcePairs`, `UI.SourceZone(s)`, `UI.RowDescription`. |
 | `Search.lua` | Search glue: the shared search cache, `UI.SearchMatches` (with its expansion fallback), `UI.SearchFields`. |
 | `DetailPane.lua` | The mount detail pane on the right of every list. |
-| `JournalHome.lua` | Home (summary, Expansions and By source rows, Today / Following / Nearby), the expansion, search and list pages (`UI.ShowListPage`). |
+| `JournalHome.lua` | Home (summary, Expansions and By source rows, Nearby; each a card: `newCard` / `placeCard`), the expansion, search and list pages (`UI.ShowListPage`). |
 | `Tabs.lua` | The Holidays, Achievements, Timewalking and Misc views. |
 | `LockoutHelpers.lua` | Lockout state per boss, hand ticks, header lines (shared by the Checklist). |
 | `ChecklistView.lua` | The Lockouts view (daily, weekly, rare spawns). |

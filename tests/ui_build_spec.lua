@@ -153,7 +153,7 @@ describe("ui build", function()
     local home = content(ns, "journal").children[2]
     eq(#home.Expansions, #ns.Data.Expansions, "a row per expansion")
     local row = home.Expansions[1]
-    eq(row.Tag.exp, ns.Data.Expansions[1], "its expansion tag")
+    eq(row.Tag, nil, "no expansion tag: the name carries its colour")
     eq(row.Bar.height, 6, "slim bar")
     eq(row.Name.textColor, ns.UI.EXPANSION_COLORS[ns.Data.Expansions[1]], "its name in the expansion's colour")
   end)
