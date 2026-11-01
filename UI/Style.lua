@@ -153,7 +153,7 @@ function UI.SetBadge(b, text, kind, style)
   styleText(b.Text, style or {}, UI.Font("GameFontNormalSmall"), -1, c.text)
   b.Edge:SetColor(c.edge[1], c.edge[2], c.edge[3], 1)
   local w = tonumber(b.Text.GetStringWidth and b.Text:GetStringWidth()) or 30
-  local _, size = b.Text:GetFont()
+  local size = b.Text.GetFont and select(2, b.Text:GetFont()) or nil
   b:SetSize(math.ceil(w) + 12, math.max(16, math.ceil(tonumber(size) or 10) + 6))
   b:Show()
 end

@@ -359,7 +359,7 @@ local CHECK_LEFT = 6
 local ICON_LEFT = CHECK_LEFT + CHECK_SIZE + 4 -- where a row's expansion tag starts
 local SUB_OFFSET = 16 -- per header level under the reset header (UI/List.lua: sub-header indicator 22 vs 6, +16 per level)
 local TOP_HEIGHT = 96 -- the tab's own header: name, summary, flavour line, chips
-local HEADER_HEIGHT = 24 -- UI/List.lua section headers
+local HEADER_HEIGHT = 30 -- UI/List.lua section headers (a card's top, its gap included)
 local SUB_HEADER_HEIGHT = 20 -- UI/List.lua sub-headers
 
 local view = {}

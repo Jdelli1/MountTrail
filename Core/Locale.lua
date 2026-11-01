@@ -204,6 +204,7 @@ L["Compact"] = "Compact"
 L["Open"] = "Open"
 L["Done"] = "Done"
 L["1 in %d"] = "1 in %d"
+L["Owned"] = "Owned"
 
 -- Shared lists (UI\Share.lua)
 L["/mtrail sharetest - check that sharing works on this client"] = "/mtrail sharetest - check that sharing works on this client"

@@ -153,11 +153,14 @@ Working with the column:
 
 Every list (an expansion, a Browse page, a list page, Holidays, Achievements,
 Timewalking, Lockouts, Current Zone, the zone panel) looks the same, as a
-pop-out does: one line per mount (its expansion tag, the name, and where it
-comes from on the right; the detail pane shows the mount itself) under
-headers. Top-level
-headers are gold; groups under them are in their expansion's colour when
-they are one, else light grey.
+pop-out's Cards layout does: each top-level group is a card (its header on a
+card top with an edge in its colour, a small gap above it), and each mount
+a two-line row on it (the mount's icon boxed in its rarity's colour, the
+name over where it comes from, and a badge: `Owned`, or the drop chance as
+`1 in 100`), its card edge in the mount's expansion colour. Top-level headers
+are gold; groups under them are in their expansion's colour when they are
+one, else light grey. The world map tab keeps its own rows (big icons, no
+cards).
 
 - **Tooltip**: drop details, your attempts on this character and in total over
   all your characters (the game's kill statistics where it keeps them, else

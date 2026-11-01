@@ -1012,6 +1012,35 @@ describe("ui build", function()
     ok(header.Hover:IsShown(), "recycled under the mouse: hover shown")
   end)
 
+  it("lists are cards: a header is a card's top under a gap, rows sit on it with a boxed icon and a badge", function()
+    local ns = loadUI()
+    local list = openJournalList(ns)
+    local rows = list.ScrollBox.provider.rows
+    local frames = render(list.ScrollBox)
+    local header, row, idx
+    for i, r in ipairs(rows) do
+      if r.header and (r.depth or 1) == 1 and not header then header = frames[i] end
+      if not r.header and not row then row, idx = frames[i], i end
+    end
+    ok(header and row, "a header and a row")
+    eq(list.ScrollBox.view.extent(1, rows[1]), 30, "a header's height includes the gap")
+    ok(header.CardFill:IsShown() and header.CardTop:IsShown() and header.CardEdge:IsShown(), "the card's top")
+    eq(select(5, header.CardFill:GetPoint(1)), -6, "under a 6 px gap")
+    ok(row.CardFill:IsShown() and row.CardEdge:IsShown() and row.CardRight:IsShown(), "the row on its card")
+    local exp = rows[idx].m and rows[idx].m.exp
+    local c = ns.UI.EXPANSION_COLORS[exp]
+    if c then eq(row.CardEdge.color, { c[1], c[2], c[3], 0.9 }, "the edge in the mount's expansion colour") end
+    ok(row.IconBox:IsShown(), "the boxed icon")
+    eq(list.ScrollBox.view.extent(idx, rows[idx]), 38, "two lines tall")
+    -- An owned mount's badge; a drop chance's.
+    local owned = { id = rows[idx].id, m = rows[idx].m, owned = true }
+    initFor(list.ScrollBox, owned)(row, owned)
+    ok(row.Chip:IsShown() and row.Chip.Text:GetText():find("Owned", 1, true), "Owned")
+    local chancy = { id = rows[idx].id, m = { exp = exp, chance = 100 }, owned = false }
+    initFor(list.ScrollBox, chancy)(row, chancy)
+    eq(row.Chip.Text:GetText(), "1 in 100")
+  end)
+
   it("mount rows under a sub-header are indented to the sub-header's inset", function()
     local ns = loadUI()
     ns.Game.MountSourceText = function(id) return "|cFFFFD200Zone:|r Zone " .. (id % 2) end
@@ -1025,11 +1054,11 @@ describe("ui build", function()
     end
     ok(subHeader and nested, "a nested mount row")
     local inset = select(4, subHeader.Glyph:GetPoint(1))
-    eq(select(4, frames[nested].Tag:GetPoint(1)), inset, "the tag lines up with the sub-header's glyph")
+    eq(select(4, frames[nested].IconBox:GetPoint(1)), inset, "the icon lines up with the sub-header's glyph")
     -- The same frame recycled for a flat row goes back to the normal inset.
     local flat = { id = rows[nested].id, m = rows[nested].m, owned = false }
     initFor(list.ScrollBox, flat)(frames[nested], flat)
-    eq(select(4, frames[nested].Tag:GetPoint(1)), 4)
+    eq(select(4, frames[nested].IconBox:GetPoint(1)), 9, "past the card's edge")
   end)
 
   it("other tabs collapse their (flat) sections under their own view key", function()
@@ -1440,10 +1469,11 @@ describe("ui build", function()
     ok(not row.entry.spec.manual, "the first daily entry is game-tracked")
     eq(row.depth, 3, "under its category header")
     eq(f.Check:IsShown(), false, "no tick box on a game-tracked lockout")
-    eq(box.view.extent(1, row), 22, "one line tall, as every list's rows")
-    eq({ f.Tag:GetPoint(1) }, { "LEFT", f, "LEFT", 6 + 18 + 4 + 32, 0 }, "the expansion tag after the tick-box column, indented")
-    ok(f.Tag:IsShown() == (ns.UI.ExpansionTag(row.m.exp) ~= nil), "the mount's expansion tag")
-    eq(f.Source.justifyH, "RIGHT", "boss / instance on the right")
+    eq(box.view.extent(1, row), 38, "two lines tall, as every list's card rows")
+    eq({ f.IconBox:GetPoint(1) }, { "LEFT", f, "LEFT", 6 + 18 + 4 + 32, 0 }, "the icon after the tick-box column, indented")
+    ok(not f.Tag:IsShown(), "no expansion tag: the card's edge carries the expansion's colour")
+    ok(f.CardEdge:IsShown() and f.CardFill:IsShown(), "on its card")
+    eq(f.Source.justifyH, "LEFT", "boss / instance under the name")
     eq(f.Source.template, ns.UI.SourceFont(), "at the body text's size, not the small font")
     eq({ f.Check:GetPoint(1) }, { "LEFT", f, "LEFT", 6 + 32, 0 }, "tick-box column indented")
     eq(f.Pin:IsShown(), row.id % 2 == 0)

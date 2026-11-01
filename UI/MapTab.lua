@@ -250,6 +250,7 @@ local function buildPanel(qmf)
           refreshPanel()
         end
         f.onRightClick = nil
+        f.flat = true -- plain headers: the map tab's rows are not cards
         UI.InitListHeader(f, data)
       end)
     else
