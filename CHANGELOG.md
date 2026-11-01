@@ -22,6 +22,8 @@
   Current Zone, the zone panel) is made of cards: a header on a card top,
   two-line rows with the mount's icon boxed in its rarity's colour, the
   source under the name, and an `Owned` or `1 in 100` badge.
+- The detail pane matches: its info sits on a card with a gold edge, the
+  model area has a card border.
 - The left column has one **Lists** section instead of My lists and Quick
   lists: the built-in lists (Daily / Weekly lockouts, Rare Spawns) come first,
   tagged `auto`, then your own. The settings are now `Show your lists` and

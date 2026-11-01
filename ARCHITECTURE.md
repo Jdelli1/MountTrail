@@ -96,11 +96,12 @@ changed addon gives `nil`, never an error.
 | File | Owns |
 | --- | --- |
 | `Frame.lua` | Fonts and text sizes (`UI.Font`, `UI.TextSize`), style helpers (`UI.Template`, `UI.FlatBorder`), the view registry, the main window (flat, in the pop-outs' style), its size / scale / position, the settings cogwheel menu, refresh hooks and `ns.Refresh`, window hooks, the minimap button. |
-| `Style.lua` | The look shared by the main window, the pop-outs and the extra windows: styles (`UI.PopoutStyle`, `UI.PopoutStyleOf`), styled text and chrome, the appearance menu (`UI.PopoutStyleMenu`), fonts, `UI.AddStyledWindow`, a page's header (`UI.PageHeader`, `UI.PageButton`). |
+| `Style.lua` | The look shared by the main window, the pop-outs and the extra windows: styles (`UI.PopoutStyle`, `UI.PopoutStyleOf`), styled text and chrome, the appearance menu (`UI.PopoutStyleMenu`), fonts, `UI.AddStyledWindow`, a page's header (`UI.PageHeader`, `UI.PageButton`), the Blend A colours (`UI.THEME`) and the boxed badge (`UI.Badge`, `UI.SetBadge`). |
 | `Widgets.lua` | Hints, flat buttons and panels, menus with sliders (`UI.ShowMenu`), the expansion badge, the text / copy prompt (`UI.AskText`, `UI.ShowCopyText`), splitters, the resize grip. |
 | `Nav.lua` | The navigation column: entries, favourites, ordering, Alt-drag, badges, `UI.RefreshNav`. |
 | `Tooltip.lua` | The mount tooltip and `UI.TooltipLines`. |
-| `List.lua` | The shared mount list widget (`UI.List`): row and header frames (`UI.InitMountRow`, `UI.InitListHeader`, `UI.HeaderColor`), pins, row clicks (`UI.PaneRowAction`, `UI.HandleRowClick`). |
+| `List.lua` | The shared mount list widget (`UI.List`): search, Filter, the ScrollBox with its headers and rows, the detail pane beside it, row clicks (`UI.PaneRowAction`, `UI.HandleRowClick`). |
+| `ListItems.lua` | The list's row and header frames, split out of `List.lua`: the card look (`UI.InitListHeader`, `UI.InitMountRow`, `UI.HeaderColor`), pins (`UI.CreatePin`, `UI.ShowPin`), the world map tab's icon rows (`row.withIcon`). |
 | `ListRows.lua` | The list's row model, split out of `List.lua`: `UI.ListRows`, sub-groups (`UI.SubGroup`), collapse keys (`UI.CollapseKey`, `UI.ToggleCollapsed`, `UI.ToggleAllCollapsed`), header / row text (`UI.HeaderGlyph`, `UI.HeaderText`, `UI.RowSourceText`), `UI.SourceLine`, `UI.SectionLabel`. |
 | `ListFilter.lua` | The list's Filter menu, split out of `List.lua`: `UI.FilterMenuItems`, `UI.ToggleFilter`, `UI.ApplyFilterAction`, `UI.FiltersAreDefault`, the dropdown (`UI.CreateFilterDropdown`, `UI.ListFilterDropdown`) and the fallback checkbox panel. |
 | `SourceText.lua` | Reading a mount's source text: `UI.StripMarkup`, `UI.SourcePairs`, `UI.SourceZone(s)`, `UI.RowDescription`. |

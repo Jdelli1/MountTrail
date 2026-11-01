@@ -170,7 +170,7 @@ local function lineString(pane, i)
 end
 
 local function layoutInfo(pane, content)
-  local width = (pane.paneWidth or UI.DETAIL_WIDTH) - 2 * PAD - 12
+  local width = (pane.paneWidth or UI.DETAIL_WIDTH) - 2 * PAD - 22 -- inside the info card
   local y = 0
   local n = 0
   local function place(text, r, g, b, rightText, rr, rg, rb)
@@ -249,6 +249,7 @@ local function paint(pane)
   if pane.Splitter then pane.Splitter:SetShown(has) end
   pane.Name:SetShown(has)
   pane.Info:SetShown(has)
+  pane.InfoCard:SetShown(has)
   pane.AddList:SetShown(has)
   pane.Wowhead:SetShown(has)
   -- "+ List" while the mount is on none of your lists, else "Lists (n)".
@@ -279,7 +280,8 @@ local function build(parent)
   edge:SetWidth(1)
   edge:SetPoint("TOPLEFT", pane, "TOPLEFT", 0, 0)
   edge:SetPoint("BOTTOMLEFT", pane, "BOTTOMLEFT", 0, 0)
-  edge:SetColorTexture(1, 1, 1, 0.1)
+  local line = UI.THEME and UI.THEME.cardEdge or { 0.2, 0.16, 0.09 }
+  edge:SetColorTexture(line[1], line[2], line[3], 1)
 
   -- Model: Blizzard's mount preview when the client has the template.
   local modelArea = CreateFrame("Frame", nil, pane)
@@ -290,6 +292,7 @@ local function build(parent)
   local backdrop = modelArea:CreateTexture(nil, "BACKGROUND")
   backdrop:SetAllPoints(modelArea)
   backdrop:SetColorTexture(0, 0, 0, 0.35)
+  modelArea.Edge = UI.FlatBorder(modelArea, line[1], line[2], line[3], 1)
 
   local sceneTemplate = UI.Template("WrappedAndUnwrappedModelScene", nil)
   if sceneTemplate then
@@ -373,10 +376,24 @@ local function build(parent)
   owned:Hide()
   pane.Owned = owned
 
-  -- Scrolling info: flavor text and the tooltip's lines.
+  -- Scrolling info: flavor text and the tooltip's lines, on a card (a fill,
+  -- a 1 px border and a gold 3 px edge, as the lists' cards).
   local scroll = CreateFrame("ScrollFrame", nil, pane)
-  scroll:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -10)
-  scroll:SetPoint("BOTTOMRIGHT", pane, "BOTTOMRIGHT", -PAD, 8)
+  scroll:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 6, -14)
+  scroll:SetPoint("BOTTOMRIGHT", pane, "BOTTOMRIGHT", -PAD - 4, 12)
+  local card = CreateFrame("Frame", nil, pane)
+  card:SetPoint("TOPLEFT", scroll, "TOPLEFT", -8, 6)
+  card:SetPoint("BOTTOMRIGHT", scroll, "BOTTOMRIGHT", 6, -6)
+  local cardFill = card:CreateTexture(nil, "BACKGROUND")
+  cardFill:SetAllPoints(card)
+  cardFill:SetColorTexture(1, 1, 1, 0.035)
+  card.Edge = UI.FlatBorder(card, line[1], line[2], line[3], 1)
+  local cardAccent = card:CreateTexture(nil, "ARTWORK")
+  cardAccent:SetWidth(3)
+  cardAccent:SetPoint("TOPLEFT", card, "TOPLEFT", 0, 0)
+  cardAccent:SetPoint("BOTTOMLEFT", card, "BOTTOMLEFT", 0, 0)
+  cardAccent:SetColorTexture(1, 0.82, 0, 0.9)
+  pane.InfoCard = card
   if scroll.EnableMouseWheel then scroll:EnableMouseWheel(true) end
   local info = CreateFrame("Frame", nil, scroll)
   info:SetSize(pane.paneWidth - 2 * PAD, 1)
