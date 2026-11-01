@@ -239,7 +239,8 @@ describe("pop-out windows", function()
     local daily = ns.UI.OpenPopout({ kind = "daily", exp = WOD })
     ok(camp ~= daily and camp:IsShown() and daily:IsShown(), "two windows")
     ok(camp.Title:GetText():find("^" .. WOD .. " rare spawns"), camp.Title:GetText())
-    ok(daily.Title:GetText():find("(2 left)", 1, true), daily.Title:GetText())
+    eq(daily.Count.Text:GetText(), "2 left", "what is left: a badge beside the title")
+    ok(daily.Count:IsShown())
     eq(ns.db.global.popouts["camp|" .. WOD].open, true)
     eq(ns.UI.OpenPopout({ kind = "camp", exp = WOD }), camp, "same set: the same window")
     camp.Close:RunScript("OnClick", "LeftButton")
@@ -432,6 +433,9 @@ describe("pop-out windows", function()
     ok(row.Check:IsShown(), "a rare spawn keeps its box")
     ok(w.rowHeight >= 34, "two lines tall")
     ok(w.cards and w.cards[1] and w.cards[1].Fill:IsShown(), "the group's card")
+    ok(w.cards[1].Top:IsShown() and w.cards[1].Right:IsShown(), "a bordered card")
+    ok(row.IconBox:IsShown(), "the icon in its box")
+    eq(w.Edge.edges[1].color, { 0.43, 0.33, 0.14, 1 }, "the window's gold frame")
     -- The appearance menu switches the window to Compact and back.
     local items = ns.UI.PopoutStyleMenu(w)()
     local function item(text) for _, it in ipairs(items) do if it.text == text then return it end end end
@@ -443,6 +447,18 @@ describe("pop-out windows", function()
     item("Cards").onClick()
     eq(w.layout, "cards")
     ns.Game.MountInfo = savedInfo
+  end)
+
+  it("Cards: a lockout row ends in a boxed Open badge, the row's room kept for it", function()
+    local ns = loadUI()
+    setup(ns)
+    local w = ns.UI.OpenPopout({ kind = "daily", exp = WOD })
+    local row
+    for _, c in ipairs(w.Content.children) do if c.data and not c.data.done and c:IsShown() then row = c end end
+    ok(row, "an open lockout row")
+    ok(row.Status:IsShown(), "its badge")
+    eq(row.Status.Text:GetText(), "Open")
+    eq(row.Status.Edge.edges[1].color, { 0.43, 0.33, 0.14, 1 }, "a gold box")
   end)
 
   it("PopoutCardLines: the second line and the status of a card row", function()

@@ -8,6 +8,9 @@
   (the one-line rows). Your colours, opacity, font and sizes apply to both.
 - MountTrail's menus match: section titles sit on a card band with a gold
   edge, inside a gold-edged panel.
+- Pop-outs in the Blend A look: a dim gold frame, what is left as a boxed
+  badge beside the title, bordered cards, each mount's icon boxed in its
+  rarity's colour, and boxed Open / Done / "1 in 100" badges.
 - The left column has one **Lists** section instead of My lists and Quick
   lists: the built-in lists (Daily / Weekly lockouts, Rare Spawns) come first,
   tagged `auto`, then your own. The settings are now `Show your lists` and

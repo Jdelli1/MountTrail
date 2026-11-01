@@ -101,10 +101,61 @@ local function headerText(fs, style, fontObject, sizeDelta, fallback)
   styleText(fs, { font = style.font, size = style.size }, fontObject, sizeDelta, style.header or fallback)
 end
 
--- The window's background and title in its style.
+-- The Blend A look's fixed colours: the windows' dim gold frame, a card's
+-- border and fill (a shade over the window's background), its header rule.
+UI.THEME = {
+  frame = { 0.43, 0.33, 0.14 },
+  cardEdge = { 0.2, 0.16, 0.09 },
+  cardRule = { 0.15, 0.13, 0.07 },
+  gold = { 1, 0.82, 0.29 },
+  grey = { 0.64, 0.6, 0.53 },
+}
+
+-- The window's background, gold frame and title in its style.
 local function applyChrome(w, style)
   w.Fill:SetColorTexture(style.bg[1], style.bg[2], style.bg[3], style.alpha)
+  if w.Edge then
+    local f = UI.THEME.frame
+    w.Edge:SetColor(f[1], f[2], f[3], 1)
+  end
   headerText(w.Title, style, UI.Font("GameFontNormal"), 2)
+end
+
+-- A small boxed label (Blend A's badges: "Open", "Done", "7 left",
+-- "1 in 100"), sized to its text. Made once per owner, then UI.SetBadge.
+UI.BADGE_COLORS = {
+  gold = { text = { 1, 0.82, 0.29 }, edge = { 0.43, 0.33, 0.14 } },
+  green = { text = { 0.56, 0.88, 0.56 }, edge = { 0.25, 0.42, 0.25 } },
+  grey = { text = { 0.79, 0.75, 0.68 }, edge = { 0.23, 0.2, 0.16 } },
+}
+
+function UI.Badge(parent)
+  local b = CreateFrame("Frame", nil, parent)
+  b:SetSize(30, 16)
+  local text = b:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalSmall"))
+  text:SetPoint("CENTER", b, "CENTER", 0, 0)
+  text:SetWordWrap(false)
+  b.Text = text
+  b.Edge = UI.FlatBorder(b, 1, 1, 1, 0.3)
+  b:Hide()
+  return b
+end
+
+-- Paints badge `b`: `text` (nil or "": hidden) in `kind`'s colours ("gold",
+-- "green", "grey"), in the window `style`'s font one point smaller.
+function UI.SetBadge(b, text, kind, style)
+  if text == nil or text == "" then
+    b:Hide()
+    return
+  end
+  local c = UI.BADGE_COLORS[kind] or UI.BADGE_COLORS.grey
+  b.Text:SetText(text)
+  styleText(b.Text, style or {}, UI.Font("GameFontNormalSmall"), -1, c.text)
+  b.Edge:SetColor(c.edge[1], c.edge[2], c.edge[3], 1)
+  local w = tonumber(b.Text.GetStringWidth and b.Text:GetStringWidth()) or 30
+  local _, size = b.Text:GetFont()
+  b:SetSize(math.ceil(w) + 12, math.max(16, math.ceil(tonumber(size) or 10) + 6))
+  b:Show()
 end
 
 -- Windows outside this file that take the pop-outs' appearance menu, their

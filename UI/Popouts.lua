@@ -152,18 +152,21 @@ local function rowFrame(w, i)
   name:SetJustifyH("LEFT")
   name:SetWordWrap(false)
   r.Name = name
-  -- Cards: the mount's icon, a grey second line and the status on the right.
-  local icon = r:CreateTexture(nil, "ARTWORK")
+  -- Cards: the mount's icon (boxed in its rarity's colour), a grey second
+  -- line and the status badge on the right.
+  local iconBox = CreateFrame("Frame", nil, r)
+  iconBox.Edge = UI.FlatBorder(iconBox, 1, 1, 1, 0.3)
+  r.IconBox = iconBox
+  local icon = iconBox:CreateTexture(nil, "ARTWORK")
+  icon:SetPoint("TOPLEFT", iconBox, "TOPLEFT", 1, -1)
+  icon:SetPoint("BOTTOMRIGHT", iconBox, "BOTTOMRIGHT", -1, 1)
   icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
   r.Icon = icon
   local subLine = r:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisableSmall"))
   subLine:SetJustifyH("LEFT")
   subLine:SetWordWrap(false)
   r.Sub = subLine
-  local status = r:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalSmall"))
-  status:SetJustifyH("RIGHT")
-  status:SetWordWrap(false)
-  r.Status = status
+  r.Status = UI.Badge(r)
   -- The row: left-click as the pin; a custom list's row: right-click menu.
   -- Alt-drag: move the row (the drop line shows where it lands).
   r:RegisterForDrag("LeftButton")
@@ -384,40 +387,52 @@ end
 -- colour (gold without one); rows with the mount's icon, the name over a
 -- grey line (UI.PopoutCardLines) and the status on the right. A rare spawn
 -- keeps its box, on the right.
-local CARD_ROW, CARD_HEADER, CARD_GAP, CARD_INSET = 34, 22, 6, 9
-local STATUS_COLORS = { done = { 0.55, 0.88, 0.55 }, open = { 1, 0.82, 0 }, info = { 0.75, 0.75, 0.75 } }
+local CARD_ROW, CARD_HEADER, CARD_GAP, CARD_INSET = 38, 24, 6, 9
+local BADGE_KINDS = { done = "green", open = "gold", info = "grey" }
 local GOLD = { 1, 0.82, 0 }
+local NO_RARITY = { 0.35, 0.32, 0.26 }
 
 local function placeCard(w, i, top, bottom, width, style, color)
   w.cards = w.cards or {}
   local c = w.cards[i]
   if not c then
-    c = { Fill = w.Content:CreateTexture(nil, "BACKGROUND"), Edge = w.Content:CreateTexture(nil, "BORDER") }
+    c = { Fill = w.Content:CreateTexture(nil, "BACKGROUND"), Edge = w.Content:CreateTexture(nil, "BORDER"),
+      Top = w.Content:CreateTexture(nil, "BORDER"), Bottom = w.Content:CreateTexture(nil, "BORDER"),
+      Right = w.Content:CreateTexture(nil, "BORDER") }
     w.cards[i] = c
   end
-  local bg = style.bg
-  for _, t in ipairs({ c.Fill, c.Edge }) do
+  local bg, line = style.bg, UI.THEME.cardEdge
+  for _, t in ipairs({ c.Fill, c.Edge, c.Top, c.Bottom, c.Right }) do
     t:ClearAllPoints()
-    t:SetPoint("TOPLEFT", w.Content, "TOPLEFT", 0, -top)
-    t:SetHeight(bottom - top)
     t:Show()
   end
-  c.Fill:SetWidth(width)
+  local h = bottom - top
+  c.Fill:SetPoint("TOPLEFT", w.Content, "TOPLEFT", 0, -top)
+  c.Fill:SetSize(width, h)
   c.Fill:SetColorTexture(math.min(1, bg[1] + 0.05), math.min(1, bg[2] + 0.05), math.min(1, bg[3] + 0.05), style.alpha)
-  c.Edge:SetWidth(3)
+  c.Edge:SetPoint("TOPLEFT", w.Content, "TOPLEFT", 0, -top)
+  c.Edge:SetSize(3, h)
   c.Edge:SetColorTexture(color[1], color[2], color[3], 0.9)
+  -- A 1 px border on the other three sides.
+  c.Top:SetPoint("TOPLEFT", w.Content, "TOPLEFT", 0, -top)
+  c.Top:SetSize(width, 1)
+  c.Bottom:SetPoint("TOPLEFT", w.Content, "TOPLEFT", 0, -(bottom - 1))
+  c.Bottom:SetSize(width, 1)
+  c.Right:SetPoint("TOPLEFT", w.Content, "TOPLEFT", width - 1, -top)
+  c.Right:SetSize(1, h)
+  for _, t in ipairs({ c.Top, c.Bottom, c.Right }) do t:SetColorTexture(line[1], line[2], line[3], 1) end
 end
 
 -- A row's parts placed for the layout; `right`: the room kept on the right
 -- in Cards (the status or the box).
 local function layoutRow(r, cards, iconSize, right)
-  for _, part in ipairs({ r.Check, r.Badge, r.Name, r.Zone, r.Icon, r.Sub, r.Status }) do part:ClearAllPoints() end
+  for _, part in ipairs({ r.Check, r.Badge, r.Name, r.Zone, r.IconBox, r.Sub, r.Status }) do part:ClearAllPoints() end
   if cards then
-    r.Icon:SetSize(iconSize, iconSize)
-    r.Icon:SetPoint("LEFT", r, "LEFT", 0, 0)
-    r.Name:SetPoint("BOTTOMLEFT", r.Icon, "RIGHT", 8, 1)
+    r.IconBox:SetSize(iconSize, iconSize)
+    r.IconBox:SetPoint("LEFT", r, "LEFT", 0, 0)
+    r.Name:SetPoint("BOTTOMLEFT", r.IconBox, "RIGHT", 8, 1)
     r.Name:SetPoint("BOTTOMRIGHT", r, "RIGHT", -right, 1)
-    r.Sub:SetPoint("TOPLEFT", r.Icon, "RIGHT", 8, -1)
+    r.Sub:SetPoint("TOPLEFT", r.IconBox, "RIGHT", 8, -1)
     r.Sub:SetPoint("TOPRIGHT", r, "RIGHT", -right, -1)
     r.Status:SetPoint("RIGHT", r, "RIGHT", -6, 0)
     r.Check:SetPoint("RIGHT", r, "RIGHT", -2, 0)
@@ -428,6 +443,7 @@ local function layoutRow(r, cards, iconSize, right)
     r.Name:SetPoint("LEFT", r.Badge, "RIGHT", 5, 0)
     r.Name:SetPoint("RIGHT", r.Zone, "LEFT", -6, 0)
   end
+  r.IconBox:SetShown(cards)
   r.Icon:SetShown(cards)
   r.Sub:SetShown(cards)
   r.Zone:SetShown(not cards)
@@ -487,7 +503,8 @@ local function refreshWindow(w, built)
   -- w.rows in display order (Plot all, Alt-drag); w.slots: where each open
   -- row sits (the drop slots).
   w.rows, w.slots = {}, {}
-  w.Title:SetText(UI.PopoutTitle(w.source, store) .. "  |cff9d9d9d(" .. string.format(L["%d left"], left) .. ")|r")
+  w.Title:SetText(UI.PopoutTitle(w.source, store))
+  UI.SetBadge(w.Count, string.format(L["%d left"], left), left > 0 and "gold" or "green", style)
   local width = math.max(MIN_W, w:GetWidth() or WIDTH) - 24
   local y = 0
   local now = ns.Game.Now()
@@ -559,13 +576,17 @@ local function refreshWindow(w, built)
         styleText(r.Sub, style, UI.Font("GameFontDisableSmall"), -1, { 0.6, 0.6, 0.6 })
         r.Icon:SetTexture(select(2, ns.Game.MountInfo(row.id)) or 134400) -- a question mark when unknown
         r.Icon:SetDesaturated(row.done == true)
-        r.Status:SetText(status or "")
-        styleText(r.Status, style, UI.Font("GameFontNormalSmall"), -1, STATUS_COLORS[statusKind])
+        local edge = (not row.done and rarity) or NO_RARITY
+        r.IconBox.Edge:SetColor(edge[1], edge[2], edge[3], 1)
+        if statusKind == "done" then status = UI.MARK_DONE .. " " .. status end
+        UI.SetBadge(r.Status, status, BADGE_KINDS[statusKind], style)
         r.Badge:Hide()
+      else
+        r.Status:Hide()
       end
       r.Check:SetShown(not cards or row.camp == true)
-      r.Status:SetShown(cards and status ~= nil)
-      layoutRow(r, cards, rowHeight - 8, row.camp and 24 or (status and 64 or 4))
+      local right = row.camp and 24 or (r.Status:IsShown() and (r.Status:GetWidth() + 12) or 4)
+      layoutRow(r, cards, rowHeight - 8, right)
       if not row.done then w.slots[#w.slots + 1] = { key = row.key, y = y, group = gi } end
       y = y + rowHeight
     end
@@ -741,9 +762,13 @@ local function build(key, source)
   plot:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   w.PlotAll = plot
 
+  -- What is left: a boxed badge beside the title.
+  local count = UI.Badge(strip)
+  count:SetPoint("RIGHT", plot, "LEFT", -6, 0)
+  w.Count = count
   local titleText = strip:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormal"))
   titleText:SetPoint("LEFT", strip, "LEFT", 8, 0)
-  titleText:SetPoint("RIGHT", plot, "LEFT", -4, 0)
+  titleText:SetPoint("RIGHT", count, "LEFT", -6, 0)
   titleText:SetJustifyH("LEFT")
   titleText:SetWordWrap(false)
   w.Title = titleText
