@@ -1,7 +1,8 @@
 local ADDON, ns = ...
 
--- Quick lists: ready-made checklists MountTrail ships (the Checklist's
--- "Quick lists" group, poppable like custom lists; not editable). Each is
+-- Built-in lists: ready-made checklists MountTrail ships (at the top of
+-- Lists in the left column, tagged "auto"; poppable like custom lists; not
+-- editable). Each is
 -- worked out from the data, so a new mount joins on its own:
 --   mythic  "Mythic Mounts": every dungeon mount that drops on Mythic
 --           difficulty - a lockout spec whose difficulties include 23
@@ -23,12 +24,12 @@ local function hasDifficulty(list, id)
   return false
 end
 
--- Shown under Quick lists in the navigation (none at the moment: Daily,
--- Weekly and Rare Spawns are the Checklist's groups).
+-- Shown at the top of Lists in the navigation (none at the moment beyond
+-- Daily, Weekly and Rare Spawns, the Checklist's groups: UI.NavListEntries).
 QuickLists.LISTS = {}
 
 -- Examples: worked out the same way, but given to the player once as a
--- custom list of their own (My lists: QuickLists.SeedExamples) to edit,
+-- custom list of their own (under Lists: QuickLists.SeedExamples) to edit,
 -- rename or delete. Still found by key (a pop-out saved before the move).
 QuickLists.EXAMPLES = {
   {

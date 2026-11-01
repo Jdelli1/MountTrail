@@ -101,11 +101,13 @@ The left column:
 - **Browse** by source: Drops, Vendors & Reputation, Quests & Activities,
   Achievements, Professions, In-game Shop, Trading Post, PvP, Mythic+,
   Holidays, Timewalking, Other.
-- **My lists**: each of your own lists, with `+` to start one, and its
-  lockouts open today in green. It starts with an example, Mythic Mounts
-  (every mount that drops in Mythic dungeons), yours to edit, rename or delete.
-- **Quick lists**: the built-in ones. Daily lockouts, Weekly lockouts and Rare
-  Spawns each open Lockouts on that group, with what is left as the badge.
+- **Lists**, with `+` to start one:
+  - first the built-in lists, tagged `auto` because they fill themselves:
+    Daily lockouts, Weekly lockouts and Rare Spawns each open Lockouts on that
+    group, with what is left as the badge;
+  - then your own lists, with their lockouts open today in green. They start
+    with an example, Mythic Mounts (every mount that drops in Mythic
+    dungeons), yours to edit, rename or delete.
 
 Working with the column:
 
@@ -113,17 +115,19 @@ Working with the column:
   detail pane as on any list, and a `Pop out` button.
 - Right-click a list to pop it out; Shift-right-click one of your own lists to
   share, rename or delete it.
-- Click a list's star to make it a favourite, pinned to the top of its section
-  (click again to unpin).
-- Alt-drag an entry of My lists, Quick lists or Browse to put the
-  section in your own order (saved; a list never moves above a favourite).
+- Click a list's star to make it a favourite, pinned to the top of its part
+  (built-in or your own; click again to unpin).
+- Alt-drag a list or a Browse entry to put it in your own order (saved; a
+  list stays among the built-in ones or your own, and never moves above a
+  favourite).
 - Headings look like a pop-out's group headers ("- Browse" over a thin rule,
-  in the window's header colour). Click one (Browse, My lists, Quick lists)
-  to collapse or expand it (saved; "+" while collapsed).
+  in the window's header colour). Click one (Browse, Lists) to collapse or
+  expand it (saved; "+" while collapsed).
 - Lockouts, the lockout groups and your lists count what is left ("48
   left"); the entry you are on is gold.
-- The settings can hide My lists or Quick lists (`Show My lists`,
-  `Show Quick lists`). The column scrolls when your lists outgrow it.
+- The settings can hide your own lists or the built-in ones (`Show your
+  lists`, `Show built-in lists`). The column scrolls when your lists outgrow
+  it.
 
 ### Home
 
@@ -321,7 +325,7 @@ What you can pop out:
 - Right-click the Daily, Weekly or Rare Spawns chip: that whole group, every
   expansion, under expansion headers.
 - Any list: your own lists (build them with `+ List` on any mount) and the
-  quick lists.
+  built-in ones.
 - `/mtrail rares`: the rare spawns of your zone.
 - `/mtrail zone` (or `/mtrail here`), a right-click on the zone panel's title or on Current Zone:
   every mount you can still get in your zone, under source headers (Dungeon
@@ -460,7 +464,7 @@ column, headers, mount names, small notes).
 | `Headers` | List headers (Classic, Wrath of the Lich King...), page titles and the detail pane's labels, -2 to +6. |
 | `Mount names and text` | Every mount's name and where it comes from, in every list, Lockouts and Home, and the detail pane's text, -2 to +6. Rows grow to fit. |
 | `Small notes` | Counts and percentages, hints and greyed-out text, -2 to +6. |
-| `Show My lists`, `Show Quick lists` | Show or hide those navigation sections. |
+| `Show your lists`, `Show built-in lists` | Show or hide your own lists or the built-in ones (tagged `auto`) under Lists in the left column. |
 | `Count in-game shop mounts`, `Count Trading Post mounts`, `Count promotional mounts`, `Count Black Market mounts` | On by default. Off: those mounts stay listed everywhere (Browse, your lists, Lockouts, Current Zone), but, owned or not, they are left out of the collected numbers on Home: the total and its bar, the expansions' rows, and their source's row (a source with nothing counted, such as In-game Shop, leaves Home). |
 | `Colour pop-out names by rarity` | Off by default; needs Mount Journal Enhanced or MountsRarity. |
 | `Colour list names by rarity` | The same for the main window's lists, set apart from the pop-outs'. Off by default. |
@@ -485,7 +489,7 @@ column, headers, mount names, small notes).
 - **Sort**: `Order added` (the default) or `By expansion` (a header per
   expansion, your order inside each), from the Filter menu on the list's page
   or the pop-out's title menu (right-click its title). Saved per list.
-- `+` next to My lists starts an empty list or imports one.
+- `+` next to Lists starts an empty list or imports one.
 
 ## Sharing lists
 
@@ -502,7 +506,7 @@ Shift-right-click one of your lists in the navigation column for:
 - **Export...**: the list as one line of text (`MountTrail: !MT1!...`) to copy with
   Ctrl+C and paste anywhere: Discord, a forum post.
 
-To import a pasted line, click `+` next to My lists and pick `Import list...`
+To import a pasted line, click `+` next to Lists and pick `Import list...`
 (or type `/mtrail import`). Every import asks first, lets you rename the list,
 and adds a number when the name is taken. Mounts your version of MountTrail
 doesn't know are left out.

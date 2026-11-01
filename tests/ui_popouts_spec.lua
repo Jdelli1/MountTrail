@@ -1271,7 +1271,7 @@ describe("lists in the navigation column", function()
     end
   end
 
-  it("the navigation lists My lists then the quick lists; a click opens the list page; deleting it goes home", function()
+  it("the navigation lists the built-in lists and your own; a click opens the list page; deleting it goes home", function()
     local ns = loadUI()
     ns.UI.ChecklistBuild = function() return built() end
     local h = home(ns)
@@ -1340,7 +1340,7 @@ describe("lists in the navigation column", function()
     eq(navButton(ns, "Loop"), nil, "its entry gone")
   end)
 
-  it("My lists and Quick lists are separate sections, each collapsing on a click (saved)", function()
+  it("one Lists section: the built-in lists first, tagged auto, then your own; it collapses (saved)", function()
     local ns = loadUI()
     ns.UI.ChecklistBuild = function() return built() end
     local store = ns.UI.ListsDB()
@@ -1352,21 +1352,26 @@ describe("lists in the navigation column", function()
         if h:IsShown() and (h.Text:GetText():gsub("^[%+%-] ", "")) == text then return h end
       end
     end
-    local mine, quick = heading("My lists"), heading("Quick lists")
-    eq(mine.Text:GetText(), "- My lists", "open: a pop-out header's \"- \"")
-    ok(mine and quick, "two headings")
-    eq(mine.key, ns.UI.NAV_LISTS_KEY)
-    ok(navButton(ns, "Loop") and navButton(ns, "Weekly lockouts"), "both sections open")
-    mine:RunScript("OnClick", "LeftButton")
+    local lists = heading("Lists")
+    ok(lists, "one Lists heading")
+    eq(heading("Quick lists"), nil, "no Quick lists heading")
+    eq(heading("My lists"), nil, "no My lists heading")
+    eq(lists.key, ns.UI.NAV_LISTS_KEY)
+    ok(nav.AddList:IsShown(), "its +")
+    local function index(label)
+      for i = 1, nav.shown do if nav.Buttons[i].Text:GetText() == label then return i end end
+    end
+    ok(index("Weekly lockouts") < index("Loop"), "built-in lists first")
+    ok(navButton(ns, "Weekly lockouts").Tag:IsShown(), "a built-in list is tagged auto")
+    eq(navButton(ns, "Weekly lockouts").Tag:GetText(), "auto")
+    ok(not navButton(ns, "Loop").Tag:IsShown(), "your own is not")
+    lists:RunScript("OnClick", "LeftButton")
     eq(ns.db.global.collapsed[ns.UI.NAV_LISTS_KEY], true)
-    eq(navButton(ns, "Loop"), nil, "My lists collapsed")
-    ok(navButton(ns, "Weekly lockouts"), "Quick lists still open")
-    ok(heading("My lists").collapsed, "marked collapsed")
-    eq(heading("My lists").Text:GetText(), "+ My lists")
-    heading("Quick lists"):RunScript("OnClick", "LeftButton")
-    eq(navButton(ns, "Weekly lockouts"), nil, "Quick lists collapsed")
-    heading("My lists"):RunScript("OnClick", "LeftButton")
-    ok(navButton(ns, "Loop"), "expanded again")
+    eq(navButton(ns, "Loop"), nil, "collapsed: your lists hidden")
+    eq(navButton(ns, "Weekly lockouts"), nil, "and the built-in ones")
+    eq(heading("Lists").Text:GetText(), "+ Lists")
+    heading("Lists"):RunScript("OnClick", "LeftButton")
+    ok(navButton(ns, "Loop") and navButton(ns, "Weekly lockouts"), "expanded again")
     eq(ns.db.global.collapsed[ns.UI.NAV_LISTS_KEY], nil)
     eq(heading("Browse").key, ns.UI.NAV_BROWSE_KEY, "Browse collapses too")
     heading("Browse"):RunScript("OnClick", "LeftButton")
@@ -1375,7 +1380,7 @@ describe("lists in the navigation column", function()
     ok(navButton(ns, "Drops"), "and back")
   end)
 
-  it("Quick lists hold Daily / Weekly lockouts and Rare Spawns: a click opens Lockouts on that group", function()
+  it("Built-in lists hold Daily / Weekly lockouts and Rare Spawns: a click opens Lockouts on that group", function()
     local ns = loadUI()
     ns.UI.ChecklistBuild = function() return built() end
     home(ns)
@@ -1486,19 +1491,19 @@ describe("lists in the navigation column", function()
     eq(menu, nil, "no menu")
   end)
 
-  it("Options can hide My lists and Quick lists from the navigation", function()
+  it("Options can hide your lists and the built-in lists from the navigation", function()
     local ns = loadUI()
     ns.UI.ChecklistBuild = function() return built() end
     ns.Lists.Create(ns.UI.ListsDB(), "Loop")
     home(ns)
     ns.db.global.settings.navHideLists = true
     ns.UI.RefreshNav()
-    eq(navButton(ns, "Loop"), nil, "My lists hidden")
-    ok(not ns.UI.frame.Nav.AddList:IsShown(), "and its +")
-    ok(navButton(ns, "Weekly lockouts"), "Quick lists still there")
+    eq(navButton(ns, "Loop"), nil, "your lists hidden")
+    ok(not ns.UI.frame.Nav.AddList:IsShown(), "and the +")
+    ok(navButton(ns, "Weekly lockouts"), "the built-in lists still there")
     ns.db.global.settings.navHideQuick = true
     ns.UI.RefreshNav()
-    eq(navButton(ns, "Weekly lockouts"), nil, "Quick lists hidden")
+    eq(navButton(ns, "Weekly lockouts"), nil, "built-in lists hidden")
     ok(navButton(ns, "Drops"), "Browse stays")
   end)
 

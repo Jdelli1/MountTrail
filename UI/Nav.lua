@@ -14,7 +14,8 @@ ns.UI = UI
 
 -- The navigation column's fixed entries, top to bottom: views (key), an
 -- action (Alts: its own window), section headings. Badges come from
--- UI.NavBadge. The lists follow under "My lists" (UI.NavListEntries).
+-- UI.NavBadge. The lists follow under "Lists" (UI.NavListEntries): the
+-- built-in ones first, tagged "auto", then the player's own.
 UI.NAV = {
   { key = "journal", label = "Home" },
   { key = "checklist", label = "Lockouts" },
@@ -38,7 +39,7 @@ function UI.NavBrowseEntries(categories)
 end
 UI.NAV_WIDTH = 176
 -- The collapse keys of the My lists and Quick lists sections.
-UI.NAV_LISTS_KEY, UI.NAV_QUICK_KEY = "nav|lists", "nav|quick"
+UI.NAV_LISTS_KEY = "nav|lists"
 UI.NAV_BROWSE_KEY = "nav|browse"
 -- A list entry's favourite star (the Auction House's: filled / hollow). A
 -- favourite (ns.db.global.navFavorites[entry key]) is pinned to the top of
@@ -124,7 +125,8 @@ function UI.NavDropIndex(rects, y)
   return #rects
 end
 
--- Whether a section is shown (Options: "Show My lists" / "Show Quick lists").
+-- Whether a part of Lists is shown (Options: "Show your lists" / "Show
+-- built-in lists"): "lists" the player's own, "quick" the built-in ones.
 function UI.NavSectionShown(section)
   local global = ns.db and ns.db.global
   local saved = global and type(global.settings) == "table" and global.settings or {}
@@ -185,7 +187,7 @@ local function headerColor()
   return style and style.header or NAV_GOLD
 end
 
--- The entries under "My lists": each custom list ({ list = id }), then each
+-- The entries under "Lists": each custom list ({ list = id }), then each
 -- quick list ({ quick = key, builtIn = true }) -> { { key = "list:<id>" |
 -- "quick:<key>", label =, source = (UI.OpenPopout / UI.ShowListPage source),
 -- builtIn = } }.
@@ -301,6 +303,10 @@ local function navButton(parent)
   text:SetJustifyH("LEFT")
   text:SetWordWrap(false)
   b.Text = text
+  -- A built-in list's grey "auto" (it fills itself), left of the badge.
+  local tag = b:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisableSmall"))
+  tag:SetText(L["auto"])
+  b.Tag = tag
   b:SetScript("OnClick", function(self, button)
     local e = self.entry
     if not e then return end
@@ -590,7 +596,7 @@ function UI.RefreshNav()
   local y, nb, nh = 0, 0, 0
   for k in pairs(sectionButtons) do sectionButtons[k] = nil end
   -- -> whether the section is collapsed (only for a collapsible `key`).
-  -- withAdd: true for My lists' +, or the + button to place.
+  -- withAdd: true for Lists' +, or the + button to place.
   local function heading(text, withAdd, key)
     nh = nh + 1
     local h = nav.Headings[nh] or navHeading(nav.Content)
@@ -633,6 +639,12 @@ function UI.RefreshNav()
       b.Badge:SetPoint("RIGHT", b, "RIGHT", -8, 0)
     end
     b.Text:SetText(label)
+    -- A built-in list fills itself: "auto" between its name and its badge.
+    b.Tag:ClearAllPoints()
+    b.Tag:SetPoint("RIGHT", b.Badge, "LEFT", -4, 0)
+    b.Tag:SetShown(e.builtIn == true)
+    b.Text:SetPoint("RIGHT", e.builtIn and b.Tag or b.Badge, "LEFT", -4, 0)
+    navFont(b.Tag, "GameFontDisableSmall")
     local badge, green = UI.NavBadge(e, built)
     b.Badge:SetText(badge and ((green and "|cff40c040" or "") .. badge .. (green and "|r" or "")) or "")
     local on = (e.key ~= nil and e.key == selected)
@@ -666,7 +678,8 @@ function UI.RefreshNav()
   if not heading(L["Browse"], false, UI.NAV_BROWSE_KEY) then
     for _, e in ipairs(browse) do entry(e, true) end
   end
-  -- My lists (with +) and Quick lists: each its own collapsible section.
+  -- Lists (with +), one collapsible section: the built-in lists first (each
+  -- tagged "auto"), then the player's own.
   y = y + 4
   local store = UI.ListsDB and UI.ListsDB()
   local lists = UI.NavListEntries(store, ns.QuickLists and ns.QuickLists.LISTS)
@@ -679,21 +692,21 @@ function UI.RefreshNav()
   record("lists", mine)
   record("quick", quick)
   local showMine = UI.NavSectionShown("lists")
-  local mineCollapsed = showMine and heading(L["My lists"], true, UI.NAV_LISTS_KEY)
+  local showQuick = #quick > 0 and UI.NavSectionShown("quick")
+  local collapsed = (showMine or showQuick) and heading(L["Lists"], showMine, UI.NAV_LISTS_KEY)
   if not showMine then nav.AddList:Hide() end
-  nav.Empty:SetShown(showMine and #mine == 0 and not mineCollapsed)
-  if showMine and not mineCollapsed then
-    if #mine == 0 then
+  nav.Empty:SetShown(showMine and #mine == 0 and not collapsed)
+  if (showMine or showQuick) and not collapsed then
+    if showQuick then
+      for _, e in ipairs(quick) do entry(e, true) end
+    end
+    if showMine and #mine == 0 then
       nav.Empty:ClearAllPoints()
       nav.Empty:SetPoint("TOPLEFT", nav.Content, "TOPLEFT", 12, -(y + 2))
       y = y + 30
     end
-    for _, e in ipairs(mine) do entry(e, true) end
-  end
-  if #quick > 0 and UI.NavSectionShown("quick") then
-    y = y + 4
-    if not heading(L["Quick lists"], false, UI.NAV_QUICK_KEY) then
-      for _, e in ipairs(quick) do entry(e, true) end
+    if showMine then
+      for _, e in ipairs(mine) do entry(e, true) end
     end
   end
   for i = nb + 1, #nav.Buttons do nav.Buttons[i]:Hide() end

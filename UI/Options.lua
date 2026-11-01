@@ -495,10 +495,10 @@ local function build(api)
 
   -- The navigation's list sections.
   for _, s in ipairs({
-    { var = Options.SHOW_LISTS, name = "showLists", hide = "navHideLists", label = "Show My lists",
-      tip = "Your own lists in the window's left column." },
-    { var = Options.SHOW_QUICK, name = "showQuick", hide = "navHideQuick", label = "Show Quick lists",
-      tip = "The built-in lists (Daily / Weekly lockouts, Rare Spawns) in the window's left column." },
+    { var = Options.SHOW_LISTS, name = "showLists", hide = "navHideLists", label = "Show your lists",
+      tip = "Your own lists, under Lists in the window's left column." },
+    { var = Options.SHOW_QUICK, name = "showQuick", hide = "navHideQuick", label = "Show built-in lists",
+      tip = "The built-in lists that fill themselves (Daily / Weekly lockouts, Rare Spawns), tagged auto at the top of Lists." },
   }) do
     local setting = api.RegisterProxySetting(category, s.var, VarType.Boolean or "boolean", L[s.label], true,
       function() return settings()[s.hide] ~= true end, function(on) Options.Set(s.name, on) end)

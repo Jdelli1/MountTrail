@@ -427,9 +427,9 @@ function UI.SettingsMenuItems()
     function() O.Set("dropChime", not (O.DropChime and O.DropChime())) end)
   items[#items + 1] = check(L["Warn about the wrong difficulty"], saved.difficultyWarnOff ~= true,
     function() O.Set("difficultyWarning", saved.difficultyWarnOff == true) end)
-  items[#items + 1] = check(L["Show My lists"], saved.navHideLists ~= true,
+  items[#items + 1] = check(L["Show your lists"], saved.navHideLists ~= true,
     function() O.Set("showLists", saved.navHideLists == true) end)
-  items[#items + 1] = check(L["Show Quick lists"], saved.navHideQuick ~= true,
+  items[#items + 1] = check(L["Show built-in lists"], saved.navHideQuick ~= true,
     function() O.Set("showQuick", saved.navHideQuick == true) end)
   items[#items + 1] = check(L["Show minimap button"], not (global and global.minimap and global.minimap.hide),
     function() O.Set("minimap", global and global.minimap and global.minimap.hide == true) end)

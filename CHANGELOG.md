@@ -8,6 +8,10 @@
   (the one-line rows). Your colours, opacity, font and sizes apply to both.
 - MountTrail's menus match: section titles sit on a card band with a gold
   edge, inside a gold-edged panel.
+- The left column has one **Lists** section instead of My lists and Quick
+  lists: the built-in lists (Daily / Weekly lockouts, Rare Spawns) come first,
+  tagged `auto`, then your own. The settings are now `Show your lists` and
+  `Show built-in lists`.
 
 ## 0.9.1-beta
 
