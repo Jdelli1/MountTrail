@@ -329,6 +329,16 @@ What you can pop out:
 
 The two zone pop-outs follow you into each new zone, sub-zone or cave.
 
+Two layouts, picked per window in its right-click menu:
+
+- **Cards** (the default): each group is a card with an edge in its
+  expansion's colour; each row has the mount's icon, its name over a grey
+  line (the boss or the mount, and the zone), and on the right `Open` /
+  `Done` for a lockout or the drop chance for a list mount. Rare spawns keep
+  their box on the right.
+- **Compact**: one line a row (box, expansion tag, name, zone), to fit more
+  in a small window.
+
 In a pop-out:
 
 - A click goes to the mount (every spawn point of a rare that has several on
@@ -346,7 +356,8 @@ In a pop-out:
   Windows snap to each other and to the main window, and a snapped stack moves
   together.
 - Right-click the title for the window's menu: `Show completed` (done rows
-  stay listed, dimmed; off by default, saved per window), then opacity and
+  stay listed, dimmed; off by default, saved per window), `Cards` or
+  `Compact` (the layout, kept by `Apply to all pop-outs` too), then opacity and
   font size sliders, background, header and text colour (headers and body
   text apart), font, `Apply to all pop-outs`, `Reset appearance`.
 - Ctrl-click a window's x to close every pop-out.

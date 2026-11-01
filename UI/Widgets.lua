@@ -133,13 +133,14 @@ function UI.FlatButtonSetText(b, text)
   b:SetWidth((tonumber(w) or 40) + 14)
 end
 
--- Panel look shared by the menu and the prompt.
+-- Panel look shared by the menu and the prompt: near black with a dim gold
+-- edge, as the pop-outs' cards.
 local function flatPanel(f, alpha)
   local fill = f:CreateTexture(nil, "BACKGROUND")
   fill:SetAllPoints(f)
   fill:SetColorTexture(0.05, 0.05, 0.06, alpha or 0.95)
   f.Fill = fill
-  f.Edge = UI.FlatBorder(f, 1, 1, 1, 0.12)
+  f.Edge = UI.FlatBorder(f, 0.48, 0.37, 0.16, 0.9)
   local rule = f:CreateTexture(nil, "ARTWORK")
   rule:SetHeight(1)
   rule:SetPoint("TOPLEFT", f, "TOPLEFT", 1, -1)
@@ -149,7 +150,8 @@ end
 
 -- Menu: UI.ShowMenu(owner, items[, anchor]) with items (a list, or a
 -- function returning one)
---   { title = "Text" }                                 a gold heading
+--   { title = "Text" }                                 a gold heading on a card band (a lighter
+--                                                      strip with a gold edge, as a pop-out card's)
 --   { text =, onClick = fn, checked = bool|nil, disabled = bool, keepOpen = bool }
 --   { text =, submenu = items }                        opens another menu in its place (">")
 --   { slider = true, text =, min =, max =, step =, value =, format =, onChange = fn }
@@ -166,7 +168,9 @@ end
 local MENU_WIDTH = 190 -- the narrowest a menu gets
 local MENU_MAX_WIDTH = 340 -- wider lines wrap
 local MENU_TEXT_LEFT, MENU_TEXT_LEFT_BOXED, MENU_TEXT_RIGHT = 9, 24, 22
+local MENU_TITLE_LEFT = 13 -- right of the band's gold edge
 local MENU_ITEM = 18
+local MENU_TITLE = 22
 local MENU_SLIDER = 36
 local menu, menuCatcher
 local showMenu
@@ -263,6 +267,18 @@ local function menuItem(i)
   hl:SetAllPoints(it)
   hl:SetColorTexture(1, 0.82, 0, 0.15)
   it.Highlight = hl
+  -- A title's band: a lighter strip with a gold edge on its left.
+  local band = it:CreateTexture(nil, "BACKGROUND")
+  band:SetPoint("TOPLEFT", it, "TOPLEFT", 4, -1)
+  band:SetPoint("BOTTOMRIGHT", it, "BOTTOMRIGHT", -4, 1)
+  band:SetColorTexture(1, 1, 1, 0.06)
+  it.Band = band
+  local accent = it:CreateTexture(nil, "BORDER")
+  accent:SetPoint("TOPLEFT", band, "TOPLEFT")
+  accent:SetPoint("BOTTOMLEFT", band, "BOTTOMLEFT")
+  accent:SetWidth(3)
+  accent:SetColorTexture(1, 0.82, 0, 0.9)
+  it.Accent = accent
   local box = it:CreateTexture(nil, "ARTWORK")
   box:SetSize(10, 10)
   box:SetPoint("LEFT", it, "LEFT", 8, 0)
@@ -328,7 +344,7 @@ function showMenu(owner, items, anchor, inPlace)
       it.Label:SetWidth(0)
       it.Label:SetText(label)
       local w = tonumber(it.Label.GetStringWidth and it.Label:GetStringWidth()) or 0
-      local left = data.checked ~= nil and MENU_TEXT_LEFT_BOXED or MENU_TEXT_LEFT
+      local left = data.checked ~= nil and MENU_TEXT_LEFT_BOXED or (data.title and MENU_TITLE_LEFT or MENU_TEXT_LEFT)
       width = math.max(width, math.ceil(w) + left + MENU_TEXT_RIGHT)
     end
   end
@@ -351,9 +367,11 @@ function showMenu(owner, items, anchor, inPlace)
       it.Box:SetColorTexture(1, 0.82, 0, data.checked and 0.9 or 0)
       it.Label:SetPoint("LEFT", it.Box, "RIGHT", 6, 0)
     else
-      it.Label:SetPoint("LEFT", it, "LEFT", 9, 0)
+      it.Label:SetPoint("LEFT", it, "LEFT", data.title and MENU_TITLE_LEFT or MENU_TEXT_LEFT, 0)
     end
     it.Rule:SetShown(data.separator == true)
+    it.Band:SetShown(data.title ~= nil)
+    it.Accent:SetShown(data.title ~= nil)
     it.Arrow:SetShown(data.submenu ~= nil)
     it.Highlight:SetShown(not (data.title or data.separator or data.disabled or data.slider))
     if it.Slider then
@@ -388,12 +406,12 @@ function showMenu(owner, items, anchor, inPlace)
     else
       it.Label:SetFontObject(data.title and UI.Font("GameFontNormalSmall")
         or (data.disabled and UI.Font("GameFontDisableSmall") or UI.Font("GameFontHighlightSmall")))
-      local left = boxed and MENU_TEXT_LEFT_BOXED or MENU_TEXT_LEFT
+      local left = boxed and MENU_TEXT_LEFT_BOXED or (data.title and MENU_TITLE_LEFT or MENU_TEXT_LEFT)
       it.Label:SetWidth(width - left - MENU_TEXT_RIGHT)
       if it.Label.SetWordWrap then it.Label:SetWordWrap(true) end
       it.Label:SetText(data.title or data.text or "")
       local h = tonumber(it.Label.GetStringHeight and it.Label:GetStringHeight()) or 0
-      local rowH = math.max(MENU_ITEM, math.ceil(h) + 6)
+      local rowH = math.max(data.title and MENU_TITLE or MENU_ITEM, math.ceil(h) + 6)
       it:SetHeight(rowH)
       y = y + rowH
     end

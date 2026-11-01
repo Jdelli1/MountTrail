@@ -113,7 +113,7 @@ changed addon gives `nil`, never an error.
 | `ChecklistStatus.lua` | The Lockouts view's live status for event rares (assaults, warfronts): `UI.EventStatusTexts`, `UI.EventStatusChanged`, the event-map click. |
 | `AltsWindow.lua` | The alt lockout matrix window. |
 | `Popouts.lua` | Pop-out windows: frames, rows, dragging, snapping and open / close (their look: `Style.lua`). |
-| `PopoutRows.lua` | A pop-out's pure side (split out of `Popouts.lua`): key, title, rows, groups, saved order and the snapping maths (`UI.SnapRect`, `UI.SnapChain`). |
+| `PopoutRows.lua` | A pop-out's pure side (split out of `Popouts.lua`): key, title, rows, groups, a Cards row's lines (`UI.PopoutCardLines`), saved order and the snapping maths (`UI.SnapRect`, `UI.SnapChain`). |
 | `HereView.lua` | The Current Zone view. |
 | `BrowseView.lua` | Browse-by-source pages. |
 | `DifficultyCheck.lua` | The wrong-difficulty warning: on entering an instance, the open pop-outs' mounts that drop here but not on this difficulty (`Lockouts.WrongDifficulty`). |

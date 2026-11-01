@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Pop-outs have two layouts, picked in each window's right-click menu:
+  Cards (the default: each group a card, rows with the mount's icon, a grey
+  second line and Open / Done or the drop chance on the right) and Compact
+  (the one-line rows). Your colours, opacity, font and sizes apply to both.
+- MountTrail's menus match: section titles sit on a card band with a gold
+  edge, inside a gold-edged panel.
+
 ## 0.9.1-beta
 
 - The world map tab's rows show each mount's icon again, at a bag slot's

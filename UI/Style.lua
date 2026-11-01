@@ -20,7 +20,9 @@ local function popoutsDB()
 end
 
 -- Appearance of a window (right-click its title). Saved per window as
--- { alpha =, bg = { r, g, b }, text = { r, g, b }, size =, font = };
+-- { alpha =, bg = { r, g, b }, text = { r, g, b }, size =, font =, layout = };
+-- layout: "compact" (one line a row) or nil, the Cards layout (each group a
+-- card, rows with the mount's icon and a second line; UI/Popouts.lua);
 -- missing fields take the defaults (the window's own look). Opacity runs
 -- 0.2-1 and the font size 8-24 (whole points): the menu's two sliders.
 UI.POPOUT_STYLE = { alpha = 0.92, bg = { 0.06, 0.06, 0.07 }, text = nil, size = nil, font = nil }
@@ -44,6 +46,7 @@ function UI.PopoutStyle(saved)
     header = type(saved.header) == "table" and saved.header or nil,
     size = size and math.max(SIZE_MIN, math.min(SIZE_MAX, math.floor(size + 0.5))) or d.size,
     font = type(saved.font) == "string" and saved.font or d.font,
+    layout = saved.layout == "compact" and "compact" or "cards",
   }
 end
 
@@ -273,6 +276,10 @@ function UI.PopoutStyleMenu(w, back)
           state.showDone = not state.showDone or nil
           UI.RefreshPopouts()
         end },
+      { text = L["Cards"], checked = s.layout == "cards", keepOpen = true, popoutOnly = true,
+        onClick = function() setStyle(w, function(st) st.layout = nil end) end },
+      { text = L["Compact"], checked = s.layout == "compact", keepOpen = true, popoutOnly = true,
+        onClick = function() setStyle(w, function(st) st.layout = "compact" end) end },
       { separator = true, popoutOnly = true },
       { extra = true },
       { slider = true, text = L["Opacity"], min = math.floor(ALPHA_MIN * 100 + 0.5), max = 100, step = 1,
@@ -318,7 +325,7 @@ function UI.PopoutStyleMenu(w, back)
         local mine = db and db[w.key] and db[w.key].style or sharedStyle()
         if ns.db and ns.db.global then
           ns.db.global.popoutStyle = mine and { alpha = mine.alpha, bg = mine.bg, text = mine.text, header = mine.header,
-            size = mine.size, font = mine.font } or nil
+            size = mine.size, font = mine.font, layout = mine.layout } or nil
         end
         for _, state in pairs(db or {}) do
           if type(state) == "table" then state.style = nil end

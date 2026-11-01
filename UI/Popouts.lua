@@ -35,6 +35,9 @@ local ADDON, ns = ...
 -- (UI.PopoutGroups); click a group header to collapse it, Shift-click to
 -- collapse (or, on a collapsed one, expand) every group of the window
 -- (saved per window as ns.db.global.popouts[key].collapsed, UI.ToggleAllCollapsed).
+-- Two layouts (the appearance menu, per window): Cards, the default (each
+-- group a card, rows with the mount's icon, a second line and the status;
+-- layoutRow / placeCard below), and Compact (one line a row).
 -- Right-click a window's title for its appearance:
 -- opacity and font size (sliders, 20-100 % and 8-24), background and text
 -- colour and font (saved per window, UI.PopoutStyle; "Apply to all
@@ -128,7 +131,6 @@ local function rowFrame(w, i)
   local check = CreateFrame("CheckButton", nil, r,
     UI.TemplateChain("MinimalCheckboxTemplate", "SettingsCheckboxTemplate", "UICheckButtonTemplate"))
   check:SetSize(18, 18)
-  check:SetPoint("LEFT", r, "LEFT", 2, 0)
   if check.RegisterForClicks then check:RegisterForClicks("LeftButtonUp", "RightButtonUp") end
   check:SetScript("OnClick", function(_, button)
     local row = r.data
@@ -141,19 +143,27 @@ local function rowFrame(w, i)
   end)
   r.Check = check
   local zone = r:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisableSmall"))
-  zone:SetPoint("RIGHT", r, "RIGHT", -4, 0)
   zone:SetJustifyH("RIGHT")
   zone:SetWordWrap(false)
   r.Zone = zone
-  -- The mount's expansion: a small coloured tag.
+  -- The mount's expansion: a small coloured tag (Compact).
   r.Badge = UI.ExpansionBadge(r)
-  r.Badge:SetPoint("LEFT", check, "RIGHT", 2, 0)
   local name = r:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlightSmall"))
-  name:SetPoint("LEFT", r.Badge, "RIGHT", 5, 0)
-  name:SetPoint("RIGHT", zone, "LEFT", -6, 0)
   name:SetJustifyH("LEFT")
   name:SetWordWrap(false)
   r.Name = name
+  -- Cards: the mount's icon, a grey second line and the status on the right.
+  local icon = r:CreateTexture(nil, "ARTWORK")
+  icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+  r.Icon = icon
+  local subLine = r:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisableSmall"))
+  subLine:SetJustifyH("LEFT")
+  subLine:SetWordWrap(false)
+  r.Sub = subLine
+  local status = r:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalSmall"))
+  status:SetJustifyH("RIGHT")
+  status:SetWordWrap(false)
+  r.Status = status
   -- The row: left-click as the pin; a custom list's row: right-click menu.
   -- Alt-drag: move the row (the drop line shows where it lands).
   r:RegisterForDrag("LeftButton")
@@ -369,6 +379,60 @@ function UI.PopoutSnapTargets(except)
 end
 
 
+-- Cards layout (the default; Compact: one line a row): each group a card, a
+-- fill a shade lighter than the window with an edge in its expansion's
+-- colour (gold without one); rows with the mount's icon, the name over a
+-- grey line (UI.PopoutCardLines) and the status on the right. A rare spawn
+-- keeps its box, on the right.
+local CARD_ROW, CARD_HEADER, CARD_GAP, CARD_INSET = 34, 22, 6, 9
+local STATUS_COLORS = { done = { 0.55, 0.88, 0.55 }, open = { 1, 0.82, 0 }, info = { 0.75, 0.75, 0.75 } }
+local GOLD = { 1, 0.82, 0 }
+
+local function placeCard(w, i, top, bottom, width, style, color)
+  w.cards = w.cards or {}
+  local c = w.cards[i]
+  if not c then
+    c = { Fill = w.Content:CreateTexture(nil, "BACKGROUND"), Edge = w.Content:CreateTexture(nil, "BORDER") }
+    w.cards[i] = c
+  end
+  local bg = style.bg
+  for _, t in ipairs({ c.Fill, c.Edge }) do
+    t:ClearAllPoints()
+    t:SetPoint("TOPLEFT", w.Content, "TOPLEFT", 0, -top)
+    t:SetHeight(bottom - top)
+    t:Show()
+  end
+  c.Fill:SetWidth(width)
+  c.Fill:SetColorTexture(math.min(1, bg[1] + 0.05), math.min(1, bg[2] + 0.05), math.min(1, bg[3] + 0.05), style.alpha)
+  c.Edge:SetWidth(3)
+  c.Edge:SetColorTexture(color[1], color[2], color[3], 0.9)
+end
+
+-- A row's parts placed for the layout; `right`: the room kept on the right
+-- in Cards (the status or the box).
+local function layoutRow(r, cards, iconSize, right)
+  for _, part in ipairs({ r.Check, r.Badge, r.Name, r.Zone, r.Icon, r.Sub, r.Status }) do part:ClearAllPoints() end
+  if cards then
+    r.Icon:SetSize(iconSize, iconSize)
+    r.Icon:SetPoint("LEFT", r, "LEFT", 0, 0)
+    r.Name:SetPoint("BOTTOMLEFT", r.Icon, "RIGHT", 8, 1)
+    r.Name:SetPoint("BOTTOMRIGHT", r, "RIGHT", -right, 1)
+    r.Sub:SetPoint("TOPLEFT", r.Icon, "RIGHT", 8, -1)
+    r.Sub:SetPoint("TOPRIGHT", r, "RIGHT", -right, -1)
+    r.Status:SetPoint("RIGHT", r, "RIGHT", -6, 0)
+    r.Check:SetPoint("RIGHT", r, "RIGHT", -2, 0)
+  else
+    r.Check:SetPoint("LEFT", r, "LEFT", 2, 0)
+    r.Badge:SetPoint("LEFT", r.Check, "RIGHT", 2, 0)
+    r.Zone:SetPoint("RIGHT", r, "RIGHT", -4, 0)
+    r.Name:SetPoint("LEFT", r.Badge, "RIGHT", 5, 0)
+    r.Name:SetPoint("RIGHT", r.Zone, "LEFT", -6, 0)
+  end
+  r.Icon:SetShown(cards)
+  r.Sub:SetShown(cards)
+  r.Zone:SetShown(not cards)
+end
+
 local function refreshWindow(w, built)
   if not w:IsShown() then return end
   local char = ns.db and ns.db.char
@@ -408,9 +472,13 @@ local function refreshWindow(w, built)
   if w.source.kind ~= "list" then UI.ApplyOrder(rows, state and state.order) end
   local style = styleOf(w)
   applyChrome(w, style)
-  local rowHeight = math.max(ROW_HEIGHT, (style.size or 11) + 9)
-  local groupHeight = math.max(GROUP_HEIGHT, (style.size or 11) + 7)
+  local cards = style.layout ~= "compact"
+  local size = style.size or 11
+  local rowHeight = cards and math.max(CARD_ROW, size * 2 + 12) or math.max(ROW_HEIGHT, size + 9)
+  local groupHeight = cards and math.max(CARD_HEADER, size + 11) or math.max(GROUP_HEIGHT, size + 7)
+  local inset = cards and CARD_INSET or 0
   w.rowHeight = rowHeight
+  w.layout = style.layout
   local groupSource = w.source
   if w.source.kind == "list" and store and ns.Lists.SortOf(store, w.source.list) == "expansion" then
     groupSource = { kind = "list", list = w.source.list, byExpansion = true }
@@ -423,27 +491,35 @@ local function refreshWindow(w, built)
   local width = math.max(MIN_W, w:GetWidth() or WIDTH) - 24
   local y = 0
   local now = ns.Game.Now()
-  local n, usedHeaders = 0, 0
+  local n, usedHeaders, usedCards = 0, 0, 0
   local collapsed = collapsedOf(w)
   w.groupRows = {} -- the headers shown, as rows (a Shift-click's UI.ToggleAllCollapsed)
   for gi, g in ipairs(groups) do
     local gkey = UI.PopoutGroupKey(g)
     local hasHeader = g.exp ~= nil or g.label ~= nil or #groups > 1
     local isCollapsed = hasHeader and collapsed[gkey] == true
+    local cardTop = y
+    local c = (UI.EXPANSION_COLORS and UI.EXPANSION_COLORS[g.exp]) or nil
     if hasHeader then
       w.groupRows[#w.groupRows + 1] = { header = true, key = gkey, collapsed = isCollapsed }
       usedHeaders = usedHeaders + 1
       local h = groupHeader(w, usedHeaders)
       h:ClearAllPoints()
-      h:SetPoint("TOPLEFT", w.Content, "TOPLEFT", 0, -y)
-      h:SetWidth(width)
+      h:SetPoint("TOPLEFT", w.Content, "TOPLEFT", inset, -y)
+      h:SetWidth(width - inset)
       h:SetHeight(groupHeight)
-      local c = (UI.EXPANSION_COLORS and UI.EXPANSION_COLORS[g.exp]) or { 0.8, 0.8, 0.8 }
       h.groupKey = gkey
       h.Text:SetText((isCollapsed and "+ " or "- ") .. (g.label or (g.exp and L[g.exp]) or L["Other"])
         .. "  |cff9d9d9d(" .. string.format(L["%d left"], g.left) .. ")|r")
-      headerText(h.Text, style, UI.Font("GameFontNormalSmall"), 0, c)
-      h.Rule:SetColorTexture(c[1], c[2], c[3], 0.35)
+      -- Cards: the header in the Header colour (gold), the card's edge in the
+      -- expansion's; Compact: the header itself in the expansion's.
+      local hc = c or { 0.8, 0.8, 0.8 }
+      headerText(h.Text, style, UI.Font("GameFontNormalSmall"), cards and 1 or 0, (not cards) and hc or nil)
+      if cards then
+        h.Rule:SetColorTexture(1, 1, 1, 0.08)
+      else
+        h.Rule:SetColorTexture(hc[1], hc[2], hc[3], 0.35)
+      end
       h:Show()
       y = y + groupHeight + 2
     end
@@ -455,8 +531,8 @@ local function refreshWindow(w, built)
       r.data = row
       r:SetHeight(rowHeight)
       r:ClearAllPoints()
-      r:SetPoint("TOPLEFT", w.Content, "TOPLEFT", 0, -y)
-      r:SetWidth(width)
+      r:SetPoint("TOPLEFT", w.Content, "TOPLEFT", inset, -y)
+      r:SetWidth(width - inset - (cards and 4 or 0))
       r:Show()
       UI.SetExpansionBadge(r.Badge, row.entry and (row.entry.exp or (row.entry.m and row.entry.m.exp)))
       local rarity = not row.done and UI.PopoutRarityColor(row.id) or nil
@@ -474,9 +550,34 @@ local function refreshWindow(w, built)
       r.Zone:SetText(zoneText)
       r.Check:SetChecked(row.done or (row.camp and row.checked ~= nil) or false)
       r.Check:SetEnabled(row.camp and true or false)
+      local status, statusKind
+      if cards then
+        local mountName = ns.Game.MountInfo(row.id) or (row.entry and row.entry.m and row.entry.m.name)
+        local subText
+        subText, status, statusKind = UI.PopoutCardLines(row, zoneText, mountName)
+        r.Sub:SetText(subText)
+        styleText(r.Sub, style, UI.Font("GameFontDisableSmall"), -1, { 0.6, 0.6, 0.6 })
+        r.Icon:SetTexture(select(2, ns.Game.MountInfo(row.id)) or 134400) -- a question mark when unknown
+        r.Icon:SetDesaturated(row.done == true)
+        r.Status:SetText(status or "")
+        styleText(r.Status, style, UI.Font("GameFontNormalSmall"), -1, STATUS_COLORS[statusKind])
+        r.Badge:Hide()
+      end
+      r.Check:SetShown(not cards or row.camp == true)
+      r.Status:SetShown(cards and status ~= nil)
+      layoutRow(r, cards, rowHeight - 8, row.camp and 24 or (status and 64 or 4))
       if not row.done then w.slots[#w.slots + 1] = { key = row.key, y = y, group = gi } end
       y = y + rowHeight
     end
+    if cards then
+      usedCards = usedCards + 1
+      placeCard(w, usedCards, cardTop, y + 2, width, style, c or GOLD)
+      y = y + 2 + CARD_GAP
+    end
+  end
+  for i = usedCards + 1, #(w.cards or {}) do
+    w.cards[i].Fill:Hide()
+    w.cards[i].Edge:Hide()
   end
   for i = n + 1, #w.rowFrames do w.rowFrames[i]:Hide() end
   for i = usedHeaders + 1, #w.groupFrames do w.groupFrames[i]:Hide() end

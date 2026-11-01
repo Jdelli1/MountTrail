@@ -402,15 +402,60 @@ describe("pop-out windows", function()
     eq(went, nil, "the click that ends a drag is not a waypoint")
   end)
 
-  it("each row shows its expansion's tag", function()
+  it("Compact: each row shows its expansion's tag", function()
     local ns = loadUI()
     setup(ns)
+    ns.db.global.popoutStyle = { layout = "compact" }
     local w = ns.UI.OpenPopout({ kind = "camp", exp = WOD })
     local row
     for _, c in ipairs(w.Content.children) do if c.data and c.data.id == 657 then row = c end end
+    eq(w.layout, "compact")
     ok(row.Badge:IsShown())
     eq(row.Badge.Text:GetText(), "WOD")
     eq(row.Badge.exp, WOD)
+    ok(not row.Icon:IsShown() and row.Zone:IsShown(), "one line: no icon, the zone on the right")
+  end)
+
+  it("Cards (the default): the mount's icon, a second line, the status; each group a card", function()
+    local ns = loadUI()
+    setup(ns)
+    local savedInfo = ns.Game.MountInfo
+    ns.Game.MountInfo = function(id) return "Mount " .. id, 5000 + id end
+    local w = ns.UI.OpenPopout({ kind = "camp", exp = WOD })
+    eq(w.layout, "cards")
+    local row
+    for _, c in ipairs(w.Content.children) do if c.data and c.data.id == 657 then row = c end end
+    ok(row.Icon:IsShown(), "the icon")
+    eq(row.Icon.texture, 5657)
+    ok(not row.Badge:IsShown(), "no expansion tag")
+    ok(row.Sub:IsShown() and not row.Zone:IsShown(), "the place on the second line")
+    ok(row.Check:IsShown(), "a rare spawn keeps its box")
+    ok(w.rowHeight >= 34, "two lines tall")
+    ok(w.cards and w.cards[1] and w.cards[1].Fill:IsShown(), "the group's card")
+    -- The appearance menu switches the window to Compact and back.
+    local items = ns.UI.PopoutStyleMenu(w)()
+    local function item(text) for _, it in ipairs(items) do if it.text == text then return it end end end
+    ok(item("Cards").checked and not item("Compact").checked)
+    item("Compact").onClick()
+    eq(w.layout, "compact")
+    ok(not w.cards[1].Fill:IsShown(), "no cards in Compact")
+    items = ns.UI.PopoutStyleMenu(w)()
+    item("Cards").onClick()
+    eq(w.layout, "cards")
+    ns.Game.MountInfo = savedInfo
+  end)
+
+  it("PopoutCardLines: the second line and the status of a card row", function()
+    local ns = loadUI()
+    local CL = ns.UI.PopoutCardLines
+    eq({ CL({ name = "Luk'hok", camp = true, entry = {} }, "Nagrand", "Great Greytusk") },
+      { "Great Greytusk · Nagrand" }, "a rare: the mount under its name, no status (its box)")
+    eq({ CL({ name = "Invincible", entry = { boss = "The Lich King" } }, "Icecrown Citadel", "Invincible") },
+      { "The Lich King · Icecrown Citadel", "Open", "open" })
+    eq({ CL({ name = "Invincible", done = true, entry = {} }, nil, "Invincible") }, { "", "Done", "done" })
+    eq({ CL({ name = "X", listOnly = true, entry = { m = { chance = 100 } } }, "Zone", "X") },
+      { "Zone", "1 in 100", "info" }, "a plain list mount: its drop chance")
+    eq({ CL({ name = "X", listOnly = true, entry = {} }, "", "X") }, { "" })
   end)
 
   it("groups rows by expansion on ready-made sets, never on the player's own lists", function()
@@ -479,6 +524,7 @@ describe("pop-out windows", function()
   it("Alt-drag keeps a row inside its expansion group; moving down lands at the line", function()
     local ns = loadUI()
     setup(ns)
+    ns.db.global.popoutStyle = { layout = "compact" } -- one-line rows: 20 px apart
     ns.QuickLists.Mounts = function() return { 1, 614, 9 } end
     local w = ns.UI.OpenPopout({ kind = "quick", key = "mythic" })
     local function ids()
@@ -727,6 +773,8 @@ describe("flat widgets", function()
     ok(menu:IsShown())
     eq(menu.items[1].Label:GetText(), "Add to list")
     ok(menu.items[2].Box:IsShown(), "box for a toggle item")
+    ok(menu.items[1].Band:IsShown() and menu.items[1].Accent:IsShown(), "a title sits on a card band")
+    ok(not menu.items[2].Band:IsShown(), "items do not")
     menu.items[2]:RunScript("OnClick", "LeftButton")
     eq(clicked, 1)
     ok(menu:IsShown(), "keepOpen")

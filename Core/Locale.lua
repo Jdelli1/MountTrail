@@ -199,6 +199,11 @@ L["%d mounts"] = "%d mounts"
 L["Can drop:"] = "Can drop:"
 
 L["Show completed"] = "Show completed"
+L["Cards"] = "Cards"
+L["Compact"] = "Compact"
+L["Open"] = "Open"
+L["Done"] = "Done"
+L["1 in %d"] = "1 in %d"
 
 -- Shared lists (UI\Share.lua)
 L["/mtrail sharetest - check that sharing works on this client"] = "/mtrail sharetest - check that sharing works on this client"
