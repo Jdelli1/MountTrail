@@ -164,7 +164,7 @@ describe("ui", function()
     ns.ToggleWindow()
     local nav = ns.UI.frame.Nav
     local h = nav.Headings[1]
-    eq(h.Text:GetText(), "- Browse")
+    eq(h.Text:GetText(), "- BROWSE", "small capitals, as the design")
     eq(h.Text.textColor, { 1, 0.82, 0 }, "gold by default")
     eq(h.Rule.color, { 1, 0.82, 0, 0.35 }, "a thin rule under it")
     ns.db.global.popouts = { main = { style = { header = { 1, 1, 1 } } } }
@@ -172,6 +172,11 @@ describe("ui", function()
     eq(h.Text.textColor, { 1, 1, 1 }, "the appearance menu's header colour")
     eq(h.Rule.color, { 1, 1, 1, 0.35 })
     eq(nav.Edge.width, 1, "a 1 px line on the column's right edge")
+    local home
+    for i = 1, nav.shown do if nav.Buttons[i].Text:GetText() == "Home" then home = nav.Buttons[i] end end
+    eq(home.Selected.color, { 1, 0.82, 0, 0.12 }, "the entry you are on: a gold-tinted band")
+    ok(not home.BadgeBox:IsShown(), "no count, no box")
+    eq(ns.UI.frame.Edge.edges[1].color, { 0.43, 0.33, 0.14, 1 }, "the window's gold frame")
   end)
 
   it("the navigation's text is the font object's size plus the bonus, however often it repaints", function()

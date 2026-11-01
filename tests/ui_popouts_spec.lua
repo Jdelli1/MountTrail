@@ -1365,7 +1365,7 @@ describe("lists in the navigation column", function()
     local nav = ns.UI.frame.Nav
     local function heading(text)
       for _, h in ipairs(nav.Headings) do
-        if h:IsShown() and (h.Text:GetText():gsub("^[%+%-] ", "")) == text then return h end
+        if h:IsShown() and (h.Text:GetText():gsub("^[%+%-] ", "")) == string.upper(text) then return h end
       end
     end
     local lists = heading("Lists")
@@ -1385,7 +1385,7 @@ describe("lists in the navigation column", function()
     eq(ns.db.global.collapsed[ns.UI.NAV_LISTS_KEY], true)
     eq(navButton(ns, "Loop"), nil, "collapsed: your lists hidden")
     eq(navButton(ns, "Weekly lockouts"), nil, "and the built-in ones")
-    eq(heading("Lists").Text:GetText(), "+ Lists")
+    eq(heading("Lists").Text:GetText(), "+ LISTS", "section labels in capitals")
     heading("Lists"):RunScript("OnClick", "LeftButton")
     ok(navButton(ns, "Loop") and navButton(ns, "Weekly lockouts"), "expanded again")
     eq(ns.db.global.collapsed[ns.UI.NAV_LISTS_KEY], nil)
