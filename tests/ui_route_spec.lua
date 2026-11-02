@@ -96,7 +96,7 @@ describe("ui route", function()
   it("loads and exposes the helpers without building any view", function()
     local ns = loadUI()
     for _, name in ipairs({ "RouteContext", "RouteCheck", "RouteToggle", "RouteTickKey",
-      "RouteFlavour", "FormatDuration", "HolidayBadge", "TradingTag",
+      "FormatDuration", "HolidayBadge", "TradingTag",
       "HeaderText", "RowSourceText", "RouteBoss" }) do
       eq(type(ns.UI[name]), "function", name)
     end
@@ -318,14 +318,7 @@ describe("ui route", function()
     end)
   end)
 
-  describe("flavour and durations", function()
-    it("uses the brief's lines", function()
-      local ns = loadUI()
-      eq(ns.UI.RouteFlavour(37, "Adventurer"), "You have 37 lockouts left. Saddle up?")
-      eq(ns.UI.RouteFlavour(0, "Adventurer"), "Adventurer has reached Oregon. Nothing left to farm until reset.")
-      eq(ns.UI.RouteFlavour(0, nil), "Your party has reached Oregon. Nothing left to farm until reset.")
-    end)
-
+  describe("durations", function()
     it("formats with SecondsToTime when present, else a fallback", function()
       local ns = loadUI()
       local old = SecondsToTime

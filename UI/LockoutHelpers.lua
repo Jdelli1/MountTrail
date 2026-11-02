@@ -9,7 +9,7 @@ local ADDON, ns = ...
 --     plus hand ticks.
 --   * UI.RouteTickKey / RouteCheck / RouteToggle: hand ticks for lockouts
 --     the game can't report.
---   * UI.RouteFlavour, UI.FormatDuration: the Checklist header's lines.
+--   * UI.FormatDuration: the Checklist header's reset timers.
 --
 -- All of it is pure (no frames) and unit-tested in tests/ui_route_spec.lua.
 
@@ -171,14 +171,6 @@ function UI.RouteToggle(row, store, now, untilDaily, untilWeekly)
     end
   end
   return true
-end
-
--- Opening line: lockouts left, or the Oregon line when none are.
-function UI.RouteFlavour(remaining, name)
-  if remaining > 0 then
-    return string.format(L["You have %d lockouts left. Saddle up?"], remaining)
-  end
-  return string.format(L["%s has reached Oregon. Nothing left to farm until reset."], name or L["Your party"])
 end
 
 -- Seconds -> "2 Days 3 Hr" via SecondsToTime (FrameXML), else "2d 3h 4m".

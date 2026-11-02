@@ -719,8 +719,8 @@ describe("ui build", function()
     ok(summary:find("^Daily reset in "), summary)
     ok(summary:find("Weekly reset in ", 1, true), summary)
     ok(not summary:find("left", 1, true), "the chips carry the counts")
-    eq(header.Flavour:GetText(), string.format("You have %d lockouts left. Saddle up?", ns.UI.ChecklistRemaining()))
-    eq(header.height, 96)
+    eq(header.Flavour, nil, "no flavour line: the tabs carry the counts")
+    eq(header.height, 74)
     ok(header.ChecklistFilter and header.ChecklistFilter:IsShown(), "Filter button shown")
     eq(header.PopOut, nil, "no pop-out button: rare headers pop out on right-click")
     -- Chips: All (shown, gold) / Daily (n) / Weekly (n) / Rare Spawns (n).
@@ -748,11 +748,10 @@ describe("ui build", function()
     local boxes = 0
     for _, child in ipairs(root.children) do if child.view then boxes = boxes + 1 end end
     eq(boxes, 0, "no route list beside the checklist")
-    -- Everything done: the Oregon line.
+    -- Everything done: the empty line.
     ns.db.char.checklistFilters = { raids = false, dungeons = false, worldbosses = false, rares = false,
       holidays = false, other = false, camp = false }
     ns.Refresh()
-    eq(header.Flavour:GetText(), "Tester has reached Oregon. Nothing left to farm until reset.")
     ok(header.Checklist.Empty:IsShown(), "empty line")
   end)
 
