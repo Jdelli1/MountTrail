@@ -45,6 +45,10 @@
   "expansion · kind of source", an info card that starts with Status and
   lays the details out as label / value columns, and Waypoint, + List and
   Wowhead along the bottom.
+- Tundra Icehoof, Armored Razorback and Warsong Direfang tick themselves:
+  their lockout is the four Tanaan rares' own daily loot flags (done once all
+  four are looted today, "2 of 4 rares looted" until then), and each rare
+  you loot counts as an attempt. No hand tick.
 - The tick boxes (Lockouts' hand-ticked rares, a pop-out's rare spawns) are
   flat: a dark square in a dim gold border, filled gold when ticked, as the
   menus' boxes.

@@ -12,6 +12,9 @@
 --     still say where the mount drops (Invincible { 6 }: a 10N kill spends the
 --     week without an attempt).
 --   { quest=<questID>, reset=... }   { lfg=<LFG dungeonID>, reset="daily" }   { manual=true, reset=... }
+--   { quests={ <questID>... }, reset=... }: one lockout made of several kill
+--     flags (several rares, each looted once a reset): done when every flag
+--     is, each flag that turns done one attempt
 --   any spec may add requires={ quest=<questID>, text="<unlock needed>" }
 --   { camp=true, zone="<Zone>" }: a rare spawn with no known kill flag and no
 --     reset (long-respawn rares: owner ruling). No reset, no tick, never "done",
@@ -105,12 +108,13 @@ ns.Data.Lockouts = {
   -- Warlords of Draenor (Rukhmar uses its Rarity quest) ----------------------
   -- Tanaan Jungle: Mount.db2 SourceText "Drop: Vengeance, Deathtalon, Terrorfist,
   -- Doomroller; Zone: Tanaan Jungle" for all three. Four rares, each its own daily
-  -- kill (Rarity: questId { 39287, 39288, 39289, 39290 }, one per rare); the
-  -- generated `quest` keeps only Deathtalon's 39287, which would tick (and merge)
-  -- all three on one kill of four. One row per mount, ticked by hand.
-  [611] = { manual = true, reset = "daily" }, -- Tundra Icehoof: four Tanaan rares, no single kill flag -- hand tick
-  [622] = { manual = true, reset = "daily" }, -- Armored Razorback: four Tanaan rares, no single kill flag -- hand tick
-  [643] = { manual = true, reset = "daily" }, -- Warsong Direfang: four Tanaan rares, no single kill flag -- hand tick
+  -- kill flag (Rarity: questId { 39287, 39288, 39289, 39290 }; Data/Spots.lua: Deathtalon
+  -- 39287, Terrorfist 39288, Doomroller 39289, Vengeance 39290): one lockout of four
+  -- flags, done once all four are looted today, each kill an attempt at all three
+  -- mounts (one checklist row: the same flags).
+  [611] = { quests = { 39287, 39288, 39289, 39290 }, reset = "daily" }, -- Tundra Icehoof: the four Tanaan rares
+  [622] = { quests = { 39287, 39288, 39289, 39290 }, reset = "daily" }, -- Armored Razorback: the four Tanaan rares
+  [643] = { quests = { 39287, 39288, 39289, 39290 }, reset = "daily" }, -- Warsong Direfang: the four Tanaan rares
   [751] = { instance = 1448, boss = "Archimonde", difficulties = { 16 }, reset = "weekly" }, -- Felsteel Annihilator, Mythic only
   [613] = { instance = 1205, boss = "Blackhand", difficulties = { 16 }, reset = "weekly" }, -- Ironhoof Destroyer, Mythic only
 

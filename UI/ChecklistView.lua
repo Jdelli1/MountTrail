@@ -876,7 +876,7 @@ function view.Refresh()
       -- The boss / instance on the right; the light blue status (an event
       -- rare's, a lockout's difficulties) beside the name, where there is room.
       row.desc = UI.ChecklistDescription(e, sourceText(e.id))
-      local status = row.status or (not e.done and UI.LockoutProgressText(e.spec, snap)) or nil
+      local status = row.status or (not e.done and UI.LockoutProgressText(e.spec, snap, Game.IsQuestDone)) or nil
       row.suffix = status and UI.ChecklistStatusDesc("", status) or nil
       if row.camp then
         row.desc = UI.ChecklistCampDesc(row.desc, UI.CampCheckedText(campStore, e.key, now))

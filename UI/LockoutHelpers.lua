@@ -110,8 +110,15 @@ function UI.RouteContext(now)
 end
 
 -- A lockout spent on some of its difficulties but not all (Lockouts.Progress)
--- -> "Heroic done · Normal, Mythic left", else nil. snap: Lockouts.Snapshot.
-function UI.LockoutProgressText(spec, snap)
+-- -> "Heroic done · Normal, Mythic left"; one of several rares with some
+-- looted today (Lockouts.QuestsDone) -> "2 of 4 rares looted"; else nil.
+-- snap: Lockouts.Snapshot; isQuestDone(questID) for the several-flag specs.
+function UI.LockoutProgressText(spec, snap, isQuestDone)
+  local n, total = ns.Lockouts.QuestsDone(spec, isQuestDone)
+  if total > 0 then
+    if n == 0 or n == total then return nil end
+    return string.format(L["%d of %d rares looted"], n, total)
+  end
   local progress = ns.Lockouts.Progress(spec, snap)
   if not progress then return nil end
   local function names(ids)
