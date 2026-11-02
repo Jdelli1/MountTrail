@@ -12,7 +12,7 @@ reads the ones loaded before it.
 | Layer | What it is | May call the WoW API? |
 | --- | --- | --- |
 | `Libs/` + `embeds.xml` | Bundled LibStub, CallbackHandler, AceAddon, AceDB, AceConsole, AceEvent, LibDataBroker, LibDBIcon. Never edited. | (third party) |
-| `Media/Fonts/` | The Cinzel heading font (static TrueType, SIL OFL; `UI.HeadingFont` in `UI/Style.lua` picks it on Latin-letter clients). Never edited. | (third party) |
+| `Media/Fonts/` | The Cinzel heading font and the Inter body font (static TrueType, SIL OFL; `UI.HeadingFont` / `UI.BodyFont` in `UI/Style.lua` pick them where they can write the client's language). Never edited. | (third party) |
 | `Core/Locale.lua` | `ns.L`: English strings are the keys; a missing key returns the key itself. | No |
 | `Data/` | Static tables under `ns.Data`. | No |
 | `Logic/` | Pure Lua rules: selection, counts, lockout state, search scoring. | No |
@@ -97,7 +97,7 @@ changed addon gives `nil`, never an error.
 | File | Owns |
 | --- | --- |
 | `Frame.lua` | Fonts and text sizes (`UI.Font`, `UI.TextSize`), style helpers (`UI.Template`, `UI.FlatBorder`), the view registry, the main window (flat, in the pop-outs' style), its size / scale / position, the settings cogwheel menu, refresh hooks and `ns.Refresh`, window hooks, the minimap button. |
-| `Style.lua` | The look shared by the main window, the pop-outs and the extra windows: styles (`UI.PopoutStyle`, `UI.PopoutStyleOf`), styled text and chrome, the appearance menu (`UI.PopoutStyleMenu`), fonts, `UI.AddStyledWindow`, the Blend A colours (`UI.THEME`), the boxed badge (`UI.Badge`, `UI.SetBadge`) and the flat search box (`UI.FlatSearchBox`). |
+| `Style.lua` | The look shared by the main window, the pop-outs and the extra windows: styles (`UI.PopoutStyle`, `UI.PopoutStyleOf`), styled text and chrome, the appearance menu (`UI.PopoutStyleMenu`), fonts (`UI.FONT_CHOICES`, `UI.FontChoices`, `UI.FontPath` with the locale fallback, `UI.HeadingFont`, `UI.BodyFont`; the choices saved by `Options.HeaderFont` / `BodyFont`), `UI.AddStyledWindow`, the Blend A colours (`UI.THEME`), the boxed badge (`UI.Badge`, `UI.SetBadge`) and the flat search box (`UI.FlatSearchBox`). |
 | `Widgets.lua` | Hints, flat buttons and panels, menus with sliders (`UI.ShowMenu`), the expansion badge, the text / copy prompt (`UI.AskText`, `UI.ShowCopyText`), splitters, the resize grip. |
 | `Nav.lua` | The navigation column: entries, favourites, ordering, Alt-drag, badges, `UI.RefreshNav`. |
 | `Tooltip.lua` | The mount tooltip and `UI.TooltipLines`. |
@@ -122,7 +122,7 @@ changed addon gives `nil`, never an error.
 | `Share.lua` | Sharing lists: export / import boxes, chat links (clicking asks the sharer's addon), Send to player, the `CHAT_MSG_ADDON` handler. |
 | `ZonePanel.lua` | The zone side panel docked to the window. |
 | `MapTab.lua` | The MountTrail tab in the world map's side tabs. |
-| `Options.lua` | Options > AddOns > MountTrail (Settings API). |
+| `Options.lua` | Options > AddOns > MountTrail (Settings API), in sections (Window & text, Font styles, Collection, Colours, Navigation, Alerts, Accessibility, Advanced). |
 
 ## The shared namespace
 
@@ -193,7 +193,7 @@ created on first use by their owner.
 | --- | --- | --- |
 | `global.filters` | `Logic/Journal.lua`, `UI/List.lua`, `UI/ListFilter.lua` | `collected` plus hidden sections per view. |
 | `global.collapsed` | `UI/List.lua` / `UI/ListRows.lua` and every collapsible list | Collapsed headers, `"<view>|<exp>|<section>"`, `"checklist|..."`, `"alts|..."`, `"nav|..."`. |
-| `global.settings` | `UI/Options.lua` | `showUnobtainable`, `rarityColors`, `windowScale`, `navTextSize`, `textHeader` / `textBody` / `textDetail`, `navHideLists`, `navHideQuick`; `checklistShowDone` (Lockouts' Show completed, `UI/ChecklistView.lua`); `difficultyWarnOff` (the wrong-difficulty warning switched off, `UI/DifficultyCheck.lua`). |
+| `global.settings` | `UI/Options.lua` | `showUnobtainable`, `rarityColors`, `windowScale`, `navTextSize`, `textHeader` / `textBody` / `textDetail`, `navHideLists`, `navHideQuick`, `headerFont` / `bodyFont` (nil: Cinzel / Inter); `checklistShowDone` (Lockouts' Show completed, `UI/ChecklistView.lua`); `difficultyWarnOff` (the wrong-difficulty warning switched off, `UI/DifficultyCheck.lua`). |
 | `global.window` | `UI/Frame.lua` | Current view (`tab`), position, `width` / `height`, `navWidth`, `paneWidth`, `browse` category. |
 | `global.navOrder`, `global.navFavorites` | `UI/Nav.lua` | Section order per section; favourite stars. |
 | `global.lists`, `global.seededLists` | `Logic/Lists.lua`, `Logic/QuickLists.lua` | Custom lists; which example lists were already seeded. |

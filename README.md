@@ -167,11 +167,15 @@ are gold; groups under them are in their expansion's colour when they are
 one, else light grey. The world map tab keeps its own rows (big icons, no
 cards).
 
-- **Fonts**: headings (titles, card headers) use Cinzel, shipped with the
-  add-on, on English, German, French, Spanish, Italian and Portuguese
-  clients; Russian, Korean and Chinese clients keep the game's font (Cinzel
-  has no such letters). Mount names and text always use the game's font. A
-  font picked in a window's appearance menu wins over Cinzel.
+- **Fonts**: headings (titles, card headers) use Cinzel and everything else
+  (mount names, text, notes) Inter, both shipped with the add-on. Change
+  either under `Font styles` (the cogwheel, or Options > AddOns): Game font,
+  Cinzel, Inter, Arial Narrow, Morpheus, Skurri, and fonts from
+  LibSharedMedia when another add-on registers them. A font that cannot
+  write your client's language falls back to the game's own: Cinzel works on
+  English, German, French, Spanish, Italian and Portuguese clients, Inter on
+  those and Russian; Korean and Chinese clients keep the game's font. A font
+  picked in a window's appearance menu wins over the header font there.
 - **Page header**: every list page has the same one line: Back (where there
   is one) and the title on the left; the search box, what is left as a badge
   (`16 left`), the Filter button and the page's own buttons (`Pop out`) on
@@ -476,7 +480,9 @@ Options > AddOns > MountTrail (or `/mtrail options`). The cogwheel in the
 window's title bar has the same settings, plus `Reset text sizes` and
 `All options...`. Sizes come first: the whole window, then one slider per
 kind of text, named after what it sizes, in the window's order (the left
-column, headers, mount names, small notes).
+column, headers, mount names, small notes); then `Font styles`. The AddOns
+page is in sections: Window & text, Font styles, Collection, Colours,
+Navigation, Alerts, Accessibility, Advanced.
 
 | Setting | Does |
 | --- | --- |
@@ -487,6 +493,8 @@ column, headers, mount names, small notes).
 | `Headers` | List headers (Classic, Wrath of the Lich King...), page titles and the detail pane's labels, -2 to +6. |
 | `Mount names and text` | Every mount's name and where it comes from, in every list, Lockouts and Home, and the detail pane's text, -2 to +6. Rows grow to fit. |
 | `Small notes` | Counts and percentages, hints and greyed-out text, -2 to +6. |
+| `Header font` (Font styles) | Window, page and card titles and pop-out titles. Cinzel by default. |
+| `Body font` (Font styles) | Mount names and every other line. Inter by default. |
 | `Show your lists`, `Show built-in lists` | Show or hide your own lists or the built-in ones under Lists in the left column. |
 | `Count in-game shop mounts`, `Count Trading Post mounts`, `Count promotional mounts`, `Count Black Market mounts` | On by default. Off: those mounts stay listed everywhere (Browse, your lists, Lockouts, Current Zone), but, owned or not, they are left out of the collected numbers on Home: the total and its bar, the expansions' rows, and their source's row (a source with nothing counted, such as In-game Shop, leaves Home). |
 | `Colour pop-out names by rarity` | Off by default; needs Mount Journal Enhanced or MountsRarity. |

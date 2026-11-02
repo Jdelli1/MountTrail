@@ -109,7 +109,7 @@ describe("options", function()
   end)
 
   describe("Register", function()
-    it("registers a vertical-layout AddOns category with the four controls", function()
+    it("registers a vertical-layout AddOns category, its controls in sections (sizes, fonts, collection, colours, navigation, alerts, accessibility, advanced)", function()
       local ns = loadOptions()
       local S = fakeSettings()
       local category = ns.Options.Register(S)
@@ -118,6 +118,20 @@ describe("options", function()
       eq(ns.Options.category, category)
       eq(S.log, {
         { "Category", "MountTrail" },
+        { "Setting", "MOUNTTRAIL_WINDOW_SCALE" },
+        { "Slider", "MOUNTTRAIL_WINDOW_SCALE" },
+        { "Setting", "MOUNTTRAIL_NAV_TEXT" },
+        { "Slider", "MOUNTTRAIL_NAV_TEXT" },
+        { "Setting", "MOUNTTRAIL_TEXT_HEADER" },
+        { "Slider", "MOUNTTRAIL_TEXT_HEADER" },
+        { "Setting", "MOUNTTRAIL_TEXT_BODY" },
+        { "Slider", "MOUNTTRAIL_TEXT_BODY" },
+        { "Setting", "MOUNTTRAIL_TEXT_DETAIL" },
+        { "Slider", "MOUNTTRAIL_TEXT_DETAIL" },
+        { "Setting", "MOUNTTRAIL_HEADER_FONT" },
+        { "Dropdown", "MOUNTTRAIL_HEADER_FONT" },
+        { "Setting", "MOUNTTRAIL_BODY_FONT" },
+        { "Dropdown", "MOUNTTRAIL_BODY_FONT" },
         { "Setting", "MOUNTTRAIL_UNOBTAINABLE" },
         { "Checkbox", "MOUNTTRAIL_UNOBTAINABLE" },
         { "Setting", "MOUNTTRAIL_COUNT_UNOBTAINABLE" },
@@ -134,18 +148,6 @@ describe("options", function()
         { "Checkbox", "MOUNTTRAIL_RARITY_COLORS" },
         { "Setting", "MOUNTTRAIL_RARITY_COLORS_MAIN" },
         { "Checkbox", "MOUNTTRAIL_RARITY_COLORS_MAIN" },
-        { "Setting", "MOUNTTRAIL_DIFFICULTY_WARNING" },
-        { "Checkbox", "MOUNTTRAIL_DIFFICULTY_WARNING" },
-        { "Setting", "MOUNTTRAIL_WINDOW_SCALE" },
-        { "Slider", "MOUNTTRAIL_WINDOW_SCALE" },
-        { "Setting", "MOUNTTRAIL_NAV_TEXT" },
-        { "Slider", "MOUNTTRAIL_NAV_TEXT" },
-        { "Setting", "MOUNTTRAIL_TEXT_HEADER" },
-        { "Slider", "MOUNTTRAIL_TEXT_HEADER" },
-        { "Setting", "MOUNTTRAIL_TEXT_BODY" },
-        { "Slider", "MOUNTTRAIL_TEXT_BODY" },
-        { "Setting", "MOUNTTRAIL_TEXT_DETAIL" },
-        { "Slider", "MOUNTTRAIL_TEXT_DETAIL" },
         { "Setting", "MOUNTTRAIL_SHOW_LISTS" },
         { "Checkbox", "MOUNTTRAIL_SHOW_LISTS" },
         { "Setting", "MOUNTTRAIL_SHOW_QUICK" },
@@ -156,6 +158,8 @@ describe("options", function()
         { "Checkbox", "MOUNTTRAIL_DROP_CHIME" },
         { "Setting", "MOUNTTRAIL_DROP_SOUND" },
         { "Dropdown", "MOUNTTRAIL_DROP_SOUND" },
+        { "Setting", "MOUNTTRAIL_DIFFICULTY_WARNING" },
+        { "Checkbox", "MOUNTTRAIL_DIFFICULTY_WARNING" },
         { "Setting", "MOUNTTRAIL_COLORBLIND" },
         { "Checkbox", "MOUNTTRAIL_COLORBLIND" },
         { "Setting", "MOUNTTRAIL_DEBUG" },
@@ -283,7 +287,11 @@ describe("options", function()
       eq(refreshed, 2)
       ns.db.global.settings.showUnobtainable = "junk"
       eq(un.get(), false, "only true counts as on")
-      ok(S.controls[1].tooltip:find("Misc", 1, true), "the tooltip says where they show")
+      local tip
+      for _, c in ipairs(S.controls) do
+        if c.setting.variable == "MOUNTTRAIL_UNOBTAINABLE" then tip = c.tooltip end
+      end
+      ok(tip:find("Misc", 1, true), "the tooltip says where they show")
     end)
 
     it("ShowUnobtainable reads the saved setting (false without a db)", function()
@@ -504,6 +512,38 @@ describe("reset all settings", function()
     ok(ns.Options.Register(S), "the page still registers")
     eq(#S.layout.initializers, 0)
     CreateSettingsButtonInitializer = old
+  end)
+end)
+
+describe("font options", function()
+  it("Header font and Body font: dropdowns of the font choices; the defaults are not saved", function()
+    local ns = loadOptions()
+    local applied = 0
+    ns.UI = {
+      ApplyTextSizes = function() applied = applied + 1 end,
+      FontChoices = function()
+        return { { key = "game", name = "Game font" }, { key = "cinzel", name = "Cinzel" }, { key = "inter", name = "Inter" } }
+      end,
+    }
+    local S = fakeSettings()
+    ns.Options.Register(S)
+    local header, body = S.settings.MOUNTTRAIL_HEADER_FONT, S.settings.MOUNTTRAIL_BODY_FONT
+    eq({ header.varType, header.name, header.default }, { "string", "Header font", "cinzel" })
+    eq({ body.varType, body.name, body.default }, { "string", "Body font", "inter" })
+    eq(header.get(), "cinzel")
+    body.set("arialn")
+    eq(ns.db.global.settings.bodyFont, "arialn")
+    eq(ns.Options.BodyFont(), "arialn")
+    eq(applied, 1, "every font copy re-sized")
+    body.set("inter")
+    eq(ns.db.global.settings.bodyFont, nil, "the default is not saved")
+    ns.Options.Set("headerFont", "game")
+    eq(header.get(), "game")
+    local options
+    for _, c in ipairs(S.controls) do
+      if c.setting.variable == "MOUNTTRAIL_HEADER_FONT" then options = c.options() end
+    end
+    eq({ options[1].value, options[2].value, options[3].value }, { "game", "cinzel", "inter" })
   end)
 end)
 

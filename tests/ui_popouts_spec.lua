@@ -733,7 +733,7 @@ describe("pop-out windows", function()
     click("Reset appearance")
     eq(b.Fill.color[4], 0.92, "back to the add-on's look")
     eq(a.Fill.color[4], 0.6, "the others keep the shared look")
-    ok(ns.UI.PopoutFonts()[1].path:find("FRIZQT"), "the game's fonts first")
+    ok(ns.UI.PopoutFonts()[1].path:find("Cinzel"), "the add-on's own fonts first")
     eq(ns.UI.PopoutStyle({ alpha = 5 }).alpha, 1, "opacity clamped")
     STUB_CURSOR[1], STUB_CURSOR[2] = 0, 0
   end)

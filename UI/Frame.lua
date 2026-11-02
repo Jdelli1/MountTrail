@@ -40,10 +40,13 @@ function UI.TextSize(role)
   return 0
 end
 
+-- A copy at its role's size, in the body font (Options: "Body font", Inter by
+-- default; headings take the header font on top: UI.ApplyHeadingFont).
 local function sizeFont(f)
   local base = _G[f.base]
   if type(base) ~= "table" or type(base.GetFont) ~= "function" then return end
   local path, size, flags = base:GetFont()
+  path = (UI.BodyFont and UI.BodyFont()) or path
   if path and size then f.object:SetFont(path, math.max(6, size + UI.TextSize(f.role)), flags or "") end
 end
 
@@ -393,6 +396,27 @@ function UI.SettingsMenuItems()
       max = O.TEXT_RANGE.max, step = 1, value = O.TextSize(role), format = "%+d",
       onChange = function(v) O.SetTextSize(role, v) end }
   end
+  -- Font styles: a menu of choices each (the current one ticked).
+  items[#items + 1] = { title = L["Font styles"] }
+  local fontMenu
+  for _, f in ipairs({ { label = "Header font", field = "headerFont", get = O.HeaderFont, default = "cinzel" },
+    { label = "Body font", field = "bodyFont", get = O.BodyFont, default = "inter" } }) do
+    if f.get and UI.FontChoices then
+      items[#items + 1] = { text = L[f.label], submenu = function()
+        local list = { { title = L[f.label] } }
+        local current = f.get() or f.default
+        for _, c in ipairs(UI.FontChoices()) do
+          list[#list + 1] = { text = c.name, checked = c.key == current, keepOpen = true,
+            onClick = function() O.Set(f.field, c.key) end }
+        end
+        list[#list + 1] = { separator = true }
+        list[#list + 1] = { text = L["Back"], submenu = UI.SettingsMenuItems }
+        return list
+      end }
+      fontMenu = true
+    end
+  end
+  if not fontMenu then items[#items] = nil end
   items[#items + 1] = { separator = true }
   items[#items + 1] = { title = L["Settings"] }
   items[#items + 1] = { separator = true }

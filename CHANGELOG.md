@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Mount names and text use the Inter font (shipped with the add-on), as the
+  design sheet; headings keep Cinzel. Both can be changed under **Font
+  styles**, in the cogwheel menu (Header font, Body font) and on the AddOns
+  page. A font that cannot write your language falls back to the game's.
+- The AddOns settings page is in sections: Window & text, Font styles,
+  Collection, Colours, Navigation, Alerts, Accessibility, Advanced.
 - Browse has a **Faction** page: each race's mounts under its own heading
   (Human, Orc, ... Dracthyr), the allied races' mounts together under
   Allied Races. They left Other and Quests & Activities; Home's By source

@@ -35,6 +35,7 @@ Notes:
 | Font | Source | License | Used for |
 | --- | --- | --- | --- |
 | Cinzel (Regular, Bold) | [The Cinzel Project](https://github.com/NDISCOVER/Cinzel), static TrueType files `fonts/ttf/` | SIL Open Font License 1.1, copy at `Media/Fonts/OFL-Cinzel.txt` | Headings (window, page and card titles) on clients whose language Cinzel can write; bundled unmodified under `Media/Fonts/` |
+| Inter (Regular) | [rsms/inter](https://github.com/rsms/inter) v4.1 release, static TrueType file `extras/ttf/` | SIL Open Font License 1.1, copy at `Media/Fonts/OFL-Inter.txt` | Mount names and body text on clients whose language Inter can write; bundled unmodified under `Media/Fonts/` |
 
 ## Optional integrations
 

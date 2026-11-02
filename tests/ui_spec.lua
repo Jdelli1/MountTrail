@@ -302,6 +302,61 @@ describe("ui", function()
     eq(applied, { { "windowScale", 120 }, { "body", 3 }, { "showUnobtainable", true }, { "reset" }, { "open" } })
   end)
 
+  it("the cogwheel's Font styles: Header font and Body font menus, the current font ticked", function()
+    local ns = loadUI()
+    local applied = {}
+    local fonts = { headerFont = nil, bodyFont = "arialn" }
+    ns.Options = {
+      SCALE_RANGE = { min = 80, max = 150, step = 5 }, TEXT_RANGE = { min = -2, max = 6, step = 1 },
+      NAV_TEXT_RANGE = { min = 0, max = 6, step = 1 }, TEXT_LABELS = {}, TEXT_ORDER = {},
+      SCALE_LABEL = "Whole window", NAV_LABEL = "Left column",
+      WindowScale = function() return 100 end, NavTextSize = function() return 0 end,
+      HeaderFont = function() return fonts.headerFont end, BodyFont = function() return fonts.bodyFont end,
+      Set = function(name, v) applied[#applied + 1] = { name, v } end,
+    }
+    local items = ns.UI.SettingsMenuItems()
+    local titles, byText = {}, {}
+    for _, it in ipairs(items) do
+      if it.title then titles[#titles + 1] = it.title end
+      if it.text then byText[it.text] = it end
+    end
+    eq(titles[3], "Font styles", "after the sizes")
+    local header = byText["Header font"].submenu()
+    eq(header[1].title, "Header font")
+    local ticked = {}
+    for _, it in ipairs(header) do if it.checked then ticked[#ticked + 1] = it.text end end
+    eq(ticked, { "Cinzel" }, "the default header font")
+    local body = byText["Body font"].submenu()
+    ticked = {}
+    for _, it in ipairs(body) do if it.checked then ticked[#ticked + 1] = it.text end end
+    eq(ticked, { "Arial Narrow" }, "the saved body font")
+    for _, it in ipairs(body) do if it.text == "Game font" then it.onClick() end end
+    eq(applied, { { "bodyFont", "game" } })
+    eq(body[#body].text, "Back")
+    eq(body[#body].submenu, ns.UI.SettingsMenuItems, "Back returns to the settings")
+  end)
+
+  it("UI.FontPath: Cinzel headings and Inter text by default; the game's font where they cannot write the language", function()
+    local ns = loadUI()
+    _G.GameFontNormal = { GetFont = function() return "Fonts\\FRIZQT__.TTF", 12, "" end }
+    local locale = "enUS"
+    ns.Game.Locale = function() return locale end
+    ok(ns.UI.HeadingFont():find("Cinzel%-Bold"), "Cinzel headings")
+    ok(ns.UI.BodyFont():find("Inter%-Regular"), "Inter text")
+    locale = "ruRU"
+    eq(ns.UI.HeadingFont(), "Fonts\\FRIZQT__.TTF", "Cinzel has no Cyrillic")
+    ok(ns.UI.BodyFont():find("Inter"), "Inter has")
+    locale = "koKR"
+    eq(ns.UI.BodyFont(), "Fonts\\FRIZQT__.TTF", "Korean: the game's font")
+    locale = "enUS"
+    eq(ns.UI.FontPath("game", "inter"), "Fonts\\FRIZQT__.TTF", "Game font")
+    eq(ns.UI.FontPath("Interface\\Fonts\\X.ttf", "inter"), "Interface\\Fonts\\X.ttf", "a LibSharedMedia path as is")
+    local keys = {}
+    for _, c in ipairs(ns.UI.FontChoices()) do keys[#keys + 1] = c.key end
+    eq({ keys[1], keys[2], keys[3] }, { "game", "cinzel", "inter" })
+    _G.GameFontNormal = nil
+  end)
+
   it("UI.Font: a sized copy per game font, by its role (gold / white / grey); a change resizes them all", function()
     local ns = loadUI()
     local sizes = { header = 3, body = 0, detail = -1 }
