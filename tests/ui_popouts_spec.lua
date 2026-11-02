@@ -1396,7 +1396,7 @@ describe("lists in the navigation column", function()
     eq(navButton(ns, "Loop"), nil, "its entry gone")
   end)
 
-  it("one Lists section: the built-in lists first, tagged auto, then your own; it collapses (saved)", function()
+  it("one Lists section: the built-in lists first, then your own; it collapses (saved)", function()
     local ns = loadUI()
     ns.UI.ChecklistBuild = function() return built() end
     local store = ns.UI.ListsDB()
@@ -1418,9 +1418,7 @@ describe("lists in the navigation column", function()
       for i = 1, nav.shown do if nav.Buttons[i].Text:GetText() == label then return i end end
     end
     ok(index("Weekly lockouts") < index("Loop"), "built-in lists first")
-    ok(navButton(ns, "Weekly lockouts").Tag:IsShown(), "a built-in list is tagged auto")
-    eq(navButton(ns, "Weekly lockouts").Tag:GetText(), "auto")
-    ok(not navButton(ns, "Loop").Tag:IsShown(), "your own is not")
+    eq(navButton(ns, "Weekly lockouts").Tag, nil, "no tag: built-in lists come first")
     lists:RunScript("OnClick", "LeftButton")
     eq(ns.db.global.collapsed[ns.UI.NAV_LISTS_KEY], true)
     eq(navButton(ns, "Loop"), nil, "collapsed: your lists hidden")

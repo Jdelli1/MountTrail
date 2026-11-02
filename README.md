@@ -102,7 +102,7 @@ The left column:
   Achievements, Professions, In-game Shop, Trading Post, PvP, Mythic+,
   Holidays, Timewalking, Other.
 - **Lists**, with `+` to start one:
-  - first the built-in lists, tagged `auto` because they fill themselves:
+  - first the built-in lists, which fill themselves:
     Daily lockouts, Weekly lockouts and Rare Spawns each open Lockouts on that
     group, with what is left as the badge;
   - then your own lists, with their lockouts open today in green. They start
@@ -467,7 +467,7 @@ column, headers, mount names, small notes).
 | `Headers` | List headers (Classic, Wrath of the Lich King...), page titles and the detail pane's labels, -2 to +6. |
 | `Mount names and text` | Every mount's name and where it comes from, in every list, Lockouts and Home, and the detail pane's text, -2 to +6. Rows grow to fit. |
 | `Small notes` | Counts and percentages, hints and greyed-out text, -2 to +6. |
-| `Show your lists`, `Show built-in lists` | Show or hide your own lists or the built-in ones (tagged `auto`) under Lists in the left column. |
+| `Show your lists`, `Show built-in lists` | Show or hide your own lists or the built-in ones under Lists in the left column. |
 | `Count in-game shop mounts`, `Count Trading Post mounts`, `Count promotional mounts`, `Count Black Market mounts` | On by default. Off: those mounts stay listed everywhere (Browse, your lists, Lockouts, Current Zone), but, owned or not, they are left out of the collected numbers on Home: the total and its bar, the expansions' rows, and their source's row (a source with nothing counted, such as In-game Shop, leaves Home). |
 | `Colour pop-out names by rarity` | Off by default; needs Mount Journal Enhanced or MountsRarity. |
 | `Colour list names by rarity` | The same for the main window's lists, set apart from the pop-outs'. Off by default. |

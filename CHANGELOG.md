@@ -28,7 +28,7 @@
   model area has a card border.
 - The left column has one **Lists** section instead of My lists and Quick
   lists: the built-in lists (Daily / Weekly lockouts, Rare Spawns) come first,
-  tagged `auto`, then your own. The settings are now `Show your lists` and
+  then your own. The settings are now `Show your lists` and
   `Show built-in lists`.
 
 ## 0.9.1-beta

@@ -1,7 +1,7 @@
 local ADDON, ns = ...
 
 -- Built-in lists: ready-made checklists MountTrail ships (at the top of
--- Lists in the left column, tagged "auto"; poppable like custom lists; not
+-- Lists in the left column, before the player's own; poppable like custom lists; not
 -- editable). Each is
 -- worked out from the data, so a new mount joins on its own:
 --   mythic  "Mythic Mounts": every dungeon mount that drops on Mythic

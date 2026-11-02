@@ -15,7 +15,7 @@ ns.UI = UI
 -- The navigation column's fixed entries, top to bottom: views (key), an
 -- action (Alts: its own window), section headings. Badges come from
 -- UI.NavBadge. The lists follow under "Lists" (UI.NavListEntries): the
--- built-in ones first, tagged "auto", then the player's own.
+-- built-in ones first, then the player's own.
 UI.NAV = {
   { key = "journal", label = "Home" },
   { key = "checklist", label = "Lockouts" },
@@ -311,10 +311,6 @@ local function navButton(parent)
   text:SetJustifyH("LEFT")
   text:SetWordWrap(false)
   b.Text = text
-  -- A built-in list's grey "auto" (it fills itself), left of the badge.
-  local tag = b:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisableSmall"))
-  tag:SetText(L["auto"])
-  b.Tag = tag
   b:SetScript("OnClick", function(self, button)
     local e = self.entry
     if not e then return end
@@ -650,12 +646,7 @@ function UI.RefreshNav()
       b.Badge:SetPoint("RIGHT", b, "RIGHT", -8, 0)
     end
     b.Text:SetText(label)
-    -- A built-in list fills itself: "auto" between its name and its badge.
-    b.Tag:ClearAllPoints()
-    b.Tag:SetPoint("RIGHT", b.Badge, "LEFT", -11, 0) -- clear of the count's box
-    b.Tag:SetShown(e.builtIn == true)
-    b.Text:SetPoint("RIGHT", e.builtIn and b.Tag or b.Badge, "LEFT", -4, 0)
-    navFont(b.Tag, "GameFontDisableSmall")
+    b.Text:SetPoint("RIGHT", b.Badge, "LEFT", -10, 0) -- clear of the count's box
     local badge, green = UI.NavBadge(e, built)
     b.Badge:SetText(badge and ((green and "|cff40c040" or "") .. badge .. (green and "|r" or "")) or "")
     b.BadgeBox:SetShown(badge ~= nil and badge ~= "")
@@ -691,7 +682,7 @@ function UI.RefreshNav()
     for _, e in ipairs(browse) do entry(e, true) end
   end
   -- Lists (with +), one collapsible section: the built-in lists first (each
-  -- tagged "auto"), then the player's own.
+  -- always first), then the player's own.
   y = y + 4
   local store = UI.ListsDB and UI.ListsDB()
   local lists = UI.NavListEntries(store, ns.QuickLists and ns.QuickLists.LISTS)
