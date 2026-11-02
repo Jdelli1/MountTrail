@@ -28,8 +28,6 @@ end
 UI.POPOUT_STYLE = { alpha = 0.92, bg = { 0.06, 0.06, 0.07 }, text = nil, size = nil, font = nil }
 local ALPHA_MIN, SIZE_MIN, SIZE_MAX = 0.2, 8, 24
 UI.POPOUT_FONTS = {
-  { name = "Cinzel", path = "Interface\\AddOns\\MountTrail\\Media\\Fonts\\Cinzel-Bold.ttf" },
-  { name = "Inter", path = "Interface\\AddOns\\MountTrail\\Media\\Fonts\\Inter-Regular.ttf" },
   { name = "Friz Quadrata", path = "Fonts\\FRIZQT__.TTF" },
   { name = "Arial Narrow", path = "Fonts\\ARIALN.TTF" },
   { name = "Morpheus", path = "Fonts\\MORPHEUS.TTF" },
@@ -114,32 +112,26 @@ UI.THEME = {
   grey = { 0.64, 0.6, 0.53 },
 }
 
--- Fonts (Blend A): headings in Cinzel and the rest in Inter, both shipped
--- with the add-on (Media/Fonts, SIL Open Font License), each changeable
--- (Options: "Header font", "Body font": a key of UI.FONT_CHOICES, or a font
--- path from LibSharedMedia). A font that cannot write the client's language
--- falls back to the game's own (Cinzel: Latin letters with the Western
--- accents; Inter: those, Cyrillic and Greek; Korean and Chinese clients
--- keep the game's). A window's own font (its appearance menu) still wins.
-local MEDIA = "Interface\\AddOns\\MountTrail\\Media\\Fonts\\"
-UI.LATIN_LOCALES = {
+-- Fonts: the game's own by default for headings and text alike, each
+-- changeable (Options: "Header font", "Body font": a key of UI.FONT_CHOICES,
+-- or a font path from LibSharedMedia). The game's other fonts only write
+-- Latin and Cyrillic letters, so Korean and Chinese clients keep the game's
+-- font whatever is picked. A window's own font (its appearance menu) still
+-- wins.
+local LATIN_CYRILLIC = {
   enUS = true, enGB = true, deDE = true, frFR = true, esES = true, esMX = true, itIT = true, ptBR = true,
+  ruRU = true,
 }
-local LATIN_CYRILLIC = { ruRU = true }
-for k in pairs(UI.LATIN_LOCALES) do LATIN_CYRILLIC[k] = true end
 UI.FONT_CHOICES = {
   { key = "game", name = "Game font" },
-  { key = "cinzel", name = "Cinzel", path = MEDIA .. "Cinzel-Bold.ttf", locales = UI.LATIN_LOCALES },
-  { key = "inter", name = "Inter", path = MEDIA .. "Inter-Regular.ttf", locales = LATIN_CYRILLIC },
   { key = "arialn", name = "Arial Narrow", path = "Fonts\\ARIALN.TTF", locales = LATIN_CYRILLIC },
   { key = "morpheus", name = "Morpheus", path = "Fonts\\MORPHEUS.TTF", locales = LATIN_CYRILLIC },
   { key = "skurri", name = "Skurri", path = "Fonts\\SKURRI.TTF", locales = LATIN_CYRILLIC },
 }
-UI.HEADING_FONTS = { bold = MEDIA .. "Cinzel-Bold.ttf", regular = MEDIA .. "Cinzel-Regular.ttf" }
 local choiceByKey = {}
 for _, c in ipairs(UI.FONT_CHOICES) do choiceByKey[c.key] = c end
 
--- The choices offered, the add-on's then LibSharedMedia's (first 12) ->
+-- The choices offered, the game's then LibSharedMedia's (first 12) ->
 -- { { key =, name = } } (an LSM font's key is its path).
 function UI.FontChoices()
   local out = {}
@@ -160,39 +152,28 @@ function UI.FontChoices()
   return out
 end
 
--- The game's own font file (the client's: Friz Quadrata, or its Korean,
--- Chinese or Cyrillic one), or nil when it cannot be read.
-local function gameFont()
-  local fo = _G.GameFontNormal
-  if type(fo) == "table" and type(fo.GetFont) == "function" then
-    local path = fo:GetFont()
-    if type(path) == "string" and path ~= "" then return path end
-  end
-  return nil
-end
-
--- A choice (a key, an LSM path, nil: `default`) -> the font file for this
--- client: the game's own for "game" and for a font that cannot write its
--- language.
-function UI.FontPath(choice, default)
-  local key = choice or default
-  local c = choiceByKey[key]
-  if not c then return type(key) == "string" and key or gameFont() end
-  if not c.path then return gameFont() end
+-- A choice (a key, an LSM path, nil: the game's) -> the font file for this
+-- client, or nil to keep each text's own game font ("game", and a font that
+-- cannot write the client's language).
+function UI.FontPath(choice)
+  local c = choiceByKey[choice or "game"]
+  if not c then return type(choice) == "string" and choice or nil end
+  if not c.path then return nil end
   local locale = ns.Game and ns.Game.Locale and ns.Game.Locale() or "enUS"
-  if c.locales and not c.locales[locale] then return gameFont() end
+  if c.locales and not c.locales[locale] then return nil end
   return c.path
 end
 
--- The headings' and the body's font files (Options: header / body font).
+-- The headings' and the body's font files (Options: header / body font),
+-- nil for the game's own.
 function UI.HeadingFont()
   local options = ns.Options
-  return UI.FontPath(options and options.HeaderFont and options.HeaderFont() or nil, "cinzel")
+  return UI.FontPath(options and options.HeaderFont and options.HeaderFont() or nil)
 end
 
 function UI.BodyFont()
   local options = ns.Options
-  return UI.FontPath(options and options.BodyFont and options.BodyFont() or nil, "inter")
+  return UI.FontPath(options and options.BodyFont and options.BodyFont() or nil)
 end
 
 -- Font string `fs` in the headings' font at its current size (call after

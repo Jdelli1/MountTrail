@@ -176,7 +176,7 @@ local function initHeader(frame, data)
   frame.Glyph:SetText(UI.HeaderGlyph(data.collapsed == true))
   frame.Glyph:SetTextColor(c[1], c[2], c[3])
   frame.Label:SetFontObject(font)
-  -- Top-level headers in the headings' font (Cinzel where it writes).
+  -- Top-level headers in the headings' font (Options: Header font).
   if not sub then UI.ApplyHeadingFont(frame.Label) end
   frame.Label:SetTextColor(c[1], c[2], c[3])
   frame.Label:SetText(UI.HeaderText(data, true))

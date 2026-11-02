@@ -30,13 +30,6 @@ Notes:
 - Ace3 libraries not listed above (AceGUI, AceConfig, and so on) are deliberately not included.
 - Ace3's license forbids stand-alone redistribution of its libraries. They are bundled here only as embedded libraries of MountTrail and are not offered separately.
 
-## Fonts
-
-| Font | Source | License | Used for |
-| --- | --- | --- | --- |
-| Cinzel (Regular, Bold) | [The Cinzel Project](https://github.com/NDISCOVER/Cinzel), static TrueType files `fonts/ttf/` | SIL Open Font License 1.1, copy at `Media/Fonts/OFL-Cinzel.txt` | Headings (window, page and card titles) on clients whose language Cinzel can write; bundled unmodified under `Media/Fonts/` |
-| Inter (Regular) | [rsms/inter](https://github.com/rsms/inter) v4.1 release, static TrueType file `extras/ttf/` | SIL Open Font License 1.1, copy at `Media/Fonts/OFL-Inter.txt` | Mount names and body text on clients whose language Inter can write; bundled unmodified under `Media/Fonts/` |
-
 ## Optional integrations
 
 - [TomTom](https://www.curseforge.com/wow/addons/tomtom) by jnwhiteh: required for waypoints, not bundled. Licensed "All Rights Reserved" per its CurseForge page; the integration calls its public API only, no code copied.

@@ -2,10 +2,10 @@
 
 ## Unreleased
 
-- Mount names and text use the Inter font (shipped with the add-on), as the
-  design sheet; headings keep Cinzel. Both can be changed under **Font
-  styles**, in the cogwheel menu (Header font, Body font) and on the AddOns
-  page. A font that cannot write your language falls back to the game's.
+- **Font styles**, in the cogwheel menu and on the AddOns page: a Header
+  font (titles) and a Body font (mount names and text), the game's own by
+  default; Arial Narrow, Morpheus, Skurri, or a LibSharedMedia font. Korean
+  and Chinese clients keep the game's font.
 - The AddOns settings page is in sections: Window & text, Font styles,
   Collection, Colours, Navigation, Alerts, Accessibility, Advanced.
 - Browse has a **Faction** page: each race's mounts under its own heading
@@ -61,11 +61,6 @@
   has the design's rows: Status, Attempts (with how many players would have
   it by now), Drop, From, Where, Cost and Lockout (gold while open, green
   once done).
-- Headings (the window, page and card titles, pop-out titles, menu titles,
-  the detail pane's name, Home's total) use the Cinzel font, shipped with
-  the add-on, on English, German, French, Spanish, Italian and Portuguese
-  clients; Russian, Korean and Chinese clients keep the game's font. A
-  window's own font (its appearance menu) still wins.
 - Pop-outs show a thin gold bar under the title (how much of the set is
   done) and each group's "N left" on its header's right.
 - The Qiraji Battle Tanks leave Lockouts for the week once C'Thun dies in

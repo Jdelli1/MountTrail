@@ -40,8 +40,9 @@ function UI.TextSize(role)
   return 0
 end
 
--- A copy at its role's size, in the body font (Options: "Body font", Inter by
--- default; headings take the header font on top: UI.ApplyHeadingFont).
+-- A copy at its role's size, in the body font (Options: "Body font", the
+-- game's own by default; headings take the header font on top:
+-- UI.ApplyHeadingFont).
 local function sizeFont(f)
   local base = _G[f.base]
   if type(base) ~= "table" or type(base.GetFont) ~= "function" then return end
@@ -399,8 +400,8 @@ function UI.SettingsMenuItems()
   -- Font styles: a menu of choices each (the current one ticked).
   items[#items + 1] = { title = L["Font styles"] }
   local fontMenu
-  for _, f in ipairs({ { label = "Header font", field = "headerFont", get = O.HeaderFont, default = "cinzel" },
-    { label = "Body font", field = "bodyFont", get = O.BodyFont, default = "inter" } }) do
+  for _, f in ipairs({ { label = "Header font", field = "headerFont", get = O.HeaderFont, default = "game" },
+    { label = "Body font", field = "bodyFont", get = O.BodyFont, default = "game" } }) do
     if f.get and UI.FontChoices then
       items[#items + 1] = { text = L[f.label], submenu = function()
         local list = { { title = L[f.label] } }

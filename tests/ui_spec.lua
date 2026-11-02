@@ -325,36 +325,33 @@ describe("ui", function()
     eq(header[1].title, "Header font")
     local ticked = {}
     for _, it in ipairs(header) do if it.checked then ticked[#ticked + 1] = it.text end end
-    eq(ticked, { "Cinzel" }, "the default header font")
+    eq(ticked, { "Game font" }, "the default header font")
     local body = byText["Body font"].submenu()
     ticked = {}
     for _, it in ipairs(body) do if it.checked then ticked[#ticked + 1] = it.text end end
     eq(ticked, { "Arial Narrow" }, "the saved body font")
-    for _, it in ipairs(body) do if it.text == "Game font" then it.onClick() end end
-    eq(applied, { { "bodyFont", "game" } })
+    for _, it in ipairs(body) do if it.text == "Skurri" then it.onClick() end end
+    eq(applied, { { "bodyFont", "skurri" } })
     eq(body[#body].text, "Back")
     eq(body[#body].submenu, ns.UI.SettingsMenuItems, "Back returns to the settings")
   end)
 
-  it("UI.FontPath: Cinzel headings and Inter text by default; the game's font where they cannot write the language", function()
+  it("UI.FontPath: the game's font by default and where a picked font cannot write the language", function()
     local ns = loadUI()
-    _G.GameFontNormal = { GetFont = function() return "Fonts\\FRIZQT__.TTF", 12, "" end }
     local locale = "enUS"
     ns.Game.Locale = function() return locale end
-    ok(ns.UI.HeadingFont():find("Cinzel%-Bold"), "Cinzel headings")
-    ok(ns.UI.BodyFont():find("Inter%-Regular"), "Inter text")
+    eq(ns.UI.HeadingFont(), nil, "game font headings")
+    eq(ns.UI.BodyFont(), nil, "game font text")
+    eq(ns.UI.FontPath("arialn"), "Fonts\\ARIALN.TTF")
     locale = "ruRU"
-    eq(ns.UI.HeadingFont(), "Fonts\\FRIZQT__.TTF", "Cinzel has no Cyrillic")
-    ok(ns.UI.BodyFont():find("Inter"), "Inter has")
+    eq(ns.UI.FontPath("arialn"), "Fonts\\ARIALN.TTF", "Cyrillic too")
     locale = "koKR"
-    eq(ns.UI.BodyFont(), "Fonts\\FRIZQT__.TTF", "Korean: the game's font")
-    locale = "enUS"
-    eq(ns.UI.FontPath("game", "inter"), "Fonts\\FRIZQT__.TTF", "Game font")
-    eq(ns.UI.FontPath("Interface\\Fonts\\X.ttf", "inter"), "Interface\\Fonts\\X.ttf", "a LibSharedMedia path as is")
+    eq(ns.UI.FontPath("arialn"), nil, "Korean: the game's font")
+    eq(ns.UI.FontPath("game"), nil, "Game font")
+    eq(ns.UI.FontPath("Interface\\Fonts\\X.ttf"), "Interface\\Fonts\\X.ttf", "a LibSharedMedia path as is")
     local keys = {}
     for _, c in ipairs(ns.UI.FontChoices()) do keys[#keys + 1] = c.key end
-    eq({ keys[1], keys[2], keys[3] }, { "game", "cinzel", "inter" })
-    _G.GameFontNormal = nil
+    eq(keys, { "game", "arialn", "morpheus", "skurri" })
   end)
 
   it("UI.Font: a sized copy per game font, by its role (gold / white / grey); a change resizes them all", function()

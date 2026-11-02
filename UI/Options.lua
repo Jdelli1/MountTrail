@@ -204,7 +204,7 @@ local function setDropSound(key)
 end
 
 -- The fonts (UI.FONT_CHOICES keys, or an LSM font's path): settings.headerFont
--- / bodyFont, nil for the defaults (Cinzel, Inter). A change re-sizes every
+-- / bodyFont, nil for the default (the game's own). A change re-sizes every
 -- font copy and redraws (UI.ApplyTextSizes), the pop-outs too.
 function Options.HeaderFont()
   local global = ns.db and ns.db.global
@@ -219,8 +219,7 @@ function Options.BodyFont()
 end
 
 local function setFont(field, key)
-  local defaults = { headerFont = "cinzel", bodyFont = "inter" }
-  settings()[field] = (key ~= defaults[field]) and key or nil
+  settings()[field] = (key ~= "game") and key or nil
   if ns.UI and ns.UI.ApplyTextSizes then ns.UI.ApplyTextSizes() end
   if ns.UI and ns.UI.RefreshPopouts then ns.UI.RefreshPopouts() end
   if ns.UI and ns.UI.RefreshNav then ns.UI.RefreshNav() end
@@ -501,10 +500,10 @@ local function build(api)
   if hasDropdown then
     section("Font styles")
     for _, f in ipairs({
-      { var = Options.HEADER_FONT, field = "headerFont", label = "Header font", default = "cinzel", get = Options.HeaderFont,
-        tip = "Window, page and card titles, pop-out titles. Cinzel by default (the game's font where Cinzel cannot write your language)." },
-      { var = Options.BODY_FONT, field = "bodyFont", label = "Body font", default = "inter", get = Options.BodyFont,
-        tip = "Mount names and every other line. Inter by default (the game's font where Inter cannot write your language)." },
+      { var = Options.HEADER_FONT, field = "headerFont", label = "Header font", default = "game", get = Options.HeaderFont,
+        tip = "Window, page and card titles, pop-out titles. The game's font by default." },
+      { var = Options.BODY_FONT, field = "bodyFont", label = "Body font", default = "game", get = Options.BodyFont,
+        tip = "Mount names and every other line. The game's font by default." },
     }) do
       local setting = api.RegisterProxySetting(category, f.var, VarType.String or "string", L[f.label], f.default,
         function() return f.get() or f.default end, function(key) setFont(f.field, key) end)

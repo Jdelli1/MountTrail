@@ -495,21 +495,24 @@ describe("pop-out windows", function()
     ns.UI.ChecklistBuild = real
   end)
 
-  it("headings in Cinzel on Latin-letter clients, the game's font on the others; a window's own font wins", function()
+  it("headings in the game's font by default, the header font when picked (Latin / Cyrillic clients); a window's own font wins", function()
     local ns = loadUI()
     setup(ns)
-    eq(ns.UI.HeadingFont(), "Interface\\AddOns\\MountTrail\\Media\\Fonts\\Cinzel-Bold.ttf", "enUS: Cinzel")
+    eq(ns.UI.HeadingFont(), nil, "the game's own by default")
+    local header
+    ns.Options = ns.Options or {}
+    ns.Options.HeaderFont = function() return header end
+    header = "morpheus"
+    eq(ns.UI.HeadingFont(), "Fonts\\MORPHEUS.TTF")
     local w = ns.UI.OpenPopout({ kind = "camp", exp = WOD })
-    eq(w.Title.fontPath, ns.UI.HeadingFont(), "the title in Cinzel")
-    ns.Game.Locale = function() return "ruRU" end
-    eq(ns.UI.HeadingFont(), nil, "ruRU: the game's font")
-    ns.UI.RefreshPopouts()
-    ok(w.Title.fontPath ~= ns.UI.HEADING_FONTS.bold, "the title back in the game's font")
+    eq(w.Title.fontPath, "Fonts\\MORPHEUS.TTF", "the title in the header font")
+    ns.Game.Locale = function() return "koKR" end
+    eq(ns.UI.HeadingFont(), nil, "koKR: the game's font")
     ns.Game.Locale = function() return "deDE" end
     ns.db.global.popouts[w.key] = ns.db.global.popouts[w.key] or {}
-    ns.db.global.popouts[w.key].style = { font = "Fonts\\MORPHEUS.TTF" }
+    ns.db.global.popouts[w.key].style = { font = "Fonts\\SKURRI.TTF" }
     ns.UI.RefreshPopouts()
-    eq(w.Title.fontPath, "Fonts\\MORPHEUS.TTF", "the window's own font wins")
+    eq(w.Title.fontPath, "Fonts\\SKURRI.TTF", "the window's own font wins")
   end)
 
   it("PopoutCardLines: the second line and the status of a card row", function()
@@ -733,7 +736,7 @@ describe("pop-out windows", function()
     click("Reset appearance")
     eq(b.Fill.color[4], 0.92, "back to the add-on's look")
     eq(a.Fill.color[4], 0.6, "the others keep the shared look")
-    ok(ns.UI.PopoutFonts()[1].path:find("Cinzel"), "the add-on's own fonts first")
+    ok(ns.UI.PopoutFonts()[1].path:find("FRIZQT"), "the game's fonts first")
     eq(ns.UI.PopoutStyle({ alpha = 5 }).alpha, 1, "opacity clamped")
     STUB_CURSOR[1], STUB_CURSOR[2] = 0, 0
   end)

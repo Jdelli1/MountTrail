@@ -522,28 +522,28 @@ describe("font options", function()
     ns.UI = {
       ApplyTextSizes = function() applied = applied + 1 end,
       FontChoices = function()
-        return { { key = "game", name = "Game font" }, { key = "cinzel", name = "Cinzel" }, { key = "inter", name = "Inter" } }
+        return { { key = "game", name = "Game font" }, { key = "arialn", name = "Arial Narrow" }, { key = "skurri", name = "Skurri" } }
       end,
     }
     local S = fakeSettings()
     ns.Options.Register(S)
     local header, body = S.settings.MOUNTTRAIL_HEADER_FONT, S.settings.MOUNTTRAIL_BODY_FONT
-    eq({ header.varType, header.name, header.default }, { "string", "Header font", "cinzel" })
-    eq({ body.varType, body.name, body.default }, { "string", "Body font", "inter" })
-    eq(header.get(), "cinzel")
+    eq({ header.varType, header.name, header.default }, { "string", "Header font", "game" })
+    eq({ body.varType, body.name, body.default }, { "string", "Body font", "game" })
+    eq(header.get(), "game")
     body.set("arialn")
     eq(ns.db.global.settings.bodyFont, "arialn")
     eq(ns.Options.BodyFont(), "arialn")
     eq(applied, 1, "every font copy re-sized")
-    body.set("inter")
+    body.set("game")
     eq(ns.db.global.settings.bodyFont, nil, "the default is not saved")
-    ns.Options.Set("headerFont", "game")
-    eq(header.get(), "game")
+    ns.Options.Set("headerFont", "skurri")
+    eq(header.get(), "skurri")
     local options
     for _, c in ipairs(S.controls) do
       if c.setting.variable == "MOUNTTRAIL_HEADER_FONT" then options = c.options() end
     end
-    eq({ options[1].value, options[2].value, options[3].value }, { "game", "cinzel", "inter" })
+    eq({ options[1].value, options[2].value, options[3].value }, { "game", "arialn", "skurri" })
   end)
 end)
 
