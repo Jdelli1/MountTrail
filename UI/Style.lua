@@ -98,7 +98,8 @@ end
 -- `fallback`, else the font's own colour (gold). Never the Text colour:
 -- headers and body text are set apart in the appearance menu.
 local function headerText(fs, style, fontObject, sizeDelta, fallback)
-  styleText(fs, { font = style.font, size = style.size }, fontObject, sizeDelta, style.header or fallback)
+  styleText(fs, { font = style.font or UI.HeadingFont(), size = style.size }, fontObject, sizeDelta,
+    style.header or fallback)
 end
 
 -- The Blend A look's fixed colours: the windows' dim gold frame, a card's
@@ -110,6 +111,35 @@ UI.THEME = {
   gold = { 1, 0.82, 0.29 },
   grey = { 0.64, 0.6, 0.53 },
 }
+
+-- The headings' font (Blend A): Cinzel, shipped with the add-on (Media/Fonts,
+-- SIL Open Font License), on clients whose language Cinzel can write (Latin
+-- letters, the Western accents); the game's own font on the others (Russian,
+-- Korean, Chinese: Cinzel has no such letters). A window's own font (its
+-- appearance menu) still wins.
+UI.HEADING_FONTS = {
+  regular = "Interface\\AddOns\\MountTrail\\Media\\Fonts\\Cinzel-Regular.ttf",
+  bold = "Interface\\AddOns\\MountTrail\\Media\\Fonts\\Cinzel-Bold.ttf",
+}
+UI.LATIN_LOCALES = {
+  enUS = true, enGB = true, deDE = true, frFR = true, esES = true, esMX = true, itIT = true, ptBR = true,
+}
+
+-- The headings' font file for this client -> path, or nil (the game's).
+function UI.HeadingFont(bold)
+  local locale = ns.Game and ns.Game.Locale and ns.Game.Locale() or "enUS"
+  if not UI.LATIN_LOCALES[locale] then return nil end
+  return bold == false and UI.HEADING_FONTS.regular or UI.HEADING_FONTS.bold
+end
+
+-- Font string `fs` in the headings' font at its current size (call after
+-- SetFontObject, which resets it); nothing on a client that keeps the game's.
+function UI.ApplyHeadingFont(fs, bold)
+  local path = UI.HeadingFont(bold)
+  if not (path and fs and fs.GetFont and fs.SetFont) then return end
+  local _, size, flags = fs:GetFont()
+  if size then fs:SetFont(path, size, flags or "") end
+end
 
 -- The window's background, gold frame and title in its style.
 local function applyChrome(w, style)

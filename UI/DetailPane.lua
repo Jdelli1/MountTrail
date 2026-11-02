@@ -347,6 +347,8 @@ local function paint(pane)
   if not has then return end
   local content = UI.DetailContent(id, pane.routeBoss)
   pane.content = content
+  pane.Name:SetFontObject(UI.Font("GameFontNormalLarge"))
+  UI.ApplyHeadingFont(pane.Name)
   pane.Name:SetText(content.name)
   local rc = UI.ListRarityColor and UI.ListRarityColor(id) or nil
   if rc then pane.Name:SetTextColor(rc[1], rc[2], rc[3]) else pane.Name:SetTextColor(1, 0.82, 0) end
@@ -458,6 +460,7 @@ local function build(parent)
 
   -- The name (its rarity's colour) over "expansion · kind of source".
   local name = pane:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalLarge"))
+  UI.ApplyHeadingFont(name)
   name:SetPoint("TOPLEFT", header, "TOPLEFT", 0, 0)
   name:SetPoint("RIGHT", header, "RIGHT", -22, 0)
   name:SetJustifyH("LEFT")

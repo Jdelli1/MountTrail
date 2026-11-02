@@ -12,6 +12,7 @@ reads the ones loaded before it.
 | Layer | What it is | May call the WoW API? |
 | --- | --- | --- |
 | `Libs/` + `embeds.xml` | Bundled LibStub, CallbackHandler, AceAddon, AceDB, AceConsole, AceEvent, LibDataBroker, LibDBIcon. Never edited. | (third party) |
+| `Media/Fonts/` | The Cinzel heading font (static TrueType, SIL OFL; `UI.HeadingFont` in `UI/Style.lua` picks it on Latin-letter clients). Never edited. | (third party) |
 | `Core/Locale.lua` | `ns.L`: English strings are the keys; a missing key returns the key itself. | No |
 | `Data/` | Static tables under `ns.Data`. | No |
 | `Logic/` | Pure Lua rules: selection, counts, lockout state, search scoring. | No |

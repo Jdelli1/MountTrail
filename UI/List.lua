@@ -477,6 +477,7 @@ function UI.List(parent, getQuery, opts)
   titleText:SetJustifyH("LEFT")
   titleText:SetWordWrap(false)
   titleText:SetText(opts and opts.title or "")
+  UI.ApplyHeadingFont(titleText)
   list.Title = titleText
 
   -- The right side's places follow the Reset button's (it comes and goes).
@@ -575,6 +576,9 @@ function UI.List(parent, getQuery, opts)
     query.sourceText = memoText(query.sourceText or ns.Game.MountSourceText)
     if query.showUnobtainable == nil then query.showUnobtainable = UI.ShowUnobtainable() end
 
+    -- The title in the headings' font, at the header size's current height.
+    self.Title:SetFontObject(UI.Font("GameFontNormalLarge"))
+    UI.ApplyHeadingFont(self.Title)
     self.tab = query.view or query.tab
     local tab = self.tab
     if self.FilterDropdown.ValidateResetState then self.FilterDropdown:ValidateResetState() end

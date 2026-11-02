@@ -58,7 +58,7 @@ read_globals = {
 
   -- Game state
   "GetAchievementCriteriaInfo", "GetAchievementInfo", "GetAchievementNumCriteria",
-  "GetCategoryList", "GetCategoryNumAchievements", "GetBuildInfo", "GetCVarBool", "SetCVar",
+  "GetCategoryList", "GetCategoryNumAchievements", "GetBuildInfo", "GetCVarBool", "SetCVar", "GetLocale",
   "GetCursorPosition", "GetLFGDungeonRewards",
   "GetNormalizedRealmName", "GetRealmName", "GetNumSavedInstances",
   "GetSavedInstanceEncounterInfo", "GetSavedInstanceInfo", "GetServerTime",

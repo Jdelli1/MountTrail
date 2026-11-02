@@ -165,6 +165,7 @@ local function heading(parent, text, note)
 end
 
 local function paintHeading(h)
+  UI.ApplyHeadingFont(h.Text)
   local c = UI.HeaderColor and UI.HeaderColor({ depth = 1 }) or GOLD
   local r = UI.THEME.cardRule
   h.Text:SetTextColor(c[1], c[2], c[3])
@@ -371,6 +372,8 @@ local function refreshHome()
   local sumHave, sumTotal = counts.all.have, counts.all.total
   local s = home.Summary
   s.have, s.total = sumHave, sumTotal
+  s.Totals:SetFontObject(UI.Font("GameFontNormalHuge"))
+  UI.ApplyHeadingFont(s.Totals)
   s.Totals:SetText(string.format(L["%d / %d"], sumHave, sumTotal))
   s.Title:SetText(string.format(L["mounts collected · %d%%"], UI.HomePercent(sumHave, sumTotal)))
   s.Bar:SetMinMaxValues(0, math.max(sumTotal, 1))
@@ -445,6 +448,7 @@ local function createSummary()
 
   -- The total in large gold figures, "mounts collected · 58%" under it.
   local totals = s:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalHuge"))
+  UI.ApplyHeadingFont(totals)
   totals:SetPoint("TOPLEFT", s, "TOPLEFT", G.cardIn + 2, -8)
   s.Totals = totals
   local titleText = s:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisable"))

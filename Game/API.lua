@@ -442,6 +442,13 @@ function Game.Level()
   return type(level) == "number" and level or nil
 end
 
+-- The client's language (GetLocale: "enUS", "deDE", "ruRU", ...), "enUS"
+-- when the API is missing.
+function Game.Locale()
+  local good, locale = pcall(function() return type(GetLocale) == "function" and GetLocale() or nil end)
+  return (good and type(locale) == "string" and locale ~= "") and locale or "enUS"
+end
+
 -- This character's name (no realm), or nil when unknown.
 function Game.PlayerName()
   local name = UnitName and UnitName("player")

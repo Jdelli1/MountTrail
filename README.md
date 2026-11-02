@@ -167,6 +167,11 @@ are gold; groups under them are in their expansion's colour when they are
 one, else light grey. The world map tab keeps its own rows (big icons, no
 cards).
 
+- **Fonts**: headings (titles, card headers) use Cinzel, shipped with the
+  add-on, on English, German, French, Spanish, Italian and Portuguese
+  clients; Russian, Korean and Chinese clients keep the game's font (Cinzel
+  has no such letters). Mount names and text always use the game's font. A
+  font picked in a window's appearance menu wins over Cinzel.
 - **Page header**: every list page has the same one line: Back (where there
   is one) and the title on the left; the search box, what is left as a badge
   (`16 left`), the Filter button and the page's own buttons (`Pop out`) on

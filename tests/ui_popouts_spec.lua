@@ -495,6 +495,23 @@ describe("pop-out windows", function()
     ns.UI.ChecklistBuild = real
   end)
 
+  it("headings in Cinzel on Latin-letter clients, the game's font on the others; a window's own font wins", function()
+    local ns = loadUI()
+    setup(ns)
+    eq(ns.UI.HeadingFont(), "Interface\\AddOns\\MountTrail\\Media\\Fonts\\Cinzel-Bold.ttf", "enUS: Cinzel")
+    local w = ns.UI.OpenPopout({ kind = "camp", exp = WOD })
+    eq(w.Title.fontPath, ns.UI.HeadingFont(), "the title in Cinzel")
+    ns.Game.Locale = function() return "ruRU" end
+    eq(ns.UI.HeadingFont(), nil, "ruRU: the game's font")
+    ns.UI.RefreshPopouts()
+    ok(w.Title.fontPath ~= ns.UI.HEADING_FONTS.bold, "the title back in the game's font")
+    ns.Game.Locale = function() return "deDE" end
+    ns.db.global.popouts[w.key] = ns.db.global.popouts[w.key] or {}
+    ns.db.global.popouts[w.key].style = { font = "Fonts\\MORPHEUS.TTF" }
+    ns.UI.RefreshPopouts()
+    eq(w.Title.fontPath, "Fonts\\MORPHEUS.TTF", "the window's own font wins")
+  end)
+
   it("PopoutCardLines: the second line and the status of a card row", function()
     local ns = loadUI()
     local CL = ns.UI.PopoutCardLines

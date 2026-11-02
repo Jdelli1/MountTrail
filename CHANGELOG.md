@@ -55,6 +55,11 @@
   has the design's rows: Status, Attempts (with how many players would have
   it by now), Drop, From, Where, Cost and Lockout (gold while open, green
   once done).
+- Headings (the window, page and card titles, pop-out titles, menu titles,
+  the detail pane's name, Home's total) use the Cinzel font, shipped with
+  the add-on, on English, German, French, Spanish, Italian and Portuguese
+  clients; Russian, Korean and Chinese clients keep the game's font. A
+  window's own font (its appearance menu) still wins.
 - Pop-outs show a thin gold bar under the title (how much of the set is
   done) and each group's "N left" on its header's right.
 - The Qiraji Battle Tanks leave Lockouts for the week once C'Thun dies in

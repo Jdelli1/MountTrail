@@ -406,6 +406,7 @@ function showMenu(owner, items, anchor, inPlace)
     else
       it.Label:SetFontObject(data.title and UI.Font("GameFontNormalSmall")
         or (data.disabled and UI.Font("GameFontDisableSmall") or UI.Font("GameFontHighlightSmall")))
+      if data.title then UI.ApplyHeadingFont(it.Label) end
       local left = boxed and MENU_TEXT_LEFT_BOXED or (data.title and MENU_TITLE_LEFT or MENU_TEXT_LEFT)
       it.Label:SetWidth(width - left - MENU_TEXT_RIGHT)
       if it.Label.SetWordWrap then it.Label:SetWordWrap(true) end
