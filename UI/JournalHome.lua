@@ -13,7 +13,7 @@ local ADDON, ns = ...
 --          still to get in the player's zone, each with its icon (boxed in
 --          its rarity's colour), its source and its drop chance
 --          (Zone.MountsFor, worked out again on a new zone or once a minute;
---          a click is the waypoint, the last line opens Current Zone).
+--          a click is the waypoint; Open Current Zone at its heading's right).
 -- A complete row's count turns green. Headings are in the header colour
 -- (UI.HeaderColor), "collected" on their right.
 -- The search box searches every mount (Logic/Search.lua): typing opens the
@@ -326,7 +326,7 @@ local function refreshSide()
   if #near == 0 then
     more:SetText(GREY_TEXT .. L["Nothing left to collect here"] .. "|r")
   else
-    more:SetText(GREY_TEXT .. string.format(L["%d in %s: open Current Zone"], #near,
+    more:SetText(GREY_TEXT .. string.format(L["%d left in %s"], #near,
       zone and zone.name or L["this zone"]) .. "|r")
   end
   y = place(more, side, y, G.row) + 4
@@ -592,8 +592,14 @@ local function createColumns()
   local side = right
   side.Card = newCard(side)
   side.NearbyHeading = heading(side, L["Nearby"])
+  -- Open Current Zone: a small gold button at the heading's right.
+  local open = UI.FlatButton(side.NearbyHeading, L["Open Current Zone"], "gold", 18)
+  open:SetPoint("RIGHT", side.NearbyHeading, "RIGHT", -2, 1)
+  open:SetScript("OnClick", function() UI.SelectTab("here") end)
+  side.NearbyOpen = open
   side.Nearby = {}
-  local more = CreateFrame("Button", nil, side)
+  -- Under the rows: how many are left in the zone (or that none are).
+  local more = CreateFrame("Frame", nil, side)
   more:SetHeight(G.row)
   local mt = more:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlight"))
   mt:SetPoint("LEFT", more, "LEFT", 4, 0)
@@ -602,7 +608,6 @@ local function createColumns()
   mt:SetWordWrap(false)
   more.Text = mt
   function more:SetText(text) self.Text:SetText(text) end
-  more:SetScript("OnClick", function() UI.SelectTab("here") end)
   side.NearbyMore = more
   home.LayoutMain()
 end

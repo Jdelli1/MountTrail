@@ -364,7 +364,8 @@ L["Expansion"] = "Expansion"
 L["Other matches"] = "Other matches"
 L["By source"] = "By source"
 L["Nearby"] = "Nearby"
-L["%d in %s: open Current Zone"] = "%d in %s: open Current Zone"
+L["%d left in %s"] = "%d left in %s"
+L["Open Current Zone"] = "Open Current Zone"
 L["%d%%"] = "%d%%"
 
 -- Options: show unobtainable mounts (F11)

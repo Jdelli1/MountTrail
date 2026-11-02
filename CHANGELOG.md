@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Home's Nearby: an `Open Current Zone` button at the heading's right; the
+  line under the mounts just says how many are left in the zone.
 - Holiday mounts (Lunar Launcher, ...) show in Nearby, Current Zone, the
   zone panel and the map only while their holiday is on.
 - **Font styles**, in the cogwheel menu and on the AddOns page: a Header

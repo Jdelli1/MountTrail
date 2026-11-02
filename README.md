@@ -147,8 +147,9 @@ Working with the column:
     (Options) is left out of Home (its Browse page stays).
   - **Nearby** (right, under By source): the first mounts still to get in
     your zone, each with its icon (boxed in its rarity's colour), where it
-    comes from and its drop chance (click one for its waypoint); the line
-    under them opens Current Zone. What is left to farm today is under
+    comes from and its drop chance (click one for its waypoint), then how
+    many are left in the zone; `Open Current Zone` at the heading's right
+    opens the full list. What is left to farm today is under
     Lockouts in the left column.
 
 ### Mount lists
