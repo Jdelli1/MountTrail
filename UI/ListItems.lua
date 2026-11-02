@@ -329,6 +329,25 @@ local function setupRow(row)
   end)
 end
 
+-- A row's lockout today -> "done" | "open" | nil (no lockout the game
+-- reports: none, hand-ticked, a camp or a repeatable one). The saved
+-- instances are read once a second at most, for every row drawn meanwhile.
+local snapAt, snap
+local function lockoutState(mountID, routeBoss)
+  local Lockouts, Game = ns.Lockouts, ns.Game
+  if not (Lockouts and Lockouts.SpecFor) then return nil end
+  local spec = Lockouts.SpecFor(mountID, routeBoss)
+  if not spec or spec.manual or spec.camp or spec.repeatable then return nil end
+  local now = Game.Now and Game.Now() or 0
+  if not snap or snapAt ~= now then
+    snap = Lockouts.Snapshot(Game.SavedRows and Game.SavedRows() or {})
+    snapAt = now
+  end
+  local state = Lockouts.State(spec, snap, Game.IsQuestDone, Game.IsLfgDone)
+  return (state == "done" or state == "open") and state or nil
+end
+UI.RowLockoutState = lockoutState
+
 -- A row tooltip that shows nothing (a list with the detail pane: the pane
 -- shows what the tooltip would).
 function UI.NoTooltip() end
@@ -441,18 +460,26 @@ local function initRow(row, data)
     row.CardIcon:SetTexture(icon or 134400) -- a question mark when unknown
     local rc = (not data.owned and UI.ListRarityColor(data.id)) or NO_RARITY
     row.IconBox.Edge:SetColor(rc[1], rc[2], rc[3], 1)
-    -- The badge: Owned; else your tries (a mount you are farming); else
-    -- its drop chance.
+    -- The badge: Owned; else today's lockout spent (Done); else your tries
+    -- (a mount you are farming); else a lockout still open (Open); else its
+    -- drop chance; else its price (the source text's Cost).
     local chance = data.m and tonumber(data.m.chance)
     local tries = (not data.owned and data.m and UI.IsTracked and UI.MountAttempts and UI.IsTracked(data.id, data.m))
       and UI.MountAttempts(data.id, data.m) or nil
     tries = type(tries) == "table" and tonumber(tries.total) or 0
+    local lockout = not data.owned and lockoutState(data.id, data.routeBoss) or nil
     if data.owned then
       UI.SetBadge(row.Chip, UI.MARK_DONE .. " " .. L["Owned"], "green")
+    elseif lockout == "done" then
+      UI.SetBadge(row.Chip, UI.MARK_DONE .. " " .. L["Done"], "green")
     elseif tries > 0 then
       UI.SetBadge(row.Chip, string.format(tries == 1 and L["%d try"] or L["%d tries"], tries), "grey")
+    elseif lockout == "open" then
+      UI.SetBadge(row.Chip, L["Open"], "gold")
+    elseif chance and chance > 1 then
+      UI.SetBadge(row.Chip, string.format(L["1 in %d"], chance), "grey")
     else
-      UI.SetBadge(row.Chip, chance and chance > 1 and string.format(L["1 in %d"], chance) or nil, "grey")
+      UI.SetBadge(row.Chip, UI.SourceCost and UI.SourceCost(data.id) or nil, "grey")
     end
   else
     row.Chip:Hide()

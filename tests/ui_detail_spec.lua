@@ -153,6 +153,7 @@ describe("detail pane", function()
     local pane = ns.UI.CreateDetailPane(UIParent)
     ns.UI.DetailContent = function()
       return { name = "Invincible", sub = "Wrath of the Lich King · Raid drop", owned = false, location = true,
+        facts = { { label = "Status", value = "Not collected" }, { label = "Lockout", value = "Available", kind = "open" } },
         lines = { { double = true, left = "Drop chance", right = "1 in 100" } } }
     end
     local went
@@ -161,12 +162,35 @@ describe("detail pane", function()
     eq(pane.Sub:GetText(), "Wrath of the Lich King · Raid drop")
     eq(pane.lineStrings[1]:GetText(), "Status")
     eq(pane.rightStrings[1]:GetText(), "Not collected")
-    eq(pane.lineStrings[2]:GetText(), "Drop chance", "the label")
-    eq(pane.lineStrings[2].textColor, { 0.64, 0.6, 0.53 }, "grey")
-    eq(pane.rightStrings[2]:GetText(), "1 in 100", "the value")
-    eq(pane.rightStrings[2].justifyH, "LEFT", "in its column, not pushed right")
+    eq(pane.rightStrings[2]:GetText(), "Available")
+    eq(pane.rightStrings[2].textColor, { 1, 0.82, 0.29 }, "an open lockout in gold")
+    eq(pane.lineStrings[3]:GetText(), "Drop chance", "the label")
+    eq(pane.lineStrings[3].textColor, { 0.64, 0.6, 0.53 }, "grey")
+    eq(pane.rightStrings[3]:GetText(), "1 in 100", "the value")
+    eq(pane.rightStrings[3].justifyH, "LEFT", "in its column, not pushed right")
     pane.Waypoint:RunScript("OnClick", "LeftButton")
     eq(went, 1)
+  end)
+
+  it("UI.DetailFacts: the design's rows from the mount's data and source text", function()
+    local ns = loadUI()
+    ns.Data.Mounts[1].chance = 100
+    ns.Game.MountSourceText = function() return "|cFFFFD200Drop:|r The Lich King|n|cFFFFD200Zone:|r Icecrown Citadel" end
+    ns.UI.IsTracked = function() return true end
+    ns.UI.MountAttempts = function() return { this = 3, total = 87 } end
+    ns.UI.LockoutStatus = function() return "available" end
+    local facts = ns.UI.DetailFacts(1)
+    local byLabel = {}
+    for _, f in ipairs(facts) do byLabel[f.label] = f end
+    eq(facts[1].label, "Status", "Status first")
+    eq(byLabel.Attempts.value:match("^87"), "87")
+    ok(byLabel.Attempts.value:find("would have it by now", 1, true), byLabel.Attempts.value)
+    eq(byLabel.Drop.value, "1 in 100")
+    eq(byLabel.From.value, "The Lich King")
+    eq(byLabel.Where.value, "Icecrown Citadel")
+    eq(byLabel.Lockout.value, "Available")
+    eq(byLabel.Lockout.kind, "open")
+    eq(byLabel.Cost, nil, "no cost: no row")
   end)
 
   it("the info sits on a card with a gold edge; no mount, no card", function()

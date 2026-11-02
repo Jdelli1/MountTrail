@@ -57,6 +57,12 @@ function UI.LockoutStatus(mountID, routeBoss)
   return STATE_TO_STATUS[state]
 end
 
+-- A lockout status (UI.LockoutStatus) as text: "Saved", "Available",
+-- "Manual", else "—".
+function UI.LockoutText(status)
+  return L[STATUS_TEXT[status] or "—"]
+end
+
 -- Short expansion tag of a Data.Expansions name ("Cataclysm" -> "CATA"),
 -- nil for anything else.
 local EXPANSION_TAGS = {
@@ -194,17 +200,39 @@ end
 -- rr, rg, rb (right colour) }. See the file header for the order.
 -- `routeBoss` (optional): the hovered route / checklist row's boss, whose
 -- lockout the "Lockout:" line reports (UI.LockoutStatus). opts (optional):
--- { hints = false } leaves out the click hints (the detail pane has buttons).
+-- { hints = false } leaves out the click hints (the detail pane has buttons);
+-- { facts = true } also leaves out what the detail pane's info card shows
+-- in its own rows (UI.DetailFacts: the header and kind, the source, the
+-- chance, the attempts, the lockout).
 function UI.TooltipLines(mountID, routeBoss, opts)
   local m = mountData(mountID) or {}
   local lines = {}
+  local facts = opts and opts.facts == true
 
   local tag = UI.ExpansionTag(m.exp)
-  lines[#lines + 1] = line(tag and (L["Mount"] .. " " .. GOLD_CODE .. "[" .. tag .. "]|r") or L["Mount"], WHITE)
   local text = ns.Game.MountSourceText and ns.Game.MountSourceText(mountID) or nil
-  local kind = UI.SourceKind(mountID, m, text)
-  if kind then lines[#lines + 1] = line(kind, BLUE) end
+  if not facts then
+    lines[#lines + 1] = line(tag and (L["Mount"] .. " " .. GOLD_CODE .. "[" .. tag .. "]|r") or L["Mount"], WHITE)
+    local kind = UI.SourceKind(mountID, m, text)
+    if kind then lines[#lines + 1] = line(kind, BLUE) end
+  end
   if m.unobtainable then lines[#lines + 1] = line(L["No longer obtainable"], GREY) end
+  if facts then
+    -- The pane's own rows say the rest; the lucky line and the rarity stay.
+    local n = (type(m.chance) == "number" and m.chance > 0) and math.max(1, math.floor(m.chance + 0.5)) or nil
+    if n then lines[#lines + 1] = line(string.format(L["Lucky if you obtain in %d or less"], ns.Odds.LuckyBy(n)), GREY) end
+    local pct = ns.Owners and ns.Owners.Percent(mountID)
+    if pct then
+      local c = ns.Owners.Color(pct)
+      local entry = double(L["Rarity"], string.format(L["%s of characters"], ns.Owners.Text(pct)))
+      entry.rr, entry.rg, entry.rb = c[1], c[2], c[3]
+      lines[#lines + 1] = entry
+    end
+    for _, a in ipairs(UI.AchievementLines(mountID)) do
+      lines[#lines + 1] = { left = a.text, r = a.r, g = a.g, b = a.b, wrap = a.wrap }
+    end
+    return lines
+  end
   sourceLines(lines, mountID, text)
 
   local n = (type(m.chance) == "number" and m.chance > 0) and math.max(1, math.floor(m.chance + 0.5)) or nil

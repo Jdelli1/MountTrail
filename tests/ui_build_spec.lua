@@ -973,14 +973,31 @@ describe("ui build", function()
     initFor(list.ScrollBox, owned)(row, owned)
     ok(row.Chip:IsShown() and row.Chip.Text:GetText():find("Owned", 1, true), "Owned")
     local chancy = { id = rows[idx].id, m = { exp = exp, chance = 100 }, owned = false }
+    -- Its lockout first: Done once spent today, Open while it is not.
+    local savedSpec, savedState = ns.Lockouts.SpecFor, ns.Lockouts.State
+    ns.Lockouts.SpecFor = function() return { quest = 1, reset = "daily" } end
+    ns.Lockouts.State = function() return "done" end
+    initFor(list.ScrollBox, chancy)(row, chancy)
+    ok(row.Chip.Text:GetText():find("Done", 1, true), "Done")
+    eq(row.Chip.Edge.edges[1].color, { 0.25, 0.42, 0.25, 1 }, "green")
+    ns.Lockouts.State = function() return "open" end
+    ns.Game.Now = function() return 2 end -- a new second: read again
+    initFor(list.ScrollBox, chancy)(row, chancy)
+    eq(row.Chip.Text:GetText(), "Open")
+    -- No lockout: the drop chance.
+    ns.Lockouts.SpecFor = function() return nil end
     initFor(list.ScrollBox, chancy)(row, chancy)
     eq(row.Chip.Text:GetText(), "1 in 100")
+    ns.Lockouts.SpecFor, ns.Lockouts.State = savedSpec, savedState
     -- A mount you are farming: your tries before its chance.
     local savedTracked, savedAttempts = ns.UI.IsTracked, ns.UI.MountAttempts
     ns.UI.IsTracked = function() return true end
     ns.UI.MountAttempts = function() return { total = 87 } end
+    local savedSpec2 = ns.Lockouts.SpecFor
+    ns.Lockouts.SpecFor = function() return nil end
     initFor(list.ScrollBox, chancy)(row, chancy)
     eq(row.Chip.Text:GetText(), "87 tries")
+    ns.Lockouts.SpecFor = savedSpec2
     ns.UI.IsTracked, ns.UI.MountAttempts = savedTracked, savedAttempts
     -- Flat controls over Blizzard's: the search box and the Filter button.
     ok(list.SearchBox.FlatFill and list.SearchBox.FlatEdge, "a flat search box")

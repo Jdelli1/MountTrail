@@ -1077,6 +1077,16 @@ describe("ui journal", function()
       eq(SM(5), nil)
     end)
 
+    it("SourceCost: the Cost line's value, icons kept; nil without one", function()
+      local ns = loadUI()
+      ns.Game.MountSourceText = function(id)
+        if id == 1 then return "|cFFFFD200Vendor:|r Mei Francis|n|cFFFFD200Cost:|r 20000|TINTERFACE\\MONEYFRAME\\UI-GOLDICON.BLP:0|t" end
+        return "|cFFFFD200Drop:|r Skadi"
+      end
+      eq(ns.UI.SourceCost(1), "20000|TINTERFACE\\MONEYFRAME\\UI-GOLDICON.BLP:0|t")
+      eq(ns.UI.SourceCost(2), nil)
+    end)
+
     it("SourcePairs keeps icons in values only with keepIcons", function()
       local ns = loadUI()
       local SP = ns.UI.SourcePairs

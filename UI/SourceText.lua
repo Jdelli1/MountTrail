@@ -71,6 +71,18 @@ local function dropIcons(text)
   return (string.gsub(text, PLACEHOLDER, ""))
 end
 
+-- A mount's price: the value of its source text's Cost line (icons kept:
+-- "20000 |T...gold...|t"), else nil.
+function UI.SourceCost(mountID)
+  local text = ns.Game.MountSourceText and ns.Game.MountSourceText(mountID)
+  if type(text) ~= "string" then return nil end
+  local kinds = UI.SourceLabelKinds()
+  for _, p in ipairs(UI.SourcePairs(text, true)) do
+    if p.label and UI.SourceLabelKind(p.label, kinds) == "cost" then return p.value end
+  end
+  return nil
+end
+
 local FULLWIDTH_COLON = "\239\188\154" -- U+FF1A, zhCN / zhTW labels
 local MAX_LABEL = 40 -- bytes; longer "labels" are sentences with a colon
 

@@ -49,6 +49,12 @@
   their lockout is the four Tanaan rares' own daily loot flags (done once all
   four are looted today, "2 of 4 rares looted" until then), and each rare
   you loot counts as an attempt. No hand tick.
+- List rows and the detail pane carry the design's badges and rows: a
+  lockout spent today shows `✓ Done`, one still open `Open`, a vendor mount
+  its price (from the game's own source text). The detail pane's info card
+  has the design's rows: Status, Attempts (with how many players would have
+  it by now), Drop, From, Where, Cost and Lockout (gold while open, green
+  once done).
 - The Qiraji Battle Tanks leave Lockouts for the week once C'Thun dies in
   Ahn'Qiraj (40); the Bronze Drake's day is spent by the Culling of
   Stratholme heroic (Mal'Ganis's kill; the drake itself is a sure drop). No

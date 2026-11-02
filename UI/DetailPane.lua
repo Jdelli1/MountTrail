@@ -100,6 +100,58 @@ end
 -- Pure: the pane's text for a mount -> { name =, flavor =, lines = UI.TooltipLines
 -- without hints, achievement = achievementID or nil, location = bool, spots =
 -- UI.DetailSpots, notes = ATT's description (Notes.Description) or nil }.
+-- The info card's own rows -> { { label =, value =, kind = "done" | "open" |
+-- nil } } in the design's order: Status, Attempts (with how many players
+-- would have it by now), Drop (1 in N), From (the source's first named
+-- part: the boss, the vendor, the quest), Where (its Zone / Location), Cost,
+-- Lockout. Rows with nothing to say are left out.
+function UI.DetailFacts(mountID, routeBoss)
+  local m = mountData(mountID) or {}
+  local Game = ns.Game
+  local facts = {}
+  local function add(label, value, kind)
+    if value and value ~= "" then facts[#facts + 1] = { label = label, value = value, kind = kind } end
+  end
+  local owned = Game.IsOwned and Game.IsOwned(mountID) and true or false
+  add(L["Status"], owned and (UI.MARK_DONE .. " " .. L["Collected"]) or L["Not collected"], owned and "done" or nil)
+  local n = (type(m.chance) == "number" and m.chance > 0) and math.max(1, math.floor(m.chance + 0.5)) or nil
+  if not owned and UI.IsTracked and UI.IsTracked(mountID, m, routeBoss) then
+    local counts = UI.MountAttempts(mountID, m) or {}
+    local total = tonumber(counts.total) or 0
+    local text = tostring(total)
+    local soFar = n and total > 0 and ns.Odds and ns.Odds.ChanceSoFar(n, total)
+    if soFar then
+      text = text .. " \194\183 " .. string.format(L["%d%% would have it by now"], math.floor(soFar * 100 + 0.5))
+    end
+    add(L["Attempts"], text)
+  end
+  if n then add(L["Drop"], string.format(L["1 in %d"], n)) end
+  local text = Game.MountSourceText and Game.MountSourceText(mountID) or nil
+  local from, where, cost
+  if text and UI.SourcePairs then
+    local kinds = UI.SourceLabelKinds()
+    for _, p in ipairs(UI.SourcePairs(text, true)) do
+      local kind = p.label and UI.SourceLabelKind(p.label, kinds)
+      if kind == "zone" then
+        where = where or p.value
+      elseif kind == "cost" then
+        cost = cost or p.value
+      elseif p.label and not from then
+        from = p.value
+      end
+    end
+  end
+  add(L["From"], from or routeBoss)
+  add(L["Where"], where)
+  add(L["Cost"], cost)
+  local status = UI.LockoutStatus and UI.LockoutStatus(mountID, routeBoss)
+  if status then
+    add(L["Lockout"], (status == "saved" and (UI.MARK_DONE .. " ") or "") .. UI.LockoutText(status),
+      status == "saved" and "done" or (status == "available" and "open" or nil))
+  end
+  return facts
+end
+
 function UI.DetailContent(mountID, routeBoss)
   local m = mountData(mountID) or {}
   local name = ns.Game.MountInfo and ns.Game.MountInfo(mountID) or nil
@@ -114,7 +166,8 @@ function UI.DetailContent(mountID, routeBoss)
     sub = table.concat(sub, " \194\183 "),
     owned = ns.Game.IsOwned and ns.Game.IsOwned(mountID) and true or false,
     flavor = UI.TooltipFlavor(mountID),
-    lines = UI.TooltipLines(mountID, routeBoss, { hints = false }),
+    facts = UI.DetailFacts(mountID, routeBoss),
+    lines = UI.TooltipLines(mountID, routeBoss, { hints = false, facts = true }),
     achievement = achievementID,
     location = UI.HasLocation(mountID, routeBoss) and true or false,
     spots = UI.DetailSpots(mountID),
@@ -218,12 +271,12 @@ local function layoutInfo(pane, content)
     fs:Show()
     y = y + math.max(h or 12, 12) + LINE_GAP
   end
-  -- Status first, as the design's card.
-  if content.owned then
-    place(L["Status"], 1, 1, 1, UI.MARK_DONE .. " " .. L["Collected"], 0.56, 0.88, 0.56)
-  else
-    place(L["Status"], 1, 1, 1, L["Not collected"], 1, 1, 1)
+  -- The design's rows first (Status ... Lockout): done green, open gold.
+  for _, f in ipairs(content.facts or {}) do
+    local c = (f.kind == "done" and { 0.56, 0.88, 0.56 }) or (f.kind == "open" and { 1, 0.82, 0.29 }) or { 1, 1, 1 }
+    place(f.label, 1, 1, 1, f.value, c[1], c[2], c[3])
   end
+  if #(content.facts or {}) > 0 then y = y + 4 end
   if content.flavor then
     place(content.flavor, 0.8, 0.8, 0.8)
     y = y + 4

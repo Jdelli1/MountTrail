@@ -157,8 +157,10 @@ Timewalking, Lockouts, Current Zone, the zone panel) looks the same, as a
 pop-out's Cards layout does: each top-level group is a card (its header on a
 card top with an edge in its colour, a small gap above it), and each mount
 a two-line row on it (the mount's icon boxed in its rarity's colour, the
-name over where it comes from, and a badge: `Owned`, your tries on a mount
-you are farming (`87 tries`), or the drop chance as `1 in 100`), its card
+name over where it comes from, and a badge: `Owned`; `✓ Done` when its
+lockout is spent today; your tries on a mount you are farming (`87 tries`);
+`Open` while its lockout is still open; the drop chance as `1 in 100`; or a
+vendor mount's price), its card
 edge in the mount's expansion colour. A group's count sits on its header's
 right. Top-level headers
 are gold; groups under them are in their expansion's colour when they are
@@ -211,9 +213,10 @@ shows:
 - Blizzard's 3D preview (rotate, zoom, with or without your character riding
   it).
 - Its name in its rarity's colour over "expansion · kind of source".
-- An info card: Status (Collected / Not collected), then the tooltip's
-  details as label / value pairs in two columns (source, drop chance,
-  attempts, lockout, achievement progress), after its flavour text.
+- An info card in two columns (labels grey, values white): Status, Attempts
+  (and how many players would have it by now), Drop, From, Where, Cost and
+  Lockout (gold while open, green once done), then its flavour text, the
+  rarity and achievement progress.
 - Where to find it: the vendor that sells it or the rare that drops it, by
   name, its zones and how many spawn points.
 - With AllTheThings installed, its "How to get it" note (the Skyshards for the
