@@ -41,6 +41,10 @@
   the title on the left; search, what is left (`16 left`), Filter and the
   page's buttons on the right. Holidays, Achievements, Timewalking and Other
   get titles too.
+- The detail pane follows the design: the name in its rarity's colour over
+  "expansion · kind of source", an info card that starts with Status and
+  lays the details out as label / value columns, and Waypoint, + List and
+  Wowhead along the bottom.
 - The Filter button opens MountTrail's own gold-edged menu instead of
   Blizzard's dropdown; a `Reset` button beside it replaces the red arrow.
 - The left column has one **Lists** section instead of My lists and Quick

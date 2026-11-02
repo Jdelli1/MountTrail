@@ -210,12 +210,16 @@ shows:
 
 - Blizzard's 3D preview (rotate, zoom, with or without your character riding
   it).
-- Its flavour text and the tooltip's details: source, drop chance, attempts,
-  lockout, achievement progress.
+- Its name in its rarity's colour over "expansion · kind of source".
+- An info card: Status (Collected / Not collected), then the tooltip's
+  details as label / value pairs in two columns (source, drop chance,
+  attempts, lockout, achievement progress), after its flavour text.
 - Where to find it: the vendor that sells it or the rare that drops it, by
   name, its zones and how many spawn points.
 - With AllTheThings installed, its "How to get it" note (the Skyshards for the
   Thundering Ruby Cloud Serpent, ...).
+- Along the bottom: `Waypoint` (the same as clicking the row; dimmed where
+  there is nowhere to go), `+ List` and `Wowhead`.
 - `+ List` adds the mount to your lists (it reads `Lists (2)` once it is on
   some; see [Your lists](#your-lists)).
 - `Wowhead`: the mount's Wowhead page (guides, comments) as a link to copy.

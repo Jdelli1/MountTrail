@@ -144,7 +144,29 @@ describe("detail pane", function()
     local pane = ns.UI.CreateDetailPane(UIParent)
     pane:SetMount(1)
     eq(pane.Icon, nil)
-    eq({ pane.Name:GetPoint(1) }, { "LEFT", pane.Header, "LEFT", 0, 0 }, "the name starts the header")
+    eq({ pane.Name:GetPoint(1) }, { "TOPLEFT", pane.Header, "TOPLEFT", 0, 0 }, "the name starts the header")
+    eq({ pane.Sub:GetPoint(1) }, { "TOPLEFT", pane.Name, "BOTTOMLEFT", 0, -3 }, "its sub line under it")
+  end)
+
+  it("the info card: Status first, then label / value pairs in two columns; Waypoint goes there", function()
+    local ns = loadUI()
+    local pane = ns.UI.CreateDetailPane(UIParent)
+    ns.UI.DetailContent = function()
+      return { name = "Invincible", sub = "Wrath of the Lich King · Raid drop", owned = false, location = true,
+        lines = { { double = true, left = "Drop chance", right = "1 in 100" } } }
+    end
+    local went
+    ns.UI.GoTo = function(id) went = id end
+    pane:SetMount(1)
+    eq(pane.Sub:GetText(), "Wrath of the Lich King · Raid drop")
+    eq(pane.lineStrings[1]:GetText(), "Status")
+    eq(pane.rightStrings[1]:GetText(), "Not collected")
+    eq(pane.lineStrings[2]:GetText(), "Drop chance", "the label")
+    eq(pane.lineStrings[2].textColor, { 0.64, 0.6, 0.53 }, "grey")
+    eq(pane.rightStrings[2]:GetText(), "1 in 100", "the value")
+    eq(pane.rightStrings[2].justifyH, "LEFT", "in its column, not pushed right")
+    pane.Waypoint:RunScript("OnClick", "LeftButton")
+    eq(went, 1)
   end)
 
   it("the info sits on a card with a gold edge; no mount, no card", function()
@@ -172,7 +194,10 @@ describe("detail pane", function()
     eq(pane.Scene.sceneID, 7)
     eq(pane.Scene.noRider, true, "rider hidden while the Mount Journal setting is off")
     eq(pane.Scene.fanfare, false, "no present box")
-    eq(pane.Waypoint, nil, "no buttons: the rows' clicks do it")
+    eq(pane.Waypoint.Text:GetText(), "Waypoint", "Waypoint along the bottom")
+    eq(select(1, pane.Waypoint:GetPoint(1)), "BOTTOMLEFT")
+    eq(select(2, pane.AddList:GetPoint(1)), pane.Waypoint, "+ List beside it")
+    eq(select(2, pane.Wowhead:GetPoint(1)), pane.AddList, "Wowhead after it")
   end)
 
   it("a plain left-click selects (nowhere to go: no waypoint); the hover says what clicks do", function()
