@@ -691,17 +691,19 @@ local function myListSelect(mounts, query)
   return out
 end
 
--- A page under a flat header (UI.PageHeader) with Back and a title -> page,
--- holder, back, title.
-local function pageWithStrip(parent)
+-- A page for a list: its header (Back, the title, the Filter button) is
+-- the list's own (UI.List's one-line header) -> page. The page carries the
+-- list's Title, Back and buttons for the callers.
+local function newPage(parent)
   local page = CreateFrame("Frame", nil, parent)
   page:SetAllPoints(parent)
   page:Hide()
-  local back, t = UI.PageHeader(page, true)
-  local holder = CreateFrame("Frame", nil, page)
-  holder:SetPoint("TOPLEFT", page, "TOPLEFT", 0, UI.PAGE_TOP)
-  holder:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", 0, 0)
-  return page, holder, back, t
+  return page
+end
+
+local function adopt(page, l)
+  page.List, page.Title, page.Back = l, l.Title, l.Back
+  return l
 end
 
 local function build(parent)
@@ -711,34 +713,28 @@ local function build(parent)
   createColumns()
 
   -- An expansion's page: Back and the expansion's name over its list.
-  local holder, back
-  listPage, holder, back, title = pageWithStrip(parent)
-  back:SetScript("OnClick", showHome)
-  list = UI.List(holder, function()
+  listPage = newPage(parent)
+  list = adopt(listPage, UI.List(listPage, function()
     return { view = "journal", exp = currentExp, sourceText = ns.Game.MountSourceText }
-  end)
+  end, { back = showHome }))
+  title = list.Title
 
   -- The search page.
-  local sHolder, sBack, sTitle
-  searchPage, sHolder, sBack, sTitle = pageWithStrip(parent)
-  sTitle:SetText(L["Search all mounts"])
-  searchList = UI.List(sHolder, function()
+  searchPage = newPage(parent)
+  searchList = adopt(searchPage, UI.List(searchPage, function()
     return { view = "search", sourceText = ns.Game.MountSourceText }
-  end, { select = searchSelect })
-  searchPage.List = searchList
-  sBack:SetScript("OnClick", function()
-    searchList.SearchBox:SetText("")
-    showHome()
-  end)
+  end, {
+    select = searchSelect,
+    title = L["Search all mounts"],
+    back = function()
+      searchList.SearchBox:SetText("")
+      showHome()
+    end,
+  }))
 
   -- A list's page (the navigation's lists): its mounts as a list by source.
-  local mHolder, mBack
-  myListPage, mHolder, mBack, myListTitle = pageWithStrip(parent)
-  mBack:SetScript("OnClick", showHome)
-  local pop = UI.PageButton(myListPage, L["Pop out"])
-  pop:SetScript("OnClick", function() if currentList and UI.OpenPopout then UI.OpenPopout(currentList) end end)
-  myListPage.PopOut = pop
-  myList = UI.List(mHolder, function()
+  myListPage = newPage(parent)
+  myList = UI.List(myListPage, function()
     local key = currentList and (currentList.kind == "quick" and ("q" .. tostring(currentList.key))
       or tostring(currentList.list)) or ""
     return { view = "mylist", exp = key, sourceText = ns.Game.MountSourceText,
@@ -763,9 +759,14 @@ local function build(parent)
         return true
       end,
     },
+    back = showHome,
+    buttons = { { text = L["Pop out"], onClick = function()
+      if currentList and UI.OpenPopout then UI.OpenPopout(currentList) end
+    end } },
   })
-  myListPage.List = myList
-  myListPage.Title = myListTitle
+  adopt(myListPage, myList)
+  myListPage.PopOut = myList.Buttons[1]
+  myListTitle = myList.Title
 end
 
 local function refresh()

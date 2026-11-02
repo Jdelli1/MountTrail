@@ -54,24 +54,16 @@ function CreateFont(name)
   _G[name] = font
   return font
 end
-MenuResponse = { Refresh = 2 }
 
--- The 11.x DropdownButton stand-in: records the generator and callbacks.
-STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate = {
-  SetupMenu = function(self, generator) self.generator = generator end,
-  SetDefaultCallback = function(self, fn) self.defaultCallback = fn end,
-  SetIsDefaultCallback = function(self, fn) self.isDefaultCallback = fn end,
-  ValidateResetState = function(self)
-    self.resetShown = self.isDefaultCallback ~= nil and not self.isDefaultCallback()
-  end,
-}
-
--- Runs a dropdown's menu generator against a recording root description.
+-- Runs a Filter button's menu generator against a recording root.
 local function openMenu(dropdown)
   local calls = {}
   local root = {}
   function root:CreateCheckbox(text, isSelected, setSelected)
     calls[#calls + 1] = { kind = "checkbox", text = text, isSelected = isSelected, setSelected = setSelected }
+  end
+  function root:CreateRadio(text, isSelected, setSelected)
+    calls[#calls + 1] = { kind = "radio", text = text, isSelected = isSelected, setSelected = setSelected }
   end
   function root:CreateDivider() calls[#calls + 1] = { kind = "divider" } end
   function root:CreateTitle(text) calls[#calls + 1] = { kind = "title", text = text } end
@@ -137,12 +129,8 @@ local function openJournalList(ns)
   row:RunScript("OnClick", "LeftButton")
   local listPage = journal.children[3]
   ok(listPage:IsShown() and not home:IsShown(), "an expansion row opens the list")
-  local holder
-  for _, child in ipairs(listPage.children) do
-    local first = child.children and child.children[1]
-    if first and first.SearchBox then holder = first end
-  end
-  ok(holder, "list found")
+  local holder = listPage.List
+  ok(holder and holder.SearchBox, "list found")
   return holder, home
 end
 
@@ -158,14 +146,16 @@ describe("ui build", function()
     eq(row.Name.textColor, ns.UI.EXPANSION_COLORS[ns.Data.Expansions[1]], "its name in the expansion's colour")
   end)
 
-  it("the journal list has a full-width list under the search box and Filter button", function()
+  it("the journal list has a full-width list under its one-line page header", function()
     local ns = loadUI()
     local list = openJournalList(ns)
-    ok(list.FilterDropdown, "Filter dropdown")
+    ok(list.FilterDropdown, "Filter button")
+    eq(list.FilterDropdown.Text:GetText(), "Filter")
     eq(list.FilterPanel, nil, "no checkbox panel")
-    eq(list.FilterDropdown.template, "WowStyle1FilterDropdownTemplate")
-    eq({ list.FilterDropdown:GetPoint(1) }, { "LEFT", list.SearchBox, "RIGHT", 8, 0 })
-    eq({ list.ScrollBox:GetPoint(1) }, { "TOPLEFT", list, "TOPLEFT", 0, -30 }, "full width")
+    eq(select(1, list.FilterDropdown:GetPoint(1)), "TOPRIGHT", "Filter at the header's right")
+    eq(select(1, list.SearchBox:GetPoint(1)), "RIGHT", "the search box left of what is left and Filter")
+    ok(list.Count:IsShown() and list.Count.Text:GetText():find("left", 1, true), "what is left, as a badge")
+    eq({ list.ScrollBox:GetPoint(1) }, { "TOPLEFT", list, "TOPLEFT", 0, -36 }, "full width")
     eq(list.tab, "journal")
     local frames = render(list.ScrollBox)
     ok(#frames > 0, "rows rendered")
@@ -260,15 +250,27 @@ describe("ui build", function()
     find(calls, "Collected").setSelected()
     eq(ns.db.global.filters.collected, true)
 
-    eq(find(calls, "Uncheck all").fn(), MenuResponse.Refresh, "menu stays open")
+    find(calls, "Uncheck all").fn()
     eq(ns.db.global.filters.journal.dungeon, false)
-    eq(find(calls, "Check all").fn(), MenuResponse.Refresh)
+    find(calls, "Check all").fn()
     eq(ns.db.global.filters.journal, nil, "all shown: nothing stored")
     eq(refreshed, 4)
 
     dd.defaultCallback()
     eq(ns.db.global.filters, ns.Journal.DefaultFilters, "reset restores the defaults")
     eq(dd.resetShown, false)
+    -- The button opens MountTrail's own menu, every choice keeping it open.
+    dd:RunScript("OnClick", "LeftButton")
+    local menu = MountTrailMenu
+    ok(menu and menu:IsShown(), "our menu")
+    eq(menu.items[1].data.text, "Collected")
+    eq(menu.items[1].data.checked, false)
+    eq(menu.items[1].data.keepOpen, true)
+    menu.items[1]:RunScript("OnClick", "LeftButton")
+    eq(ns.db.global.filters.collected, true, "a click in our menu toggles the filter")
+    ok(menu:IsShown(), "and the menu stays open")
+    eq(menu.items[1].data.checked, true, "repainted")
+    ns.UI.HideMenu()
   end)
 
   it("the Journal menu has the ten sources before the first Refresh", function()
@@ -283,18 +285,43 @@ describe("ui build", function()
     ok(find(calls, "Show raid drops"), "sources listed")
   end)
 
-  it("regenerates the menu when the list's tab changes", function()
+  it("every list page has the same one-line header: Back, title, search, what is left, Filter, its buttons", function()
+    local ns = loadUI()
+    local parent = CreateFrame("Frame", nil, UIParent)
+    local backs, pops = 0, 0
+    local list = ns.UI.List(parent, function() return { view = "journal" } end, {
+      title = "Wrath of the Lich King",
+      back = function() backs = backs + 1 end,
+      buttons = { { text = "Pop out", onClick = function() pops = pops + 1 end } },
+    })
+    list:Refresh()
+    eq(list.Title:GetText(), "Wrath of the Lich King")
+    eq(list.Back.Text:GetText(), "Back")
+    list.Back:RunScript("OnClick", "LeftButton")
+    eq(backs, 1)
+    eq(list.Buttons[1].Text:GetText(), "Pop out")
+    list.Buttons[1]:RunScript("OnClick", "LeftButton")
+    eq(pops, 1)
+    eq(select(2, list.FilterDropdown:GetPoint(1)), list.Buttons[1], "Filter left of the page's buttons")
+    eq(select(2, list.SearchBox:GetPoint(1)), list.Count, "the search box left of what is left")
+    -- The tabs without a page of their own get a title too.
+    ns.ToggleWindow()
+    for key, want in pairs({ holidays = "Holidays", achievements = "Achievements", timewalking = "Timewalking" }) do
+      ns.UI.SelectTab(key)
+      local l
+      for _, c in ipairs(content(ns, key).children) do if c.Title and c.SearchBox then l = c end end
+      eq(l and l.Title:GetText(), want, key)
+    end
+  end)
+
+  it("the menu follows the list's tab", function()
     local ns = loadUI()
     local parent = CreateFrame("Frame", nil, UIParent)
     local tab = "journal"
     local list = ns.UI.List(parent, function() return { tab = tab } end)
-    local generated = 0
-    list.FilterDropdown.GenerateMenu = function() generated = generated + 1 end
     list:Refresh()
-    eq(generated, 0, "same tab: no regeneration")
     tab = "misc"
     list:Refresh()
-    eq(generated, 1)
     local boxes = 0
     for _, c in ipairs(openMenu(list.FilterDropdown)) do if c.kind == "checkbox" then boxes = boxes + 1 end end
     eq(boxes, 13, "Misc: Collected + its twelve categories")
@@ -311,78 +338,6 @@ describe("ui build", function()
     eq(MountTrailFontSource.base, GameFontHighlight, "the mount names' font: one slider sizes both")
     eq(MountTrailFontSource.color, { 0.7, 0.7, 0.7 })
     GameFontHighlight = nil
-  end)
-
-  it("falls back to the checkbox panel without the dropdown template", function()
-    local ns = loadUI({ filters = { collected = true, journal = { raid = false } } })
-    STUB_TEMPLATES.WowStyle1FilterDropdownTemplate = nil
-    local list = openJournalList(ns)
-    eq(list.FilterDropdown, nil)
-    ok(list.FilterPanel, "checkbox panel")
-    eq(list.SearchBox:GetParent(), list.FilterPanel)
-    eq(#list.SectionChecks, 10)
-    eq(list.CollectedCheck.checked, true)
-    eq(list.SectionChecks[2].filterKey, "raid")
-    eq(list.SectionChecks[2].checked, false, "raid unticked")
-    eq(list.SectionChecks[2].Label.text, "Show raid drops")
-    eq({ list.ScrollBox:GetPoint(1) }, { "TOPLEFT", list.FilterPanel, "TOPRIGHT", 4, 0 })
-    list.SectionChecks[2].checked = true
-    list.SectionChecks[2]:RunScript("OnClick")
-    eq(ns.db.global.filters.journal, nil, "shown again: nothing stored")
-    eq(ns.UI.TemplateFallbacks.WowStyle1FilterDropdownTemplate, false)
-  end)
-
-  it("the fallback panel shows each view's own sections", function()
-    local ns = loadUI({ filters = { collected = true } })
-    STUB_TEMPLATES.WowStyle1FilterDropdownTemplate = nil
-    local parent = CreateFrame("Frame", nil, UIParent)
-    local view = "misc"
-    local list = ns.UI.List(parent, function() return { view = view } end)
-    list:Refresh()
-    eq(#list.SectionChecks, 12, "Misc: twelve categories")
-    eq(list.SectionsTitle.text, "Categories")
-    ok(list.SectionsTitle:IsShown())
-    eq(list.SectionChecks[2].filterKey, "shop")
-    eq(list.SectionChecks[2].Label.text, "Show in-game shop mounts")
-    -- Labels stay inside the panel: fixed width, one line.
-    for _, cb in ipairs(list.SectionChecks) do
-      ok(cb.Label.width and cb.Label.width > 0 and cb.Label.width <= 150 - 24, "label width " .. cb.filterKey)
-      eq(cb.Label.wordWrap, false, "no wrap " .. cb.filterKey)
-    end
-    eq(list.CollectedCheck.Label.wordWrap, false)
-    list.SectionChecks[2].checked = false
-    list.SectionChecks[2]:RunScript("OnClick")
-    eq(ns.db.global.filters.misc, { shop = false })
-    list:Refresh()
-    eq(list.SectionChecks[2].checked, false)
-
-    view = "timewalking"
-    list:Refresh()
-    eq(#list.SectionChecks, 0, "Timewalking: Collected only")
-    ok(not list.SectionsTitle:IsShown(), "no title")
-    for _, cb in ipairs(list.SectionPool) do ok(not cb:IsShown(), "unused checkboxes hidden") end
-
-    view = "journal"
-    list:Refresh()
-    eq(#list.SectionChecks, 10)
-    eq(list.SectionsTitle.text, "Sources")
-    eq(list.SectionChecks[1].checked, true)
-    ok(list.SectionChecks[1]:IsShown())
-  end)
-
-  it("falls back to the panel when the template lacks SetupMenu", function()
-    local ns = loadUI()
-    local saved = STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate
-    STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate = nil
-    local good, list = pcall(openJournalList, ns)
-    STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate = saved -- restore before any assert
-    ok(good, tostring(list))
-    eq(list.FilterDropdown, nil)
-    ok(list.FilterPanel, "checkbox panel")
-    eq(ns.UI.TemplateFallbacks["DropdownButton:SetupMenu"], "checkbox panel", "listed by /mtrail debug")
-    eq(ns.UI.TemplateFallbacks.WowStyle1FilterDropdownTemplate, nil, "the template itself was there")
-    run_slash(ns.addon, "mtrail", "debug")
-    eq(ns.addon.printed[#ns.addon.printed], "Template DropdownButton:SetupMenu missing, using checkbox panel")
   end)
 
   it("Holidays, Achievements, Timewalking and Misc build their lists with their own Filter menus", function()
@@ -495,13 +450,14 @@ describe("ui build", function()
     eq(a.isSelected(), true)
     a.setSelected()
     eq(a.isSelected(), false, "reads the generator live")
-    eq(find(calls, "Check all").fn(), MenuResponse.Refresh)
+    find(calls, "Check all").fn()
     eq(changes, { "toggle:a", "action:checkAll" })
     dd:ValidateResetState()
     eq(dd.resetShown, false)
     defaultNow = false
     dd:ValidateResetState()
     eq(dd.resetShown, true)
+    ok(dd.Reset:IsShown(), "a flat Reset button while not at the defaults")
     dd.defaultCallback()
     eq(resets, 1)
 
@@ -537,25 +493,6 @@ describe("ui build", function()
     eq(menu[1].isSelected(), true, "reset refreshes the states too")
     eq(calls, 3)
 
-    -- opts.fallbackName: what /mtrail debug says replaces the dropdown
-    -- (default "checkbox panel").
-    local saved = STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate
-    local function noSetup(name)
-      ns.UI.TemplateFallbacks["DropdownButton:SetupMenu"] = nil
-      STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate = nil
-      local good, dd = pcall(ns.UI.CreateFilterDropdown, parent, { items = function() return {} end,
-        onChange = function() end, fallbackName = name })
-      STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate = saved
-      assert(good, dd)
-      eq(dd, nil)
-      return ns.UI.TemplateFallbacks["DropdownButton:SetupMenu"]
-    end
-    eq(noSetup("no checklist filter"), "no checklist filter")
-    eq(noSetup(nil), "checkbox panel")
-
-    STUB_TEMPLATES.WowStyle1FilterDropdownTemplate = nil
-    eq(ns.UI.CreateFilterDropdown(parent, { items = function() return {} end, onChange = function() end }), nil,
-      "nil without the 11.x template")
   end)
 
   -- Header and mount rows of a list tab, built from the real Data/Mounts.lua.
@@ -1047,7 +984,7 @@ describe("ui build", function()
     ns.UI.IsTracked, ns.UI.MountAttempts = savedTracked, savedAttempts
     -- Flat controls over Blizzard's: the search box and the Filter button.
     ok(list.SearchBox.FlatFill and list.SearchBox.FlatEdge, "a flat search box")
-    ok(list.FilterDropdown.FlatFill and list.FilterDropdown.FlatEdge, "a flat Filter button")
+    eq(list.FilterDropdown.Text:GetText(), "Filter", "a flat Filter button")
     -- A header's count on its right, not in its name.
     eq(header.Count:GetText(), ns.UI.HeaderCount(rows[1]))
     ok(not header.Label:GetText():find("(", 1, true), "the name alone")
@@ -1322,7 +1259,7 @@ describe("ui build", function()
     local header = content(ns, "checklist").children[2].children[1]
     local dd = header.ChecklistFilter
     ok(dd, "Filter dropdown built")
-    eq(dd.template, "WowStyle1FilterDropdownTemplate")
+    eq(dd.Text:GetText(), "Filter", "the flat Filter button")
     eq({ dd:GetPoint(1) }, { "TOPRIGHT", header, "TOPRIGHT", -8, -4 }, "top right of the header")
     ok(dd:IsShown(), "shown")
     eq(dd.resetShown, false, "defaults: no reset arrow")
@@ -1355,24 +1292,15 @@ describe("ui build", function()
     ok(after < weeklyTotal, "header counts reflect the filter")
     eq(dd.resetShown, true, "reset arrow once a filter differs")
 
-    eq(find(calls, "Uncheck all").fn(), MenuResponse.Refresh, "menu stays open")
+    find(calls, "Uncheck all").fn()
     eq(#box.provider.rows, 0, "everything hidden")
-    eq(find(calls, "Check all").fn(), MenuResponse.Refresh)
+    find(calls, "Check all").fn()
     eq(ns.db.char.checklistFilters, {})
     ns.db.char.checklistFilters.dungeons = false
     dd.defaultCallback()
     eq(ns.db.char.checklistFilters, {}, "reset shows every category")
     eq(dd.resetShown, false)
 
-    -- Without the 11.x menu API /mtrail debug names what the checklist gets instead.
-    local saved = STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate
-    ns.UI.TemplateFallbacks["DropdownButton:SetupMenu"] = nil
-    STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate = nil
-    local good, none = pcall(ns.UI.ChecklistView.CreateFilterDropdown, header)
-    STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate = saved
-    assert(good, none)
-    eq(none, nil)
-    eq(ns.UI.TemplateFallbacks["DropdownButton:SetupMenu"], "checklist filter (all categories shown)")
   end)
 
   it("Checklist rare spawns (no lockout): their group, a last-checked box per row, a 60 s ticker", function()

@@ -485,6 +485,7 @@ L["The built-in lists that fill themselves (Daily / Weekly lockouts, Rare Spawns
 L["Alt-drag to reorder."] = "Alt-drag to reorder."
 L["Reset all settings"] = "Reset all settings"
 L["Reset"] = "Reset"
+L["Reset filters"] = "Reset filters"
 L["Every MountTrail setting back to its default, after a warning. Your lists, attempts and lockouts are kept."] = "Every MountTrail setting back to its default, after a warning. Your lists, attempts and lockouts are kept."
 L["Reset every MountTrail setting to its default?\n\nOptions, text sizes, window size and position, and the look of every window and pop-out go back to the defaults. Your lists, attempts and lockouts are kept.\n\nThe interface reloads."] = "Reset every MountTrail setting to its default?\n\nOptions, text sizes, window size and position, and the look of every window and pop-out go back to the defaults. Your lists, attempts and lockouts are kept.\n\nThe interface reloads."
 L["Sort"] = "Sort"

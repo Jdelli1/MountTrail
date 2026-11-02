@@ -264,7 +264,7 @@ STUB_TEMPLATE_METHODS = TEMPLATE_METHODS
 -- classic ones plus the modern ones the UI prefers); specs remove entries to
 -- test the fallbacks (reset_ui_stub restores them).
 local MODERN_TEMPLATES = { "PortraitFrameFlatTemplate", "PanelTopTabButtonTemplate",
-  "WowStyle1FilterDropdownTemplate", "MinimalCheckboxTemplate" }
+  "MinimalCheckboxTemplate" }
 local CLASSIC_TEMPLATES = { "PortraitFrameTemplate", "PanelTabButtonTemplate", "InsetFrameTemplate",
   "UIPanelButtonTemplate", "UICheckButtonTemplate", "SearchBoxTemplate", "BackdropTemplate" }
 STUB_TEMPLATES = {}

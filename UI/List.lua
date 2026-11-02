@@ -1,14 +1,14 @@
 local ADDON, ns = ...
 
--- Scrollable mount list shared by the Journal, Holidays, Achievements,
--- Timewalking and Misc tabs: a top
--- row with the search box and a Filter dropdown (UI.CreateFilterDropdown:
--- Collected, plus the view's own sections -- Journal sources, Misc
--- categories, holidays, achievement expansions; none on Timewalking -- as
--- "Show ..." checkboxes with Check all / Uncheck all), and a
--- full-width ScrollBox of section headers and mount rows. Clients without the
--- 11.x dropdown (WowStyle1FilterDropdownTemplate / SetupMenu) get the older
--- left filter panel of checkboxes instead.
+-- Scrollable mount list shared by every list page (an expansion, Browse,
+-- a list page, Current Zone, Holidays, Achievements, Timewalking, Misc): a
+-- page header, one line as the design's ([Back] the title, then on the
+-- right the search box, what is left as a badge, the Filter button --
+-- UI.CreateFilterDropdown: Collected, plus the view's own sections --
+-- Journal sources, Misc categories, holidays, achievement expansions; none
+-- on Timewalking -- as "Show ..." checkboxes with Check all / Uncheck all,
+-- in MountTrail's own menu -- and the page's own buttons), and a full-width
+-- ScrollBox of section headers and mount rows.
 --
 --   local list = ns.UI.List(parent, getQuery[, opts])
 --   list:Refresh([resetScroll])
@@ -27,7 +27,10 @@ local ADDON, ns = ...
 -- headerActive = fn(sectionKey) -> bool (the
 -- header text in green), rowTag = fn(mountID, m) -> string|nil (a green tag
 -- after the row's source line), menu = { items =, onChange = } (the list's
--- own choices after the Filter menu's: UI.ListFilterDropdown) }. The base
+-- own choices after the Filter menu's: UI.ListFilterDropdown), title =
+-- string (the header's title; list.Title to change it later), back = fn (a
+-- Back button before the title: list.Back), buttons = { { text =, onClick
+-- = } } (flat buttons at the header's right end: list.Buttons) }. The base
 -- query may carry pin = {[section]=true} (Journal.Select: those sections
 -- first) and bare = true (no headers: the mounts in the order selected).
 -- Rows are a tree (UI.ListRows): section headers, sub-headers (dungeon / raid
@@ -332,8 +335,8 @@ end
 
 -- Widgets ----------------------------------------------------------------------------
 
-local SEARCH_WIDTH = 220
-local TOP_ROW = 30 -- search box + Filter button above the list
+local SEARCH_WIDTH = 160
+local TOP_ROW = 36 -- the page header: title, search, what is left, Filter
 
 -- A row's "where it comes from" line: the mount names' font (GameFontHighlight,
 -- so "Mount names and text" sizes both) dimmed to 70 % grey; GameFontDisable
@@ -411,16 +414,42 @@ function UI.List(parent, getQuery, opts)
   local rightEdge, rightPoint = list, "TOPRIGHT"
   if pane then rightEdge, rightPoint = pane, "TOPLEFT" end
 
-  -- Top row: search box + Filter button. Fallback: the left filter panel
-  -- (search box on top of it).
-  local dropdown = UI.ListFilterDropdown(list, opts and opts.menu)
-  list.FilterDropdown = dropdown
-  local searchParent = list
-  if not dropdown then searchParent = UI.BuildFilterPanel(list) end
+  -- The page header, one line: [Back] the title on the left; the search box,
+  -- what is left, Filter (its Reset beside it) and the page's buttons on the
+  -- right, over a thin rule.
+  local rule = list:CreateTexture(nil, "BORDER")
+  rule:SetHeight(1)
+  rule:SetPoint("TOPLEFT", list, "TOPLEFT", 0, -(TOP_ROW - 2))
+  rule:SetPoint("TOPRIGHT", rightEdge, rightPoint, 0, -(TOP_ROW - 2))
+  local line = UI.THEME and UI.THEME.cardEdge or { 0.2, 0.16, 0.09 }
+  rule:SetColorTexture(line[1], line[2], line[3], 1)
+  list.Rule = rule
 
-  local search = CreateFrame("EditBox", nil, searchParent, "SearchBoxTemplate")
+  -- The page's buttons (Pop out), right to left from the header's end.
+  list.Buttons = {}
+  local rightOf, rightOfPoint, gap = rightEdge, rightPoint == "TOPLEFT" and "TOPLEFT" or "TOPRIGHT", -20
+  for i = #((opts and opts.buttons) or {}), 1, -1 do
+    local spec = opts.buttons[i]
+    local b = UI.FlatButton(list, spec.text, "plain", 22)
+    b:SetPoint("TOPRIGHT", rightOf, rightOfPoint, gap, -6)
+    b:SetScript("OnClick", spec.onClick)
+    list.Buttons[i] = b
+    rightOf, rightOfPoint, gap = b, "TOPLEFT", -6
+  end
+
+  local dropdown = UI.ListFilterDropdown(list, opts and opts.menu)
+  dropdown:SetPoint("TOPRIGHT", rightOf, rightOfPoint, gap, -6)
+  list.FilterDropdown = dropdown
+
+  -- What is left (the mounts of the page not owned yet): a badge left of
+  -- Filter (of its Reset while that shows).
+  local count = UI.Badge(list)
+  list.Count = count
+
+  local search = CreateFrame("EditBox", nil, list, "SearchBoxTemplate")
   UI.FlatSearchBox(search)
   search:SetAutoFocus(false)
+  search:SetSize(SEARCH_WIDTH, 20)
   search:HookScript("OnTextChanged", function(self)
     local text = self:GetText() or ""
     if text ~= list.searchText then
@@ -429,27 +458,44 @@ function UI.List(parent, getQuery, opts)
     end
   end)
   list.SearchBox = search
-  if dropdown then
-    -- The top row on the window's own fill, a thin rule underneath.
-    local rule = list:CreateTexture(nil, "BORDER")
-    rule:SetHeight(1)
-    rule:SetPoint("TOPLEFT", list, "TOPLEFT", 0, -(TOP_ROW - 2))
-    rule:SetPoint("TOPRIGHT", rightEdge, rightPoint, 0, -(TOP_ROW - 2))
-    rule:SetColorTexture(1, 1, 1, 0.1)
-    search:SetSize(SEARCH_WIDTH, 20)
-    search:SetPoint("TOPLEFT", list, "TOPLEFT", 10, -4)
-    dropdown:SetPoint("LEFT", search, "RIGHT", 8, 0)
-  else
-    UI.LayoutFilterPanel(list, search)
+
+  -- Back and the title.
+  local back
+  if opts and opts.back then
+    back = UI.FlatButton(list, L["Back"], "plain", 22)
+    back:SetPoint("TOPLEFT", list, "TOPLEFT", 4, -6)
+    back:SetScript("OnClick", opts.back)
+    list.Back = back
   end
+  local titleText = list:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalLarge"))
+  if back then
+    titleText:SetPoint("LEFT", back, "RIGHT", 12, 0)
+  else
+    titleText:SetPoint("TOPLEFT", list, "TOPLEFT", 10, -9)
+  end
+  titleText:SetPoint("RIGHT", search, "LEFT", -12, 0)
+  titleText:SetJustifyH("LEFT")
+  titleText:SetWordWrap(false)
+  titleText:SetText(opts and opts.title or "")
+  list.Title = titleText
+
+  -- The right side's places follow the Reset button's (it comes and goes).
+  function list.LayoutHeader()
+    local reset = dropdown.Reset
+    local anchor = (reset and reset:IsShown()) and reset or dropdown
+    count:ClearAllPoints()
+    if count:IsShown() then
+      count:SetPoint("RIGHT", anchor, "LEFT", -8, 0)
+      anchor = count
+    end
+    search:ClearAllPoints()
+    search:SetPoint("RIGHT", anchor, "LEFT", -10, 0)
+  end
+  list.LayoutHeader()
 
   -- Scroll list ----------------------------------------------------------------
   local scrollBox = CreateFrame("Frame", nil, list, "WowScrollBoxList")
-  if list.FilterPanel then
-    scrollBox:SetPoint("TOPLEFT", list.FilterPanel, "TOPRIGHT", 4, 0)
-  else
-    scrollBox:SetPoint("TOPLEFT", list, "TOPLEFT", 0, -TOP_ROW) -- full width
-  end
+  scrollBox:SetPoint("TOPLEFT", list, "TOPLEFT", 0, -TOP_ROW) -- full width
   if pane then
     scrollBox:SetPoint("BOTTOMRIGHT", pane, "BOTTOMLEFT", -20, 0)
   else
@@ -529,16 +575,9 @@ function UI.List(parent, getQuery, opts)
     query.sourceText = memoText(query.sourceText or ns.Game.MountSourceText)
     if query.showUnobtainable == nil then query.showUnobtainable = UI.ShowUnobtainable() end
 
-    local tab = query.view or query.tab
-    if tab ~= self.tab then
-      self.tab = tab
-      local dd = self.FilterDropdown
-      if dd and type(dd.GenerateMenu) == "function" then dd:GenerateMenu() end
-    end
-    if self.FilterPanel then UI.RefreshFilterPanel(self, filters, tab) end
-    if self.FilterDropdown and type(self.FilterDropdown.ValidateResetState) == "function" then
-      self.FilterDropdown:ValidateResetState()
-    end
+    self.tab = query.view or query.tab
+    local tab = self.tab
+    if self.FilterDropdown.ValidateResetState then self.FilterDropdown:ValidateResetState() end
 
     local select = (opts and opts.select) or ns.Journal.Select
     if not (opts and opts.select) and UI.SearchMatches then
@@ -548,6 +587,13 @@ function UI.List(parent, getQuery, opts)
       query.match = UI.SearchMatches(ids, query.search, query.sourceText)
     end
     local selected = select((ns.Data and ns.Data.Mounts) or {}, query)
+    -- What is left on the page: its mounts not owned yet.
+    local left = 0
+    for _, e in ipairs(selected) do
+      if e.id and not query.isOwned(e.id) then left = left + 1 end
+    end
+    UI.SetBadge(self.Count, string.format(L["%d left"], left), left > 0 and "gold" or "green")
+    self.LayoutHeader()
     local rows = UI.ListRows(selected, query.isOwned, {
       bare = query.bare,
       headerSuffix = opts and opts.headerSuffix,

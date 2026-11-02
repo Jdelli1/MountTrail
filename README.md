@@ -165,16 +165,21 @@ are gold; groups under them are in their expansion's colour when they are
 one, else light grey. The world map tab keeps its own rows (big icons, no
 cards).
 
+- **Page header**: every list page has the same one line: Back (where there
+  is one) and the title on the left; the search box, what is left as a badge
+  (`16 left`), the Filter button and the page's own buttons (`Pop out`) on
+  the right.
 - **Tooltip**: drop details, your attempts on this character and in total over
   all your characters (the game's kill statistics where it keeps them, else
   MountTrail's own per-character counter; Rarity's count when larger).
-- **Filters**: each list's Filter button offers its own categories as
-  `Show ...` checkboxes, plus Collected and Check all / Uncheck all. An
+- **Filters**: each list's Filter button opens MountTrail's own menu (the
+  gold-edged one every menu uses) with its own categories as `Show ...`
+  checkboxes, plus Collected and Check all / Uncheck all. An
   expansion's list has its sources (`Show dungeon drops`, `Show raid drops`,
   ...), Holidays each holiday, Achievements each expansion and General;
   Browse pages and Timewalking have Collected only. Choices are saved
-  account-wide per list (Collected is shared); the reset arrow next to the
-  button restores that list's defaults.
+  account-wide per list (Collected is shared); while they differ from the
+  defaults, a `Reset` button beside Filter restores them.
 - **Collected**: owned and other-faction mounts are hidden unless Collected is
   on; owned mounts then show on a light green row with a green name.
 - **Collapse**: click a header to collapse it. Shift-click any header to
@@ -260,7 +265,7 @@ it can still spend on a mount.
   out that whole group.
 - `Show completed` (top of the Filter menu): lockouts already done stay
   listed, dimmed, after the open ones (off by default; saved account-wide;
-  the Filter's reset arrow turns it off too).
+  the Filter's `Reset` turns it off too).
 
 **Rare Spawns (no lockout).** Rare-spawn mounts whose rare has no known kill
 flag (long-respawn rares such as Nok-Karosh, Gorok or the Time-Lost

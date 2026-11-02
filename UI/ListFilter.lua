@@ -3,10 +3,9 @@ local ADDON, ns = ...
 -- The mount list's Filter menu, split out of UI/List.lua (loads right after
 -- it): the menu items over ns.db.global.filters (UI.FilterMenuItems,
 -- UI.FilterLabel, UI.FilterChecked, UI.ToggleFilter, UI.ApplyFilterAction,
--- UI.FiltersAreDefault), the Filter dropdown (UI.CreateFilterDropdown; the
--- list's own: UI.ListFilterDropdown) and the fallback checkbox panel for
--- clients without it (UI.BuildFilterPanel, UI.LayoutFilterPanel,
--- UI.RefreshFilterPanel). UI.List (UI/List.lua) calls these when it builds
+-- UI.FiltersAreDefault) and the Filter button that opens them in
+-- MountTrail's own menu (UI.CreateFilterDropdown; the list's own:
+-- UI.ListFilterDropdown). UI.List (UI/List.lua) calls these when it builds
 -- and refreshes.
 
 local L = ns.L
@@ -131,144 +130,33 @@ end
 
 -- Widgets ----------------------------------------------------------------------------
 
-local FILTER_WIDTH = 150 -- fallback filter panel
-local FILTER_BUTTON_WIDTH, FILTER_BUTTON_HEIGHT = 93, 22 -- the Mount Journal's Filter button
-local CHECK_SIZE = 24
+local FILTER_BUTTON_WIDTH, FILTER_BUTTON_HEIGHT = 70, 22
 
 local function filtersDB()
   return ns.db and ns.db.global and ns.db.global.filters or nil
 end
 
-
--- Fallback panel checkbox; its label is one line kept inside the panel
--- (long "Show ..." labels are cut, not run under the list).
-local FILTER_LABEL_WIDTH = FILTER_WIDTH - CHECK_SIZE - 10
-local function makeCheck(panel, label, onClick)
-  local cb = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
-  cb:SetSize(CHECK_SIZE, CHECK_SIZE)
-  local text = cb.Text or cb.text
-  if not text then
-    text = cb:CreateFontString(nil, "ARTWORK", UI.Font("GameFontHighlightSmall"))
-    text:SetPoint("LEFT", cb, "RIGHT", 2, 0)
-  end
-  text:SetWidth(FILTER_LABEL_WIDTH)
-  text:SetWordWrap(false)
-  if text.SetJustifyH then text:SetJustifyH("LEFT") end
-  text:SetText(label)
-  cb.Label = text
-  cb:SetScript("OnClick", onClick)
-  return cb
-end
-
--- Fallback filter panel (clients without the 11.x dropdown menus): a column
--- of checkboxes left of the list, under the search box: Collected, then the
--- current view's sections (UI.FilterMenuItems), rebuilt when the view changes.
-local function buildFilterPanel(list)
-  local panel = CreateFrame("Frame", nil, list)
-  panel:SetPoint("TOPLEFT", list, "TOPLEFT", 0, 0)
-  panel:SetPoint("BOTTOMLEFT", list, "BOTTOMLEFT", 0, 0)
-  panel:SetWidth(FILTER_WIDTH)
-  list.FilterPanel = panel
-  return panel
-end
-
--- Search box, Collected and the section title of the fallback filter panel;
--- the section checkboxes come from refreshFilterPanel.
-local function layoutFilterPanel(list, search)
-  local panel = list.FilterPanel
-  search:SetSize(FILTER_WIDTH - 16, 20)
-  search:SetPoint("TOPLEFT", panel, "TOPLEFT", 10, -4)
-
-  local collected = makeCheck(panel, L["Collected"], function(self)
-    local filters = filtersDB()
-    if filters then filters.collected = self:GetChecked() and true or false end
-    ns.Refresh()
-  end)
-  collected:SetPoint("TOPLEFT", search, "BOTTOMLEFT", -6, -8)
-  list.CollectedCheck = collected
-
-  local sectionsTitle = panel:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalSmall"))
-  sectionsTitle:SetPoint("TOPLEFT", collected, "BOTTOMLEFT", 4, -8)
-  sectionsTitle:SetText(L["Sources"])
-  list.SectionsTitle = sectionsTitle
-
-  -- SectionPool: every section checkbox made so far (reused across views);
-  -- SectionChecks: the ones the current view shows, in menu order.
-  list.SectionPool = {}
-  list.SectionChecks = {}
-end
-
--- One reusable section checkbox of the fallback panel: it writes its
--- current filterKey on the panel's current view.
-local function sectionCheck(list, i)
-  local cb = list.SectionPool[i]
-  if cb then return cb end
-  cb = makeCheck(list.FilterPanel, "", function(self)
-    local filters = filtersDB()
-    if filters then ns.Journal.SetSectionShown(filters, list.tab, self.filterKey, self:GetChecked() and true or false) end
-    ns.Refresh()
-  end)
-  if i == 1 then
-    cb:SetPoint("TOPLEFT", list.SectionsTitle, "BOTTOMLEFT", -4, -4)
-  else
-    cb:SetPoint("TOPLEFT", sectionCheck(list, i - 1), "BOTTOMLEFT", 0, 0)
-  end
-  list.SectionPool[i] = cb
-  return cb
-end
-
-local function refreshFilterPanel(list, filters, view)
-  list.CollectedCheck:SetChecked(filters.collected == true)
-  local checks, title = {}, nil
-  for _, item in ipairs(UI.FilterMenuItems(view, filters)) do
-    if item.kind == "title" then
-      title = item.label
-    elseif item.kind == "checkbox" and item.key ~= "collected" then
-      local cb = sectionCheck(list, #checks + 1)
-      cb.filterKey = item.key
-      cb.Label:SetText(item.label)
-      cb:SetChecked(item.checked)
-      cb:Show()
-      checks[#checks + 1] = cb
-    end
-  end
-  for i = #checks + 1, #list.SectionPool do list.SectionPool[i]:Hide() end
-  list.SectionChecks = checks
-  list.SectionsTitle:SetText(title or "")
-  list.SectionsTitle:SetShown(#checks > 0)
-end
-
--- A Filter button (the Mount Journal's WowStyle1FilterDropdownTemplate with
--- the 11.x SetupMenu API), or nil when this client lacks either (callers
--- fall back to checkboxes). Reusable by any view (the list, the checklist).
+-- A Filter button: a flat gold button that opens MountTrail's own menu
+-- (UI.ShowMenu, the gold-edged look of every menu). Reusable by any view
+-- (the list, the checklist).
 -- opts: {
 --   items = function() -> UI.FilterMenuItems-style list (read when the
 --     menu is built and again after each change; the checkboxes' states
 --     come from that one read),
 --   onChange = function(kind, value): ("toggle", key) when a checkbox is
---     clicked, ("action", action) for a button (the menu stays open),
+--     clicked, ("radio", key) for a radio item, ("action", action) for a
+--     button (the menu stays open and repaints),
 --   isDefault = function() -> bool and reset = function() (optional, both
---     needed): the reset arrow next to the button while not at the defaults,
---   fallbackName = string (optional): what replaces the dropdown on clients
---     without it, for /mtrail debug (default "checkbox panel"),
+--     needed): a small Reset button left of it while not at the defaults,
 -- }
+-- The button's generator(button, root) builds the menu over a root with
+-- CreateCheckbox / CreateRadio / CreateDivider / CreateTitle / CreateButton
+-- (the shape of Blizzard's menu API), which the click turns into UI.ShowMenu
+-- items. button:ValidateResetState() shows the Reset button while not at
+-- the defaults; button.defaultCallback() resets.
 function UI.CreateFilterDropdown(parent, opts)
-  local fallbackName = opts.fallbackName or "checkbox panel"
-  local template = UI.Template("WowStyle1FilterDropdownTemplate", nil)
-  if not template then return nil end
-  local good, dropdown = pcall(CreateFrame, "DropdownButton", nil, parent, template)
-  if not (good and type(dropdown) == "table") then
-    UI.RecordFallback("DropdownButton", fallbackName)
-    return nil
-  end
-  if type(dropdown.SetupMenu) ~= "function" then
-    dropdown:Hide()
-    UI.RecordFallback("DropdownButton:SetupMenu", fallbackName)
-    return nil
-  end
-  dropdown:SetSize(FILTER_BUTTON_WIDTH, FILTER_BUTTON_HEIGHT)
-  if dropdown.Text and dropdown.Text.SetText then dropdown.Text:SetText(L["Filter"]) end
-  UI.FlatDropdownButton(dropdown)
+  local button = UI.FlatButton(parent, L["Filter"], "gold", FILTER_BUTTON_HEIGHT)
+  button:SetWidth(FILTER_BUTTON_WIDTH)
 
   -- key -> checked from the last items() read; nil = read again on demand
   -- (after a change).
@@ -288,15 +176,16 @@ function UI.CreateFilterDropdown(parent, opts)
   local function changed(kind, value)
     opts.onChange(kind, value)
     checked = nil
+    if button.ValidateResetState then button:ValidateResetState() end
   end
 
-  dropdown:SetupMenu(function(_, root)
+  function button.generator(_, root)
     for _, item in ipairs(readItems()) do
       if item.kind == "checkbox" then
         local key = item.key
         root:CreateCheckbox(item.label, function() return isChecked(key) end,
           function() changed("toggle", key) end)
-      elseif item.kind == "radio" and type(root.CreateRadio) == "function" then
+      elseif item.kind == "radio" then
         local key = item.key
         root:CreateRadio(item.label, function() return isChecked(key) end,
           function() changed("radio", key) end)
@@ -306,24 +195,49 @@ function UI.CreateFilterDropdown(parent, opts)
         root:CreateTitle(item.label)
       elseif item.kind == "button" then
         local action = item.action
-        root:CreateButton(item.label, function()
-          changed("action", action)
-          -- Keep the menu open and redraw its checkboxes.
-          return MenuResponse and MenuResponse.Refresh or nil
-        end)
+        root:CreateButton(item.label, function() changed("action", action) end)
       end
     end
-  end)
+  end
 
-  if opts.isDefault and opts.reset and type(dropdown.SetDefaultCallback) == "function"
-    and type(dropdown.SetIsDefaultCallback) == "function" then
-    dropdown:SetIsDefaultCallback(opts.isDefault)
-    dropdown:SetDefaultCallback(function()
+  -- The menu's items, from the generator (every choice keeps it open).
+  local function menuItems()
+    local out = {}
+    local function choice(label, isSel, onSel)
+      out[#out + 1] = { text = label, checked = isSel() == true, keepOpen = true, onClick = function() onSel() end }
+    end
+    button.generator(button, {
+      CreateCheckbox = function(_, label, isSel, onSel) choice(label, isSel, onSel) end,
+      CreateRadio = function(_, label, isSel, onSel) choice(label, isSel, onSel) end,
+      CreateDivider = function() out[#out + 1] = { separator = true } end,
+      CreateTitle = function(_, label) out[#out + 1] = { title = label } end,
+      CreateButton = function(_, label, fn) out[#out + 1] = { text = label, keepOpen = true, onClick = function() fn() end } end,
+    })
+    return out
+  end
+  button:SetScript("OnClick", function(self) UI.ShowMenu(self, menuItems) end)
+
+  if opts.isDefault and opts.reset then
+    local reset = UI.FlatButton(parent, L["Reset"], "plain", FILTER_BUTTON_HEIGHT)
+    reset:SetPoint("RIGHT", button, "LEFT", -4, 0)
+    reset:SetScript("OnEnter", function(self) UI.ShowHint(self, L["Reset filters"]) end)
+    reset:SetScript("OnLeave", function(self) UI.HideHint(self) end)
+    reset:Hide()
+    button.Reset = reset
+    button.isDefaultCallback = opts.isDefault
+    function button.defaultCallback()
       opts.reset()
       checked = nil
-    end)
+      button:ValidateResetState()
+    end
+    reset:SetScript("OnClick", function() button.defaultCallback() end)
+    function button:ValidateResetState()
+      self.resetShown = not opts.isDefault()
+      self.Reset:SetShown(self.resetShown)
+    end
+    button:ValidateResetState()
   end
-  return dropdown
+  return button
 end
 
 -- The list's Filter button: UI.FilterMenuItems of the list's view over
@@ -372,7 +286,4 @@ local function createFilterDropdown(list, extra)
 end
 
 -- For UI.List (UI/List.lua).
-UI.BuildFilterPanel = buildFilterPanel
-UI.LayoutFilterPanel = layoutFilterPanel
-UI.RefreshFilterPanel = refreshFilterPanel
 UI.ListFilterDropdown = createFilterDropdown

@@ -47,13 +47,6 @@ function CreateFont(name)
   _G[name] = font
   return font
 end
-MenuResponse = { Refresh = 2 }
-STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate = {
-  SetupMenu = function(self, generator) self.generator = generator end,
-  SetDefaultCallback = function(self, fn) self.defaultCallback = fn end,
-  SetIsDefaultCallback = function(self, fn) self.isDefaultCallback = fn end,
-  ValidateResetState = noop,
-}
 
 
 -- `owned(id)` decides ownership (default: every third mount).

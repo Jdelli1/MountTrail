@@ -47,6 +47,7 @@ UI.RegisterView("holidays", {
       schedule = ns.Game.HolidaySchedule()
       return { view = "holidays", pin = activeNow }
     end, {
+      title = L["Holidays"],
       headerSuffix = function(section) return UI.HolidayBadge(section, activeNow, schedule) end,
       headerActive = function(section) return activeNow[section] == true end,
     })
@@ -64,7 +65,7 @@ UI.RegisterView("achievements", {
   Build = function(parent)
     achievementList = UI.List(parent, function()
       return { view = "achievements" }
-    end)
+    end, { title = L["Achievements"] })
   end,
   Refresh = function()
     -- Opening the tab starts the mount -> achievement scan (spread over
@@ -89,7 +90,7 @@ UI.RegisterView("timewalking", {
   Build = function(parent)
     timewalkingList = UI.List(parent, function()
       return { view = "timewalking" }
-    end)
+    end, { title = L["Timewalking"] })
   end,
   Refresh = function()
     if timewalkingList then timewalkingList:Refresh() end
@@ -104,7 +105,7 @@ UI.RegisterView("misc", {
   Build = function(parent)
     miscList = UI.List(parent, function()
       return { view = "misc" }
-    end, { rowTag = UI.TradingTag })
+    end, { rowTag = UI.TradingTag, title = L["Other"] })
   end,
   Refresh = function()
     if miscList then miscList:Refresh() end

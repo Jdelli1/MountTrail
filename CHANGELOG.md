@@ -37,6 +37,12 @@
   shows your tries ("87 tries") before its drop chance, and the search
   boxes and Filter buttons are flat (a dark field with a dim gold border)
   instead of Blizzard's rounded art.
+- Every list page has the same one-line header, as the design: Back and
+  the title on the left; search, what is left (`16 left`), Filter and the
+  page's buttons on the right. Holidays, Achievements, Timewalking and Other
+  get titles too.
+- The Filter button opens MountTrail's own gold-edged menu instead of
+  Blizzard's dropdown; a `Reset` button beside it replaces the red arrow.
 - The left column has one **Lists** section instead of My lists and Quick
   lists: the built-in lists (Daily / Weekly lockouts, Rare Spawns) come first,
   then your own. The settings are now `Show your lists` and

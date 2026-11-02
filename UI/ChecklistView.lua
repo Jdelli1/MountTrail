@@ -418,11 +418,9 @@ function view.Filters()
 end
 
 -- The Filter button for the checklist (UI.CreateFilterDropdown) on
--- `parent` (the tab's header), or nil on clients without the 11.x dropdown.
+-- `parent` (the tab's header).
 function view.CreateFilterDropdown(parent)
   return UI.CreateFilterDropdown(parent, {
-    -- /mtrail debug: without the dropdown there is no checklist filter.
-    fallbackName = "checklist filter (all categories shown)",
     items = function() return UI.ChecklistFilterItems(view.Filters()) end,
     onChange = function(kind, value)
       local filters = view.Filters()
@@ -669,10 +667,8 @@ local function buildHeader(parent)
   top.Resets = resets
 
   local filter = view.CreateFilterDropdown(top)
-  if filter then
-    filter:SetPoint("TOPRIGHT", top, "TOPRIGHT", -8, -4)
-    top.ChecklistFilter = filter
-  end
+  filter:SetPoint("TOPRIGHT", top, "TOPRIGHT", -8, -4)
+  top.ChecklistFilter = filter
 
   -- Tabs (flat text on the rule, the shown one gold over a gold line): All /
   -- Daily / Weekly / Rare Spawns.
@@ -927,7 +923,7 @@ function view.Refresh()
   header.Resets:SetText(UI.ChecklistSummary(untilDaily, untilWeekly))
   paintChips(left, show)
   local filter = header.ChecklistFilter
-  if filter and type(filter.ValidateResetState) == "function" then filter:ValidateResetState() end
+  if filter.ValidateResetState then filter:ValidateResetState() end
   return built
 end
 

@@ -150,14 +150,6 @@ function UI.FlatSearchBox(box)
   return box
 end
 
--- A Filter dropdown button in the flat look: "Filter" in gold on a dark
--- field, as the design's buttons.
-function UI.FlatDropdownButton(button)
-  flatten(button, { 0.1, 0.08, 0.05, 0.9 })
-  if button.Text and button.Text.SetTextColor then button.Text:SetTextColor(1, 0.82, 0.29) end
-  return button
-end
-
 -- A small boxed label (Blend A's badges: "Open", "Done", "7 left",
 -- "1 in 100"), sized to its text. Made once per owner, then UI.SetBadge.
 UI.BADGE_COLORS = {
@@ -230,40 +222,6 @@ function UI.RarityTag(mountID)
   local pct = ns.Owners and ns.Owners.Percent and ns.Owners.Percent(mountID)
   if type(pct) ~= "number" then return "" end
   return pct < 1 and string.format(" (%.1f%%)", pct) or string.format(" (%d%%)", math.floor(pct + 0.5))
-end
-
--- A page's 30 px header in the pop-outs' look (no band, a thin rule under
--- it): a flat Back button when `withBack`, then the title -> back|nil, title.
--- The page's content starts UI.PAGE_TOP down.
-UI.PAGE_TOP = -36
-function UI.PageHeader(page, withBack)
-  local rule = page:CreateTexture(nil, "BORDER")
-  rule:SetHeight(1)
-  rule:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -30)
-  rule:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, -30)
-  rule:SetColorTexture(1, 1, 1, 0.1)
-  page.Rule = rule
-  local back
-  if withBack then
-    back = UI.FlatButton(page, L["Back"], "plain", 22)
-    back:SetPoint("TOPLEFT", page, "TOPLEFT", 4, -4)
-    page.Back = back
-  end
-  local title = page:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalLarge"))
-  if back then
-    title:SetPoint("LEFT", back, "RIGHT", 12, 0)
-  else
-    title:SetPoint("LEFT", page, "TOPLEFT", 10, -15)
-  end
-  page.Title = title
-  return back, title
-end
-
--- A flat button for a page's header (Pop out), at its top right.
-function UI.PageButton(page, text)
-  local b = UI.FlatButton(page, text, "plain", 22)
-  b:SetPoint("TOPRIGHT", page, "TOPRIGHT", -4, -4)
-  return b
 end
 
 -- The extra windows, in the order they were added (UI.AddStyledWindow).

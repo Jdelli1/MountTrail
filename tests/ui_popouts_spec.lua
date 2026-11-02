@@ -77,17 +77,7 @@ function CreateFont(name)
   _G[name] = font
   return font
 end
-MenuResponse = { Refresh = 2 }
 
--- The 11.x DropdownButton stand-in: records the generator and callbacks.
-STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate = {
-  SetupMenu = function(self, generator) self.generator = generator end,
-  SetDefaultCallback = function(self, fn) self.defaultCallback = fn end,
-  SetIsDefaultCallback = function(self, fn) self.isDefaultCallback = fn end,
-  ValidateResetState = function(self)
-    self.resetShown = self.isDefaultCallback ~= nil and not self.isDefaultCallback()
-  end,
-}
 
 -- Runs a dropdown's menu generator against a recording root description.
 local function openMenu(dropdown)
