@@ -89,9 +89,15 @@ local function initHeader(frame, data)
     glyph:SetWidth(INDICATOR_SIZE)
     glyph:SetJustifyH("LEFT")
     frame.Glyph = glyph
+    -- The count on the header's right, as the design's card headers.
+    local count = frame:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisableSmall"))
+    count:SetJustifyH("RIGHT")
+    frame.Count = count
     local label = frame:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormal"))
     label:SetPoint("LEFT", glyph, "RIGHT", 0, 0)
+    label:SetPoint("RIGHT", count, "LEFT", -8, 0)
     label:SetJustifyH("LEFT")
+    label:SetWordWrap(false)
     frame.Label = label
     frame:SetScript("OnEnter", function(self)
       self.Hover:Show()
@@ -171,7 +177,10 @@ local function initHeader(frame, data)
   frame.Glyph:SetTextColor(c[1], c[2], c[3])
   frame.Label:SetFontObject(font)
   frame.Label:SetTextColor(c[1], c[2], c[3])
-  frame.Label:SetText(UI.HeaderText(data))
+  frame.Label:SetText(UI.HeaderText(data, true))
+  frame.Count:ClearAllPoints()
+  frame.Count:SetPoint("RIGHT", frame, "RIGHT", -10, -gap / 2)
+  frame.Count:SetText(UI.HeaderCount(data) or "")
 end
 
 -- The section / sub-header row look, shared with the route checklist
@@ -432,9 +441,16 @@ local function initRow(row, data)
     row.CardIcon:SetTexture(icon or 134400) -- a question mark when unknown
     local rc = (not data.owned and UI.ListRarityColor(data.id)) or NO_RARITY
     row.IconBox.Edge:SetColor(rc[1], rc[2], rc[3], 1)
+    -- The badge: Owned; else your tries (a mount you are farming); else
+    -- its drop chance.
     local chance = data.m and tonumber(data.m.chance)
+    local tries = (not data.owned and data.m and UI.IsTracked and UI.MountAttempts and UI.IsTracked(data.id, data.m))
+      and UI.MountAttempts(data.id, data.m) or nil
+    tries = type(tries) == "table" and tonumber(tries.total) or 0
     if data.owned then
       UI.SetBadge(row.Chip, UI.MARK_DONE .. " " .. L["Owned"], "green")
+    elseif tries > 0 then
+      UI.SetBadge(row.Chip, string.format(tries == 1 and L["%d try"] or L["%d tries"], tries), "grey")
     else
       UI.SetBadge(row.Chip, chance and chance > 1 and string.format(L["1 in %d"], chance) or nil, "grey")
     end

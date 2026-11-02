@@ -268,6 +268,7 @@ function UI.CreateFilterDropdown(parent, opts)
   end
   dropdown:SetSize(FILTER_BUTTON_WIDTH, FILTER_BUTTON_HEIGHT)
   if dropdown.Text and dropdown.Text.SetText then dropdown.Text:SetText(L["Filter"]) end
+  UI.FlatDropdownButton(dropdown)
 
   -- key -> checked from the last items() read; nil = read again on demand
   -- (after a change).

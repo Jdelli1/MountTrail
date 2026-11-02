@@ -121,6 +121,43 @@ local function applyChrome(w, style)
   headerText(w.Title, style, UI.Font("GameFontNormal"), 2)
 end
 
+-- Blend A's flat controls over Blizzard's templates: their own art hidden
+-- (every texture region), a dark fill and a dim gold 1 px border in its
+-- place; the behaviour (typing, the menu, the reset arrow) stays theirs.
+local function flatten(f, fill)
+  if f.flat then return f end
+  if type(f.GetRegions) == "function" then
+    for _, r in ipairs({ f:GetRegions() }) do
+      if type(r) == "table" and r.GetObjectType and r:GetObjectType() == "Texture" then r:SetAlpha(0) end
+    end
+  end
+  local bg = f:CreateTexture(nil, "BACKGROUND", nil, -8)
+  bg:SetAllPoints(f)
+  bg:SetColorTexture(fill[1], fill[2], fill[3], fill[4])
+  f.FlatFill = bg
+  local edge = UI.THEME.frame
+  f.FlatEdge = UI.FlatBorder(f, edge[1], edge[2], edge[3], 1)
+  f.flat = true
+  return f
+end
+
+-- A search box (SearchBoxTemplate) in the flat look; its magnifier icon and
+-- clear button stay.
+function UI.FlatSearchBox(box)
+  flatten(box, { 0.08, 0.07, 0.06, 0.9 })
+  if box.searchIcon then box.searchIcon:SetAlpha(0.7) end
+  if box.clearButton and box.clearButton.texture then box.clearButton.texture:SetAlpha(0.8) end
+  return box
+end
+
+-- A Filter dropdown button in the flat look: "Filter" in gold on a dark
+-- field, as the design's buttons.
+function UI.FlatDropdownButton(button)
+  flatten(button, { 0.1, 0.08, 0.05, 0.9 })
+  if button.Text and button.Text.SetTextColor then button.Text:SetTextColor(1, 0.82, 0.29) end
+  return button
+end
+
 -- A small boxed label (Blend A's badges: "Open", "Done", "7 left",
 -- "1 in 100"), sized to its text. Made once per owner, then UI.SetBadge.
 UI.BADGE_COLORS = {

@@ -453,6 +453,7 @@ local function createSummary()
 
   -- Search box on the right; the first typed letter opens the search page.
   local search = CreateFrame("EditBox", nil, s, "SearchBoxTemplate")
+  UI.FlatSearchBox(search)
   search:SetAutoFocus(false)
   search:SetSize(200, 20)
   search:SetPoint("RIGHT", s, "RIGHT", -12, 0)

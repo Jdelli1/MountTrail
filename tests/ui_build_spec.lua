@@ -1038,6 +1038,19 @@ describe("ui build", function()
     local chancy = { id = rows[idx].id, m = { exp = exp, chance = 100 }, owned = false }
     initFor(list.ScrollBox, chancy)(row, chancy)
     eq(row.Chip.Text:GetText(), "1 in 100")
+    -- A mount you are farming: your tries before its chance.
+    local savedTracked, savedAttempts = ns.UI.IsTracked, ns.UI.MountAttempts
+    ns.UI.IsTracked = function() return true end
+    ns.UI.MountAttempts = function() return { total = 87 } end
+    initFor(list.ScrollBox, chancy)(row, chancy)
+    eq(row.Chip.Text:GetText(), "87 tries")
+    ns.UI.IsTracked, ns.UI.MountAttempts = savedTracked, savedAttempts
+    -- Flat controls over Blizzard's: the search box and the Filter button.
+    ok(list.SearchBox.FlatFill and list.SearchBox.FlatEdge, "a flat search box")
+    ok(list.FilterDropdown.FlatFill and list.FilterDropdown.FlatEdge, "a flat Filter button")
+    -- A header's count on its right, not in its name.
+    eq(header.Count:GetText(), ns.UI.HeaderCount(rows[1]))
+    ok(not header.Label:GetText():find("(", 1, true), "the name alone")
   end)
 
   it("mount rows under a sub-header are indented to the sub-header's inset", function()
@@ -1386,7 +1399,7 @@ describe("ui build", function()
     local frames = render(box)
     local label = frames[hi].Label:GetText()
     ok(label:find("^Rare Spawns %(no lockout%)"), label)
-    ok(label:find("(" .. top.left .. " left)", 1, true), label)
+    eq(frames[hi].Count:GetText(), top.left .. " left", "what is left, on the header's right")
     ok(not label:find("resets in", 1, true), "no reset timer")
     ok(find(function(r) return r.key == "checklist|camp|Warlords of Draenor|Nagrand" end), "expansion -> zone")
 
@@ -1431,7 +1444,7 @@ describe("ui build", function()
     eq(rows[1].key, "checklist|daily")
     local frames = render(box)
     ok(frames[1].Label:GetText():find("^Daily \194\183 resets in "), frames[1].Label:GetText())
-    ok(frames[1].Label:GetText():find("(" .. rows[1].total .. " left)", 1, true), "what is left, as the pop-outs count")
+    eq(frames[1].Count:GetText(), rows[1].total .. " left", "what is left, on the header's right")
     local weekly
     for i, row in ipairs(rows) do if row.header and row.depth == 1 and row.reset == "weekly" then weekly = i end end
     ok(weekly and weekly > 2, "weekly header after the daily rows")
@@ -1441,7 +1454,7 @@ describe("ui build", function()
     eq(rows[2].depth, 2)
     ok(rows[2].key:find("^checklist|daily|"), rows[2].key)
     eq(box.view.extent(1, rows[2]), 20, "sub-header height")
-    ok(frames[2].Label:GetText():find("(" .. rows[2].total .. " left)", 1, true), "sub-header: what is left")
+    eq(frames[2].Count:GetText(), rows[2].total .. " left", "sub-header: what is left")
     eq(frames[2].Label.textColor, ns.UI.EXPANSION_COLORS[rows[2].exp], "an expansion header in its colour")
 
     -- F14: then a category header (Raids, Dungeons, ...) one step further in.
@@ -1452,7 +1465,7 @@ describe("ui build", function()
     eq(box.view.extent(1, rows[3]), 20, "category header: sub-header height")
     eq({ frames[3].Glyph:GetPoint(1) }, { "LEFT", frames[3], "LEFT", 22 + 16, 0 }, "indented a step further")
     eq(frames[3].Label.font, ns.UI.Font("GameFontNormal"))
-    ok(frames[3].Label:GetText():find("(" .. rows[3].total .. " left)", 1, true), "category: what is left")
+    eq(frames[3].Count:GetText(), rows[3].total .. " left", "category: what is left")
 
     -- A row: list look, pin, click, hover. A game-tracked lockout has no
     -- tick box (the game decides); the icon keeps its place either way.

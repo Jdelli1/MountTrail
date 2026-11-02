@@ -419,6 +419,7 @@ function UI.List(parent, getQuery, opts)
   if not dropdown then searchParent = UI.BuildFilterPanel(list) end
 
   local search = CreateFrame("EditBox", nil, searchParent, "SearchBoxTemplate")
+  UI.FlatSearchBox(search)
   search:SetAutoFocus(false)
   search:HookScript("OnTextChanged", function(self)
     local text = self:GetText() or ""

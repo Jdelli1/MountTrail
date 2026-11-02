@@ -203,6 +203,8 @@ L["Done"] = "Done"
 L["1 in %d"] = "1 in %d"
 L["Owned"] = "Owned"
 L["Faction"] = "Faction"
+L["%d try"] = "%d try"
+L["%d tries"] = "%d tries"
 L["mounts collected · %d%%"] = "mounts collected · %d%%"
 L["collected"] = "collected"
 

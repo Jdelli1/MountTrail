@@ -157,8 +157,10 @@ Timewalking, Lockouts, Current Zone, the zone panel) looks the same, as a
 pop-out's Cards layout does: each top-level group is a card (its header on a
 card top with an edge in its colour, a small gap above it), and each mount
 a two-line row on it (the mount's icon boxed in its rarity's colour, the
-name over where it comes from, and a badge: `Owned`, or the drop chance as
-`1 in 100`), its card edge in the mount's expansion colour. Top-level headers
+name over where it comes from, and a badge: `Owned`, your tries on a mount
+you are farming (`87 tries`), or the drop chance as `1 in 100`), its card
+edge in the mount's expansion colour. A group's count sits on its header's
+right. Top-level headers
 are gold; groups under them are in their expansion's colour when they are
 one, else light grey. The world map tab keeps its own rows (big icons, no
 cards).
