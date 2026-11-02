@@ -256,9 +256,16 @@ describe("journal home", function()
     ns.UI.GoTo = function(id) went = id end
     side.Nearby[2]:RunScript("OnClick", "LeftButton")
     eq(went, 2, "a click is the waypoint")
-    eq(side.NearbyOpen.Text:GetText(), "Open Current Zone")
+    local hint
+    ns.UI.ShowHint = function(_, title, text) hint = { title, text } end
+    side.NearbyOpen:RunScript("OnEnter")
+    eq(hint, { "Current Zone", "Click: open. Right-click: pop out" })
+    local popped
+    ns.UI.ToggleZoneMountsPopout = function() popped = true end
+    side.NearbyOpen:RunScript("OnClick", "RightButton")
+    ok(popped, "right-click pops Current Zone out")
     side.NearbyOpen:RunScript("OnClick", "LeftButton")
-    eq(ns.UI.CurrentTab(), "here", "the heading's button opens Current Zone")
+    eq(ns.UI.CurrentTab(), "here", "a click on the heading opens Current Zone")
   end)
 
   it("typing in the home search box opens the search page with grouped results; Back returns", function()

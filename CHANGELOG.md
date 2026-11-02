@@ -7,8 +7,9 @@
 - The left column's section headings (Browse, Lists) light up under the
   pointer instead of showing a "Click: collapse or expand" hint. Home's
   "Mounts collected" and "Collected" start with a capital.
-- Home's Nearby: an `Open Current Zone` button at the heading's right; the
-  line under the mounts just says how many are left in the zone.
+- Home's Nearby: the heading lights up under the pointer; click it to open
+  Current Zone, right-click to pop it out. The line under the mounts just
+  says how many are left in the zone.
 - Holiday mounts (Lunar Launcher, ...) show in Nearby, Current Zone, the
   zone panel and the map only while their holiday is on.
 - **Font styles**, in the cogwheel menu and on the AddOns page: a Header

@@ -13,7 +13,7 @@ local ADDON, ns = ...
 --          still to get in the player's zone, each with its icon (boxed in
 --          its rarity's colour), its source and its drop chance
 --          (Zone.MountsFor, worked out again on a new zone or once a minute;
---          a click is the waypoint; Open Current Zone at its heading's right).
+--          a click is the waypoint; its heading opens Current Zone, right-click pops it out).
 -- A complete row's count turns green. Headings are in the header colour
 -- (UI.HeaderColor), "collected" on their right.
 -- The search box searches every mount (Logic/Search.lua): typing opens the
@@ -592,10 +592,25 @@ local function createColumns()
   local side = right
   side.Card = newCard(side)
   side.NearbyHeading = heading(side, L["Nearby"])
-  -- Open Current Zone: a small gold button at the heading's right.
-  local open = UI.FlatButton(side.NearbyHeading, L["Open Current Zone"], "gold", 18)
-  open:SetPoint("RIGHT", side.NearbyHeading, "RIGHT", -2, 1)
-  open:SetScript("OnClick", function() UI.SelectTab("here") end)
+  -- The heading is a button, lit under the pointer as the rows are: click
+  -- opens Current Zone, right-click pops it out.
+  local open = CreateFrame("Button", nil, side.NearbyHeading)
+  open:SetAllPoints(side.NearbyHeading)
+  local lit = open:CreateTexture(nil, "HIGHLIGHT")
+  lit:SetAllPoints(open)
+  lit:SetColorTexture(1, 1, 1, 0.07)
+  open:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+  open:SetScript("OnClick", function(_, button)
+    if button == "RightButton" then
+      if UI.ToggleZoneMountsPopout then UI.ToggleZoneMountsPopout() end
+    else
+      UI.SelectTab("here")
+    end
+  end)
+  open:SetScript("OnEnter", function(self)
+    UI.ShowHint(self, L["Current Zone"], L["Click: open. Right-click: pop out"])
+  end)
+  open:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   side.NearbyOpen = open
   side.Nearby = {}
   -- Under the rows: how many are left in the zone (or that none are).
