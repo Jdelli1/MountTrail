@@ -2,16 +2,59 @@
 
 ## 0.9.2-beta
 
-- A whole new look: cards, boxed mount icons in their rarity's colour, and a
-  cleaner Home page with your collection, expansions, sources and nearby
-  mounts on one page.
-- Faction page: every race's mounts under its own heading.
-- Lockouts that tick themselves for the Tanaan rare mounts, the Qiraji
-  Battle Tanks (C'Thun) and the Bronze Drake (Culling of Stratholme).
-- Pop-outs come in two layouts, Cards or Compact.
-- More ways to make it yours: header and body fonts, background opacity, and
-  a tidier settings page.
-- Fix: holiday mounts only show nearby while their holiday is on.
+**A new look.** The main window, the pop-outs and the menus share one
+design: a dim gold frame, cards with a header band, and two-line rows with
+each mount's icon boxed in its rarity's colour.
+
+- **Home**: the collected total in large gold figures over a bar;
+  Expansions on the left, By source and Nearby on the right, on one page
+  that scrolls. Bars take each expansion's colour. Nearby shows each
+  mount's icon, where it comes from and its drop chance; click its heading
+  for Current Zone, right-click to pop it out.
+- **Lists**: every page has the same one-line header (Back and the title on
+  the left; search, what is left, Filter and the page's buttons on the
+  right). Rows show `Owned`, `✓ Done`, `Open`, your tries or the drop
+  chance, and a vendor mount's price.
+- **Detail pane**: the name in its rarity's colour, an info card with
+  Status, Attempts, Drop, From, Where, Cost and Lockout, and Waypoint,
+  + List and Wowhead along the bottom.
+- **Pop-outs**: two layouts in each window's right-click menu, Cards (the
+  default) and Compact; a thin progress bar under the title and each
+  group's count on its header.
+- **Left column**: one Lists section (the built-in lists, then yours),
+  section headings that light up under the pointer, and a gold band on the
+  page you are on.
+- Flat search boxes, Filter menus, tick boxes and buttons throughout.
+
+**New**
+
+- Browse has a **Faction** page: each race's mounts under its own heading,
+  the allied races' together.
+- **Font Styles** (cogwheel and AddOns page): pick a Header font and a Body
+  font (the game's by default; Arial Narrow, Morpheus, Skurri or a
+  LibSharedMedia font).
+- **Background opacity** for the main window in the cogwheel and on the
+  AddOns page.
+- The AddOns settings page is in sections (Window & Text, Font Styles,
+  Collection, Colours, Navigation, Alerts, Accessibility, Advanced), and
+  the settings have clearer names (Navigation text, Header text, Body text,
+  Small text).
+
+**Lockouts**
+
+- Tundra Icehoof, Armored Razorback and Warsong Direfang tick themselves
+  from the four Tanaan rares' daily loot ("2 of 4 rares looted"), and each
+  rare you loot counts as an attempt.
+- The Qiraji Battle Tanks are done for the week once C'Thun dies; the
+  Bronze Drake is done for the day once Mal'Ganis dies in heroic Culling of
+  Stratholme. No hand ticks needed.
+- The "Saddle up?" line is gone; the tabs already count what is left.
+
+**Fixes**
+
+- Holiday mounts show in Nearby, Current Zone, the zone panel and the map
+  only while their holiday is on.
+- Opacity and collapsing a pop-out group apply at once.
 
 ## 0.9.1-beta
 
