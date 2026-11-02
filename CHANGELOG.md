@@ -55,6 +55,8 @@
   has the design's rows: Status, Attempts (with how many players would have
   it by now), Drop, From, Where, Cost and Lockout (gold while open, green
   once done).
+- Pop-outs show a thin gold bar under the title (how much of the set is
+  done) and each group's "N left" on its header's right.
 - The Qiraji Battle Tanks leave Lockouts for the week once C'Thun dies in
   Ahn'Qiraj (40); the Bronze Drake's day is spent by the Culling of
   Stratholme heroic (Mal'Ganis's kill; the drake itself is a sure drop). No

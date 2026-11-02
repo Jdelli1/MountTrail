@@ -357,8 +357,15 @@ local function groupHeader(w, i)
     UI.ShowHint(self, L["Click: collapse or expand"], L["Shift-click: all groups at once"])
   end)
   h:SetScript("OnLeave", function(self) UI.HideHint(self) end)
+  -- What is left on the header's right (as the main window's card headers).
+  local count = h:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisableSmall"))
+  count:SetPoint("RIGHT", h, "RIGHT", -8, 0)
+  h.Count = count
   local text = h:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalSmall"))
   text:SetPoint("LEFT", h, "LEFT", 2, 0)
+  text:SetPoint("RIGHT", count, "LEFT", -6, 0)
+  text:SetJustifyH("LEFT")
+  text:SetWordWrap(false)
   h.Text = text
   local rule = h:CreateTexture(nil, "ARTWORK")
   rule:SetHeight(1)
@@ -486,6 +493,10 @@ local function refreshWindow(w, built)
     store = store,
     isOwned = ns.Game.IsOwned,
   })
+  -- The bar: how many of the set are done (before Show completed hides them).
+  w.Progress:SetMinMaxValues(0, math.max(#rows, 1))
+  w.Progress:SetValue(#rows - left)
+  w.progressDone, w.progressTotal = #rows - left, #rows
   local db = popoutsDB()
   local state = db and db[w.key]
   -- Show completed (the appearance menu, per window): off leaves done rows out.
@@ -538,8 +549,9 @@ local function refreshWindow(w, built)
       h:SetWidth(width - inset)
       h:SetHeight(groupHeight)
       h.groupKey = gkey
-      h.Text:SetText((isCollapsed and "+ " or "- ") .. (g.label or (g.exp and L[g.exp]) or L["Other"])
-        .. "  |cff9d9d9d(" .. string.format(L["%d left"], g.left) .. ")|r")
+      h.Text:SetText((isCollapsed and "+ " or "- ") .. (g.label or (g.exp and L[g.exp]) or L["Other"]))
+      h.Count:SetText(string.format(L["%d left"], g.left))
+      styleText(h.Count, style, UI.Font("GameFontDisableSmall"), -1, { 0.64, 0.6, 0.53 })
       -- Cards: the header in the Header colour (gold), the card's edge in the
       -- expansion's; Compact: the header itself in the expansion's.
       local hc = c or { 0.8, 0.8, 0.8 }
@@ -619,7 +631,7 @@ local function refreshWindow(w, built)
   w.Content:SetHeight(math.max(y, 1))
   w.contentHeight = y
   -- Fit the rows until the player sizes the window; then keep that size.
-  if not w.userSized then w:SetHeight(math.min(MAX_HEIGHT, TITLE_HEIGHT + y + 10)) end
+  if not w.userSized then w:SetHeight(math.min(MAX_HEIGHT, TITLE_HEIGHT + y + 16)) end
 end
 
 -- Redraws window `w` alone from the lockouts it last read (a collapse or
@@ -780,6 +792,19 @@ local function build(key, source)
   plot:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   w.PlotAll = plot
 
+  -- How far along the set is: a thin gold bar under the title strip.
+  local progress = CreateFrame("StatusBar", nil, w)
+  progress:SetHeight(4)
+  progress:SetPoint("TOPLEFT", strip, "BOTTOMLEFT", 6, -3)
+  progress:SetPoint("TOPRIGHT", strip, "BOTTOMRIGHT", -6, -3)
+  progress:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
+  progress:SetStatusBarColor(0.79, 0.6, 0.18, 1)
+  progress:SetMinMaxValues(0, 1)
+  local track = progress:CreateTexture(nil, "BACKGROUND")
+  track:SetAllPoints(progress)
+  track:SetColorTexture(0, 0, 0, 0.5)
+  w.Progress = progress
+
   -- What is left: a boxed badge beside the title.
   local count = UI.Badge(strip)
   count:SetPoint("RIGHT", plot, "LEFT", -6, 0)
@@ -792,7 +817,7 @@ local function build(key, source)
   w.Title = titleText
 
   local scroll = CreateFrame("ScrollFrame", nil, w)
-  scroll:SetPoint("TOPLEFT", strip, "BOTTOMLEFT", 6, -4)
+  scroll:SetPoint("TOPLEFT", strip, "BOTTOMLEFT", 6, -10)
   scroll:SetPoint("BOTTOMRIGHT", w, "BOTTOMRIGHT", -6, 6)
   if scroll.EnableMouseWheel then scroll:EnableMouseWheel(true) end
   local content = CreateFrame("Frame", nil, scroll)
