@@ -297,13 +297,13 @@ describe("ui", function()
     local shown
     ns.UI.ShowMenu = function(owner, items) shown = type(items) == "function" and items() or items end
     cog:RunScript("OnClick", "LeftButton")
-    eq(shown[1].title, "Size")
+    eq(shown[1].title, "Window Scale")
     local order = {}
     for _, it in ipairs(shown) do
       if it.slider then order[#order + 1] = it.text elseif it.title then order[#order + 1] = "# " .. it.title end
     end
     eq({ order[1], order[2], order[3], order[4], order[5], order[6], order[7], order[8] },
-      { "# Size", "Whole window", "# Text size", "Left column", "Headers", "Mount names and text", "Small notes", "# Settings" },
+      { "# Window Scale", "Whole window", "# Text Size", "Left column", "Headers", "Mount names and text", "Small notes", "# Settings" },
       "named by what they size, in the window's order")
     local byText = {}
     for _, it in ipairs(shown) do if it.text then byText[it.text] = it end end
@@ -338,7 +338,7 @@ describe("ui", function()
       if it.title then titles[#titles + 1] = it.title end
       if it.text then byText[it.text] = it end
     end
-    eq(titles[3], "Font styles", "after the sizes")
+    eq(titles[3], "Font Styles", "after the sizes")
     eq({ items[3].text, items[3].value, items[3].format }, { "Background opacity", 80, "%d%%" }, "opacity under Whole window")
     items[3].onChange(55)
     local header = byText["Header font"].submenu()

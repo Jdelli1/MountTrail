@@ -16,7 +16,7 @@ local ADDON, ns = ...
 --                the main window, text included, UI.ApplyWindowScale), "Left
 --                column" (settings.navTextSize, points added to the
 --                navigation column's fonts, 0-6, default 2) and the text
---                sizes "Headers", "Mount names and text", "Small notes"
+--                sizes "Header text", "Body text", "Small text"
 --                (Options.TEXT_LABELS): sliders, when the client has
 --                Settings.CreateSlider,
 --   "Show minimap button" (ns.db.global.minimap.hide, LibDBIcon Show / Hide),
@@ -88,7 +88,7 @@ Options.TEXT_KEYS = { header = "textHeader", body = "textBody", detail = "textDe
 Options.TEXT_VARS = { header = "MOUNTTRAIL_TEXT_HEADER", body = "MOUNTTRAIL_TEXT_BODY", detail = "MOUNTTRAIL_TEXT_DETAIL" }
 -- Named by what they size on screen (the roles are the fonts' colours:
 -- header = gold, body = white, detail = grey).
-Options.TEXT_LABELS = { header = "Headers", body = "Mount names and text", detail = "Small notes" }
+Options.TEXT_LABELS = { header = "Header text", body = "Body text", detail = "Small text" }
 Options.TEXT_TIPS = {
   header = "List headers (Classic, Wrath of the Lich King...), page titles and the labels in the detail pane.",
   body = "Every mount's name and where it comes from, in every list, Lockouts and Home, and the detail pane's text.",
@@ -96,7 +96,7 @@ Options.TEXT_TIPS = {
 }
 -- The order the sizes are offered in: the window's areas, left to right.
 Options.TEXT_ORDER = { "header", "body", "detail" }
-Options.NAV_LABEL = "Left column"
+Options.NAV_LABEL = "Navigation text"
 Options.NAV_TIP = "Home, Lockouts, Current Zone, Alts, Browse and your lists: the window's left column."
 Options.SCALE_LABEL = "Whole window"
 Options.SCALE_TIP = "Everything in the MountTrail window at once, text included. Use the sizes below for just one kind of text."
@@ -493,7 +493,7 @@ local function build(api)
 
   -- Window & text: the sizes.
   if type(api.CreateSlider) == "function" and type(api.CreateSliderOptions) == "function" then
-    section("Window & text")
+    section("Window & Text")
     local scale = api.RegisterProxySetting(category, Options.WINDOW_SCALE, VarType.Number or "number",
       L[Options.SCALE_LABEL], 100, Options.WindowScale, setWindowScale)
     slider(api, category, scale, Options.SCALE_RANGE, function(v) return string.format("%d%%", v) end,
@@ -517,7 +517,7 @@ local function build(api)
 
   -- Font styles: the headers' and the body's.
   if hasDropdown then
-    section("Font styles")
+    section("Font Styles")
     for _, f in ipairs({
       { var = Options.HEADER_FONT, field = "headerFont", label = "Header font", default = "game", get = Options.HeaderFont,
         tip = "Window, page and card titles, pop-out titles. The game's font by default." },

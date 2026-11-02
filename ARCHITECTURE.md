@@ -121,7 +121,7 @@ changed addon gives `nil`, never an error.
 | `Share.lua` | Sharing lists: export / import boxes, chat links (clicking asks the sharer's addon), Send to player, the `CHAT_MSG_ADDON` handler. |
 | `ZonePanel.lua` | The zone side panel docked to the window. |
 | `MapTab.lua` | The MountTrail tab in the world map's side tabs. |
-| `Options.lua` | Options > AddOns > MountTrail (Settings API), in sections (Window & text, Font styles, Collection, Colours, Navigation, Alerts, Accessibility, Advanced). |
+| `Options.lua` | Options > AddOns > MountTrail (Settings API), in sections (Window & Text, Font Styles, Collection, Colours, Navigation, Alerts, Accessibility, Advanced). |
 
 ## The shared namespace
 

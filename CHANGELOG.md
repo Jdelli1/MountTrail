@@ -2,8 +2,11 @@
 
 ## Unreleased
 
+- Settings names tidied: the cogwheel's sections are Window Scale, Text
+  Size and Font Styles; the text sliders are Navigation text, Header text,
+  Body text and Small text (matching Header font and Body font).
 - A **Background opacity** slider in the cogwheel menu and on the AddOns
-  page (Window & text): the main window's background, the same setting as
+  page (Window & Text): the main window's background, the same setting as
   its appearance menu's, which is renamed from Opacity to match. Text,
   icons and bars stay solid.
 - Search boxes: the magnifier and the text sit a little further in, clear
@@ -16,12 +19,12 @@
   says how many are left in the zone.
 - Holiday mounts (Lunar Launcher, ...) show in Nearby, Current Zone, the
   zone panel and the map only while their holiday is on.
-- **Font styles**, in the cogwheel menu and on the AddOns page: a Header
+- **Font Styles**, in the cogwheel menu and on the AddOns page: a Header
   font (titles) and a Body font (mount names and text), the game's own by
   default; Arial Narrow, Morpheus, Skurri, or a LibSharedMedia font. The
   left column follows them too (headings, then entries and counts). Korean
   and Chinese clients keep the game's font.
-- The AddOns settings page is in sections: Window & text, Font styles,
+- The AddOns settings page is in sections: Window & Text, Font Styles,
   Collection, Colours, Navigation, Alerts, Accessibility, Advanced.
 - Browse has a **Faction** page: each race's mounts under its own heading
   (Human, Orc, ... Dracthyr), the allied races' mounts together under

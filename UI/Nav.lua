@@ -166,7 +166,7 @@ function UI.NavFontBonus()
 end
 
 -- `fs` in game font `name` (its colour), the game's own size plus the
--- "Left column" setting (UI.NavFontBonus) only: the column follows that
+-- "Navigation text" setting (UI.NavFontBonus) only: the column follows that
 -- slider alone, not the Headers / Mount names ones (UI.Font's copies). The
 -- size comes from the game font itself, never from `fs`: a font string keeps
 -- a size set with SetFont through SetFontObject, so reading it back would
@@ -668,7 +668,7 @@ function UI.RefreshNav()
       local list = sectionButtons[e.section]
       list[#list + 1] = b
     end
-    -- Taller with the "Left column" size only.
+    -- Taller with the "Navigation text" size only.
     local rowH = NAV_ROW + math.max(0, UI.NavFontBonus() - 2)
     b:SetHeight(rowH)
     b:Show()

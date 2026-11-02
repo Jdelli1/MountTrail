@@ -383,7 +383,7 @@ function UI.SettingsMenuItems()
   -- The whole window first, then one kind of text each (named by what it
   -- sizes: the left column, headers, mount names, small notes).
   local items = {
-    { title = L["Size"] },
+    { title = L["Window Scale"] },
     { slider = true, text = L[O.SCALE_LABEL], min = O.SCALE_RANGE.min, max = O.SCALE_RANGE.max,
       step = O.SCALE_RANGE.step, value = O.WindowScale(), format = "%d%%",
       onChange = function(v) O.Set("windowScale", v) end },
@@ -394,7 +394,7 @@ function UI.SettingsMenuItems()
       onChange = function(v) O.Set("windowOpacity", v) end }
   end
   for _, it in ipairs({
-    { title = L["Text size"] },
+    { title = L["Text Size"] },
     { slider = true, text = L[O.NAV_LABEL], min = O.NAV_TEXT_RANGE.min,
       max = O.NAV_TEXT_RANGE.max, step = 1, value = O.NavTextSize(), format = "+%d",
       onChange = function(v) O.Set("navTextSize", v) end },
@@ -405,7 +405,7 @@ function UI.SettingsMenuItems()
       onChange = function(v) O.SetTextSize(role, v) end }
   end
   -- Font styles: a menu of choices each (the current one ticked).
-  items[#items + 1] = { title = L["Font styles"] }
+  items[#items + 1] = { title = L["Font Styles"] }
   local fontMenu
   for _, f in ipairs({ { label = "Header font", field = "headerFont", get = O.HeaderFont, default = "game" },
     { label = "Body font", field = "bodyFont", get = O.BodyFont, default = "game" } }) do

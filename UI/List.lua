@@ -339,7 +339,7 @@ local SEARCH_WIDTH = 160
 local TOP_ROW = 36 -- the page header: title, search, what is left, Filter
 
 -- A row's "where it comes from" line: the mount names' font (GameFontHighlight,
--- so "Mount names and text" sizes both) dimmed to 70 % grey; GameFontDisable
+-- so "Body text" sizes both) dimmed to 70 % grey; GameFontDisable
 -- when the client has no CreateFont.
 function UI.SourceFont()
   return UI.TintedFont("MountTrailFontSource", "GameFontHighlight", 0.7, 0.7, 0.7, UI.Font("GameFontDisable"))

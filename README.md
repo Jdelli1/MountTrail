@@ -171,7 +171,7 @@ cards).
 
 - **Fonts**: the game's own for headings and text (the left column's
   section headings take the header font, its entries the body font). Change either under
-  `Font styles` (the cogwheel, or Options > AddOns): Game font, Arial
+  `Font Styles` (the cogwheel, or Options > AddOns): Game font, Arial
   Narrow, Morpheus, Skurri, and fonts from LibSharedMedia when another
   add-on registers them. Korean and Chinese clients keep the game's font
   (the others have no such letters). A font picked in a window's appearance
@@ -480,8 +480,8 @@ Options > AddOns > MountTrail (or `/mtrail options`). The cogwheel in the
 window's title bar has the same settings, plus `Reset text sizes` and
 `All options...`. Sizes come first: the whole window, then one slider per
 kind of text, named after what it sizes, in the window's order (the left
-column, headers, mount names, small notes); then `Font styles`. The AddOns
-page is in sections: Window & text, Font styles, Collection, Colours,
+column, headers, body text, small text); then `Font Styles`. The AddOns
+page is in sections: Window & Text, Font Styles, Collection, Colours,
 Navigation, Alerts, Accessibility, Advanced.
 
 | Setting | Does |
@@ -490,12 +490,12 @@ Navigation, Alerts, Accessibility, Advanced.
 | `Count towards the total` (under it; Options > AddOns only, not the cogwheel menu) | Off by default; only while `Show unobtainable mounts` is on. On: the unobtainable mounts you do not own also count in Home's collected numbers (the total and its bar, their expansion's and source's rows). Owned ones always count. |
 | `Whole window` | 80-150 %: everything in the window at once, text included. |
 | `Background opacity` | 20-100 %: the main window's background (text, icons and bars stay solid), the same as Background opacity in its appearance menu (right-click its title). |
-| `Left column` | The navigation column's text (Home, Lockouts, Browse, your lists), +0 to +6. |
-| `Headers` | List headers (Classic, Wrath of the Lich King...), page titles and the detail pane's labels, -2 to +6. |
-| `Mount names and text` | Every mount's name and where it comes from, in every list, Lockouts and Home, and the detail pane's text, -2 to +6. Rows grow to fit. |
-| `Small notes` | Counts and percentages, hints and greyed-out text, -2 to +6. |
-| `Header font` (Font styles) | Window, page and card titles and pop-out titles. The game's font by default. |
-| `Body font` (Font styles) | Mount names and every other line. The game's font by default. |
+| `Navigation text` | The navigation column's text (Home, Lockouts, Browse, your lists), +0 to +6. |
+| `Header text` | List headers (Classic, Wrath of the Lich King...), page titles and the detail pane's labels, -2 to +6. |
+| `Body text` | Every mount's name and where it comes from, in every list, Lockouts and Home, and the detail pane's text, -2 to +6. Rows grow to fit. |
+| `Small text` | Counts and percentages, hints and greyed-out text, -2 to +6. |
+| `Header font` (Font Styles) | Window, page and card titles and pop-out titles. The game's font by default. |
+| `Body font` (Font Styles) | Mount names and every other line. The game's font by default. |
 | `Show your lists`, `Show built-in lists` | Show or hide your own lists or the built-in ones under Lists in the left column. |
 | `Count in-game shop mounts`, `Count Trading Post mounts`, `Count promotional mounts`, `Count Black Market mounts` | On by default. Off: those mounts stay listed everywhere (Browse, your lists, Lockouts, Current Zone), but, owned or not, they are left out of the collected numbers on Home: the total and its bar, the expansions' rows, and their source's row (a source with nothing counted, such as In-game Shop, leaves Home). |
 | `Colour pop-out names by rarity` | Off by default; needs Mount Journal Enhanced or MountsRarity. |
