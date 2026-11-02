@@ -329,6 +329,7 @@ describe("ui", function()
       SCALE_LABEL = "Whole window", NAV_LABEL = "Left column",
       WindowScale = function() return 100 end, NavTextSize = function() return 0 end,
       HeaderFont = function() return fonts.headerFont end, BodyFont = function() return fonts.bodyFont end,
+      OPACITY_RANGE = { min = 20, max = 100, step = 5 }, WindowOpacity = function() return 80 end,
       Set = function(name, v) applied[#applied + 1] = { name, v } end,
     }
     local items = ns.UI.SettingsMenuItems()
@@ -338,6 +339,8 @@ describe("ui", function()
       if it.text then byText[it.text] = it end
     end
     eq(titles[3], "Font styles", "after the sizes")
+    eq({ items[3].text, items[3].value, items[3].format }, { "Window opacity", 80, "%d%%" }, "opacity under Whole window")
+    items[3].onChange(55)
     local header = byText["Header font"].submenu()
     eq(header[1].title, "Header font")
     local ticked = {}
@@ -348,7 +351,7 @@ describe("ui", function()
     for _, it in ipairs(body) do if it.checked then ticked[#ticked + 1] = it.text end end
     eq(ticked, { "Arial Narrow" }, "the saved body font")
     for _, it in ipairs(body) do if it.text == "Skurri" then it.onClick() end end
-    eq(applied, { { "bodyFont", "skurri" } })
+    eq(applied, { { "windowOpacity", 55 }, { "bodyFont", "skurri" } })
     eq(body[#body].text, "Back")
     eq(body[#body].submenu, ns.UI.SettingsMenuItems, "Back returns to the settings")
   end)
@@ -369,6 +372,16 @@ describe("ui", function()
     local keys = {}
     for _, c in ipairs(ns.UI.FontChoices()) do keys[#keys + 1] = c.key end
     eq(keys, { "game", "arialn", "morpheus", "skurri" })
+  end)
+
+  it("UI.WindowOpacity: the main window's appearance opacity, set from the cogwheel", function()
+    local ns = loadUI()
+    ns.ToggleWindow()
+    eq(ns.UI.WindowOpacity(), 92, "the default look")
+    ns.UI.SetWindowOpacity(60)
+    eq(ns.db.global.popouts.main.style.alpha, 0.6, "saved as its appearance")
+    eq(ns.UI.WindowOpacity(), 60)
+    eq(ns.UI.frame.Fill.color[4], 0.6, "the window repaints")
   end)
 
   it("UI.FlatSearchBox: the magnifier, the text and the Search hint clear the flat border", function()

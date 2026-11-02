@@ -378,6 +378,17 @@ local function setStyle(w, change, chromeOnly)
   repaintAll(chromeOnly)
 end
 
+-- The main window's opacity in percent: its appearance's (right-click its
+-- title), also on the cogwheel and the AddOns page (Options "Window
+-- opacity").
+function UI.WindowOpacity()
+  return math.floor(styleOf({ key = UI.WINDOW_STYLE_KEY }).alpha * 100 + 0.5)
+end
+
+function UI.SetWindowOpacity(pct)
+  setStyle({ key = UI.WINDOW_STYLE_KEY }, function(st) st.alpha = pct / 100 end, true)
+end
+
 -- Blizzard's colour picker for a style colour (presets cover most uses).
 local function pickColor(w, field, current)
   local cp = ColorPickerFrame

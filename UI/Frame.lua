@@ -387,11 +387,18 @@ function UI.SettingsMenuItems()
     { slider = true, text = L[O.SCALE_LABEL], min = O.SCALE_RANGE.min, max = O.SCALE_RANGE.max,
       step = O.SCALE_RANGE.step, value = O.WindowScale(), format = "%d%%",
       onChange = function(v) O.Set("windowScale", v) end },
+  }
+  if O.WindowOpacity and O.OPACITY_RANGE then
+    items[#items + 1] = { slider = true, text = L["Window opacity"], min = O.OPACITY_RANGE.min,
+      max = O.OPACITY_RANGE.max, step = O.OPACITY_RANGE.step, value = O.WindowOpacity(), format = "%d%%",
+      onChange = function(v) O.Set("windowOpacity", v) end }
+  end
+  for _, it in ipairs({
     { title = L["Text size"] },
     { slider = true, text = L[O.NAV_LABEL], min = O.NAV_TEXT_RANGE.min,
       max = O.NAV_TEXT_RANGE.max, step = 1, value = O.NavTextSize(), format = "+%d",
       onChange = function(v) O.Set("navTextSize", v) end },
-  }
+  }) do items[#items + 1] = it end
   for _, role in ipairs(O.TEXT_ORDER) do
     items[#items + 1] = { slider = true, text = L[O.TEXT_LABELS[role]], min = O.TEXT_RANGE.min,
       max = O.TEXT_RANGE.max, step = 1, value = O.TextSize(role), format = "%+d",

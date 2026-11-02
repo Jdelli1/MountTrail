@@ -489,6 +489,7 @@ Navigation, Alerts, Accessibility, Advanced.
 | `Show unobtainable mounts` | Lists unobtainable mounts you do not own under "Unobtainable" (off by default; owned ones stay where they are; Home's numbers leave the unowned ones out unless `Count towards the total` is on). |
 | `Count towards the total` (under it; Options > AddOns only, not the cogwheel menu) | Off by default; only while `Show unobtainable mounts` is on. On: the unobtainable mounts you do not own also count in Home's collected numbers (the total and its bar, their expansion's and source's rows). Owned ones always count. |
 | `Whole window` | 80-150 %: everything in the window at once, text included. |
+| `Window opacity` | 20-100 %: the main window's background, the same as Opacity in its appearance menu (right-click its title). |
 | `Left column` | The navigation column's text (Home, Lockouts, Browse, your lists), +0 to +6. |
 | `Headers` | List headers (Classic, Wrath of the Lich King...), page titles and the detail pane's labels, -2 to +6. |
 | `Mount names and text` | Every mount's name and where it comes from, in every list, Lockouts and Home, and the detail pane's text, -2 to +6. Rows grow to fit. |

@@ -45,6 +45,7 @@ Options.DROP_SOUND = "MOUNTTRAIL_DROP_SOUND"
 Options.HEADER_FONT = "MOUNTTRAIL_HEADER_FONT"
 Options.BODY_FONT = "MOUNTTRAIL_BODY_FONT"
 Options.WINDOW_SCALE = "MOUNTTRAIL_WINDOW_SCALE"
+Options.WINDOW_OPACITY = "MOUNTTRAIL_WINDOW_OPACITY"
 Options.SHOW_LISTS = "MOUNTTRAIL_SHOW_LISTS"
 Options.SHOW_QUICK = "MOUNTTRAIL_SHOW_QUICK"
 Options.NAV_TEXT = "MOUNTTRAIL_NAV_TEXT"
@@ -52,6 +53,7 @@ Options.DIFFICULTY_WARNING = "MOUNTTRAIL_DIFFICULTY_WARNING"
 
 -- Slider ranges (whole percent for the scale).
 Options.SCALE_RANGE = { min = 80, max = 150, step = 5 }
+Options.OPACITY_RANGE = { min = 20, max = 100, step = 5 }
 Options.NAV_TEXT_RANGE = { min = 0, max = 6, step = 1 }
 
 local function clamp(v, range, default)
@@ -65,6 +67,18 @@ function Options.WindowScale()
   local global = ns.db and ns.db.global
   local saved = global and type(global.settings) == "table" and global.settings.windowScale or nil
   return clamp(saved, Options.SCALE_RANGE, 100)
+end
+
+-- The main window's opacity in percent (20-100; its appearance's alpha,
+-- UI.WindowOpacity), 92 before the UI is loaded.
+function Options.WindowOpacity()
+  return ns.UI and ns.UI.WindowOpacity and ns.UI.WindowOpacity() or 92
+end
+
+local function setWindowOpacity(pct)
+  if ns.UI and ns.UI.SetWindowOpacity then
+    ns.UI.SetWindowOpacity(math.max(Options.OPACITY_RANGE.min, math.min(Options.OPACITY_RANGE.max, pct)))
+  end
 end
 
 -- Text sizes by colour (UI.FONT_ROLES): gold (headers, titles, mount
@@ -326,6 +340,7 @@ end
 function Options.Set(name, value)
   if not ns.db then return end
   if name == "windowScale" then setWindowScale(value)
+  elseif name == "windowOpacity" then setWindowOpacity(value)
   elseif name == "navTextSize" then setNavTextSize(value)
   elseif name == "showUnobtainable" then setUnobtainable(value)
   elseif name == "rarityColors" then setRarityColors(value)
@@ -345,7 +360,7 @@ function Options.Set(name, value)
   if type(name) == "string" and string.sub(name, 1, 6) == "count:" then
     Options.SetCounted(string.sub(name, 7), value)
   end
-  for _, var in pairs({ Options.WINDOW_SCALE, Options.NAV_TEXT, Options.UNOBTAINABLE, Options.RARITY_COLORS,
+  for _, var in pairs({ Options.WINDOW_SCALE, Options.WINDOW_OPACITY, Options.NAV_TEXT, Options.UNOBTAINABLE, Options.RARITY_COLORS,
     Options.RARITY_COLORS_MAIN, Options.COUNT_UNOBTAINABLE, Options.COLORBLIND, Options.DROP_CHIME,
     Options.DROP_SOUND, Options.MINIMAP, Options.SHOW_LISTS, Options.SHOW_QUICK,
     Options.DIFFICULTY_WARNING, Options.HEADER_FONT, Options.BODY_FONT }) do
@@ -483,6 +498,10 @@ local function build(api)
       L[Options.SCALE_LABEL], 100, Options.WindowScale, setWindowScale)
     slider(api, category, scale, Options.SCALE_RANGE, function(v) return string.format("%d%%", v) end,
       L[Options.SCALE_TIP])
+    local opacity = api.RegisterProxySetting(category, Options.WINDOW_OPACITY, VarType.Number or "number",
+      L["Window opacity"], 92, Options.WindowOpacity, setWindowOpacity)
+    slider(api, category, opacity, Options.OPACITY_RANGE, function(v) return string.format("%d%%", v) end,
+      L["The main window's background, as its appearance menu's Opacity (right-click its title)."])
     local navText = api.RegisterProxySetting(category, Options.NAV_TEXT, VarType.Number or "number",
       L[Options.NAV_LABEL], 2, Options.NavTextSize, setNavTextSize)
     slider(api, category, navText, Options.NAV_TEXT_RANGE, function(v) return string.format("+%d", v) end,

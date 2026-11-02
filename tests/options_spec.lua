@@ -120,6 +120,8 @@ describe("options", function()
         { "Category", "MountTrail" },
         { "Setting", "MOUNTTRAIL_WINDOW_SCALE" },
         { "Slider", "MOUNTTRAIL_WINDOW_SCALE" },
+        { "Setting", "MOUNTTRAIL_WINDOW_OPACITY" },
+        { "Slider", "MOUNTTRAIL_WINDOW_OPACITY" },
         { "Setting", "MOUNTTRAIL_NAV_TEXT" },
         { "Slider", "MOUNTTRAIL_NAV_TEXT" },
         { "Setting", "MOUNTTRAIL_TEXT_HEADER" },
@@ -512,6 +514,26 @@ describe("reset all settings", function()
     ok(ns.Options.Register(S), "the page still registers")
     eq(#S.layout.initializers, 0)
     CreateSettingsButtonInitializer = old
+  end)
+end)
+
+describe("window opacity option", function()
+  it("a 20-100 % slider over the main window's appearance opacity", function()
+    local ns = loadOptions()
+    local pct = 92
+    ns.UI = {
+      WindowOpacity = function() return pct end,
+      SetWindowOpacity = function(v) pct = v end,
+    }
+    local S = fakeSettings()
+    ns.Options.Register(S)
+    local o = S.settings.MOUNTTRAIL_WINDOW_OPACITY
+    eq({ o.varType, o.name, o.default }, { "number", "Window opacity", 92 })
+    eq(o.get(), 92)
+    o.set(60)
+    eq(pct, 60)
+    ns.Options.Set("windowOpacity", 5)
+    eq(pct, 20, "no lower than 20 %")
   end)
 end)
 
