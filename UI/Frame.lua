@@ -389,7 +389,7 @@ function UI.SettingsMenuItems()
       onChange = function(v) O.Set("windowScale", v) end },
   }
   if O.WindowOpacity and O.OPACITY_RANGE then
-    items[#items + 1] = { slider = true, text = L["Window opacity"], min = O.OPACITY_RANGE.min,
+    items[#items + 1] = { slider = true, text = L["Background opacity"], min = O.OPACITY_RANGE.min,
       max = O.OPACITY_RANGE.max, step = O.OPACITY_RANGE.step, value = O.WindowOpacity(), format = "%d%%",
       onChange = function(v) O.Set("windowOpacity", v) end }
   end

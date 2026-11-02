@@ -483,7 +483,7 @@ describe("pop-out windows", function()
     eq(w.cards[1].Fill.color, { 1, 1, 1, 0.035 }, "a light layer over the window's background")
     local items = ns.UI.PopoutStyleMenu(w)()
     local opacity
-    for _, it in ipairs(items) do if it.slider and it.text == "Opacity" then opacity = it end end
+    for _, it in ipairs(items) do if it.slider and it.text == "Background opacity" then opacity = it end end
     opacity.onChange(20)
     eq(w.Fill.color[4], 0.2, "the window's background at 20 %")
     eq(w.cards[1].Fill.color, { 1, 1, 1, 0.035 }, "the cards ride on it: no opaque fill of their own")
@@ -664,7 +664,7 @@ describe("pop-out windows", function()
     eq(opened, { "TOPLEFT", "BOTTOMLEFT", 604, 696 }, "opens at the pointer")
     eq(menu.items[1].data.title, "Appearance")
     -- Opacity: a slider (20-100 %), no steps to pick from.
-    local op = sliderRow("Opacity")
+    local op = sliderRow("Background opacity")
     eq({ op.Slider.min, op.Slider.max, op.Slider.step, op.Slider.value }, { 20, 100, 1, 92 })
     eq(op.Value:GetText(), "92%")
     ok(not (ns.db.global.popouts["camp|" .. WOD] or {}).style, "opening the menu changes nothing")
@@ -697,7 +697,7 @@ describe("pop-out windows", function()
     eq(a.Title.textColor, { 0.55, 0.8, 1 }, "the title: the header colour, not the text colour")
     click("Back")
     -- Opacity shows what was set when the menu is painted again.
-    eq(sliderRow("Opacity").Slider.value, 60)
+    eq(sliderRow("Background opacity").Slider.value, 60)
     -- Font size: a number (8-24), the window's own default until one is set.
     local fs = sliderRow("Font size")
     eq({ fs.Slider.min, fs.Slider.max, fs.Slider.step, fs.Slider.value }, { 8, 24, 1, 11 })
@@ -911,7 +911,7 @@ describe("flat widgets", function()
     local function items()
       return {
         { title = "Look" },
-        { slider = true, text = "Opacity", min = 20, max = 100, step = 1, value = value, format = "%d%%",
+        { slider = true, text = "Background opacity", min = 20, max = 100, step = 1, value = value, format = "%d%%",
           onChange = function(v) value = v; got[#got + 1] = v end },
         { text = "Tick", checked = value > 60, keepOpen = true, onClick = function() ticks = ticks + 1 end },
       }
@@ -921,7 +921,7 @@ describe("flat widgets", function()
     local s = row.Slider
     ok(s:IsShown(), "a slider")
     eq({ s.min, s.max, s.step, s.value, s.obeyStep, s.orientation }, { 20, 100, 1, 60, true, "HORIZONTAL" })
-    eq(row.Label:GetText(), "Opacity")
+    eq(row.Label:GetText(), "Background opacity")
     eq(row.Value:GetText(), "60%")
     ok(not row.Highlight:IsShown(), "no hover highlight on a slider row")
     ok(row:GetHeight() > 18, "taller than a text row")
@@ -1138,7 +1138,7 @@ describe("zone window and the alt lockouts window", function()
     eq(menu.items[1].data.title, "Appearance")
     local op
     for _, it in ipairs(menu.items) do
-      if it:IsShown() and it.data and it.data.slider and it.data.text == "Opacity" then op = it end
+      if it:IsShown() and it.data and it.data.slider and it.data.text == "Background opacity" then op = it end
     end
     op.Slider:SetValue(50)
     eq(ns.db.global.popouts.alts.style.alpha, 0.5, "saved under popouts.alts")

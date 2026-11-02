@@ -457,7 +457,7 @@ function UI.PopoutStyleMenu(w, back)
         onClick = function() setStyle(w, function(st) st.layout = "compact" end) end },
       { separator = true, popoutOnly = true },
       { extra = true },
-      { slider = true, text = L["Opacity"], min = math.floor(ALPHA_MIN * 100 + 0.5), max = 100, step = 1,
+      { slider = true, text = L["Background opacity"], min = math.floor(ALPHA_MIN * 100 + 0.5), max = 100, step = 1,
         value = math.floor(s.alpha * 100 + 0.5), format = "%d%%",
         onChange = function(pct) setStyle(w, function(st) st.alpha = pct / 100 end, true) end },
       { text = L["Background colour"], submenu = sub(L["Background colour"], function()

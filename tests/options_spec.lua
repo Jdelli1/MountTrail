@@ -528,7 +528,7 @@ describe("window opacity option", function()
     local S = fakeSettings()
     ns.Options.Register(S)
     local o = S.settings.MOUNTTRAIL_WINDOW_OPACITY
-    eq({ o.varType, o.name, o.default }, { "number", "Window opacity", 92 })
+    eq({ o.varType, o.name, o.default }, { "number", "Background opacity", 92 })
     eq(o.get(), 92)
     o.set(60)
     eq(pct, 60)

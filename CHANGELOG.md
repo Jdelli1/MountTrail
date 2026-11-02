@@ -2,9 +2,10 @@
 
 ## Unreleased
 
-- A **Window opacity** slider in the cogwheel menu and on the AddOns page
-  (Window & text): the main window's background, the same setting as its
-  appearance menu's Opacity.
+- A **Background opacity** slider in the cogwheel menu and on the AddOns
+  page (Window & text): the main window's background, the same setting as
+  its appearance menu's, which is renamed from Opacity to match. Text,
+  icons and bars stay solid.
 - Search boxes: the magnifier and the text sit a little further in, clear
   of the box's border.
 - The left column's section headings (Browse, Lists) light up under the

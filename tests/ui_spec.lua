@@ -339,7 +339,7 @@ describe("ui", function()
       if it.text then byText[it.text] = it end
     end
     eq(titles[3], "Font styles", "after the sizes")
-    eq({ items[3].text, items[3].value, items[3].format }, { "Window opacity", 80, "%d%%" }, "opacity under Whole window")
+    eq({ items[3].text, items[3].value, items[3].format }, { "Background opacity", 80, "%d%%" }, "opacity under Whole window")
     items[3].onChange(55)
     local header = byText["Header font"].submenu()
     eq(header[1].title, "Header font")

@@ -84,7 +84,7 @@ left edge to resize them (saved; right-click either edge for the default).
 
 It has the pop-outs' look: a flat panel with a slim title strip (drag it to
 move the window, x to close). Right-click the title strip for the same
-appearance menu as a pop-out: opacity, background, header and text colour,
+appearance menu as a pop-out: background opacity, background, header and text colour,
 font size and font, saved for the window. `Apply to all pop-outs` there (on
 the window or any pop-out) gives every window one look.
 
@@ -388,7 +388,7 @@ In a pop-out:
   together.
 - Right-click the title for the window's menu: `Show completed` (done rows
   stay listed, dimmed; off by default, saved per window), `Cards` or
-  `Compact` (the layout, kept by `Apply to all pop-outs` too), then opacity and
+  `Compact` (the layout, kept by `Apply to all pop-outs` too), then background opacity and
   font size sliders, background, header and text colour (headers and body
   text apart), font, `Apply to all pop-outs`, `Reset appearance`.
 - Ctrl-click a window's x to close every pop-out.
@@ -489,7 +489,7 @@ Navigation, Alerts, Accessibility, Advanced.
 | `Show unobtainable mounts` | Lists unobtainable mounts you do not own under "Unobtainable" (off by default; owned ones stay where they are; Home's numbers leave the unowned ones out unless `Count towards the total` is on). |
 | `Count towards the total` (under it; Options > AddOns only, not the cogwheel menu) | Off by default; only while `Show unobtainable mounts` is on. On: the unobtainable mounts you do not own also count in Home's collected numbers (the total and its bar, their expansion's and source's rows). Owned ones always count. |
 | `Whole window` | 80-150 %: everything in the window at once, text included. |
-| `Window opacity` | 20-100 %: the main window's background, the same as Opacity in its appearance menu (right-click its title). |
+| `Background opacity` | 20-100 %: the main window's background (text, icons and bars stay solid), the same as Background opacity in its appearance menu (right-click its title). |
 | `Left column` | The navigation column's text (Home, Lockouts, Browse, your lists), +0 to +6. |
 | `Headers` | List headers (Classic, Wrath of the Lich King...), page titles and the detail pane's labels, -2 to +6. |
 | `Mount names and text` | Every mount's name and where it comes from, in every list, Lockouts and Home, and the detail pane's text, -2 to +6. Rows grow to fit. |

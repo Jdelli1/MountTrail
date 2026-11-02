@@ -499,9 +499,9 @@ local function build(api)
     slider(api, category, scale, Options.SCALE_RANGE, function(v) return string.format("%d%%", v) end,
       L[Options.SCALE_TIP])
     local opacity = api.RegisterProxySetting(category, Options.WINDOW_OPACITY, VarType.Number or "number",
-      L["Window opacity"], 92, Options.WindowOpacity, setWindowOpacity)
+      L["Background opacity"], 92, Options.WindowOpacity, setWindowOpacity)
     slider(api, category, opacity, Options.OPACITY_RANGE, function(v) return string.format("%d%%", v) end,
-      L["The main window's background, as its appearance menu's Opacity (right-click its title)."])
+      L["The main window's background, as its appearance menu's Background opacity (right-click its title)."])
     local navText = api.RegisterProxySetting(category, Options.NAV_TEXT, VarType.Number or "number",
       L[Options.NAV_LABEL], 2, Options.NavTextSize, setNavTextSize)
     slider(api, category, navText, Options.NAV_TEXT_RANGE, function(v) return string.format("+%d", v) end,
