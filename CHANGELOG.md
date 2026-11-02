@@ -45,6 +45,9 @@
   "expansion · kind of source", an info card that starts with Status and
   lays the details out as label / value columns, and Waypoint, + List and
   Wowhead along the bottom.
+- The tick boxes (Lockouts' hand-ticked rares, a pop-out's rare spawns) are
+  flat: a dark square in a dim gold border, filled gold when ticked, as the
+  menus' boxes.
 - The Filter button opens MountTrail's own gold-edged menu instead of
   Blizzard's dropdown; a `Reset` button beside it replaces the red arrow.
 - The left column has one **Lists** section instead of My lists and Quick

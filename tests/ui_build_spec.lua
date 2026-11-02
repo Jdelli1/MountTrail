@@ -1553,17 +1553,17 @@ describe("ui build", function()
     ok(frames[1].Label:GetText():find(uldum, 1, true), "the header label shows it")
   end)
 
-  it("Checklist tick boxes fall back to the classic checkbox", function()
+  it("Checklist tick boxes are flat: a dark square in a dim gold border, filled gold when ticked", function()
     local ns = loadUI()
-    STUB_TEMPLATES.MinimalCheckboxTemplate = nil
     ns.ToggleWindow()
     ns.UI.SelectTab("checklist")
     local box = content(ns, "checklist").children[2].children[1].Checklist.ScrollBox
     local check
     for _, f in ipairs(render(box)) do if f.Check and not check then check = f.Check end end
     ok(check, "a row with a tick box")
-    eq(check.template, "UICheckButtonTemplate")
-    eq(ns.UI.TemplateFallbacks.MinimalCheckboxTemplate, "UICheckButtonTemplate")
+    eq(check.template, nil, "no Blizzard checkbox template")
+    eq(check.Box.Edge.edges[1].color, { 0.43, 0.33, 0.14, 1 }, "a dim gold border")
+    eq(check.checkedTexture.color, { 1, 0.82, 0, 0.9 }, "gold when ticked")
   end)
 
   it("Alt lockouts: a column per character, a cell per lockout, hide / show all, /mtrail alts", function()

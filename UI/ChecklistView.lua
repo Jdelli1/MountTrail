@@ -479,9 +479,7 @@ local function initRow(row, data)
   data.left = ICON_LEFT + inset
   UI.InitMountRow(row, data)
   if not row.Check then
-    local check = CreateFrame("CheckButton", nil, row,
-      UI.TemplateChain("MinimalCheckboxTemplate", "SettingsCheckboxTemplate", "UICheckButtonTemplate"))
-    check:SetSize(CHECK_SIZE, CHECK_SIZE)
+    local check = UI.FlatCheckBox(row, CHECK_SIZE)
     check:SetScript("OnClick", onTick)
     if check.RegisterForClicks then check:RegisterForClicks("LeftButtonUp", "RightButtonUp") end
     row.Check = check

@@ -128,9 +128,7 @@ local function rowFrame(w, i)
   local hl = r:CreateTexture(nil, "HIGHLIGHT")
   hl:SetAllPoints(r)
   hl:SetColorTexture(1, 1, 1, 0.06)
-  local check = CreateFrame("CheckButton", nil, r,
-    UI.TemplateChain("MinimalCheckboxTemplate", "SettingsCheckboxTemplate", "UICheckButtonTemplate"))
-  check:SetSize(18, 18)
+  local check = UI.FlatCheckBox(r, 18)
   if check.RegisterForClicks then check:RegisterForClicks("LeftButtonUp", "RightButtonUp") end
   check:SetScript("OnClick", function(_, button)
     local row = r.data

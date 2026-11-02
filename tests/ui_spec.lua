@@ -499,33 +499,6 @@ describe("ui", function()
     end)
   end)
 
-  describe("TemplateChain", function()
-    it("returns the first defined template and checks no further", function()
-      local ns = loadUI()
-      local asked = {}
-      local saved = C_XMLUtil.GetTemplateInfo
-      C_XMLUtil.GetTemplateInfo = function(name) asked[#asked + 1] = name; return saved(name) end
-      eq(ns.UI.TemplateChain("MinimalCheckboxTemplate", "SettingsCheckboxTemplate", "UICheckButtonTemplate"),
-        "MinimalCheckboxTemplate")
-      C_XMLUtil.GetTemplateInfo = saved
-      eq(asked, { "MinimalCheckboxTemplate" }, "lazy: the fallbacks are not looked up")
-      eq(next(ns.UI.TemplateFallbacks), nil, "nothing recorded")
-    end)
-
-    it("falls through to the next defined template, recording the first name once", function()
-      local ns = loadUI()
-      STUB_TEMPLATES.MinimalCheckboxTemplate = nil
-      STUB_TEMPLATES.SettingsCheckboxTemplate = true
-      eq(ns.UI.TemplateChain("MinimalCheckboxTemplate", "SettingsCheckboxTemplate", "UICheckButtonTemplate"),
-        "SettingsCheckboxTemplate")
-      eq(ns.UI.TemplateFallbacks, { MinimalCheckboxTemplate = "SettingsCheckboxTemplate" })
-      STUB_TEMPLATES.SettingsCheckboxTemplate = nil
-      eq(ns.UI.TemplateChain("MinimalCheckboxTemplate", "SettingsCheckboxTemplate", "UICheckButtonTemplate"),
-        "UICheckButtonTemplate", "the last name is the final fallback")
-      eq(ns.UI.TemplateFallbacks, { MinimalCheckboxTemplate = "SettingsCheckboxTemplate" }, "recorded once")
-    end)
-  end)
-
   describe("style helpers", function()
     it("AtlasExists asks C_Texture and never errors", function()
       local ns = loadUI()

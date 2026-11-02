@@ -130,26 +130,6 @@ function UI.Template(preferred, fallback)
   return fallback
 end
 
--- The first template of `...` the client defines, checked in order and only
--- as far as needed; the last name is the final fallback and is returned
--- without a check. When the first name is not used, that is recorded once in
--- UI.TemplateFallbacks (first -> the name used) and reported like
--- UI.Template.
-function UI.TemplateChain(...)
-  local n = select("#", ...)
-  local first = (...)
-  local chosen
-  for i = 1, n do
-    local name = select(i, ...)
-    if i == n or templateExists(name) then
-      chosen = name
-      break
-    end
-  end
-  if chosen ~= first then UI.RecordFallback(first, chosen) end
-  return chosen
-end
-
 -- Records (once) that `missing` (a template, or a method a template lacks)
 -- was replaced by `used` (nil: nothing), for /mtrail debug.
 function UI.RecordFallback(missing, used)

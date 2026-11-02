@@ -150,6 +150,34 @@ function UI.FlatSearchBox(box)
   return box
 end
 
+-- A tick box in the flat look, as the menus' boxes: a dark square with a
+-- dim gold 1 px border, filled gold when checked (the CheckButton's own
+-- checked texture, so a click shows it at once). `size`: the clickable
+-- square, the box 4 px inside it.
+function UI.FlatCheckBox(parent, size)
+  local cb = CreateFrame("CheckButton", nil, parent)
+  cb:SetSize(size, size)
+  local box = CreateFrame("Frame", nil, cb)
+  box:SetPoint("TOPLEFT", cb, "TOPLEFT", 4, -4)
+  box:SetPoint("BOTTOMRIGHT", cb, "BOTTOMRIGHT", -4, 4)
+  local fill = box:CreateTexture(nil, "BACKGROUND")
+  fill:SetAllPoints(box)
+  fill:SetColorTexture(0.06, 0.05, 0.04, 0.9)
+  local edge = UI.THEME.frame
+  box.Edge = UI.FlatBorder(box, edge[1], edge[2], edge[3], 1)
+  cb.Box = box
+  local mark = cb:CreateTexture(nil, "ARTWORK")
+  mark:SetPoint("TOPLEFT", box, "TOPLEFT", 2, -2)
+  mark:SetPoint("BOTTOMRIGHT", box, "BOTTOMRIGHT", -2, 2)
+  mark:SetColorTexture(1, 0.82, 0, 0.9)
+  cb:SetCheckedTexture(mark)
+  local hl = cb:CreateTexture(nil, "HIGHLIGHT")
+  hl:SetAllPoints(box)
+  hl:SetColorTexture(1, 0.82, 0, 0.18)
+  cb:SetHighlightTexture(hl)
+  return cb
+end
+
 -- A small boxed label (Blend A's badges: "Open", "Done", "7 left",
 -- "1 in 100"), sized to its text. Made once per owner, then UI.SetBadge.
 UI.BADGE_COLORS = {
