@@ -434,6 +434,10 @@ describe("pop-out windows", function()
     ok(w.rowHeight >= 34, "two lines tall")
     ok(w.cards and w.cards[1] and w.cards[1].Fill:IsShown(), "the group's card")
     ok(w.cards[1].Top:IsShown() and w.cards[1].Right:IsShown(), "a bordered card")
+    eq(w.cards[1].Fill:GetNumPoints(), 2, "the card follows the window's width (anchored both sides)")
+    w:SetWidth(400)
+    w:RunScript("OnSizeChanged")
+    eq(row:GetWidth(), 400 - 24 - 13, "a resized window keeps its rows inside the cards")
     ok(row.IconBox:IsShown(), "the icon in its box")
     eq(w.Edge.edges[1].color, { 0.43, 0.33, 0.14, 1 }, "the window's gold frame")
     -- The appearance menu switches the window to Compact and back.
@@ -459,6 +463,23 @@ describe("pop-out windows", function()
     ok(row.Status:IsShown(), "its badge")
     eq(row.Status.Text:GetText(), "Open")
     eq(row.Status.Edge.edges[1].color, { 0.43, 0.33, 0.14, 1 }, "a gold box")
+  end)
+
+  it("collapsing a group redraws that window at once, from the lockouts it already read", function()
+    local ns = loadUI()
+    setup(ns)
+    ns.QuickLists.Mounts = function() return { 1, 614, 9 } end
+    local w = ns.UI.OpenPopout({ kind = "quick", key = "mythic" })
+    local builds, real = 0, ns.UI.ChecklistBuild
+    ns.UI.ChecklistBuild = function(...) builds = builds + 1; return real(...) end
+    local header
+    for _, h in ipairs(w.groupFrames) do if h:IsShown() then header = h end end
+    ok(header, "a group header")
+    local before = #w.rows
+    header:RunScript("OnMouseUp", "LeftButton")
+    eq(builds, 0, "no new read of the lockouts")
+    ok(#w.rows < before, "the group collapsed")
+    ns.UI.ChecklistBuild = real
   end)
 
   it("PopoutCardLines: the second line and the status of a card row", function()

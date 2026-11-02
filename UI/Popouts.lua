@@ -307,14 +307,17 @@ function UI.PopoutDragDrop(w)
     db[w.key] = db[w.key] or {}
     db[w.key].order = moved
   end
-  UI.RefreshPopouts()
+  UI.RedrawPopout(w)
 end
 
 -- Rows follow the window's width (it can be resized).
 local function layoutWidth(w)
   local width = math.max(MIN_W, w:GetWidth() or WIDTH)
   w.Content:SetWidth(width - 12)
-  for _, r in ipairs(w.rowFrames) do r:SetWidth(width - 24) end
+  -- Rows keep inside their cards (w.rowTrim: the room a card takes, Cards
+  -- layout); the cards themselves follow the content's width (placeCard).
+  for _, r in ipairs(w.rowFrames) do r:SetWidth(width - 24 - (w.rowTrim or 0)) end
+  for _, h in ipairs(w.groupFrames) do h:SetWidth(width - 24 - (w.headTrim or 0)) end
 end
 
 -- Expansion group headers in a window, reused between refreshes.
@@ -348,7 +351,9 @@ local function groupHeader(w, i)
     else
       UI.ToggleCollapsed(store, self.groupKey)
     end
-    UI.RefreshPopouts()
+    -- Only this window, from the lockouts it already read: a collapse
+    -- changes no data, so it redraws at once.
+    UI.RedrawPopout(w)
   end)
   h:SetScript("OnEnter", function(self)
     UI.ShowHint(self, L["Click: collapse or expand"], L["Shift-click: all groups at once"])
@@ -392,7 +397,7 @@ local BADGE_KINDS = { done = "green", open = "gold", info = "grey" }
 local GOLD = { 1, 0.82, 0 }
 local NO_RARITY = { 0.35, 0.32, 0.26 }
 
-local function placeCard(w, i, top, bottom, width, style, color)
+local function placeCard(w, i, top, bottom, style, color)
   w.cards = w.cards or {}
   local c = w.cards[i]
   if not c then
@@ -407,18 +412,23 @@ local function placeCard(w, i, top, bottom, width, style, color)
     t:Show()
   end
   local h = bottom - top
+  -- Anchored to the content's right (12 px in: the rows' room for the
+  -- scroll), so a resized window takes its cards along.
   c.Fill:SetPoint("TOPLEFT", w.Content, "TOPLEFT", 0, -top)
-  c.Fill:SetSize(width, h)
+  c.Fill:SetPoint("TOPRIGHT", w.Content, "TOPRIGHT", -12, -top)
+  c.Fill:SetHeight(h)
   c.Fill:SetColorTexture(math.min(1, bg[1] + 0.05), math.min(1, bg[2] + 0.05), math.min(1, bg[3] + 0.05), style.alpha)
   c.Edge:SetPoint("TOPLEFT", w.Content, "TOPLEFT", 0, -top)
   c.Edge:SetSize(3, h)
   c.Edge:SetColorTexture(color[1], color[2], color[3], 0.9)
   -- A 1 px border on the other three sides.
   c.Top:SetPoint("TOPLEFT", w.Content, "TOPLEFT", 0, -top)
-  c.Top:SetSize(width, 1)
+  c.Top:SetPoint("TOPRIGHT", w.Content, "TOPRIGHT", -12, -top)
+  c.Top:SetHeight(1)
   c.Bottom:SetPoint("TOPLEFT", w.Content, "TOPLEFT", 0, -(bottom - 1))
-  c.Bottom:SetSize(width, 1)
-  c.Right:SetPoint("TOPLEFT", w.Content, "TOPLEFT", width - 1, -top)
+  c.Bottom:SetPoint("TOPRIGHT", w.Content, "TOPRIGHT", -12, -(bottom - 1))
+  c.Bottom:SetHeight(1)
+  c.Right:SetPoint("TOPRIGHT", w.Content, "TOPRIGHT", -12, -top)
   c.Right:SetSize(1, h)
   for _, t in ipairs({ c.Top, c.Bottom, c.Right }) do t:SetColorTexture(line[1], line[2], line[3], 1) end
 end
@@ -451,6 +461,7 @@ end
 
 local function refreshWindow(w, built)
   if not w:IsShown() then return end
+  w.lastBuilt = built
   local char = ns.db and ns.db.char
   local store = listsDB()
   if w.source.kind == "list" and not (store and ns.Lists.Get(store, w.source.list)) then
@@ -493,6 +504,7 @@ local function refreshWindow(w, built)
   local rowHeight = cards and math.max(CARD_ROW, size * 2 + 12) or math.max(ROW_HEIGHT, size + 9)
   local groupHeight = cards and math.max(CARD_HEADER, size + 11) or math.max(GROUP_HEIGHT, size + 7)
   local inset = cards and CARD_INSET or 0
+  w.rowTrim, w.headTrim = cards and inset + 4 or 0, inset
   w.rowHeight = rowHeight
   w.layout = style.layout
   local groupSource = w.source
@@ -592,7 +604,7 @@ local function refreshWindow(w, built)
     end
     if cards then
       usedCards = usedCards + 1
-      placeCard(w, usedCards, cardTop, y + 2, width, style, c or GOLD)
+      placeCard(w, usedCards, cardTop, y + 2, style, c or GOLD)
       y = y + 2 + CARD_GAP
     end
   end
@@ -608,6 +620,12 @@ local function refreshWindow(w, built)
   w.contentHeight = y
   -- Fit the rows until the player sizes the window; then keep that size.
   if not w.userSized then w:SetHeight(math.min(MAX_HEIGHT, TITLE_HEIGHT + y + 10)) end
+end
+
+-- Redraws window `w` alone from the lockouts it last read (a collapse or
+-- an Alt-drag: no data changed); a full refresh when it has none yet.
+function UI.RedrawPopout(w)
+  if w.lastBuilt then refreshWindow(w, w.lastBuilt) else UI.RefreshPopouts() end
 end
 
 -- Redraws every open pop-out (one Checklist build for all).
