@@ -216,10 +216,26 @@ local function flatten(f, fill)
 end
 
 -- A search box (SearchBoxTemplate) in the flat look; its magnifier icon and
--- clear button stay.
+-- clear button stay. The template's icon sits on the box's left edge (its
+-- art drew the border further out), so the icon, the text and the "Search"
+-- hint move in by SEARCH_ICON_INSET to clear the flat border.
+local SEARCH_ICON_INSET = 5
 function UI.FlatSearchBox(box)
   flatten(box, { 0.08, 0.07, 0.06, 0.9 })
-  if box.searchIcon then box.searchIcon:SetAlpha(0.7) end
+  local icon = box.searchIcon
+  if icon then
+    icon:SetAlpha(0.7)
+    icon:ClearAllPoints()
+    icon:SetPoint("LEFT", box, "LEFT", SEARCH_ICON_INSET, -1)
+    local textLeft = SEARCH_ICON_INSET + 16
+    if type(box.SetTextInsets) == "function" then box:SetTextInsets(textLeft, 20, 0, 0) end
+    local hint = box.Instructions
+    if hint and hint.ClearAllPoints then
+      hint:ClearAllPoints()
+      hint:SetPoint("TOPLEFT", box, "TOPLEFT", textLeft, 0)
+      hint:SetPoint("BOTTOMRIGHT", box, "BOTTOMRIGHT", -20, 0)
+    end
+  end
   if box.clearButton and box.clearButton.texture then box.clearButton.texture:SetAlpha(0.8) end
   return box
 end

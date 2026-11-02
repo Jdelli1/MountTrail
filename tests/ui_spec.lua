@@ -361,6 +361,22 @@ describe("ui", function()
     eq(keys, { "game", "arialn", "morpheus", "skurri" })
   end)
 
+  it("UI.FlatSearchBox: the magnifier, the text and the Search hint clear the flat border", function()
+    local ns = loadUI()
+    local box = CreateFrame("EditBox", nil, UIParent)
+    box.searchIcon = box:CreateTexture(nil, "OVERLAY")
+    box.searchIcon:SetPoint("LEFT", box, "LEFT", 0, -2)
+    box.Instructions = box:CreateFontString(nil, "ARTWORK")
+    local insets
+    box.SetTextInsets = function(_, l, r, t, b) insets = { l, r, t, b } end
+    ns.UI.FlatSearchBox(box)
+    local point, rel, relPoint, x = box.searchIcon:GetPoint(1)
+    eq({ point, rel, relPoint, x }, { "LEFT", box, "LEFT", 5 }, "the icon moved in off the edge")
+    eq(insets, { 21, 20, 0, 0 }, "the typed text after it")
+    local hp, _, _, hx = box.Instructions:GetPoint(1)
+    eq({ hp, hx }, { "TOPLEFT", 21 }, "the hint too")
+  end)
+
   it("UI.Font: a sized copy per game font, by its role (gold / white / grey); a change resizes them all", function()
     local ns = loadUI()
     local sizes = { header = 3, body = 0, detail = -1 }

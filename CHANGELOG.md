@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Search boxes: the magnifier and the text sit a little further in, clear
+  of the box's border.
 - The left column's section headings (Browse, Lists) light up under the
   pointer instead of showing a "Click: collapse or expand" hint. Home's
   "Mounts collected" and "Collected" start with a capital.
