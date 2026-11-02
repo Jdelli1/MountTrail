@@ -644,14 +644,15 @@ function UI.RefreshNav()
       b.Star.favorite = UI.IsNavFavorite(e.key)
       b.Star.Icon:SetAtlas(b.Star.favorite and UI.STAR_ON or UI.STAR_OFF)
       b.Star.Icon:SetAlpha(b.Star.favorite and 1 or 0.5)
-      b.Badge:SetPoint("RIGHT", b.Star, "LEFT", -4, 0)
+      -- Clear of the star: the count's box reaches 5 px past its text.
+      b.Badge:SetPoint("RIGHT", b.Star, "LEFT", -12, 0)
     else
       b.Badge:SetPoint("RIGHT", b, "RIGHT", -8, 0)
     end
     b.Text:SetText(label)
     -- A built-in list fills itself: "auto" between its name and its badge.
     b.Tag:ClearAllPoints()
-    b.Tag:SetPoint("RIGHT", b.Badge, "LEFT", -4, 0)
+    b.Tag:SetPoint("RIGHT", b.Badge, "LEFT", -11, 0) -- clear of the count's box
     b.Tag:SetShown(e.builtIn == true)
     b.Text:SetPoint("RIGHT", e.builtIn and b.Tag or b.Badge, "LEFT", -4, 0)
     navFont(b.Tag, "GameFontDisableSmall")
