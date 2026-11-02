@@ -171,6 +171,13 @@ describe("ui", function()
     ns.UI.RefreshNav()
     eq(h.Text.textColor, { 1, 1, 1 }, "the appearance menu's header colour")
     eq(h.Rule.color, { 1, 1, 1, 0.35 })
+    local hinted
+    ns.UI.ShowHint = function() hinted = true end
+    h:RunScript("OnEnter")
+    ok(h.Hover:IsShown(), "the pointer lights it, as the lists' rows")
+    ok(not hinted, "no hint")
+    h:RunScript("OnLeave")
+    ok(not h.Hover:IsShown())
     eq(nav.Edge.width, 1, "a 1 px line on the column's right edge")
     local home
     for i = 1, nav.shown do if nav.Buttons[i].Text:GetText() == "Home" then home = nav.Buttons[i] end end

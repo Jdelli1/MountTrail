@@ -3,7 +3,7 @@ local ADDON, ns = ...
 -- Journal tab: a front page in the Blend A look, every part a card (a fill
 -- a shade lighter than the window, a 1 px border, a 3 px coloured edge;
 -- newCard / placeCard). A summary card (the collected total over every
--- tab's mounts in large gold figures, "mounts collected · 58%" under it, a
+-- tab's mounts in large gold figures, "Mounts collected · 58%" under it, a
 -- 12 px gold bar, a search box) over two columns in one scrolling page:
 --   left   "Expansions": one row per expansion (its name and its bar in its
 --          colour, owned / total; a click opens its mount list, Back
@@ -375,7 +375,7 @@ local function refreshHome()
   s.Totals:SetFontObject(UI.Font("GameFontNormalHuge"))
   UI.ApplyHeadingFont(s.Totals)
   s.Totals:SetText(string.format(L["%d / %d"], sumHave, sumTotal))
-  s.Title:SetText(string.format(L["mounts collected · %d%%"], UI.HomePercent(sumHave, sumTotal)))
+  s.Title:SetText(string.format(L["Mounts collected · %d%%"], UI.HomePercent(sumHave, sumTotal)))
   s.Bar:SetMinMaxValues(0, math.max(sumTotal, 1))
   s.Bar:SetValue(sumHave)
   s.Bar:SetStatusBarColor(GOLD[1], GOLD[2], GOLD[3], 1)
@@ -446,7 +446,7 @@ local function createSummary()
   s.Card = newCard(s)
   placeCard(s.Card, s, 0, G.stripH, GOLD)
 
-  -- The total in large gold figures, "mounts collected · 58%" under it.
+  -- The total in large gold figures, "Mounts collected · 58%" under it.
   local totals = s:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalHuge"))
   UI.ApplyHeadingFont(totals)
   totals:SetPoint("TOPLEFT", s, "TOPLEFT", G.cardIn + 2, -8)
@@ -520,7 +520,7 @@ local function createColumns()
   home.Left, home.Side = left, right
 
   home.ExpCard, home.SourceCard = newCard(left), newCard(right)
-  home.ExpHeading = heading(left, L["Expansions"], L["collected"])
+  home.ExpHeading = heading(left, L["Expansions"], L["Collected"])
   home.Expansions = {}
   for i, name in ipairs(expansions()) do
     local b = progressRow(left, i)
@@ -529,7 +529,7 @@ local function createColumns()
     b:SetScript("OnClick", function() showList(name) end)
     home.Expansions[i] = b
   end
-  home.SourceHeading = heading(right, L["By source"], L["collected"])
+  home.SourceHeading = heading(right, L["By source"], L["Collected"])
   home.Sources = {}
   for i, c in ipairs(ns.Browse.CATEGORIES) do
     local b = progressRow(right, i)

@@ -464,7 +464,7 @@ end
 
 -- A section heading, as a pop-out's group header: "- Browse" in the header
 -- colour over a thin rule of it; a collapsible one (`key`) flips on click
--- ("+" while collapsed).
+-- ("+" while collapsed); the pointer over one lights it, as the lists' rows.
 local function navHeading(parent)
   local h = CreateFrame("Button", nil, parent)
   h:SetHeight(NAV_HEADING)
@@ -477,16 +477,20 @@ local function navHeading(parent)
   rule:SetPoint("BOTTOMLEFT", h, "BOTTOMLEFT", 8, 2)
   rule:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", -8, 2)
   h.Rule = rule
+  local hover = h:CreateTexture(nil, "BACKGROUND")
+  hover:SetPoint("TOPLEFT", h, "TOPLEFT", 6, 0)
+  hover:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", -6, 2)
+  hover:SetColorTexture(1, 1, 1, 0.07)
+  hover:Hide()
+  h.Hover = hover
   h:SetScript("OnClick", function(self)
     if not self.key then return end
     local store = navCollapsed()
     store[self.key] = (not store[self.key]) or nil
     UI.RefreshNav()
   end)
-  h:SetScript("OnEnter", function(self)
-    if self.key then UI.ShowHint(self, L["Click: collapse or expand"]) end
-  end)
-  h:SetScript("OnLeave", function(self) UI.HideHint(self) end)
+  h:SetScript("OnEnter", function(self) self.Hover:SetShown(self.key ~= nil) end)
+  h:SetScript("OnLeave", function(self) self.Hover:Hide() end)
   return h
 end
 

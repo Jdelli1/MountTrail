@@ -216,8 +216,7 @@ L["Faction"] = "Faction"
 L["%d of %d rares looted"] = "%d of %d rares looted"
 L["%d try"] = "%d try"
 L["%d tries"] = "%d tries"
-L["mounts collected · %d%%"] = "mounts collected · %d%%"
-L["collected"] = "collected"
+L["Mounts collected · %d%%"] = "Mounts collected · %d%%"
 
 -- Shared lists (UI\Share.lua)
 L["/mtrail sharetest - check that sharing works on this client"] = "/mtrail sharetest - check that sharing works on this client"
