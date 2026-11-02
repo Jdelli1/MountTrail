@@ -205,6 +205,8 @@ L["Open"] = "Open"
 L["Done"] = "Done"
 L["1 in %d"] = "1 in %d"
 L["Owned"] = "Owned"
+L["mounts collected · %d%%"] = "mounts collected · %d%%"
+L["collected"] = "collected"
 
 -- Shared lists (UI\Share.lua)
 L["/mtrail sharetest - check that sharing works on this client"] = "/mtrail sharetest - check that sharing works on this client"
@@ -267,7 +269,6 @@ L["The options page is not available on this client."] = "The options page is no
 L["/mtrail options - open the MountTrail options (Options > AddOns)"] = "/mtrail options - open the MountTrail options (Options > AddOns)"
 
 -- Journal home (front page)
-L["Mount Collection"] = "Mount Collection"
 L["Click to open the achievement"] = "Click to open the achievement"
 L["Sky"] = "Sky"
 L["Green"] = "Green"
@@ -353,7 +354,6 @@ L["Other matches"] = "Other matches"
 L["By source"] = "By source"
 L["Nearby"] = "Nearby"
 L["%d in %s: open Current Zone"] = "%d in %s: open Current Zone"
-L["%d / %d collected  ·  %d%%"] = "%d / %d collected  ·  %d%%"
 L["%d%%"] = "%d%%"
 
 -- Options: show unobtainable mounts (F11)

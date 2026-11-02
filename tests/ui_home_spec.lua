@@ -55,7 +55,6 @@ STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate = {
   ValidateResetState = noop,
 }
 
-local CHECK_ATLAS = "activities-icon-checkmark"
 
 -- `owned(id)` decides ownership (default: every third mount).
 local function loadUI(owned)
@@ -94,16 +93,17 @@ end
 local function backOf(page) return page.Back end
 
 describe("journal home", function()
-  it("a summary strip, then Expansions and By source rows on the left and the Today column on the right", function()
+  it("a summary card, then Expansions on the left, By source and Nearby on the right", function()
     local ns = loadUI()
     local home = openHome(ns)
     local summary = home.Summary
-    eq(summary.Title:GetText(), "Mount Collection")
-    eq(summary.Title.template, ns.UI.Font("GameFontNormalLarge"))
-    eq(summary.Totals.template, ns.UI.Font("GameFontHighlight"))
+    eq(summary.Totals:GetText(), string.format("%d / %d", summary.have, summary.total), "the total, large")
+    eq(summary.Totals.template, ns.UI.Font("GameFontNormalHuge"))
+    eq(summary.Title:GetText(), string.format("mounts collected · %d%%", ns.UI.HomePercent(summary.have, summary.total)))
     eq(summary.Bar.height, 12, "a thick 12 px total bar")
-    eq(summary.Bar:GetNumPoints(), 2, "full width: anchored left and right")
-    eq(summary.Bar.barColor, ns.UI.ProgressColor(summary.have, summary.total), "its percent's colour")
+    eq(summary.Bar:GetNumPoints(), 2, "between the total and the search box")
+    eq(summary.Bar.barColor, { 1, 0.82, 0, 1 }, "gold")
+    eq(home.ExpHeading.Note:GetText(), "collected", "a grey note on the header's right")
     eq(home.ExpHeading.Text:GetText(), "Expansions")
     eq(home.ExpHeading.Text.textColor, { 1, 0.82, 0 }, "a pop-out header: gold by default")
     eq(home.ExpHeading.Rule.color, { 0.15, 0.13, 0.07, 1 }, "a faint rule inside the card")
@@ -115,8 +115,10 @@ describe("journal home", function()
       eq(row.kind, "Button", "row " .. i)
       eq(row.Bar.height, 6, "slim bar")
       eq(row.Count.template, ns.UI.Font("GameFontHighlight"), "readable, not the small font")
-      eq(row.Percent.template, ns.UI.Font("GameFontDisable"))
+      eq(row.Percent, nil, "no percent: the count says it")
       eq(row.Name:GetText(), ns.Data.Expansions[i])
+      local c = ns.UI.EXPANSION_COLORS[ns.Data.Expansions[i]]
+      if c then eq(row.Bar.barColor, { c[1], c[2], c[3], 1 }, "the bar in the expansion's colour") end
       eq(row.Stripe:IsShown(), i % 2 == 0, "striped every other row")
     end
     eq(home.SourceHeading.Text:GetText(), "By source")
@@ -124,10 +126,14 @@ describe("journal home", function()
     eq(home.Sources[1].Name:GetText(), "Drops")
     ok(home.Side and home.Side.NearbyHeading:IsShown(), "the right column: Nearby")
     eq(home.Side.TodayHeading, nil, "no Today")
-    eq({ home.Side:GetPoint(1) }, { "TOPRIGHT", home, "TOPRIGHT", -12, -66 })
+    eq(select(2, home.SourceHeading:GetPoint(1)), home.Side, "By source on the right")
+    eq(select(2, home.ExpHeading:GetPoint(1)), home.Left, "Expansions on the left")
+    eq({ home.Side:GetPoint(1) }, { "TOPRIGHT", home.MainContent, "TOPRIGHT", 0, 0 }, "inside the one scrolling page")
+    ok(select(5, home.Side.NearbyHeading:GetPoint(1)) < select(5, home.SourceHeading:GetPoint(1)) - 100,
+      "Nearby under By source")
   end)
 
-  it("expansion counts and percents match their text", function()
+  it("expansion counts match their text", function()
     local ns = loadUI()
     local home = openHome(ns)
     local have, total = 0, 0
@@ -137,7 +143,6 @@ describe("journal home", function()
       eq(tonumber(h), row.have)
       eq(tonumber(t), row.total)
       have, total = have + row.have, total + row.total
-      eq(row.Percent:GetText(), ns.UI.HomePercent(row.have, row.total) .. "%")
     end
     ok(total > 0 and have > 0 and have < total, "a partial collection")
   end)
@@ -158,7 +163,8 @@ describe("journal home", function()
     local home = openHome(ns)
     local s = home.Summary
     eq({ s.have, s.total }, { 3, 7 }, "unobtainable unowned and other-faction mounts left out")
-    eq(s.Totals:GetText(), string.format("%d / %d collected  ·  %d%%", 3, 7, ns.UI.HomePercent(3, 7)))
+    eq(s.Totals:GetText(), "3 / 7")
+    eq(s.Title:GetText(), string.format("mounts collected · %d%%", ns.UI.HomePercent(3, 7)))
     eq(s.Bar.max, 7)
     eq(s.Bar.value, 3)
     local want = {
@@ -194,27 +200,20 @@ describe("journal home", function()
     eq(P(5, 5), 100)
   end)
 
-  it("complete rows: blue bar and the check; incomplete: their percent's colour, no check", function()
+  it("a complete row's count turns green; others stay light", function()
     local ns = loadUI(function() return true end)
-    STUB_ATLASES[CHECK_ATLAS] = true -- after loadUI: reset_ui_stub clears atlases
     local home = openHome(ns)
     local seen = 0
     for _, row in ipairs(home.Expansions) do
       if row.total > 0 then
         seen = seen + 1
-        eq(row.Bar.barColor, { 0.25, 0.6, 1, 1 }, "blue when complete")
-        ok(row.Check:IsShown(), "check shown")
-        eq(row.Check.atlas, CHECK_ATLAS)
+        eq(row.Count.textColor, { 0.56, 0.88, 0.56 }, "green when complete")
       end
     end
     ok(seen > 0, "some expansion has mounts")
-    STUB_ATLASES[CHECK_ATLAS] = nil
     local ns2 = loadUI()
     for _, row in ipairs(openHome(ns2).Expansions) do
-      if row.have < row.total then
-        eq(row.Bar.barColor, ns2.UI.ProgressColor(row.have, row.total))
-        ok(not row.Check:IsShown(), "no check")
-      end
+      if row.have < row.total then eq(row.Count.textColor, { 0.79, 0.75, 0.68 }) end
     end
   end)
 
@@ -309,27 +308,13 @@ describe("journal home", function()
     -- Window 900 x 560: the navigation column (6 + NAV_WIDTH + 4) on the
     -- left, 6 px right; 4 px inside.
     local contentW = 900 - (6 + ns.UI.NAV_WIDTH + 4) - 6 - 8
-    eq(home.Main.kind, "ScrollFrame", "the left column scrolls")
-    eq(home.MainContent.height, home.mainHeight, "its content as tall as its rows")
-    local leftW = contentW - 2 * G.left - G.sideW - G.gap
-    -- The card's insets 10 + 6, name 4 + 150, gap 8, a 60 px bar at least,
-    -- check 6 + 14 + 4, count 80, gap 6, percent 40, 4.
-    ok(leftW >= 16 + 154 + 8 + 60 + 6 + 14 + 4 + 80 + 6 + 40 + 4, "room for name, bar, count and percent: " .. leftW)
+    eq(home.Main.kind, "ScrollFrame", "the page scrolls")
+    eq(home.MainContent.height, home.mainHeight, "its content as tall as the taller column")
+    local colW = (contentW - 2 * G.left - G.gap) / 2
+    -- The card's insets 10 + 6, name 4 + 128, gap 8, a 60 px bar at least,
+    -- gap 8, count 70, 4.
+    ok(colW >= 16 + 132 + 8 + 60 + 8 + 70 + 4, "room for name, bar and count in half the page: " .. colW)
     eq(select(4, home.Expansions[1].Name:GetPoint(1)), 4, "no tag column: names start at the row's edge")
   end)
 end)
 
-describe("UI.ProgressColor", function()
-  it("red under 25 %, yellow under 75 %, green below complete, blue when complete", function()
-    local ns = loadUI()
-    local P = ns.UI.ProgressColor
-    eq(P(0, 10), { 0.85, 0.22, 0.2, 1 })
-    eq(P(2, 10), { 0.85, 0.22, 0.2, 1 }, "20 %")
-    eq(P(25, 100), { 1, 0.82, 0, 1 }, "25 %: yellow")
-    eq(P(74, 100), { 1, 0.82, 0, 1 })
-    eq(P(75, 100), { 0.25, 0.78, 0.35, 1 }, "75 %: green")
-    eq(P(99, 100), { 0.25, 0.78, 0.35, 1 })
-    eq(P(100, 100), { 0.25, 0.6, 1, 1 }, "complete: blue")
-    eq(P(0, 0), { 0.85, 0.22, 0.2, 1 }, "nothing to collect")
-  end)
-end)

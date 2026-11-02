@@ -14,9 +14,11 @@
 - The main window has the same dim gold frame; the left column's section
   labels are in capitals, the entry you are on sits on a gold-tinted band,
   and counts sit on a small dark box.
-- Home in the Blend A look: the summary, Expansions, By source and Nearby
-  are cards; expansion names carry their colour (no tag); Nearby rows show
-  the mount's icon, where it comes from and its drop chance. The Today
+- Home in the Blend A look, as the design sheet: the collected total in
+  large gold figures over a gold bar; Expansions on the left, By source and
+  Nearby on the right, on one page that scrolls; bars in each expansion's
+  colour (sources in bronze), owned / total without a percent; Nearby rows
+  show the mount's icon, where it comes from and its drop chance. The Today
   column is gone (Lockouts in the left column counts what is left).
 - Every list in the main window (expansions, Browse, your lists, Lockouts,
   Current Zone, the zone panel) is made of cards: a header on a card top,

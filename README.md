@@ -131,23 +131,23 @@ Working with the column:
 
 ### Home
 
-- Your collected total (count, percent and a thick bar) over every mount you
-  count (see the `Count ...` options) and a search box over every mount (see
-  [Search](#search)).
-- **Expansions**: a row per expansion, its name in its colour, a
-  progress bar, owned / total and percent (a check once complete). Click a
-  row for its mount list.
-- **By source**: the same rows for every source of the navigation's Browse
-  section (Drops, Vendors & Reputation, ... Trading Post); click one to open
-  it. A source you do not count (Options) is left out of Home (its Browse
-  page stays). The column scrolls
-  when the window is short.
-- **Nearby**: the first mounts still to get in your zone, each with its icon
-  (boxed in its rarity's colour), where it comes from and its drop chance
-  (click one for its waypoint); the line under them opens Current Zone. What
-  is left to farm today is under Lockouts in the left column.
-- Every bar takes its completion colour: red under 25 %, yellow under 75 %,
-  green below complete and blue once complete (the total bar too).
+- A summary card: your collected total in large gold figures, "mounts
+  collected · 23%" under it, a thick gold bar, and a search box over every
+  mount (see [Search](#search)). It counts every mount you count (see the
+  `Count ...` options).
+- Under it, two columns on one page that scrolls when the window is short:
+  - **Expansions** (left): a row per expansion, its name and bar in its
+    colour, owned / total (green once complete). Click a row for its mount
+    list.
+  - **By source** (right): the same rows for every source of the
+    navigation's Browse section (Drops, Vendors & Reputation, ... Trading
+    Post), bars in bronze; click one to open it. A source you do not count
+    (Options) is left out of Home (its Browse page stays).
+  - **Nearby** (right, under By source): the first mounts still to get in
+    your zone, each with its icon (boxed in its rarity's colour), where it
+    comes from and its drop chance (click one for its waypoint); the line
+    under them opens Current Zone. What is left to farm today is under
+    Lockouts in the left column.
 
 ### Mount lists
 
