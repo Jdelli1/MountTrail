@@ -482,6 +482,25 @@ describe("pop-out windows", function()
     ns.UI.ChecklistBuild = real
   end)
 
+  it("appearance changes redraw at once: opacity reaches the cards, a layout change reads no lockouts", function()
+    local ns = loadUI()
+    setup(ns)
+    local w = ns.UI.OpenPopout({ kind = "camp", exp = WOD })
+    eq(w.cards[1].Fill.color, { 1, 1, 1, 0.035 }, "a light layer over the window's background")
+    local items = ns.UI.PopoutStyleMenu(w)()
+    local opacity
+    for _, it in ipairs(items) do if it.slider and it.text == "Opacity" then opacity = it end end
+    opacity.onChange(20)
+    eq(w.Fill.color[4], 0.2, "the window's background at 20 %")
+    eq(w.cards[1].Fill.color, { 1, 1, 1, 0.035 }, "the cards ride on it: no opaque fill of their own")
+    local builds, real = 0, ns.UI.ChecklistBuild
+    ns.UI.ChecklistBuild = function(...) builds = builds + 1; return real(...) end
+    for _, it in ipairs(ns.UI.PopoutStyleMenu(w)()) do if it.text == "Compact" then it.onClick() end end
+    eq(w.layout, "compact")
+    eq(builds, 0, "no new read of the lockouts")
+    ns.UI.ChecklistBuild = real
+  end)
+
   it("PopoutCardLines: the second line and the status of a card row", function()
     local ns = loadUI()
     local CL = ns.UI.PopoutCardLines

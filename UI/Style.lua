@@ -239,12 +239,12 @@ local function repaintAll(chromeOnly)
   for _, x in ipairs(extras) do
     if x:IsShown() and x.Restyle then x.Restyle(chromeOnly) end
   end
-  if chromeOnly then
-    for _, win in pairs(UI.PopoutWindows or {}) do
-      if win:IsShown() then applyChrome(win, styleOf(win)) end
+  -- A look changes no data: each pop-out redraws from the lockouts it last
+  -- read (UI.RedrawPopout), at once.
+  for _, win in pairs(UI.PopoutWindows or {}) do
+    if win:IsShown() then
+      if chromeOnly then applyChrome(win, styleOf(win)) else UI.RedrawPopout(win) end
     end
-  else
-    UI.RefreshPopouts()
   end
 end
 
@@ -325,7 +325,7 @@ function UI.PopoutStyleMenu(w, back)
         popoutOnly = true, onClick = function()
           if not state then return end
           state.showDone = not state.showDone or nil
-          UI.RefreshPopouts()
+          if UI.PopoutWindows and UI.PopoutWindows[w.key] == w then UI.RedrawPopout(w) else UI.RefreshPopouts() end
         end },
       { text = L["Cards"], checked = s.layout == "cards", keepOpen = true, popoutOnly = true,
         onClick = function() setStyle(w, function(st) st.layout = nil end) end },

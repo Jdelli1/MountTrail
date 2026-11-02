@@ -388,7 +388,7 @@ end
 
 
 -- Cards layout (the default; Compact: one line a row): each group a card, a
--- fill a shade lighter than the window with an edge in its expansion's
+-- faint light layer over the window's background with an edge in its expansion's
 -- colour (gold without one); rows with the mount's icon, the name over a
 -- grey line (UI.PopoutCardLines) and the status on the right. A rare spawn
 -- keeps its box, on the right.
@@ -397,7 +397,7 @@ local BADGE_KINDS = { done = "green", open = "gold", info = "grey" }
 local GOLD = { 1, 0.82, 0 }
 local NO_RARITY = { 0.35, 0.32, 0.26 }
 
-local function placeCard(w, i, top, bottom, style, color)
+local function placeCard(w, i, top, bottom, color)
   w.cards = w.cards or {}
   local c = w.cards[i]
   if not c then
@@ -406,7 +406,7 @@ local function placeCard(w, i, top, bottom, style, color)
       Right = w.Content:CreateTexture(nil, "BORDER") }
     w.cards[i] = c
   end
-  local bg, line = style.bg, UI.THEME.cardEdge
+  local line = UI.THEME.cardEdge
   for _, t in ipairs({ c.Fill, c.Edge, c.Top, c.Bottom, c.Right }) do
     t:ClearAllPoints()
     t:Show()
@@ -417,7 +417,9 @@ local function placeCard(w, i, top, bottom, style, color)
   c.Fill:SetPoint("TOPLEFT", w.Content, "TOPLEFT", 0, -top)
   c.Fill:SetPoint("TOPRIGHT", w.Content, "TOPRIGHT", -12, -top)
   c.Fill:SetHeight(h)
-  c.Fill:SetColorTexture(math.min(1, bg[1] + 0.05), math.min(1, bg[2] + 0.05), math.min(1, bg[3] + 0.05), style.alpha)
+  -- A faint light layer over the window's own background, so the window's
+  -- opacity (and its colour) carries through the cards as well.
+  c.Fill:SetColorTexture(1, 1, 1, 0.035)
   c.Edge:SetPoint("TOPLEFT", w.Content, "TOPLEFT", 0, -top)
   c.Edge:SetSize(3, h)
   c.Edge:SetColorTexture(color[1], color[2], color[3], 0.9)
@@ -604,7 +606,7 @@ local function refreshWindow(w, built)
     end
     if cards then
       usedCards = usedCards + 1
-      placeCard(w, usedCards, cardTop, y + 2, style, c or GOLD)
+      placeCard(w, usedCards, cardTop, y + 2, c or GOLD)
       y = y + 2 + CARD_GAP
     end
   end
