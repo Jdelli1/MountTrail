@@ -157,7 +157,9 @@ function UI.ZoneContext()
       return entry and entry.instance or nil
     end,
     key = UI.GroupKey,
-    gate = ns.Zone.Gate(UI.Memo(game.IsOwned), UI.Memo(game.Exists), game.Faction()),
+    -- Holiday mounts only while their holiday is on.
+    gate = ns.Zone.Gate(UI.Memo(game.IsOwned), UI.Memo(game.Exists), game.Faction(),
+      game.ActiveHolidays and game.ActiveHolidays() or {}),
     showCollected = filters.collected == true,
     currentInstance = game.CurrentInstanceName and game.CurrentInstanceName() or nil,
     currentInstanceID = game.CurrentInstance and (game.CurrentInstance()) or nil,

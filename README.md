@@ -95,7 +95,8 @@ The left column:
 - **Home**: the front page.
 - **Lockouts**: the daily / weekly checklist, with how many lockouts are left.
 - **Current Zone**: every mount still to get in your zone, grouped by source,
-  following you as you move. Right-click it (or use `Pop out`) for a small
+  following you as you move. Holiday mounts show only while their holiday
+  is on (here, on Home's Nearby, the zone panel and the map). Right-click it (or use `Pop out`) for a small
   window that follows you.
 - **Alts**: the [alt lockout matrix](#alt-lockout-matrix).
 - **Browse** by source: Drops, Vendors & Reputation, Quests & Activities,

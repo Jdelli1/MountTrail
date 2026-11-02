@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Holiday mounts (Lunar Launcher, ...) show in Nearby, Current Zone, the
+  zone panel and the map only while their holiday is on.
 - **Font styles**, in the cogwheel menu and on the AddOns page: a Header
   font (titles) and a Body font (mount names and text), the game's own by
   default; Arial Narrow, Morpheus, Skurri, or a LibSharedMedia font. Korean

@@ -47,6 +47,7 @@ local function loadUI(over)
     CurrentJournalInstance = function() return nil end,
     JournalInstanceName = function(id) if id == 68 then return "The Vortex Pinnacle" end end,
     CurrentInstanceName = function() return nil end,
+    ActiveHolidays = function() return { brewfest = true } end,
   }
   for k, v in pairs(over or {}) do game[k] = v end
   for k, v in pairs(game) do ns.Game[k] = v end
@@ -84,6 +85,12 @@ describe("zone panel glue", function()
     local via = {}
     for _, row in ipairs(list) do via[row.id] = row.via end
     eq(via, { [1] = "coords", [3] = "instance", [6] = "source", [7] = "instance" })
+  end)
+
+  it("a holiday's mounts only while the holiday is on", function()
+    local ns = loadUI({ ActiveHolidays = function() return {} end })
+    local list = ns.Zone.MountsFor(249, ns.UI.ZoneContext())
+    eq(ids(list), { 3, 7, 6 }, "Brewfest is off: its mount is not nearby")
   end)
 
   it("the Collected filter keeps owned mounts", function()
