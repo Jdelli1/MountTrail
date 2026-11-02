@@ -6,10 +6,15 @@ local ADDON, ns = ...
 -- shown or not by the Mount Journal's "mountJournalShowPlayer" setting, its
 -- checkbox here too), the name, the client's flavor text, then the
 -- tooltip's lines (UI.TooltipLines without the click hints: source, chance,
--- attempts, lockout, achievement) and "Where to find it": each NPC behind
--- the mount (Map.Spots: the vendor, a rare) by name, its zones and how
--- many spawn points - all in a scrolling area. No buttons: the list's rows
--- do it (UI.PaneRowClick: right-click plots or opens the achievement, Shift map, Ctrl preview).
+-- attempts, lockout, achievement) as the design's info card: a Status row,
+-- then each label / value pair in two columns (labels grey, values white),
+-- and "Where to find it": each NPC behind the mount (Map.Spots: the vendor,
+-- a rare) by name, its zones and how many spawn points - all in a scrolling
+-- card. The name is in its rarity's colour (gold without one) over
+-- "expansion · kind of source". Along the bottom: Waypoint (the rows' own
+-- click: UI.GoTo), + List and Wowhead. The list's rows keep their clicks
+-- (UI.PaneRowClick: right-click plots or opens the achievement, Shift map,
+-- Ctrl preview).
 --   local pane = UI.CreateDetailPane(parent)
 --   pane:SetMount(mountID[, routeBoss])   -- nil: folded away (1 px wide)
 --   pane:Refresh()                        -- same mount, fresh numbers
@@ -50,6 +55,8 @@ function UI.SetPaneWidth(w, save)
 end
 local MODEL_HEIGHT = 230
 local PAD = 10
+local LABEL_W = 84 -- the info card's label column
+local BUTTONS_H = 28 -- the bottom row of buttons
 local LINE_GAP = 3
 local SCROLL_STEP = 30
 local SHOW_PLAYER_CVAR = "mountJournalShowPlayer"
@@ -93,14 +100,74 @@ end
 -- Pure: the pane's text for a mount -> { name =, flavor =, lines = UI.TooltipLines
 -- without hints, achievement = achievementID or nil, location = bool, spots =
 -- UI.DetailSpots, notes = ATT's description (Notes.Description) or nil }.
+-- The info card's own rows -> { { label =, value =, kind = "done" | "open" |
+-- nil } } in the design's order: Status, Attempts (with how many players
+-- would have it by now), Drop (1 in N), From (the source's first named
+-- part: the boss, the vendor, the quest), Where (its Zone / Location), Cost,
+-- Lockout. Rows with nothing to say are left out.
+function UI.DetailFacts(mountID, routeBoss)
+  local m = mountData(mountID) or {}
+  local Game = ns.Game
+  local facts = {}
+  local function add(label, value, kind)
+    if value and value ~= "" then facts[#facts + 1] = { label = label, value = value, kind = kind } end
+  end
+  local owned = Game.IsOwned and Game.IsOwned(mountID) and true or false
+  add(L["Status"], owned and (UI.MARK_DONE .. " " .. L["Collected"]) or L["Not collected"], owned and "done" or nil)
+  local n = (type(m.chance) == "number" and m.chance > 0) and math.max(1, math.floor(m.chance + 0.5)) or nil
+  if not owned and UI.IsTracked and UI.IsTracked(mountID, m, routeBoss) then
+    local counts = UI.MountAttempts(mountID, m) or {}
+    local total = tonumber(counts.total) or 0
+    local text = tostring(total)
+    local soFar = n and total > 0 and ns.Odds and ns.Odds.ChanceSoFar(n, total)
+    if soFar then
+      text = text .. " \194\183 " .. string.format(L["%d%% would have it by now"], math.floor(soFar * 100 + 0.5))
+    end
+    add(L["Attempts"], text)
+  end
+  if n then add(L["Drop"], string.format(L["1 in %d"], n)) end
+  local text = Game.MountSourceText and Game.MountSourceText(mountID) or nil
+  local from, where, cost
+  if text and UI.SourcePairs then
+    local kinds = UI.SourceLabelKinds()
+    for _, p in ipairs(UI.SourcePairs(text, true)) do
+      local kind = p.label and UI.SourceLabelKind(p.label, kinds)
+      if kind == "zone" then
+        where = where or p.value
+      elseif kind == "cost" then
+        cost = cost or p.value
+      elseif p.label and not from then
+        from = p.value
+      end
+    end
+  end
+  add(L["From"], from or routeBoss)
+  add(L["Where"], where)
+  add(L["Cost"], cost)
+  local status = UI.LockoutStatus and UI.LockoutStatus(mountID, routeBoss)
+  if status then
+    add(L["Lockout"], (status == "saved" and (UI.MARK_DONE .. " ") or "") .. UI.LockoutText(status),
+      status == "saved" and "done" or (status == "available" and "open" or nil))
+  end
+  return facts
+end
+
 function UI.DetailContent(mountID, routeBoss)
   local m = mountData(mountID) or {}
   local name = ns.Game.MountInfo and ns.Game.MountInfo(mountID) or nil
   local _, achievementID = UI.AchievementLines(mountID)
+  -- "expansion · kind of source" under the name.
+  local sub = {}
+  if m.exp then sub[#sub + 1] = L[m.exp] end
+  local kind = UI.SourceKind and UI.SourceKind(mountID, m, ns.Game.MountSourceText)
+  if kind then sub[#sub + 1] = kind end
   return {
     name = name or m.name or tostring(mountID),
+    sub = table.concat(sub, " \194\183 "),
+    owned = ns.Game.IsOwned and ns.Game.IsOwned(mountID) and true or false,
     flavor = UI.TooltipFlavor(mountID),
-    lines = UI.TooltipLines(mountID, routeBoss, { hints = false }),
+    facts = UI.DetailFacts(mountID, routeBoss),
+    lines = UI.TooltipLines(mountID, routeBoss, { hints = false, facts = true }),
     achievement = achievementID,
     location = UI.HasLocation(mountID, routeBoss) and true or false,
     spots = UI.DetailSpots(mountID),
@@ -170,30 +237,46 @@ local function lineString(pane, i)
 end
 
 local function layoutInfo(pane, content)
-  local width = (pane.paneWidth or UI.DETAIL_WIDTH) - 2 * PAD - 12
+  local width = (pane.paneWidth or UI.DETAIL_WIDTH) - 2 * PAD - 22 -- inside the info card
   local y = 0
   local n = 0
+  -- A line across the card, or (with rightText) a label / value pair: the
+  -- label grey in its column, the value white beside it (wrapping).
   local function place(text, r, g, b, rightText, rr, rg, rb)
     n = n + 1
     local fs, right = lineString(pane, n)
     fs:ClearAllPoints()
     fs:SetPoint("TOPLEFT", pane.Info, "TOPLEFT", 0, -y)
-    fs:SetWidth(width)
     fs:SetText(text)
-    fs:SetTextColor(r or 1, g or 1, b or 1)
-    fs:Show()
+    local h
     if rightText then
+      fs:SetWidth(LABEL_W - 6)
+      fs:SetTextColor(0.64, 0.6, 0.53)
       right:ClearAllPoints()
-      right:SetPoint("TOPRIGHT", pane.Info, "TOPLEFT", width, -y)
+      right:SetPoint("TOPLEFT", pane.Info, "TOPLEFT", LABEL_W, -y)
+      right:SetWidth(math.max(40, width - LABEL_W))
+      right:SetJustifyH("LEFT")
+      if right.SetWordWrap then right:SetWordWrap(true) end
       right:SetText(rightText)
       right:SetTextColor(rr or 1, rg or 1, rb or 1)
       right:Show()
+      h = math.max(tonumber(fs.GetStringHeight and fs:GetStringHeight()) or 12,
+        tonumber(right.GetStringHeight and right:GetStringHeight()) or 12)
     else
+      fs:SetWidth(width)
+      fs:SetTextColor(r or 1, g or 1, b or 1)
       right:Hide()
+      h = fs.GetStringHeight and fs:GetStringHeight() or 12
     end
-    local h = fs.GetStringHeight and fs:GetStringHeight() or 12
+    fs:Show()
     y = y + math.max(h or 12, 12) + LINE_GAP
   end
+  -- The design's rows first (Status ... Lockout): done green, open gold.
+  for _, f in ipairs(content.facts or {}) do
+    local c = (f.kind == "done" and { 0.56, 0.88, 0.56 }) or (f.kind == "open" and { 1, 0.82, 0.29 }) or { 1, 1, 1 }
+    place(f.label, 1, 1, 1, f.value, c[1], c[2], c[3])
+  end
+  if #(content.facts or {}) > 0 then y = y + 4 end
   if content.flavor then
     place(content.flavor, 0.8, 0.8, 0.8)
     y = y + 4
@@ -249,8 +332,11 @@ local function paint(pane)
   if pane.Splitter then pane.Splitter:SetShown(has) end
   pane.Name:SetShown(has)
   pane.Info:SetShown(has)
+  pane.InfoCard:SetShown(has)
   pane.AddList:SetShown(has)
   pane.Wowhead:SetShown(has)
+  pane.Sub:SetShown(has)
+  pane.Waypoint:SetShown(has)
   -- "+ List" while the mount is on none of your lists, else "Lists (n)".
   local store = has and UI.ListsDB and UI.ListsDB()
   local on = 0
@@ -261,7 +347,15 @@ local function paint(pane)
   if not has then return end
   local content = UI.DetailContent(id, pane.routeBoss)
   pane.content = content
+  pane.Name:SetFontObject(UI.Font("GameFontNormalLarge"))
+  UI.ApplyHeadingFont(pane.Name)
   pane.Name:SetText(content.name)
+  local rc = UI.ListRarityColor and UI.ListRarityColor(id) or nil
+  if rc then pane.Name:SetTextColor(rc[1], rc[2], rc[3]) else pane.Name:SetTextColor(1, 0.82, 0) end
+  pane.Sub:SetText(content.sub or "")
+  -- Waypoint only where there is somewhere to go.
+  pane.Waypoint:SetEnabled(content.location == true)
+  pane.Waypoint:SetAlpha(content.location and 1 or 0.4)
   pane.Owned:SetShown(ns.Game.IsOwned and ns.Game.IsOwned(id) and true or false)
   layoutInfo(pane, content)
 end
@@ -279,7 +373,8 @@ local function build(parent)
   edge:SetWidth(1)
   edge:SetPoint("TOPLEFT", pane, "TOPLEFT", 0, 0)
   edge:SetPoint("BOTTOMLEFT", pane, "BOTTOMLEFT", 0, 0)
-  edge:SetColorTexture(1, 1, 1, 0.1)
+  local line = UI.THEME and UI.THEME.cardEdge or { 0.2, 0.16, 0.09 }
+  edge:SetColorTexture(line[1], line[2], line[3], 1)
 
   -- Model: Blizzard's mount preview when the client has the template.
   local modelArea = CreateFrame("Frame", nil, pane)
@@ -290,6 +385,7 @@ local function build(parent)
   local backdrop = modelArea:CreateTexture(nil, "BACKGROUND")
   backdrop:SetAllPoints(modelArea)
   backdrop:SetColorTexture(0, 0, 0, 0.35)
+  modelArea.Edge = UI.FlatBorder(modelArea, line[1], line[2], line[3], 1)
 
   local sceneTemplate = UI.Template("WrappedAndUnwrappedModelScene", nil)
   if sceneTemplate then
@@ -326,14 +422,21 @@ local function build(parent)
   -- Header: the name (no icon: the model shows the mount), a check when
   -- owned, the buttons on the right; a 32 px band under the model.
   local header = CreateFrame("Frame", nil, pane)
-  header:SetHeight(32)
+  header:SetHeight(38) -- the name over its sub line
   header:SetPoint("TOPLEFT", modelArea, "BOTTOMLEFT", PAD, -8)
   header:SetPoint("TOPRIGHT", modelArea, "BOTTOMRIGHT", -PAD, -8)
   pane.Header = header
   -- "+ List": add the mount to a custom list (a flat menu of the lists,
   -- each toggled; "New list..." asks for a name).
-  local addList = UI.FlatButton(pane, L["+ List"], "gold", 18)
-  addList:SetPoint("TOPRIGHT", modelArea, "BOTTOMRIGHT", -PAD, -15)
+  -- Along the bottom: Waypoint, + List, Wowhead.
+  local waypoint = UI.FlatButton(pane, L["Waypoint"], "gold", 22)
+  waypoint:SetPoint("BOTTOMLEFT", pane, "BOTTOMLEFT", PAD, 8)
+  waypoint:SetScript("OnClick", function()
+    if pane.mountID and UI.GoTo then UI.GoTo(pane.mountID, pane.routeBoss) end
+  end)
+  pane.Waypoint = waypoint
+  local addList = UI.FlatButton(pane, L["+ List"], "plain", 22)
+  addList:SetPoint("LEFT", waypoint, "RIGHT", 6, 0)
   addList:SetScript("OnClick", function(self)
     if pane.mountID then UI.ShowListMenu(self, pane.mountID) end
   end)
@@ -343,8 +446,8 @@ local function build(parent)
   addList:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   pane.AddList = addList
   -- "Wowhead": the mount's page (guides, comments) in a box to copy.
-  local wowhead = UI.FlatButton(pane, L["Wowhead"], "plain", 18)
-  wowhead:SetPoint("RIGHT", addList, "LEFT", -4, 0)
+  local wowhead = UI.FlatButton(pane, L["Wowhead"], "plain", 22)
+  wowhead:SetPoint("LEFT", addList, "RIGHT", 6, 0)
   wowhead:SetScript("OnClick", function()
     local url = pane.mountID and ns.Notes and ns.Notes.WowheadURL(pane.mountID)
     if url then UI.ShowCopyText(L["Wowhead"], url, L["Ctrl+C to copy, then paste it into your browser"]) end
@@ -355,13 +458,20 @@ local function build(parent)
   wowhead:SetScript("OnLeave", function(self) UI.HideHint(self) end)
   pane.Wowhead = wowhead
 
+  -- The name (its rarity's colour) over "expansion · kind of source".
   local name = pane:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalLarge"))
-  name:SetPoint("LEFT", header, "LEFT", 0, 0)
-  name:SetPoint("RIGHT", wowhead, "LEFT", -22, 0)
+  UI.ApplyHeadingFont(name)
+  name:SetPoint("TOPLEFT", header, "TOPLEFT", 0, 0)
+  name:SetPoint("RIGHT", header, "RIGHT", -22, 0)
   name:SetJustifyH("LEFT")
-  name:SetWordWrap(true)
-  if name.SetMaxLines then name:SetMaxLines(2) end
+  name:SetWordWrap(false)
   pane.Name = name
+  local subLine = pane:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisableSmall"))
+  subLine:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -3)
+  subLine:SetPoint("RIGHT", header, "RIGHT", 0, 0)
+  subLine:SetJustifyH("LEFT")
+  subLine:SetWordWrap(false)
+  pane.Sub = subLine
   local owned = pane:CreateTexture(nil, "OVERLAY")
   owned:SetSize(16, 16)
   owned:SetPoint("LEFT", name, "RIGHT", 2, 0)
@@ -373,10 +483,24 @@ local function build(parent)
   owned:Hide()
   pane.Owned = owned
 
-  -- Scrolling info: flavor text and the tooltip's lines.
+  -- Scrolling info: flavor text and the tooltip's lines, on a card (a fill,
+  -- a 1 px border and a gold 3 px edge, as the lists' cards).
   local scroll = CreateFrame("ScrollFrame", nil, pane)
-  scroll:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -10)
-  scroll:SetPoint("BOTTOMRIGHT", pane, "BOTTOMRIGHT", -PAD, 8)
+  scroll:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 6, -14)
+  scroll:SetPoint("BOTTOMRIGHT", pane, "BOTTOMRIGHT", -PAD - 4, 8 + BUTTONS_H + 12)
+  local card = CreateFrame("Frame", nil, pane)
+  card:SetPoint("TOPLEFT", scroll, "TOPLEFT", -8, 6)
+  card:SetPoint("BOTTOMRIGHT", scroll, "BOTTOMRIGHT", 6, -6)
+  local cardFill = card:CreateTexture(nil, "BACKGROUND")
+  cardFill:SetAllPoints(card)
+  cardFill:SetColorTexture(1, 1, 1, 0.035)
+  card.Edge = UI.FlatBorder(card, line[1], line[2], line[3], 1)
+  local cardAccent = card:CreateTexture(nil, "ARTWORK")
+  cardAccent:SetWidth(3)
+  cardAccent:SetPoint("TOPLEFT", card, "TOPLEFT", 0, 0)
+  cardAccent:SetPoint("BOTTOMLEFT", card, "BOTTOMLEFT", 0, 0)
+  cardAccent:SetColorTexture(1, 0.82, 0, 0.9)
+  pane.InfoCard = card
   if scroll.EnableMouseWheel then scroll:EnableMouseWheel(true) end
   local info = CreateFrame("Frame", nil, scroll)
   info:SetSize(pane.paneWidth - 2 * PAD, 1)

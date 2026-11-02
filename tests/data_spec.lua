@@ -19,6 +19,7 @@ describe("data", function()
     local kinds = 0
     if s.instance ~= nil then kinds = kinds + 1 end
     if s.quest ~= nil then kinds = kinds + 1 end
+    if s.quests ~= nil then kinds = kinds + 1 end
     if s.lfg ~= nil then kinds = kinds + 1 end
     if s.manual ~= nil then kinds = kinds + 1 end
     if s.camp ~= nil then kinds = kinds + 1 end
@@ -54,6 +55,12 @@ describe("data", function()
       if s.boss ~= nil or s.difficulties ~= nil then fail(id, "boss/difficulties on a non-instance spec") end
     end
     if s.quest ~= nil and type(s.quest) ~= "number" then fail(id, "quest not a number") end
+    if s.quests ~= nil then
+      if type(s.quests) ~= "table" or #s.quests < 2 then fail(id, "quests not a list of two or more") end
+      for _, q in ipairs(type(s.quests) == "table" and s.quests or {}) do
+        if type(q) ~= "number" then fail(id, "quests entry not a number") end
+      end
+    end
     if s.lfg ~= nil and type(s.lfg) ~= "number" then fail(id, "lfg not a number") end
     if s.manual ~= nil and s.manual ~= true then fail(id, "manual must be true") end
     -- category (checklist level, Checklist.CATEGORIES): only on a lockout spec.

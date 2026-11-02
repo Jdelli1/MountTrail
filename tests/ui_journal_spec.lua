@@ -48,7 +48,7 @@ local ROUTE = {
 }
 
 describe("ui journal", function()
-  it("toc lists Frame's parts (Widgets, Style, Nav), then Tooltip, List (and SourceText, Search), DetailPane, JournalHome", function()
+  it("toc lists Frame's parts (Widgets, Style, Nav), then Tooltip, List (and ListItems, SourceText, Search), DetailPane, JournalHome", function()
     local fh = assert(io.open(ROOT .. "/MountTrail.toc", "r"))
     local lines = {}
     for line in fh:lines() do
@@ -60,9 +60,9 @@ describe("ui journal", function()
     for i, line in ipairs(lines) do if line == "UI\\Frame.lua" then frame = i end end
     ok(frame, "UI\\Frame.lua in toc")
     local got = {}
-    for i = 1, 11 do got[i] = lines[frame + i] end
+    for i = 1, 12 do got[i] = lines[frame + i] end
     eq(got, { "UI\\Widgets.lua", "UI\\Style.lua", "UI\\Nav.lua", "UI\\Tooltip.lua", "UI\\List.lua",
-      "UI\\ListRows.lua", "UI\\ListFilter.lua", "UI\\SourceText.lua", "UI\\Search.lua",
+      "UI\\ListItems.lua", "UI\\ListRows.lua", "UI\\ListFilter.lua", "UI\\SourceText.lua", "UI\\Search.lua",
       "UI\\DetailPane.lua", "UI\\JournalHome.lua" })
   end)
 
@@ -1075,6 +1075,16 @@ describe("ui journal", function()
       eq(SM("a\r\nb"), "a\nb", "CRLF")
       eq(SM(nil), nil)
       eq(SM(5), nil)
+    end)
+
+    it("SourceCost: the Cost line's value, icons kept; nil without one", function()
+      local ns = loadUI()
+      ns.Game.MountSourceText = function(id)
+        if id == 1 then return "|cFFFFD200Vendor:|r Mei Francis|n|cFFFFD200Cost:|r 20000|TINTERFACE\\MONEYFRAME\\UI-GOLDICON.BLP:0|t" end
+        return "|cFFFFD200Drop:|r Skadi"
+      end
+      eq(ns.UI.SourceCost(1), "20000|TINTERFACE\\MONEYFRAME\\UI-GOLDICON.BLP:0|t")
+      eq(ns.UI.SourceCost(2), nil)
     end)
 
     it("SourcePairs keeps icons in values only with keepIcons", function()

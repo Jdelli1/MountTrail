@@ -54,12 +54,7 @@ end
 function view.Build(parent)
   root = CreateFrame("Frame", nil, parent)
   root:SetAllPoints(parent)
-  local _
-  _, title = UI.PageHeader(root, false)
-  local holder = CreateFrame("Frame", nil, root)
-  holder:SetPoint("TOPLEFT", root, "TOPLEFT", 0, UI.PAGE_TOP)
-  holder:SetPoint("BOTTOMRIGHT", root, "BOTTOMRIGHT", 0, 0)
-  list = UI.List(holder, function()
+  list = UI.List(root, function()
     return { view = "browse", exp = UI.BrowseCategory(), sourceText = ns.Game.MountSourceText }
   end, {
     select = function(mounts, query)
@@ -71,6 +66,8 @@ function view.Build(parent)
     end,
   })
   root.List = list
+  root.Title = list.Title
+  title = list.Title
   return root
 end
 

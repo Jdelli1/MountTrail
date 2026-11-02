@@ -17,7 +17,8 @@ end
 -- Instance specs count +1 per difficulty group that became satisfied (a
 -- Heroic-only kill on { 14, 15, 16 } is one attempt, a Mythic kill later the
 -- same week another; an any-of group counts once however many of its
--- difficulties are killed). Quest and LFG specs count +1 on open -> done.
+-- difficulties are killed). Quest and LFG specs count +1 on open -> done;
+-- a several-flag spec (quests) +1 per flag that turned done.
 -- -> mountIDs in input order, a mount repeated once per new attempt (callers
 -- Add each). prev == nil (first observation) counts nothing; a mountID listed
 -- twice in mountIDs is considered once.
@@ -31,7 +32,13 @@ function Attempts.Newly(prev, curr, mountIDs, specFor, isOwned)
       local spec = specFor(mountID)
       -- Manual and camp specs have no lockout the game reports: nothing to count.
       if spec and not spec.manual and not spec.camp and not (isOwned and isOwned(mountID)) then
-        if spec.quest or spec.lfg then
+        if spec.quests then
+          -- Each of its rares is a chance: +1 per kill flag that turned done.
+          local before, after = prev.quests or {}, curr.quests or {}
+          for _, id in ipairs(spec.quests) do
+            if after[id] == true and before[id] ~= true then out[#out + 1] = mountID end
+          end
+        elseif spec.quest or spec.lfg then
           if stateOf(spec, prev) == "open" and stateOf(spec, curr) == "done" then
             out[#out + 1] = mountID
           end

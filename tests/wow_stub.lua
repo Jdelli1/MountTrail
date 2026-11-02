@@ -227,6 +227,7 @@ function Frame:GetFrameLevel() return self.level or 1 end
 function Frame:SetNormalTexture(tex) self.normalTexture = tex end
 function Frame:SetHighlightTexture(tex) self.highlightTexture = tex end
 function Frame:SetPushedTexture(tex) self.pushedTexture = tex end
+function Frame:SetCheckedTexture(tex) self.checkedTexture = tex end
 function Frame:RegisterForClicks(...) self.clickButtons = { ... } end
 STUB_CURSOR = { 0, 0 }
 function GetCursorPosition() return STUB_CURSOR[1], STUB_CURSOR[2] end
@@ -264,7 +265,7 @@ STUB_TEMPLATE_METHODS = TEMPLATE_METHODS
 -- classic ones plus the modern ones the UI prefers); specs remove entries to
 -- test the fallbacks (reset_ui_stub restores them).
 local MODERN_TEMPLATES = { "PortraitFrameFlatTemplate", "PanelTopTabButtonTemplate",
-  "WowStyle1FilterDropdownTemplate", "MinimalCheckboxTemplate" }
+  "MinimalCheckboxTemplate" }
 local CLASSIC_TEMPLATES = { "PortraitFrameTemplate", "PanelTabButtonTemplate", "InsetFrameTemplate",
   "UIPanelButtonTemplate", "UICheckButtonTemplate", "SearchBoxTemplate", "BackdropTemplate" }
 STUB_TEMPLATES = {}

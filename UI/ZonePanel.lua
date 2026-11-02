@@ -157,7 +157,9 @@ function UI.ZoneContext()
       return entry and entry.instance or nil
     end,
     key = UI.GroupKey,
-    gate = ns.Zone.Gate(UI.Memo(game.IsOwned), UI.Memo(game.Exists), game.Faction()),
+    -- Holiday mounts only while their holiday is on.
+    gate = ns.Zone.Gate(UI.Memo(game.IsOwned), UI.Memo(game.Exists), game.Faction(),
+      game.ActiveHolidays and game.ActiveHolidays() or {}),
     showCollected = filters.collected == true,
     currentInstance = game.CurrentInstanceName and game.CurrentInstanceName() or nil,
     currentInstanceID = game.CurrentInstance and (game.CurrentInstance()) or nil,
@@ -251,7 +253,6 @@ end
 local PANEL_WIDTH = 260
 local PANEL_GAP = 2 -- between the window's right edge and the panel
 local HEADER = 34 -- title strip
-local SOURCE_HEADER_HEIGHT = 20 -- a source header (UI/List.lua's sub-header height)
 local BUTTON_SIZE = 20 -- title-bar toggle
 
 local panel   -- the panel frame (UI.zonePanel)
@@ -398,7 +399,8 @@ local function buildPanel(frame)
   p.ScrollBar = scrollBar
   local view = CreateScrollBoxListLinearView()
   view:SetElementExtentCalculator(function(_, row)
-    if row.header then return UI.HeaderHeight(SOURCE_HEADER_HEIGHT) end
+    -- A header is a card's top, as the lists' (UI/List.lua).
+    if row.header then return UI.HeaderHeight(UI.CARD_HEADER_HEIGHT) end
     return UI.RowHeight(UI.MOUNT_ROW_HEIGHT)
   end)
   view:SetElementFactory(function(factory, row)

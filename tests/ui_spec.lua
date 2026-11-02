@@ -164,14 +164,26 @@ describe("ui", function()
     ns.ToggleWindow()
     local nav = ns.UI.frame.Nav
     local h = nav.Headings[1]
-    eq(h.Text:GetText(), "- Browse")
+    eq(h.Text:GetText(), "- BROWSE", "small capitals, as the design")
     eq(h.Text.textColor, { 1, 0.82, 0 }, "gold by default")
     eq(h.Rule.color, { 1, 0.82, 0, 0.35 }, "a thin rule under it")
     ns.db.global.popouts = { main = { style = { header = { 1, 1, 1 } } } }
     ns.UI.RefreshNav()
     eq(h.Text.textColor, { 1, 1, 1 }, "the appearance menu's header colour")
     eq(h.Rule.color, { 1, 1, 1, 0.35 })
+    local hinted
+    ns.UI.ShowHint = function() hinted = true end
+    h:RunScript("OnEnter")
+    ok(h.Hover:IsShown(), "the pointer lights it, as the lists' rows")
+    ok(not hinted, "no hint")
+    h:RunScript("OnLeave")
+    ok(not h.Hover:IsShown())
     eq(nav.Edge.width, 1, "a 1 px line on the column's right edge")
+    local home
+    for i = 1, nav.shown do if nav.Buttons[i].Text:GetText() == "Home" then home = nav.Buttons[i] end end
+    eq(home.Selected.color, { 1, 0.82, 0, 0.12 }, "the entry you are on: a gold-tinted band")
+    ok(not home.BadgeBox:IsShown(), "no count, no box")
+    eq(ns.UI.frame.Edge.edges[1].color, { 0.43, 0.33, 0.14, 1 }, "the window's gold frame")
   end)
 
   it("the navigation's text is the font object's size plus the bonus, however often it repaints", function()
@@ -192,6 +204,16 @@ describe("ui", function()
     local nav = ns.UI.frame.Nav
     eq(nav.Buttons[2].Text.fontSize, 12 + ns.UI.NAV_FONT_BONUS, "no growth")
     eq(nav.Headings[1].Text.fontSize, 12 + ns.UI.NAV_FONT_BONUS)
+    eq(nav.Buttons[2].Text.fontPath, "Fonts\\FRIZQT__.TTF", "the game's font by default")
+    ns.Options = ns.Options or {}
+    local savedHeader, savedBody = ns.Options.HeaderFont, ns.Options.BodyFont
+    ns.Options.HeaderFont = function() return "morpheus" end
+    ns.Options.BodyFont = function() return "arialn" end
+    ns.UI.RefreshNav()
+    eq(nav.Headings[1].Text.fontPath, "Fonts\\MORPHEUS.TTF", "headings in the header font")
+    eq(nav.Buttons[2].Text.fontPath, "Fonts\\ARIALN.TTF", "entries in the body font")
+    eq(nav.Buttons[2].Text.fontSize, 12 + ns.UI.NAV_FONT_BONUS, "same size")
+    ns.Options.HeaderFont, ns.Options.BodyFont = savedHeader, savedBody
     for _, name in ipairs(fonts) do _G[name] = nil end
     mt.SetFont, mt.GetFont = savedSet, savedGet
   end)
@@ -275,13 +297,13 @@ describe("ui", function()
     local shown
     ns.UI.ShowMenu = function(owner, items) shown = type(items) == "function" and items() or items end
     cog:RunScript("OnClick", "LeftButton")
-    eq(shown[1].title, "Size")
+    eq(shown[1].title, "Window Scale")
     local order = {}
     for _, it in ipairs(shown) do
       if it.slider then order[#order + 1] = it.text elseif it.title then order[#order + 1] = "# " .. it.title end
     end
     eq({ order[1], order[2], order[3], order[4], order[5], order[6], order[7], order[8] },
-      { "# Size", "Whole window", "# Text size", "Left column", "Headers", "Mount names and text", "Small notes", "# Settings" },
+      { "# Window Scale", "Whole window", "# Text Size", "Left column", "Headers", "Mount names and text", "Small notes", "# Settings" },
       "named by what they size, in the window's order")
     local byText = {}
     for _, it in ipairs(shown) do if it.text then byText[it.text] = it end end
@@ -295,6 +317,87 @@ describe("ui", function()
     byText["Reset text sizes"].onClick()
     byText["All options..."].onClick()
     eq(applied, { { "windowScale", 120 }, { "body", 3 }, { "showUnobtainable", true }, { "reset" }, { "open" } })
+  end)
+
+  it("the cogwheel's Font styles: Header font and Body font menus, the current font ticked", function()
+    local ns = loadUI()
+    local applied = {}
+    local fonts = { headerFont = nil, bodyFont = "arialn" }
+    ns.Options = {
+      SCALE_RANGE = { min = 80, max = 150, step = 5 }, TEXT_RANGE = { min = -2, max = 6, step = 1 },
+      NAV_TEXT_RANGE = { min = 0, max = 6, step = 1 }, TEXT_LABELS = {}, TEXT_ORDER = {},
+      SCALE_LABEL = "Whole window", NAV_LABEL = "Left column",
+      WindowScale = function() return 100 end, NavTextSize = function() return 0 end,
+      HeaderFont = function() return fonts.headerFont end, BodyFont = function() return fonts.bodyFont end,
+      OPACITY_RANGE = { min = 20, max = 100, step = 5 }, WindowOpacity = function() return 80 end,
+      Set = function(name, v) applied[#applied + 1] = { name, v } end,
+    }
+    local items = ns.UI.SettingsMenuItems()
+    local titles, byText = {}, {}
+    for _, it in ipairs(items) do
+      if it.title then titles[#titles + 1] = it.title end
+      if it.text then byText[it.text] = it end
+    end
+    eq(titles[3], "Font Styles", "after the sizes")
+    eq({ items[3].text, items[3].value, items[3].format }, { "Background opacity", 80, "%d%%" }, "opacity under Whole window")
+    items[3].onChange(55)
+    local header = byText["Header font"].submenu()
+    eq(header[1].title, "Header font")
+    local ticked = {}
+    for _, it in ipairs(header) do if it.checked then ticked[#ticked + 1] = it.text end end
+    eq(ticked, { "Game font" }, "the default header font")
+    local body = byText["Body font"].submenu()
+    ticked = {}
+    for _, it in ipairs(body) do if it.checked then ticked[#ticked + 1] = it.text end end
+    eq(ticked, { "Arial Narrow" }, "the saved body font")
+    for _, it in ipairs(body) do if it.text == "Skurri" then it.onClick() end end
+    eq(applied, { { "windowOpacity", 55 }, { "bodyFont", "skurri" } })
+    eq(body[#body].text, "Back")
+    eq(body[#body].submenu, ns.UI.SettingsMenuItems, "Back returns to the settings")
+  end)
+
+  it("UI.FontPath: the game's font by default and where a picked font cannot write the language", function()
+    local ns = loadUI()
+    local locale = "enUS"
+    ns.Game.Locale = function() return locale end
+    eq(ns.UI.HeadingFont(), nil, "game font headings")
+    eq(ns.UI.BodyFont(), nil, "game font text")
+    eq(ns.UI.FontPath("arialn"), "Fonts\\ARIALN.TTF")
+    locale = "ruRU"
+    eq(ns.UI.FontPath("arialn"), "Fonts\\ARIALN.TTF", "Cyrillic too")
+    locale = "koKR"
+    eq(ns.UI.FontPath("arialn"), nil, "Korean: the game's font")
+    eq(ns.UI.FontPath("game"), nil, "Game font")
+    eq(ns.UI.FontPath("Interface\\Fonts\\X.ttf"), "Interface\\Fonts\\X.ttf", "a LibSharedMedia path as is")
+    local keys = {}
+    for _, c in ipairs(ns.UI.FontChoices()) do keys[#keys + 1] = c.key end
+    eq(keys, { "game", "arialn", "morpheus", "skurri" })
+  end)
+
+  it("UI.WindowOpacity: the main window's appearance opacity, set from the cogwheel", function()
+    local ns = loadUI()
+    ns.ToggleWindow()
+    eq(ns.UI.WindowOpacity(), 92, "the default look")
+    ns.UI.SetWindowOpacity(60)
+    eq(ns.db.global.popouts.main.style.alpha, 0.6, "saved as its appearance")
+    eq(ns.UI.WindowOpacity(), 60)
+    eq(ns.UI.frame.Fill.color[4], 0.6, "the window repaints")
+  end)
+
+  it("UI.FlatSearchBox: the magnifier, the text and the Search hint clear the flat border", function()
+    local ns = loadUI()
+    local box = CreateFrame("EditBox", nil, UIParent)
+    box.searchIcon = box:CreateTexture(nil, "OVERLAY")
+    box.searchIcon:SetPoint("LEFT", box, "LEFT", 0, -2)
+    box.Instructions = box:CreateFontString(nil, "ARTWORK")
+    local insets
+    box.SetTextInsets = function(_, l, r, t, b) insets = { l, r, t, b } end
+    ns.UI.FlatSearchBox(box)
+    local point, rel, relPoint, x = box.searchIcon:GetPoint(1)
+    eq({ point, rel, relPoint, x }, { "LEFT", box, "LEFT", 5 }, "the icon moved in off the edge")
+    eq(insets, { 21, 20, 0, 0 }, "the typed text after it")
+    local hp, _, _, hx = box.Instructions:GetPoint(1)
+    eq({ hp, hx }, { "TOPLEFT", 21 }, "the hint too")
   end)
 
   it("UI.Font: a sized copy per game font, by its role (gold / white / grey); a change resizes them all", function()
@@ -491,33 +594,6 @@ describe("ui", function()
       })
       run_slash(ns.addon, "mtrail", "debug")
       eq(ns.addon.printed[#ns.addon.printed], "Debug: off", "nothing listed when turned off")
-    end)
-  end)
-
-  describe("TemplateChain", function()
-    it("returns the first defined template and checks no further", function()
-      local ns = loadUI()
-      local asked = {}
-      local saved = C_XMLUtil.GetTemplateInfo
-      C_XMLUtil.GetTemplateInfo = function(name) asked[#asked + 1] = name; return saved(name) end
-      eq(ns.UI.TemplateChain("MinimalCheckboxTemplate", "SettingsCheckboxTemplate", "UICheckButtonTemplate"),
-        "MinimalCheckboxTemplate")
-      C_XMLUtil.GetTemplateInfo = saved
-      eq(asked, { "MinimalCheckboxTemplate" }, "lazy: the fallbacks are not looked up")
-      eq(next(ns.UI.TemplateFallbacks), nil, "nothing recorded")
-    end)
-
-    it("falls through to the next defined template, recording the first name once", function()
-      local ns = loadUI()
-      STUB_TEMPLATES.MinimalCheckboxTemplate = nil
-      STUB_TEMPLATES.SettingsCheckboxTemplate = true
-      eq(ns.UI.TemplateChain("MinimalCheckboxTemplate", "SettingsCheckboxTemplate", "UICheckButtonTemplate"),
-        "SettingsCheckboxTemplate")
-      eq(ns.UI.TemplateFallbacks, { MinimalCheckboxTemplate = "SettingsCheckboxTemplate" })
-      STUB_TEMPLATES.SettingsCheckboxTemplate = nil
-      eq(ns.UI.TemplateChain("MinimalCheckboxTemplate", "SettingsCheckboxTemplate", "UICheckButtonTemplate"),
-        "UICheckButtonTemplate", "the last name is the final fallback")
-      eq(ns.UI.TemplateFallbacks, { MinimalCheckboxTemplate = "SettingsCheckboxTemplate" }, "recorded once")
     end)
   end)
 

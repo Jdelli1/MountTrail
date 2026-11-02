@@ -9,7 +9,7 @@ local ADDON, ns = ...
 --     plus hand ticks.
 --   * UI.RouteTickKey / RouteCheck / RouteToggle: hand ticks for lockouts
 --     the game can't report.
---   * UI.RouteFlavour, UI.FormatDuration: the Checklist header's lines.
+--   * UI.FormatDuration: the Checklist header's reset timers.
 --
 -- All of it is pure (no frames) and unit-tested in tests/ui_route_spec.lua.
 
@@ -110,8 +110,15 @@ function UI.RouteContext(now)
 end
 
 -- A lockout spent on some of its difficulties but not all (Lockouts.Progress)
--- -> "Heroic done · Normal, Mythic left", else nil. snap: Lockouts.Snapshot.
-function UI.LockoutProgressText(spec, snap)
+-- -> "Heroic done · Normal, Mythic left"; one of several rares with some
+-- looted today (Lockouts.QuestsDone) -> "2 of 4 rares looted"; else nil.
+-- snap: Lockouts.Snapshot; isQuestDone(questID) for the several-flag specs.
+function UI.LockoutProgressText(spec, snap, isQuestDone)
+  local n, total = ns.Lockouts.QuestsDone(spec, isQuestDone)
+  if total > 0 then
+    if n == 0 or n == total then return nil end
+    return string.format(L["%d of %d rares looted"], n, total)
+  end
   local progress = ns.Lockouts.Progress(spec, snap)
   if not progress then return nil end
   local function names(ids)
@@ -171,14 +178,6 @@ function UI.RouteToggle(row, store, now, untilDaily, untilWeekly)
     end
   end
   return true
-end
-
--- Opening line: lockouts left, or the Oregon line when none are.
-function UI.RouteFlavour(remaining, name)
-  if remaining > 0 then
-    return string.format(L["You have %d lockouts left. Saddle up?"], remaining)
-  end
-  return string.format(L["%s has reached Oregon. Nothing left to farm until reset."], name or L["Your party"])
 end
 
 -- Seconds -> "2 Days 3 Hr" via SecondsToTime (FrameXML), else "2d 3h 4m".

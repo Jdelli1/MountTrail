@@ -40,10 +40,14 @@ function UI.TextSize(role)
   return 0
 end
 
+-- A copy at its role's size, in the body font (Options: "Body font", the
+-- game's own by default; headings take the header font on top:
+-- UI.ApplyHeadingFont).
 local function sizeFont(f)
   local base = _G[f.base]
   if type(base) ~= "table" or type(base.GetFont) ~= "function" then return end
   local path, size, flags = base:GetFont()
+  path = (UI.BodyFont and UI.BodyFont()) or path
   if path and size then f.object:SetFont(path, math.max(6, size + UI.TextSize(f.role)), flags or "") end
 end
 
@@ -128,26 +132,6 @@ function UI.Template(preferred, fallback)
   if templateExists(preferred) then return preferred end
   UI.RecordFallback(preferred, fallback)
   return fallback
-end
-
--- The first template of `...` the client defines, checked in order and only
--- as far as needed; the last name is the final fallback and is returned
--- without a check. When the first name is not used, that is recorded once in
--- UI.TemplateFallbacks (first -> the name used) and reported like
--- UI.Template.
-function UI.TemplateChain(...)
-  local n = select("#", ...)
-  local first = (...)
-  local chosen
-  for i = 1, n do
-    local name = select(i, ...)
-    if i == n or templateExists(name) then
-      chosen = name
-      break
-    end
-  end
-  if chosen ~= first then UI.RecordFallback(first, chosen) end
-  return chosen
 end
 
 -- Records (once) that `missing` (a template, or a method a template lacks)
@@ -399,20 +383,48 @@ function UI.SettingsMenuItems()
   -- The whole window first, then one kind of text each (named by what it
   -- sizes: the left column, headers, mount names, small notes).
   local items = {
-    { title = L["Size"] },
+    { title = L["Window Scale"] },
     { slider = true, text = L[O.SCALE_LABEL], min = O.SCALE_RANGE.min, max = O.SCALE_RANGE.max,
       step = O.SCALE_RANGE.step, value = O.WindowScale(), format = "%d%%",
       onChange = function(v) O.Set("windowScale", v) end },
-    { title = L["Text size"] },
+  }
+  if O.WindowOpacity and O.OPACITY_RANGE then
+    items[#items + 1] = { slider = true, text = L["Background opacity"], min = O.OPACITY_RANGE.min,
+      max = O.OPACITY_RANGE.max, step = O.OPACITY_RANGE.step, value = O.WindowOpacity(), format = "%d%%",
+      onChange = function(v) O.Set("windowOpacity", v) end }
+  end
+  for _, it in ipairs({
+    { title = L["Text Size"] },
     { slider = true, text = L[O.NAV_LABEL], min = O.NAV_TEXT_RANGE.min,
       max = O.NAV_TEXT_RANGE.max, step = 1, value = O.NavTextSize(), format = "+%d",
       onChange = function(v) O.Set("navTextSize", v) end },
-  }
+  }) do items[#items + 1] = it end
   for _, role in ipairs(O.TEXT_ORDER) do
     items[#items + 1] = { slider = true, text = L[O.TEXT_LABELS[role]], min = O.TEXT_RANGE.min,
       max = O.TEXT_RANGE.max, step = 1, value = O.TextSize(role), format = "%+d",
       onChange = function(v) O.SetTextSize(role, v) end }
   end
+  -- Font styles: a menu of choices each (the current one ticked).
+  items[#items + 1] = { title = L["Font Styles"] }
+  local fontMenu
+  for _, f in ipairs({ { label = "Header font", field = "headerFont", get = O.HeaderFont, default = "game" },
+    { label = "Body font", field = "bodyFont", get = O.BodyFont, default = "game" } }) do
+    if f.get and UI.FontChoices then
+      items[#items + 1] = { text = L[f.label], submenu = function()
+        local list = { { title = L[f.label] } }
+        local current = f.get() or f.default
+        for _, c in ipairs(UI.FontChoices()) do
+          list[#list + 1] = { text = c.name, checked = c.key == current, keepOpen = true,
+            onClick = function() O.Set(f.field, c.key) end }
+        end
+        list[#list + 1] = { separator = true }
+        list[#list + 1] = { text = L["Back"], submenu = UI.SettingsMenuItems }
+        return list
+      end }
+      fontMenu = true
+    end
+  end
+  if not fontMenu then items[#items] = nil end
   items[#items + 1] = { separator = true }
   items[#items + 1] = { title = L["Settings"] }
   items[#items + 1] = { separator = true }
@@ -427,9 +439,9 @@ function UI.SettingsMenuItems()
     function() O.Set("dropChime", not (O.DropChime and O.DropChime())) end)
   items[#items + 1] = check(L["Warn about the wrong difficulty"], saved.difficultyWarnOff ~= true,
     function() O.Set("difficultyWarning", saved.difficultyWarnOff == true) end)
-  items[#items + 1] = check(L["Show My lists"], saved.navHideLists ~= true,
+  items[#items + 1] = check(L["Show your lists"], saved.navHideLists ~= true,
     function() O.Set("showLists", saved.navHideLists == true) end)
-  items[#items + 1] = check(L["Show Quick lists"], saved.navHideQuick ~= true,
+  items[#items + 1] = check(L["Show built-in lists"], saved.navHideQuick ~= true,
     function() O.Set("showQuick", saved.navHideQuick == true) end)
   items[#items + 1] = check(L["Show minimap button"], not (global and global.minimap and global.minimap.hide),
     function() O.Set("minimap", global and global.minimap and global.minimap.hide == true) end)

@@ -20,7 +20,9 @@ local function popoutsDB()
 end
 
 -- Appearance of a window (right-click its title). Saved per window as
--- { alpha =, bg = { r, g, b }, text = { r, g, b }, size =, font = };
+-- { alpha =, bg = { r, g, b }, text = { r, g, b }, size =, font =, layout = };
+-- layout: "compact" (one line a row) or nil, the Cards layout (each group a
+-- card, rows with the mount's icon and a second line; UI/Popouts.lua);
 -- missing fields take the defaults (the window's own look). Opacity runs
 -- 0.2-1 and the font size 8-24 (whole points): the menu's two sliders.
 UI.POPOUT_STYLE = { alpha = 0.92, bg = { 0.06, 0.06, 0.07 }, text = nil, size = nil, font = nil }
@@ -44,6 +46,7 @@ function UI.PopoutStyle(saved)
     header = type(saved.header) == "table" and saved.header or nil,
     size = size and math.max(SIZE_MIN, math.min(SIZE_MAX, math.floor(size + 0.5))) or d.size,
     font = type(saved.font) == "string" and saved.font or d.font,
+    layout = saved.layout == "compact" and "compact" or "cards",
   }
 end
 
@@ -95,13 +98,211 @@ end
 -- `fallback`, else the font's own colour (gold). Never the Text colour:
 -- headers and body text are set apart in the appearance menu.
 local function headerText(fs, style, fontObject, sizeDelta, fallback)
-  styleText(fs, { font = style.font, size = style.size }, fontObject, sizeDelta, style.header or fallback)
+  styleText(fs, { font = style.font or UI.HeadingFont(), size = style.size }, fontObject, sizeDelta,
+    style.header or fallback)
 end
 
--- The window's background and title in its style.
+-- The Blend A look's fixed colours: the windows' dim gold frame, a card's
+-- border and fill (a shade over the window's background), its header rule.
+UI.THEME = {
+  frame = { 0.43, 0.33, 0.14 },
+  cardEdge = { 0.2, 0.16, 0.09 },
+  cardRule = { 0.15, 0.13, 0.07 },
+  gold = { 1, 0.82, 0.29 },
+  grey = { 0.64, 0.6, 0.53 },
+}
+
+-- Fonts: the game's own by default for headings and text alike, each
+-- changeable (Options: "Header font", "Body font": a key of UI.FONT_CHOICES,
+-- or a font path from LibSharedMedia). The game's other fonts only write
+-- Latin and Cyrillic letters, so Korean and Chinese clients keep the game's
+-- font whatever is picked. A window's own font (its appearance menu) still
+-- wins.
+local LATIN_CYRILLIC = {
+  enUS = true, enGB = true, deDE = true, frFR = true, esES = true, esMX = true, itIT = true, ptBR = true,
+  ruRU = true,
+}
+UI.FONT_CHOICES = {
+  { key = "game", name = "Game font" },
+  { key = "arialn", name = "Arial Narrow", path = "Fonts\\ARIALN.TTF", locales = LATIN_CYRILLIC },
+  { key = "morpheus", name = "Morpheus", path = "Fonts\\MORPHEUS.TTF", locales = LATIN_CYRILLIC },
+  { key = "skurri", name = "Skurri", path = "Fonts\\SKURRI.TTF", locales = LATIN_CYRILLIC },
+}
+local choiceByKey = {}
+for _, c in ipairs(UI.FONT_CHOICES) do choiceByKey[c.key] = c end
+
+-- The choices offered, the game's then LibSharedMedia's (first 12) ->
+-- { { key =, name = } } (an LSM font's key is its path).
+function UI.FontChoices()
+  local out = {}
+  for _, c in ipairs(UI.FONT_CHOICES) do out[#out + 1] = { key = c.key, name = L[c.name] } end
+  local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
+  if LSM and LSM.List and LSM.Fetch then
+    local seen, n = {}, 0
+    for _, c in ipairs(UI.FONT_CHOICES) do if c.path then seen[string.lower(c.path)] = true end end
+    for _, name in ipairs(LSM:List("font") or {}) do
+      local path = LSM:Fetch("font", name, true)
+      if path and not seen[string.lower(path)] and n < 12 then
+        out[#out + 1] = { key = path, name = name }
+        seen[string.lower(path)] = true
+        n = n + 1
+      end
+    end
+  end
+  return out
+end
+
+-- A choice (a key, an LSM path, nil: the game's) -> the font file for this
+-- client, or nil to keep each text's own game font ("game", and a font that
+-- cannot write the client's language).
+function UI.FontPath(choice)
+  local c = choiceByKey[choice or "game"]
+  if not c then return type(choice) == "string" and choice or nil end
+  if not c.path then return nil end
+  local locale = ns.Game and ns.Game.Locale and ns.Game.Locale() or "enUS"
+  if c.locales and not c.locales[locale] then return nil end
+  return c.path
+end
+
+-- The headings' and the body's font files (Options: header / body font),
+-- nil for the game's own.
+function UI.HeadingFont()
+  local options = ns.Options
+  return UI.FontPath(options and options.HeaderFont and options.HeaderFont() or nil)
+end
+
+function UI.BodyFont()
+  local options = ns.Options
+  return UI.FontPath(options and options.BodyFont and options.BodyFont() or nil)
+end
+
+-- Font string `fs` in the headings' font at its current size (call after
+-- SetFontObject, which resets it).
+function UI.ApplyHeadingFont(fs)
+  local path = UI.HeadingFont()
+  if not (path and fs and fs.GetFont and fs.SetFont) then return end
+  local _, size, flags = fs:GetFont()
+  if size then fs:SetFont(path, size, flags or "") end
+end
+
+-- The window's background, gold frame and title in its style.
 local function applyChrome(w, style)
   w.Fill:SetColorTexture(style.bg[1], style.bg[2], style.bg[3], style.alpha)
+  if w.Edge then
+    local f = UI.THEME.frame
+    w.Edge:SetColor(f[1], f[2], f[3], 1)
+  end
   headerText(w.Title, style, UI.Font("GameFontNormal"), 2)
+end
+
+-- Blend A's flat controls over Blizzard's templates: their own art hidden
+-- (every texture region), a dark fill and a dim gold 1 px border in its
+-- place; the behaviour (typing, the menu, the reset arrow) stays theirs.
+local function flatten(f, fill)
+  if f.flat then return f end
+  if type(f.GetRegions) == "function" then
+    for _, r in ipairs({ f:GetRegions() }) do
+      if type(r) == "table" and r.GetObjectType and r:GetObjectType() == "Texture" then r:SetAlpha(0) end
+    end
+  end
+  local bg = f:CreateTexture(nil, "BACKGROUND", nil, -8)
+  bg:SetAllPoints(f)
+  bg:SetColorTexture(fill[1], fill[2], fill[3], fill[4])
+  f.FlatFill = bg
+  local edge = UI.THEME.frame
+  f.FlatEdge = UI.FlatBorder(f, edge[1], edge[2], edge[3], 1)
+  f.flat = true
+  return f
+end
+
+-- A search box (SearchBoxTemplate) in the flat look; its magnifier icon and
+-- clear button stay. The template's icon sits on the box's left edge (its
+-- art drew the border further out), so the icon, the text and the "Search"
+-- hint move in by SEARCH_ICON_INSET to clear the flat border.
+local SEARCH_ICON_INSET = 5
+function UI.FlatSearchBox(box)
+  flatten(box, { 0.08, 0.07, 0.06, 0.9 })
+  local icon = box.searchIcon
+  if icon then
+    icon:SetAlpha(0.7)
+    icon:ClearAllPoints()
+    icon:SetPoint("LEFT", box, "LEFT", SEARCH_ICON_INSET, -1)
+    local textLeft = SEARCH_ICON_INSET + 16
+    if type(box.SetTextInsets) == "function" then box:SetTextInsets(textLeft, 20, 0, 0) end
+    local hint = box.Instructions
+    if hint and hint.ClearAllPoints then
+      hint:ClearAllPoints()
+      hint:SetPoint("TOPLEFT", box, "TOPLEFT", textLeft, 0)
+      hint:SetPoint("BOTTOMRIGHT", box, "BOTTOMRIGHT", -20, 0)
+    end
+  end
+  if box.clearButton and box.clearButton.texture then box.clearButton.texture:SetAlpha(0.8) end
+  return box
+end
+
+-- A tick box in the flat look, as the menus' boxes: a dark square with a
+-- dim gold 1 px border, filled gold when checked (the CheckButton's own
+-- checked texture, so a click shows it at once). `size`: the clickable
+-- square, the box 4 px inside it.
+function UI.FlatCheckBox(parent, size)
+  local cb = CreateFrame("CheckButton", nil, parent)
+  cb:SetSize(size, size)
+  local box = CreateFrame("Frame", nil, cb)
+  box:SetPoint("TOPLEFT", cb, "TOPLEFT", 4, -4)
+  box:SetPoint("BOTTOMRIGHT", cb, "BOTTOMRIGHT", -4, 4)
+  local fill = box:CreateTexture(nil, "BACKGROUND")
+  fill:SetAllPoints(box)
+  fill:SetColorTexture(0.06, 0.05, 0.04, 0.9)
+  local edge = UI.THEME.frame
+  box.Edge = UI.FlatBorder(box, edge[1], edge[2], edge[3], 1)
+  cb.Box = box
+  local mark = cb:CreateTexture(nil, "ARTWORK")
+  mark:SetPoint("TOPLEFT", box, "TOPLEFT", 2, -2)
+  mark:SetPoint("BOTTOMRIGHT", box, "BOTTOMRIGHT", -2, 2)
+  mark:SetColorTexture(1, 0.82, 0, 0.9)
+  cb:SetCheckedTexture(mark)
+  local hl = cb:CreateTexture(nil, "HIGHLIGHT")
+  hl:SetAllPoints(box)
+  hl:SetColorTexture(1, 0.82, 0, 0.18)
+  cb:SetHighlightTexture(hl)
+  return cb
+end
+
+-- A small boxed label (Blend A's badges: "Open", "Done", "7 left",
+-- "1 in 100"), sized to its text. Made once per owner, then UI.SetBadge.
+UI.BADGE_COLORS = {
+  gold = { text = { 1, 0.82, 0.29 }, edge = { 0.43, 0.33, 0.14 } },
+  green = { text = { 0.56, 0.88, 0.56 }, edge = { 0.25, 0.42, 0.25 } },
+  grey = { text = { 0.79, 0.75, 0.68 }, edge = { 0.23, 0.2, 0.16 } },
+}
+
+function UI.Badge(parent)
+  local b = CreateFrame("Frame", nil, parent)
+  b:SetSize(30, 16)
+  local text = b:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalSmall"))
+  text:SetPoint("CENTER", b, "CENTER", 0, 0)
+  text:SetWordWrap(false)
+  b.Text = text
+  b.Edge = UI.FlatBorder(b, 1, 1, 1, 0.3)
+  b:Hide()
+  return b
+end
+
+-- Paints badge `b`: `text` (nil or "": hidden) in `kind`'s colours ("gold",
+-- "green", "grey"), in the window `style`'s font one point smaller.
+function UI.SetBadge(b, text, kind, style)
+  if text == nil or text == "" then
+    b:Hide()
+    return
+  end
+  local c = UI.BADGE_COLORS[kind] or UI.BADGE_COLORS.grey
+  b.Text:SetText(text)
+  styleText(b.Text, style or {}, UI.Font("GameFontNormalSmall"), -1, c.text)
+  b.Edge:SetColor(c.edge[1], c.edge[2], c.edge[3], 1)
+  local w = tonumber(b.Text.GetStringWidth and b.Text:GetStringWidth()) or 30
+  local size = b.Text.GetFont and select(2, b.Text:GetFont()) or nil
+  b:SetSize(math.ceil(w) + 12, math.max(16, math.ceil(tonumber(size) or 10) + 6))
+  b:Show()
 end
 
 -- Windows outside this file that take the pop-outs' appearance menu, their
@@ -141,40 +342,6 @@ function UI.RarityTag(mountID)
   return pct < 1 and string.format(" (%.1f%%)", pct) or string.format(" (%d%%)", math.floor(pct + 0.5))
 end
 
--- A page's 30 px header in the pop-outs' look (no band, a thin rule under
--- it): a flat Back button when `withBack`, then the title -> back|nil, title.
--- The page's content starts UI.PAGE_TOP down.
-UI.PAGE_TOP = -36
-function UI.PageHeader(page, withBack)
-  local rule = page:CreateTexture(nil, "BORDER")
-  rule:SetHeight(1)
-  rule:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -30)
-  rule:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, -30)
-  rule:SetColorTexture(1, 1, 1, 0.1)
-  page.Rule = rule
-  local back
-  if withBack then
-    back = UI.FlatButton(page, L["Back"], "plain", 22)
-    back:SetPoint("TOPLEFT", page, "TOPLEFT", 4, -4)
-    page.Back = back
-  end
-  local title = page:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalLarge"))
-  if back then
-    title:SetPoint("LEFT", back, "RIGHT", 12, 0)
-  else
-    title:SetPoint("LEFT", page, "TOPLEFT", 10, -15)
-  end
-  page.Title = title
-  return back, title
-end
-
--- A flat button for a page's header (Pop out), at its top right.
-function UI.PageButton(page, text)
-  local b = UI.FlatButton(page, text, "plain", 22)
-  b:SetPoint("TOPRIGHT", page, "TOPRIGHT", -4, -4)
-  return b
-end
-
 -- The extra windows, in the order they were added (UI.AddStyledWindow).
 function UI.StyledWindows()
   return extras
@@ -185,12 +352,12 @@ local function repaintAll(chromeOnly)
   for _, x in ipairs(extras) do
     if x:IsShown() and x.Restyle then x.Restyle(chromeOnly) end
   end
-  if chromeOnly then
-    for _, win in pairs(UI.PopoutWindows or {}) do
-      if win:IsShown() then applyChrome(win, styleOf(win)) end
+  -- A look changes no data: each pop-out redraws from the lockouts it last
+  -- read (UI.RedrawPopout), at once.
+  for _, win in pairs(UI.PopoutWindows or {}) do
+    if win:IsShown() then
+      if chromeOnly then applyChrome(win, styleOf(win)) else UI.RedrawPopout(win) end
     end
-  else
-    UI.RefreshPopouts()
   end
 end
 
@@ -209,6 +376,17 @@ local function setStyle(w, change, chromeOnly)
   change(st)
   db[w.key].style = st
   repaintAll(chromeOnly)
+end
+
+-- The main window's opacity in percent: its appearance's (right-click its
+-- title), also on the cogwheel and the AddOns page (Options "Window
+-- opacity").
+function UI.WindowOpacity()
+  return math.floor(styleOf({ key = UI.WINDOW_STYLE_KEY }).alpha * 100 + 0.5)
+end
+
+function UI.SetWindowOpacity(pct)
+  setStyle({ key = UI.WINDOW_STYLE_KEY }, function(st) st.alpha = pct / 100 end, true)
 end
 
 -- Blizzard's colour picker for a style colour (presets cover most uses).
@@ -271,11 +449,15 @@ function UI.PopoutStyleMenu(w, back)
         popoutOnly = true, onClick = function()
           if not state then return end
           state.showDone = not state.showDone or nil
-          UI.RefreshPopouts()
+          if UI.PopoutWindows and UI.PopoutWindows[w.key] == w then UI.RedrawPopout(w) else UI.RefreshPopouts() end
         end },
+      { text = L["Cards"], checked = s.layout == "cards", keepOpen = true, popoutOnly = true,
+        onClick = function() setStyle(w, function(st) st.layout = nil end) end },
+      { text = L["Compact"], checked = s.layout == "compact", keepOpen = true, popoutOnly = true,
+        onClick = function() setStyle(w, function(st) st.layout = "compact" end) end },
       { separator = true, popoutOnly = true },
       { extra = true },
-      { slider = true, text = L["Opacity"], min = math.floor(ALPHA_MIN * 100 + 0.5), max = 100, step = 1,
+      { slider = true, text = L["Background opacity"], min = math.floor(ALPHA_MIN * 100 + 0.5), max = 100, step = 1,
         value = math.floor(s.alpha * 100 + 0.5), format = "%d%%",
         onChange = function(pct) setStyle(w, function(st) st.alpha = pct / 100 end, true) end },
       { text = L["Background colour"], submenu = sub(L["Background colour"], function()
@@ -318,7 +500,7 @@ function UI.PopoutStyleMenu(w, back)
         local mine = db and db[w.key] and db[w.key].style or sharedStyle()
         if ns.db and ns.db.global then
           ns.db.global.popoutStyle = mine and { alpha = mine.alpha, bg = mine.bg, text = mine.text, header = mine.header,
-            size = mine.size, font = mine.font } or nil
+            size = mine.size, font = mine.font, layout = mine.layout } or nil
         end
         for _, state in pairs(db or {}) do
           if type(state) == "table" then state.style = nil end

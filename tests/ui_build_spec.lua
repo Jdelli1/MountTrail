@@ -54,24 +54,16 @@ function CreateFont(name)
   _G[name] = font
   return font
 end
-MenuResponse = { Refresh = 2 }
 
--- The 11.x DropdownButton stand-in: records the generator and callbacks.
-STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate = {
-  SetupMenu = function(self, generator) self.generator = generator end,
-  SetDefaultCallback = function(self, fn) self.defaultCallback = fn end,
-  SetIsDefaultCallback = function(self, fn) self.isDefaultCallback = fn end,
-  ValidateResetState = function(self)
-    self.resetShown = self.isDefaultCallback ~= nil and not self.isDefaultCallback()
-  end,
-}
-
--- Runs a dropdown's menu generator against a recording root description.
+-- Runs a Filter button's menu generator against a recording root.
 local function openMenu(dropdown)
   local calls = {}
   local root = {}
   function root:CreateCheckbox(text, isSelected, setSelected)
     calls[#calls + 1] = { kind = "checkbox", text = text, isSelected = isSelected, setSelected = setSelected }
+  end
+  function root:CreateRadio(text, isSelected, setSelected)
+    calls[#calls + 1] = { kind = "radio", text = text, isSelected = isSelected, setSelected = setSelected }
   end
   function root:CreateDivider() calls[#calls + 1] = { kind = "divider" } end
   function root:CreateTitle(text) calls[#calls + 1] = { kind = "title", text = text } end
@@ -137,12 +129,8 @@ local function openJournalList(ns)
   row:RunScript("OnClick", "LeftButton")
   local listPage = journal.children[3]
   ok(listPage:IsShown() and not home:IsShown(), "an expansion row opens the list")
-  local holder
-  for _, child in ipairs(listPage.children) do
-    local first = child.children and child.children[1]
-    if first and first.SearchBox then holder = first end
-  end
-  ok(holder, "list found")
+  local holder = listPage.List
+  ok(holder and holder.SearchBox, "list found")
   return holder, home
 end
 
@@ -153,19 +141,21 @@ describe("ui build", function()
     local home = content(ns, "journal").children[2]
     eq(#home.Expansions, #ns.Data.Expansions, "a row per expansion")
     local row = home.Expansions[1]
-    eq(row.Tag.exp, ns.Data.Expansions[1], "its expansion tag")
+    eq(row.Tag, nil, "no expansion tag: the name carries its colour")
     eq(row.Bar.height, 6, "slim bar")
     eq(row.Name.textColor, ns.UI.EXPANSION_COLORS[ns.Data.Expansions[1]], "its name in the expansion's colour")
   end)
 
-  it("the journal list has a full-width list under the search box and Filter button", function()
+  it("the journal list has a full-width list under its one-line page header", function()
     local ns = loadUI()
     local list = openJournalList(ns)
-    ok(list.FilterDropdown, "Filter dropdown")
+    ok(list.FilterDropdown, "Filter button")
+    eq(list.FilterDropdown.Text:GetText(), "Filter")
     eq(list.FilterPanel, nil, "no checkbox panel")
-    eq(list.FilterDropdown.template, "WowStyle1FilterDropdownTemplate")
-    eq({ list.FilterDropdown:GetPoint(1) }, { "LEFT", list.SearchBox, "RIGHT", 8, 0 })
-    eq({ list.ScrollBox:GetPoint(1) }, { "TOPLEFT", list, "TOPLEFT", 0, -30 }, "full width")
+    eq(select(1, list.FilterDropdown:GetPoint(1)), "TOPRIGHT", "Filter at the header's right")
+    eq(select(1, list.SearchBox:GetPoint(1)), "RIGHT", "the search box left of what is left and Filter")
+    ok(list.Count:IsShown() and list.Count.Text:GetText():find("left", 1, true), "what is left, as a badge")
+    eq({ list.ScrollBox:GetPoint(1) }, { "TOPLEFT", list, "TOPLEFT", 0, -36 }, "full width")
     eq(list.tab, "journal")
     local frames = render(list.ScrollBox)
     ok(#frames > 0, "rows rendered")
@@ -260,15 +250,27 @@ describe("ui build", function()
     find(calls, "Collected").setSelected()
     eq(ns.db.global.filters.collected, true)
 
-    eq(find(calls, "Uncheck all").fn(), MenuResponse.Refresh, "menu stays open")
+    find(calls, "Uncheck all").fn()
     eq(ns.db.global.filters.journal.dungeon, false)
-    eq(find(calls, "Check all").fn(), MenuResponse.Refresh)
+    find(calls, "Check all").fn()
     eq(ns.db.global.filters.journal, nil, "all shown: nothing stored")
     eq(refreshed, 4)
 
     dd.defaultCallback()
     eq(ns.db.global.filters, ns.Journal.DefaultFilters, "reset restores the defaults")
     eq(dd.resetShown, false)
+    -- The button opens MountTrail's own menu, every choice keeping it open.
+    dd:RunScript("OnClick", "LeftButton")
+    local menu = MountTrailMenu
+    ok(menu and menu:IsShown(), "our menu")
+    eq(menu.items[1].data.text, "Collected")
+    eq(menu.items[1].data.checked, false)
+    eq(menu.items[1].data.keepOpen, true)
+    menu.items[1]:RunScript("OnClick", "LeftButton")
+    eq(ns.db.global.filters.collected, true, "a click in our menu toggles the filter")
+    ok(menu:IsShown(), "and the menu stays open")
+    eq(menu.items[1].data.checked, true, "repainted")
+    ns.UI.HideMenu()
   end)
 
   it("the Journal menu has the ten sources before the first Refresh", function()
@@ -283,18 +285,43 @@ describe("ui build", function()
     ok(find(calls, "Show raid drops"), "sources listed")
   end)
 
-  it("regenerates the menu when the list's tab changes", function()
+  it("every list page has the same one-line header: Back, title, search, what is left, Filter, its buttons", function()
+    local ns = loadUI()
+    local parent = CreateFrame("Frame", nil, UIParent)
+    local backs, pops = 0, 0
+    local list = ns.UI.List(parent, function() return { view = "journal" } end, {
+      title = "Wrath of the Lich King",
+      back = function() backs = backs + 1 end,
+      buttons = { { text = "Pop out", onClick = function() pops = pops + 1 end } },
+    })
+    list:Refresh()
+    eq(list.Title:GetText(), "Wrath of the Lich King")
+    eq(list.Back.Text:GetText(), "Back")
+    list.Back:RunScript("OnClick", "LeftButton")
+    eq(backs, 1)
+    eq(list.Buttons[1].Text:GetText(), "Pop out")
+    list.Buttons[1]:RunScript("OnClick", "LeftButton")
+    eq(pops, 1)
+    eq(select(2, list.FilterDropdown:GetPoint(1)), list.Buttons[1], "Filter left of the page's buttons")
+    eq(select(2, list.SearchBox:GetPoint(1)), list.Count, "the search box left of what is left")
+    -- The tabs without a page of their own get a title too.
+    ns.ToggleWindow()
+    for key, want in pairs({ holidays = "Holidays", achievements = "Achievements", timewalking = "Timewalking" }) do
+      ns.UI.SelectTab(key)
+      local l
+      for _, c in ipairs(content(ns, key).children) do if c.Title and c.SearchBox then l = c end end
+      eq(l and l.Title:GetText(), want, key)
+    end
+  end)
+
+  it("the menu follows the list's tab", function()
     local ns = loadUI()
     local parent = CreateFrame("Frame", nil, UIParent)
     local tab = "journal"
     local list = ns.UI.List(parent, function() return { tab = tab } end)
-    local generated = 0
-    list.FilterDropdown.GenerateMenu = function() generated = generated + 1 end
     list:Refresh()
-    eq(generated, 0, "same tab: no regeneration")
     tab = "misc"
     list:Refresh()
-    eq(generated, 1)
     local boxes = 0
     for _, c in ipairs(openMenu(list.FilterDropdown)) do if c.kind == "checkbox" then boxes = boxes + 1 end end
     eq(boxes, 13, "Misc: Collected + its twelve categories")
@@ -311,78 +338,6 @@ describe("ui build", function()
     eq(MountTrailFontSource.base, GameFontHighlight, "the mount names' font: one slider sizes both")
     eq(MountTrailFontSource.color, { 0.7, 0.7, 0.7 })
     GameFontHighlight = nil
-  end)
-
-  it("falls back to the checkbox panel without the dropdown template", function()
-    local ns = loadUI({ filters = { collected = true, journal = { raid = false } } })
-    STUB_TEMPLATES.WowStyle1FilterDropdownTemplate = nil
-    local list = openJournalList(ns)
-    eq(list.FilterDropdown, nil)
-    ok(list.FilterPanel, "checkbox panel")
-    eq(list.SearchBox:GetParent(), list.FilterPanel)
-    eq(#list.SectionChecks, 10)
-    eq(list.CollectedCheck.checked, true)
-    eq(list.SectionChecks[2].filterKey, "raid")
-    eq(list.SectionChecks[2].checked, false, "raid unticked")
-    eq(list.SectionChecks[2].Label.text, "Show raid drops")
-    eq({ list.ScrollBox:GetPoint(1) }, { "TOPLEFT", list.FilterPanel, "TOPRIGHT", 4, 0 })
-    list.SectionChecks[2].checked = true
-    list.SectionChecks[2]:RunScript("OnClick")
-    eq(ns.db.global.filters.journal, nil, "shown again: nothing stored")
-    eq(ns.UI.TemplateFallbacks.WowStyle1FilterDropdownTemplate, false)
-  end)
-
-  it("the fallback panel shows each view's own sections", function()
-    local ns = loadUI({ filters = { collected = true } })
-    STUB_TEMPLATES.WowStyle1FilterDropdownTemplate = nil
-    local parent = CreateFrame("Frame", nil, UIParent)
-    local view = "misc"
-    local list = ns.UI.List(parent, function() return { view = view } end)
-    list:Refresh()
-    eq(#list.SectionChecks, 12, "Misc: twelve categories")
-    eq(list.SectionsTitle.text, "Categories")
-    ok(list.SectionsTitle:IsShown())
-    eq(list.SectionChecks[2].filterKey, "shop")
-    eq(list.SectionChecks[2].Label.text, "Show in-game shop mounts")
-    -- Labels stay inside the panel: fixed width, one line.
-    for _, cb in ipairs(list.SectionChecks) do
-      ok(cb.Label.width and cb.Label.width > 0 and cb.Label.width <= 150 - 24, "label width " .. cb.filterKey)
-      eq(cb.Label.wordWrap, false, "no wrap " .. cb.filterKey)
-    end
-    eq(list.CollectedCheck.Label.wordWrap, false)
-    list.SectionChecks[2].checked = false
-    list.SectionChecks[2]:RunScript("OnClick")
-    eq(ns.db.global.filters.misc, { shop = false })
-    list:Refresh()
-    eq(list.SectionChecks[2].checked, false)
-
-    view = "timewalking"
-    list:Refresh()
-    eq(#list.SectionChecks, 0, "Timewalking: Collected only")
-    ok(not list.SectionsTitle:IsShown(), "no title")
-    for _, cb in ipairs(list.SectionPool) do ok(not cb:IsShown(), "unused checkboxes hidden") end
-
-    view = "journal"
-    list:Refresh()
-    eq(#list.SectionChecks, 10)
-    eq(list.SectionsTitle.text, "Sources")
-    eq(list.SectionChecks[1].checked, true)
-    ok(list.SectionChecks[1]:IsShown())
-  end)
-
-  it("falls back to the panel when the template lacks SetupMenu", function()
-    local ns = loadUI()
-    local saved = STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate
-    STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate = nil
-    local good, list = pcall(openJournalList, ns)
-    STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate = saved -- restore before any assert
-    ok(good, tostring(list))
-    eq(list.FilterDropdown, nil)
-    ok(list.FilterPanel, "checkbox panel")
-    eq(ns.UI.TemplateFallbacks["DropdownButton:SetupMenu"], "checkbox panel", "listed by /mtrail debug")
-    eq(ns.UI.TemplateFallbacks.WowStyle1FilterDropdownTemplate, nil, "the template itself was there")
-    run_slash(ns.addon, "mtrail", "debug")
-    eq(ns.addon.printed[#ns.addon.printed], "Template DropdownButton:SetupMenu missing, using checkbox panel")
   end)
 
   it("Holidays, Achievements, Timewalking and Misc build their lists with their own Filter menus", function()
@@ -495,13 +450,14 @@ describe("ui build", function()
     eq(a.isSelected(), true)
     a.setSelected()
     eq(a.isSelected(), false, "reads the generator live")
-    eq(find(calls, "Check all").fn(), MenuResponse.Refresh)
+    find(calls, "Check all").fn()
     eq(changes, { "toggle:a", "action:checkAll" })
     dd:ValidateResetState()
     eq(dd.resetShown, false)
     defaultNow = false
     dd:ValidateResetState()
     eq(dd.resetShown, true)
+    ok(dd.Reset:IsShown(), "a flat Reset button while not at the defaults")
     dd.defaultCallback()
     eq(resets, 1)
 
@@ -537,25 +493,6 @@ describe("ui build", function()
     eq(menu[1].isSelected(), true, "reset refreshes the states too")
     eq(calls, 3)
 
-    -- opts.fallbackName: what /mtrail debug says replaces the dropdown
-    -- (default "checkbox panel").
-    local saved = STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate
-    local function noSetup(name)
-      ns.UI.TemplateFallbacks["DropdownButton:SetupMenu"] = nil
-      STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate = nil
-      local good, dd = pcall(ns.UI.CreateFilterDropdown, parent, { items = function() return {} end,
-        onChange = function() end, fallbackName = name })
-      STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate = saved
-      assert(good, dd)
-      eq(dd, nil)
-      return ns.UI.TemplateFallbacks["DropdownButton:SetupMenu"]
-    end
-    eq(noSetup("no checklist filter"), "no checklist filter")
-    eq(noSetup(nil), "checkbox panel")
-
-    STUB_TEMPLATES.WowStyle1FilterDropdownTemplate = nil
-    eq(ns.UI.CreateFilterDropdown(parent, { items = function() return {} end, onChange = function() end }), nil,
-      "nil without the 11.x template")
   end)
 
   -- Header and mount rows of a list tab, built from the real Data/Mounts.lua.
@@ -719,8 +656,8 @@ describe("ui build", function()
     ok(summary:find("^Daily reset in "), summary)
     ok(summary:find("Weekly reset in ", 1, true), summary)
     ok(not summary:find("left", 1, true), "the chips carry the counts")
-    eq(header.Flavour:GetText(), string.format("You have %d lockouts left. Saddle up?", ns.UI.ChecklistRemaining()))
-    eq(header.height, 96)
+    eq(header.Flavour, nil, "no flavour line: the tabs carry the counts")
+    eq(header.height, 74)
     ok(header.ChecklistFilter and header.ChecklistFilter:IsShown(), "Filter button shown")
     eq(header.PopOut, nil, "no pop-out button: rare headers pop out on right-click")
     -- Chips: All (shown, gold) / Daily (n) / Weekly (n) / Rare Spawns (n).
@@ -748,11 +685,10 @@ describe("ui build", function()
     local boxes = 0
     for _, child in ipairs(root.children) do if child.view then boxes = boxes + 1 end end
     eq(boxes, 0, "no route list beside the checklist")
-    -- Everything done: the Oregon line.
+    -- Everything done: the empty line.
     ns.db.char.checklistFilters = { raids = false, dungeons = false, worldbosses = false, rares = false,
       holidays = false, other = false, camp = false }
     ns.Refresh()
-    eq(header.Flavour:GetText(), "Tester has reached Oregon. Nothing left to farm until reset.")
     ok(header.Checklist.Empty:IsShown(), "empty line")
   end)
 
@@ -1012,6 +948,65 @@ describe("ui build", function()
     ok(header.Hover:IsShown(), "recycled under the mouse: hover shown")
   end)
 
+  it("lists are cards: a header is a card's top under a gap, rows sit on it with a boxed icon and a badge", function()
+    local ns = loadUI()
+    local list = openJournalList(ns)
+    local rows = list.ScrollBox.provider.rows
+    local frames = render(list.ScrollBox)
+    local header, row, idx
+    for i, r in ipairs(rows) do
+      if r.header and (r.depth or 1) == 1 and not header then header = frames[i] end
+      if not r.header and not row then row, idx = frames[i], i end
+    end
+    ok(header and row, "a header and a row")
+    eq(list.ScrollBox.view.extent(1, rows[1]), 30, "a header's height includes the gap")
+    ok(header.CardFill:IsShown() and header.CardTop:IsShown() and header.CardEdge:IsShown(), "the card's top")
+    eq(select(5, header.CardFill:GetPoint(1)), -6, "under a 6 px gap")
+    ok(row.CardFill:IsShown() and row.CardEdge:IsShown() and row.CardRight:IsShown(), "the row on its card")
+    local exp = rows[idx].m and rows[idx].m.exp
+    local c = ns.UI.EXPANSION_COLORS[exp]
+    if c then eq(row.CardEdge.color, { c[1], c[2], c[3], 0.9 }, "the edge in the mount's expansion colour") end
+    ok(row.IconBox:IsShown(), "the boxed icon")
+    eq(list.ScrollBox.view.extent(idx, rows[idx]), 38, "two lines tall")
+    -- An owned mount's badge; a drop chance's.
+    local owned = { id = rows[idx].id, m = rows[idx].m, owned = true }
+    initFor(list.ScrollBox, owned)(row, owned)
+    ok(row.Chip:IsShown() and row.Chip.Text:GetText():find("Owned", 1, true), "Owned")
+    local chancy = { id = rows[idx].id, m = { exp = exp, chance = 100 }, owned = false }
+    -- Its lockout first: Done once spent today, Open while it is not.
+    local savedSpec, savedState = ns.Lockouts.SpecFor, ns.Lockouts.State
+    ns.Lockouts.SpecFor = function() return { quest = 1, reset = "daily" } end
+    ns.Lockouts.State = function() return "done" end
+    initFor(list.ScrollBox, chancy)(row, chancy)
+    ok(row.Chip.Text:GetText():find("Done", 1, true), "Done")
+    eq(row.Chip.Edge.edges[1].color, { 0.25, 0.42, 0.25, 1 }, "green")
+    ns.Lockouts.State = function() return "open" end
+    ns.Game.Now = function() return 2 end -- a new second: read again
+    initFor(list.ScrollBox, chancy)(row, chancy)
+    eq(row.Chip.Text:GetText(), "Open")
+    -- No lockout: the drop chance.
+    ns.Lockouts.SpecFor = function() return nil end
+    initFor(list.ScrollBox, chancy)(row, chancy)
+    eq(row.Chip.Text:GetText(), "1 in 100")
+    ns.Lockouts.SpecFor, ns.Lockouts.State = savedSpec, savedState
+    -- A mount you are farming: your tries before its chance.
+    local savedTracked, savedAttempts = ns.UI.IsTracked, ns.UI.MountAttempts
+    ns.UI.IsTracked = function() return true end
+    ns.UI.MountAttempts = function() return { total = 87 } end
+    local savedSpec2 = ns.Lockouts.SpecFor
+    ns.Lockouts.SpecFor = function() return nil end
+    initFor(list.ScrollBox, chancy)(row, chancy)
+    eq(row.Chip.Text:GetText(), "87 tries")
+    ns.Lockouts.SpecFor = savedSpec2
+    ns.UI.IsTracked, ns.UI.MountAttempts = savedTracked, savedAttempts
+    -- Flat controls over Blizzard's: the search box and the Filter button.
+    ok(list.SearchBox.FlatFill and list.SearchBox.FlatEdge, "a flat search box")
+    eq(list.FilterDropdown.Text:GetText(), "Filter", "a flat Filter button")
+    -- A header's count on its right, not in its name.
+    eq(header.Count:GetText(), ns.UI.HeaderCount(rows[1]))
+    ok(not header.Label:GetText():find("(", 1, true), "the name alone")
+  end)
+
   it("mount rows under a sub-header are indented to the sub-header's inset", function()
     local ns = loadUI()
     ns.Game.MountSourceText = function(id) return "|cFFFFD200Zone:|r Zone " .. (id % 2) end
@@ -1025,11 +1020,11 @@ describe("ui build", function()
     end
     ok(subHeader and nested, "a nested mount row")
     local inset = select(4, subHeader.Glyph:GetPoint(1))
-    eq(select(4, frames[nested].Tag:GetPoint(1)), inset, "the tag lines up with the sub-header's glyph")
+    eq(select(4, frames[nested].IconBox:GetPoint(1)), inset, "the icon lines up with the sub-header's glyph")
     -- The same frame recycled for a flat row goes back to the normal inset.
     local flat = { id = rows[nested].id, m = rows[nested].m, owned = false }
     initFor(list.ScrollBox, flat)(frames[nested], flat)
-    eq(select(4, frames[nested].Tag:GetPoint(1)), 4)
+    eq(select(4, frames[nested].IconBox:GetPoint(1)), 9, "past the card's edge")
   end)
 
   it("other tabs collapse their (flat) sections under their own view key", function()
@@ -1281,7 +1276,7 @@ describe("ui build", function()
     local header = content(ns, "checklist").children[2].children[1]
     local dd = header.ChecklistFilter
     ok(dd, "Filter dropdown built")
-    eq(dd.template, "WowStyle1FilterDropdownTemplate")
+    eq(dd.Text:GetText(), "Filter", "the flat Filter button")
     eq({ dd:GetPoint(1) }, { "TOPRIGHT", header, "TOPRIGHT", -8, -4 }, "top right of the header")
     ok(dd:IsShown(), "shown")
     eq(dd.resetShown, false, "defaults: no reset arrow")
@@ -1314,24 +1309,15 @@ describe("ui build", function()
     ok(after < weeklyTotal, "header counts reflect the filter")
     eq(dd.resetShown, true, "reset arrow once a filter differs")
 
-    eq(find(calls, "Uncheck all").fn(), MenuResponse.Refresh, "menu stays open")
+    find(calls, "Uncheck all").fn()
     eq(#box.provider.rows, 0, "everything hidden")
-    eq(find(calls, "Check all").fn(), MenuResponse.Refresh)
+    find(calls, "Check all").fn()
     eq(ns.db.char.checklistFilters, {})
     ns.db.char.checklistFilters.dungeons = false
     dd.defaultCallback()
     eq(ns.db.char.checklistFilters, {}, "reset shows every category")
     eq(dd.resetShown, false)
 
-    -- Without the 11.x menu API /mtrail debug names what the checklist gets instead.
-    local saved = STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate
-    ns.UI.TemplateFallbacks["DropdownButton:SetupMenu"] = nil
-    STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate = nil
-    local good, none = pcall(ns.UI.ChecklistView.CreateFilterDropdown, header)
-    STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate = saved
-    assert(good, none)
-    eq(none, nil)
-    eq(ns.UI.TemplateFallbacks["DropdownButton:SetupMenu"], "checklist filter (all categories shown)")
   end)
 
   it("Checklist rare spawns (no lockout): their group, a last-checked box per row, a 60 s ticker", function()
@@ -1358,7 +1344,7 @@ describe("ui build", function()
     local frames = render(box)
     local label = frames[hi].Label:GetText()
     ok(label:find("^Rare Spawns %(no lockout%)"), label)
-    ok(label:find("(" .. top.left .. " left)", 1, true), label)
+    eq(frames[hi].Count:GetText(), top.left .. " left", "what is left, on the header's right")
     ok(not label:find("resets in", 1, true), "no reset timer")
     ok(find(function(r) return r.key == "checklist|camp|Warlords of Draenor|Nagrand" end), "expansion -> zone")
 
@@ -1403,7 +1389,7 @@ describe("ui build", function()
     eq(rows[1].key, "checklist|daily")
     local frames = render(box)
     ok(frames[1].Label:GetText():find("^Daily \194\183 resets in "), frames[1].Label:GetText())
-    ok(frames[1].Label:GetText():find("(" .. rows[1].total .. " left)", 1, true), "what is left, as the pop-outs count")
+    eq(frames[1].Count:GetText(), rows[1].total .. " left", "what is left, on the header's right")
     local weekly
     for i, row in ipairs(rows) do if row.header and row.depth == 1 and row.reset == "weekly" then weekly = i end end
     ok(weekly and weekly > 2, "weekly header after the daily rows")
@@ -1413,7 +1399,7 @@ describe("ui build", function()
     eq(rows[2].depth, 2)
     ok(rows[2].key:find("^checklist|daily|"), rows[2].key)
     eq(box.view.extent(1, rows[2]), 20, "sub-header height")
-    ok(frames[2].Label:GetText():find("(" .. rows[2].total .. " left)", 1, true), "sub-header: what is left")
+    eq(frames[2].Count:GetText(), rows[2].total .. " left", "sub-header: what is left")
     eq(frames[2].Label.textColor, ns.UI.EXPANSION_COLORS[rows[2].exp], "an expansion header in its colour")
 
     -- F14: then a category header (Raids, Dungeons, ...) one step further in.
@@ -1424,7 +1410,7 @@ describe("ui build", function()
     eq(box.view.extent(1, rows[3]), 20, "category header: sub-header height")
     eq({ frames[3].Glyph:GetPoint(1) }, { "LEFT", frames[3], "LEFT", 22 + 16, 0 }, "indented a step further")
     eq(frames[3].Label.font, ns.UI.Font("GameFontNormal"))
-    ok(frames[3].Label:GetText():find("(" .. rows[3].total .. " left)", 1, true), "category: what is left")
+    eq(frames[3].Count:GetText(), rows[3].total .. " left", "category: what is left")
 
     -- A row: list look, pin, click, hover. A game-tracked lockout has no
     -- tick box (the game decides); the icon keeps its place either way.
@@ -1440,10 +1426,11 @@ describe("ui build", function()
     ok(not row.entry.spec.manual, "the first daily entry is game-tracked")
     eq(row.depth, 3, "under its category header")
     eq(f.Check:IsShown(), false, "no tick box on a game-tracked lockout")
-    eq(box.view.extent(1, row), 22, "one line tall, as every list's rows")
-    eq({ f.Tag:GetPoint(1) }, { "LEFT", f, "LEFT", 6 + 18 + 4 + 32, 0 }, "the expansion tag after the tick-box column, indented")
-    ok(f.Tag:IsShown() == (ns.UI.ExpansionTag(row.m.exp) ~= nil), "the mount's expansion tag")
-    eq(f.Source.justifyH, "RIGHT", "boss / instance on the right")
+    eq(box.view.extent(1, row), 38, "two lines tall, as every list's card rows")
+    eq({ f.IconBox:GetPoint(1) }, { "LEFT", f, "LEFT", 6 + 18 + 4 + 32, 0 }, "the icon after the tick-box column, indented")
+    ok(not f.Tag:IsShown(), "no expansion tag: the card's edge carries the expansion's colour")
+    ok(f.CardEdge:IsShown() and f.CardFill:IsShown(), "on its card")
+    eq(f.Source.justifyH, "LEFT", "boss / instance under the name")
     eq(f.Source.template, ns.UI.SourceFont(), "at the body text's size, not the small font")
     eq({ f.Check:GetPoint(1) }, { "LEFT", f, "LEFT", 6 + 32, 0 }, "tick-box column indented")
     eq(f.Pin:IsShown(), row.id % 2 == 0)
@@ -1583,17 +1570,17 @@ describe("ui build", function()
     ok(frames[1].Label:GetText():find(uldum, 1, true), "the header label shows it")
   end)
 
-  it("Checklist tick boxes fall back to the classic checkbox", function()
+  it("Checklist tick boxes are flat: a dark square in a dim gold border, filled gold when ticked", function()
     local ns = loadUI()
-    STUB_TEMPLATES.MinimalCheckboxTemplate = nil
     ns.ToggleWindow()
     ns.UI.SelectTab("checklist")
     local box = content(ns, "checklist").children[2].children[1].Checklist.ScrollBox
     local check
     for _, f in ipairs(render(box)) do if f.Check and not check then check = f.Check end end
     ok(check, "a row with a tick box")
-    eq(check.template, "UICheckButtonTemplate")
-    eq(ns.UI.TemplateFallbacks.MinimalCheckboxTemplate, "UICheckButtonTemplate")
+    eq(check.template, nil, "no Blizzard checkbox template")
+    eq(check.Box.Edge.edges[1].color, { 0.43, 0.33, 0.14, 1 }, "a dim gold border")
+    eq(check.checkedTexture.color, { 1, 0.82, 0, 0.9 }, "gold when ticked")
   end)
 
   it("Alt lockouts: a column per character, a cell per lockout, hide / show all, /mtrail alts", function()

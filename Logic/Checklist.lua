@@ -78,6 +78,7 @@ function Checklist.LockoutKey(spec, routeBoss, bossLockouts)
       .. "|" .. listText(spec.difficulties) .. "|" .. tostring(spec.reset)
   end
   if spec.quest then return "quest:" .. tostring(spec.quest) end
+  if spec.quests then return "quests:" .. listText(spec.quests) end
   if spec.lfg then return "lfg:" .. tostring(spec.lfg) end
   return nil
 end

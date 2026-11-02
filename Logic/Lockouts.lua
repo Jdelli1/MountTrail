@@ -145,7 +145,7 @@ function Lockouts.IsLegacySpec(spec)
 end
 
 local function isInstanceSpec(spec)
-  return spec and not spec.manual and not spec.camp and not spec.quest and not spec.lfg
+  return spec and not spec.manual and not spec.camp and not spec.quest and not spec.quests and not spec.lfg
     and spec.instance and type(spec.difficulties) == "table" and #spec.difficulties > 0
 end
 
@@ -183,6 +183,18 @@ function Lockouts.Progress(spec, snap)
   return out
 end
 
+-- A spec with several kill flags ({ quests = { ... } }: one lockout made of
+-- several rares, each looted once a day) -> how many of them are done, how
+-- many there are. Other specs -> 0, 0.
+function Lockouts.QuestsDone(spec, isQuestDone)
+  if type(spec) ~= "table" or type(spec.quests) ~= "table" then return 0, 0 end
+  local n = 0
+  for _, id in ipairs(spec.quests) do
+    if isQuestDone and isQuestDone(id) then n = n + 1 end
+  end
+  return n, #spec.quests
+end
+
 -- spec nil -> nil (not tracked); else "done" | "open" | "manual" | "camp"
 -- (a camp spec, { camp = true }: a rare spawn with no kill flag and no
 -- reset, never done; it stays on the checklist until the mount is owned).
@@ -192,6 +204,11 @@ function Lockouts.State(spec, snap, isQuestDone, isLfgDone)
   if spec.manual then return "manual" end
   if spec.quest then
     return (isQuestDone and isQuestDone(spec.quest)) and "done" or "open"
+  end
+  if spec.quests then
+    -- Done once every one of its rares is looted today.
+    local n, total = Lockouts.QuestsDone(spec, isQuestDone)
+    return (total > 0 and n == total) and "done" or "open"
   end
   if spec.lfg then
     return (isLfgDone and isLfgDone(spec.lfg)) and "done" or "open"

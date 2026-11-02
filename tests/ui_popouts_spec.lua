@@ -77,17 +77,7 @@ function CreateFont(name)
   _G[name] = font
   return font
 end
-MenuResponse = { Refresh = 2 }
 
--- The 11.x DropdownButton stand-in: records the generator and callbacks.
-STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate = {
-  SetupMenu = function(self, generator) self.generator = generator end,
-  SetDefaultCallback = function(self, fn) self.defaultCallback = fn end,
-  SetIsDefaultCallback = function(self, fn) self.isDefaultCallback = fn end,
-  ValidateResetState = function(self)
-    self.resetShown = self.isDefaultCallback ~= nil and not self.isDefaultCallback()
-  end,
-}
 
 -- Runs a dropdown's menu generator against a recording root description.
 local function openMenu(dropdown)
@@ -239,7 +229,10 @@ describe("pop-out windows", function()
     local daily = ns.UI.OpenPopout({ kind = "daily", exp = WOD })
     ok(camp ~= daily and camp:IsShown() and daily:IsShown(), "two windows")
     ok(camp.Title:GetText():find("^" .. WOD .. " rare spawns"), camp.Title:GetText())
-    ok(daily.Title:GetText():find("(2 left)", 1, true), daily.Title:GetText())
+    eq(daily.Count.Text:GetText(), "2 left", "what is left: a badge beside the title")
+    ok(daily.Count:IsShown())
+    eq(daily.Progress.max, math.max(daily.progressTotal, 1), "a bar over the whole set")
+    eq(daily.Progress.value, daily.progressTotal - 2, "filled with what is done")
     eq(ns.db.global.popouts["camp|" .. WOD].open, true)
     eq(ns.UI.OpenPopout({ kind = "camp", exp = WOD }), camp, "same set: the same window")
     camp.Close:RunScript("OnClick", "LeftButton")
@@ -402,15 +395,137 @@ describe("pop-out windows", function()
     eq(went, nil, "the click that ends a drag is not a waypoint")
   end)
 
-  it("each row shows its expansion's tag", function()
+  it("Compact: each row shows its expansion's tag", function()
     local ns = loadUI()
     setup(ns)
+    ns.db.global.popoutStyle = { layout = "compact" }
     local w = ns.UI.OpenPopout({ kind = "camp", exp = WOD })
     local row
     for _, c in ipairs(w.Content.children) do if c.data and c.data.id == 657 then row = c end end
+    eq(w.layout, "compact")
     ok(row.Badge:IsShown())
     eq(row.Badge.Text:GetText(), "WOD")
     eq(row.Badge.exp, WOD)
+    ok(not row.Icon:IsShown() and row.Zone:IsShown(), "one line: no icon, the zone on the right")
+  end)
+
+  it("Cards (the default): the mount's icon, a second line, the status; each group a card", function()
+    local ns = loadUI()
+    setup(ns)
+    local savedInfo = ns.Game.MountInfo
+    ns.Game.MountInfo = function(id) return "Mount " .. id, 5000 + id end
+    local w = ns.UI.OpenPopout({ kind = "camp", exp = WOD })
+    eq(w.layout, "cards")
+    local row
+    for _, c in ipairs(w.Content.children) do if c.data and c.data.id == 657 then row = c end end
+    ok(row.Icon:IsShown(), "the icon")
+    eq(row.Icon.texture, 5657)
+    ok(not row.Badge:IsShown(), "no expansion tag")
+    ok(row.Sub:IsShown() and not row.Zone:IsShown(), "the place on the second line")
+    ok(row.Check:IsShown(), "a rare spawn keeps its box")
+    ok(w.rowHeight >= 34, "two lines tall")
+    ok(w.cards and w.cards[1] and w.cards[1].Fill:IsShown(), "the group's card")
+    ok(w.cards[1].Top:IsShown() and w.cards[1].Right:IsShown(), "a bordered card")
+    eq(w.cards[1].Fill:GetNumPoints(), 2, "the card follows the window's width (anchored both sides)")
+    w:SetWidth(400)
+    w:RunScript("OnSizeChanged")
+    eq(row:GetWidth(), 400 - 24 - 13, "a resized window keeps its rows inside the cards")
+    ok(row.IconBox:IsShown(), "the icon in its box")
+    eq(w.Edge.edges[1].color, { 0.43, 0.33, 0.14, 1 }, "the window's gold frame")
+    -- The appearance menu switches the window to Compact and back.
+    local items = ns.UI.PopoutStyleMenu(w)()
+    local function item(text) for _, it in ipairs(items) do if it.text == text then return it end end end
+    ok(item("Cards").checked and not item("Compact").checked)
+    item("Compact").onClick()
+    eq(w.layout, "compact")
+    ok(not w.cards[1].Fill:IsShown(), "no cards in Compact")
+    items = ns.UI.PopoutStyleMenu(w)()
+    item("Cards").onClick()
+    eq(w.layout, "cards")
+    ns.Game.MountInfo = savedInfo
+  end)
+
+  it("Cards: a lockout row ends in a boxed Open badge, the row's room kept for it", function()
+    local ns = loadUI()
+    setup(ns)
+    local w = ns.UI.OpenPopout({ kind = "daily", exp = WOD })
+    local row
+    for _, c in ipairs(w.Content.children) do if c.data and not c.data.done and c:IsShown() then row = c end end
+    ok(row, "an open lockout row")
+    ok(row.Status:IsShown(), "its badge")
+    eq(row.Status.Text:GetText(), "Open")
+    eq(row.Status.Edge.edges[1].color, { 0.43, 0.33, 0.14, 1 }, "a gold box")
+  end)
+
+  it("collapsing a group redraws that window at once, from the lockouts it already read", function()
+    local ns = loadUI()
+    setup(ns)
+    ns.QuickLists.Mounts = function() return { 1, 614, 9 } end
+    local w = ns.UI.OpenPopout({ kind = "quick", key = "mythic" })
+    local builds, real = 0, ns.UI.ChecklistBuild
+    ns.UI.ChecklistBuild = function(...) builds = builds + 1; return real(...) end
+    local header
+    for _, h in ipairs(w.groupFrames) do if h:IsShown() then header = h end end
+    ok(header, "a group header")
+    local before = #w.rows
+    header:RunScript("OnMouseUp", "LeftButton")
+    eq(builds, 0, "no new read of the lockouts")
+    ok(#w.rows < before, "the group collapsed")
+    ok(header.Count:GetText():find("left", 1, true), "what is left on the header's right")
+    ok(not header.Text:GetText():find("(", 1, true), "the name alone on the left")
+    ns.UI.ChecklistBuild = real
+  end)
+
+  it("appearance changes redraw at once: opacity reaches the cards, a layout change reads no lockouts", function()
+    local ns = loadUI()
+    setup(ns)
+    local w = ns.UI.OpenPopout({ kind = "camp", exp = WOD })
+    eq(w.cards[1].Fill.color, { 1, 1, 1, 0.035 }, "a light layer over the window's background")
+    local items = ns.UI.PopoutStyleMenu(w)()
+    local opacity
+    for _, it in ipairs(items) do if it.slider and it.text == "Background opacity" then opacity = it end end
+    opacity.onChange(20)
+    eq(w.Fill.color[4], 0.2, "the window's background at 20 %")
+    eq(w.cards[1].Fill.color, { 1, 1, 1, 0.035 }, "the cards ride on it: no opaque fill of their own")
+    local builds, real = 0, ns.UI.ChecklistBuild
+    ns.UI.ChecklistBuild = function(...) builds = builds + 1; return real(...) end
+    for _, it in ipairs(ns.UI.PopoutStyleMenu(w)()) do if it.text == "Compact" then it.onClick() end end
+    eq(w.layout, "compact")
+    eq(builds, 0, "no new read of the lockouts")
+    ns.UI.ChecklistBuild = real
+  end)
+
+  it("headings in the game's font by default, the header font when picked (Latin / Cyrillic clients); a window's own font wins", function()
+    local ns = loadUI()
+    setup(ns)
+    eq(ns.UI.HeadingFont(), nil, "the game's own by default")
+    local header
+    ns.Options = ns.Options or {}
+    ns.Options.HeaderFont = function() return header end
+    header = "morpheus"
+    eq(ns.UI.HeadingFont(), "Fonts\\MORPHEUS.TTF")
+    local w = ns.UI.OpenPopout({ kind = "camp", exp = WOD })
+    eq(w.Title.fontPath, "Fonts\\MORPHEUS.TTF", "the title in the header font")
+    ns.Game.Locale = function() return "koKR" end
+    eq(ns.UI.HeadingFont(), nil, "koKR: the game's font")
+    ns.Game.Locale = function() return "deDE" end
+    ns.db.global.popouts[w.key] = ns.db.global.popouts[w.key] or {}
+    ns.db.global.popouts[w.key].style = { font = "Fonts\\SKURRI.TTF" }
+    ns.UI.RefreshPopouts()
+    eq(w.Title.fontPath, "Fonts\\SKURRI.TTF", "the window's own font wins")
+  end)
+
+  it("PopoutCardLines: the second line and the status of a card row", function()
+    local ns = loadUI()
+    local CL = ns.UI.PopoutCardLines
+    eq({ CL({ name = "Luk'hok", camp = true, entry = {} }, "Nagrand", "Great Greytusk") },
+      { "Great Greytusk · Nagrand" }, "a rare: the mount under its name, no status (its box)")
+    eq({ CL({ name = "Invincible", entry = { boss = "The Lich King" } }, "Icecrown Citadel", "Invincible") },
+      { "The Lich King · Icecrown Citadel", "Open", "open" })
+    eq({ CL({ name = "Invincible", done = true, entry = {} }, nil, "Invincible") }, { "", "Done", "done" })
+    eq({ CL({ name = "X", listOnly = true, entry = { m = { chance = 100 } } }, "Zone", "X") },
+      { "Zone", "1 in 100", "info" }, "a plain list mount: its drop chance")
+    eq({ CL({ name = "X", listOnly = true, entry = {} }, "", "X") }, { "" })
   end)
 
   it("groups rows by expansion on ready-made sets, never on the player's own lists", function()
@@ -479,6 +594,7 @@ describe("pop-out windows", function()
   it("Alt-drag keeps a row inside its expansion group; moving down lands at the line", function()
     local ns = loadUI()
     setup(ns)
+    ns.db.global.popoutStyle = { layout = "compact" } -- one-line rows: 20 px apart
     ns.QuickLists.Mounts = function() return { 1, 614, 9 } end
     local w = ns.UI.OpenPopout({ kind = "quick", key = "mythic" })
     local function ids()
@@ -548,7 +664,7 @@ describe("pop-out windows", function()
     eq(opened, { "TOPLEFT", "BOTTOMLEFT", 604, 696 }, "opens at the pointer")
     eq(menu.items[1].data.title, "Appearance")
     -- Opacity: a slider (20-100 %), no steps to pick from.
-    local op = sliderRow("Opacity")
+    local op = sliderRow("Background opacity")
     eq({ op.Slider.min, op.Slider.max, op.Slider.step, op.Slider.value }, { 20, 100, 1, 92 })
     eq(op.Value:GetText(), "92%")
     ok(not (ns.db.global.popouts["camp|" .. WOD] or {}).style, "opening the menu changes nothing")
@@ -581,7 +697,7 @@ describe("pop-out windows", function()
     eq(a.Title.textColor, { 0.55, 0.8, 1 }, "the title: the header colour, not the text colour")
     click("Back")
     -- Opacity shows what was set when the menu is painted again.
-    eq(sliderRow("Opacity").Slider.value, 60)
+    eq(sliderRow("Background opacity").Slider.value, 60)
     -- Font size: a number (8-24), the window's own default until one is set.
     local fs = sliderRow("Font size")
     eq({ fs.Slider.min, fs.Slider.max, fs.Slider.step, fs.Slider.value }, { 8, 24, 1, 11 })
@@ -727,6 +843,8 @@ describe("flat widgets", function()
     ok(menu:IsShown())
     eq(menu.items[1].Label:GetText(), "Add to list")
     ok(menu.items[2].Box:IsShown(), "box for a toggle item")
+    ok(menu.items[1].Band:IsShown() and menu.items[1].Accent:IsShown(), "a title sits on a card band")
+    ok(not menu.items[2].Band:IsShown(), "items do not")
     menu.items[2]:RunScript("OnClick", "LeftButton")
     eq(clicked, 1)
     ok(menu:IsShown(), "keepOpen")
@@ -793,7 +911,7 @@ describe("flat widgets", function()
     local function items()
       return {
         { title = "Look" },
-        { slider = true, text = "Opacity", min = 20, max = 100, step = 1, value = value, format = "%d%%",
+        { slider = true, text = "Background opacity", min = 20, max = 100, step = 1, value = value, format = "%d%%",
           onChange = function(v) value = v; got[#got + 1] = v end },
         { text = "Tick", checked = value > 60, keepOpen = true, onClick = function() ticks = ticks + 1 end },
       }
@@ -803,7 +921,7 @@ describe("flat widgets", function()
     local s = row.Slider
     ok(s:IsShown(), "a slider")
     eq({ s.min, s.max, s.step, s.value, s.obeyStep, s.orientation }, { 20, 100, 1, 60, true, "HORIZONTAL" })
-    eq(row.Label:GetText(), "Opacity")
+    eq(row.Label:GetText(), "Background opacity")
     eq(row.Value:GetText(), "60%")
     ok(not row.Highlight:IsShown(), "no hover highlight on a slider row")
     ok(row:GetHeight() > 18, "taller than a text row")
@@ -1020,7 +1138,7 @@ describe("zone window and the alt lockouts window", function()
     eq(menu.items[1].data.title, "Appearance")
     local op
     for _, it in ipairs(menu.items) do
-      if it:IsShown() and it.data and it.data.slider and it.data.text == "Opacity" then op = it end
+      if it:IsShown() and it.data and it.data.slider and it.data.text == "Background opacity" then op = it end
     end
     op.Slider:SetValue(50)
     eq(ns.db.global.popouts.alts.style.alpha, 0.5, "saved under popouts.alts")
@@ -1223,7 +1341,7 @@ describe("lists in the navigation column", function()
     end
   end
 
-  it("the navigation lists My lists then the quick lists; a click opens the list page; deleting it goes home", function()
+  it("the navigation lists the built-in lists and your own; a click opens the list page; deleting it goes home", function()
     local ns = loadUI()
     ns.UI.ChecklistBuild = function() return built() end
     local h = home(ns)
@@ -1292,7 +1410,7 @@ describe("lists in the navigation column", function()
     eq(navButton(ns, "Loop"), nil, "its entry gone")
   end)
 
-  it("My lists and Quick lists are separate sections, each collapsing on a click (saved)", function()
+  it("one Lists section: the built-in lists first, then your own; it collapses (saved)", function()
     local ns = loadUI()
     ns.UI.ChecklistBuild = function() return built() end
     local store = ns.UI.ListsDB()
@@ -1301,24 +1419,27 @@ describe("lists in the navigation column", function()
     local nav = ns.UI.frame.Nav
     local function heading(text)
       for _, h in ipairs(nav.Headings) do
-        if h:IsShown() and (h.Text:GetText():gsub("^[%+%-] ", "")) == text then return h end
+        if h:IsShown() and (h.Text:GetText():gsub("^[%+%-] ", "")) == string.upper(text) then return h end
       end
     end
-    local mine, quick = heading("My lists"), heading("Quick lists")
-    eq(mine.Text:GetText(), "- My lists", "open: a pop-out header's \"- \"")
-    ok(mine and quick, "two headings")
-    eq(mine.key, ns.UI.NAV_LISTS_KEY)
-    ok(navButton(ns, "Loop") and navButton(ns, "Weekly lockouts"), "both sections open")
-    mine:RunScript("OnClick", "LeftButton")
+    local lists = heading("Lists")
+    ok(lists, "one Lists heading")
+    eq(heading("Quick lists"), nil, "no Quick lists heading")
+    eq(heading("My lists"), nil, "no My lists heading")
+    eq(lists.key, ns.UI.NAV_LISTS_KEY)
+    ok(nav.AddList:IsShown(), "its +")
+    local function index(label)
+      for i = 1, nav.shown do if nav.Buttons[i].Text:GetText() == label then return i end end
+    end
+    ok(index("Weekly lockouts") < index("Loop"), "built-in lists first")
+    eq(navButton(ns, "Weekly lockouts").Tag, nil, "no tag: built-in lists come first")
+    lists:RunScript("OnClick", "LeftButton")
     eq(ns.db.global.collapsed[ns.UI.NAV_LISTS_KEY], true)
-    eq(navButton(ns, "Loop"), nil, "My lists collapsed")
-    ok(navButton(ns, "Weekly lockouts"), "Quick lists still open")
-    ok(heading("My lists").collapsed, "marked collapsed")
-    eq(heading("My lists").Text:GetText(), "+ My lists")
-    heading("Quick lists"):RunScript("OnClick", "LeftButton")
-    eq(navButton(ns, "Weekly lockouts"), nil, "Quick lists collapsed")
-    heading("My lists"):RunScript("OnClick", "LeftButton")
-    ok(navButton(ns, "Loop"), "expanded again")
+    eq(navButton(ns, "Loop"), nil, "collapsed: your lists hidden")
+    eq(navButton(ns, "Weekly lockouts"), nil, "and the built-in ones")
+    eq(heading("Lists").Text:GetText(), "+ LISTS", "section labels in capitals")
+    heading("Lists"):RunScript("OnClick", "LeftButton")
+    ok(navButton(ns, "Loop") and navButton(ns, "Weekly lockouts"), "expanded again")
     eq(ns.db.global.collapsed[ns.UI.NAV_LISTS_KEY], nil)
     eq(heading("Browse").key, ns.UI.NAV_BROWSE_KEY, "Browse collapses too")
     heading("Browse"):RunScript("OnClick", "LeftButton")
@@ -1327,7 +1448,7 @@ describe("lists in the navigation column", function()
     ok(navButton(ns, "Drops"), "and back")
   end)
 
-  it("Quick lists hold Daily / Weekly lockouts and Rare Spawns: a click opens Lockouts on that group", function()
+  it("Built-in lists hold Daily / Weekly lockouts and Rare Spawns: a click opens Lockouts on that group", function()
     local ns = loadUI()
     ns.UI.ChecklistBuild = function() return built() end
     home(ns)
@@ -1438,19 +1559,19 @@ describe("lists in the navigation column", function()
     eq(menu, nil, "no menu")
   end)
 
-  it("Options can hide My lists and Quick lists from the navigation", function()
+  it("Options can hide your lists and the built-in lists from the navigation", function()
     local ns = loadUI()
     ns.UI.ChecklistBuild = function() return built() end
     ns.Lists.Create(ns.UI.ListsDB(), "Loop")
     home(ns)
     ns.db.global.settings.navHideLists = true
     ns.UI.RefreshNav()
-    eq(navButton(ns, "Loop"), nil, "My lists hidden")
-    ok(not ns.UI.frame.Nav.AddList:IsShown(), "and its +")
-    ok(navButton(ns, "Weekly lockouts"), "Quick lists still there")
+    eq(navButton(ns, "Loop"), nil, "your lists hidden")
+    ok(not ns.UI.frame.Nav.AddList:IsShown(), "and the +")
+    ok(navButton(ns, "Weekly lockouts"), "the built-in lists still there")
     ns.db.global.settings.navHideQuick = true
     ns.UI.RefreshNav()
-    eq(navButton(ns, "Weekly lockouts"), nil, "Quick lists hidden")
+    eq(navButton(ns, "Weekly lockouts"), nil, "built-in lists hidden")
     ok(navButton(ns, "Drops"), "Browse stays")
   end)
 

@@ -13,10 +13,10 @@ keep on screen while you farm.
 
 - **Every mount you're missing**, by expansion or by source (drops, vendors &
   reputation, quests, achievements, professions, in-game shop, Trading Post,
-  PvP, Mythic+, holidays, Timewalking), with a 3D preview, drop chance, your
+  PvP, faction / race, Mythic+, holidays, Timewalking), with a 3D preview, drop chance, your
   attempts, its lockout and where to find it.
 - **Home**: your collection at a glance (a total, a bar per expansion and per
-  source), today's lockouts left, and the mounts still to get in your zone.
+  source) and the mounts still to get in your zone, each part on a card.
 - **Lockouts**: this character's daily and weekly mount lockouts, ticked off
   by themselves (old 10 / 25-player raids' shared lockouts included, one
   lockout per difficulty for newer raids), plus long-respawn rares; a chat
@@ -84,7 +84,7 @@ left edge to resize them (saved; right-click either edge for the default).
 
 It has the pop-outs' look: a flat panel with a slim title strip (drag it to
 move the window, x to close). Right-click the title strip for the same
-appearance menu as a pop-out: opacity, background, header and text colour,
+appearance menu as a pop-out: background opacity, background, header and text colour,
 font size and font, saved for the window. `Apply to all pop-outs` there (on
 the window or any pop-out) gives every window one look.
 
@@ -95,17 +95,21 @@ The left column:
 - **Home**: the front page.
 - **Lockouts**: the daily / weekly checklist, with how many lockouts are left.
 - **Current Zone**: every mount still to get in your zone, grouped by source,
-  following you as you move. Right-click it (or use `Pop out`) for a small
+  following you as you move. Holiday mounts show only while their holiday
+  is on (here, on Home's Nearby, the zone panel and the map). Right-click it (or use `Pop out`) for a small
   window that follows you.
 - **Alts**: the [alt lockout matrix](#alt-lockout-matrix).
 - **Browse** by source: Drops, Vendors & Reputation, Quests & Activities,
-  Achievements, Professions, In-game Shop, Trading Post, PvP, Mythic+,
+  Achievements, Professions, In-game Shop, Trading Post, PvP, Faction (each
+  race's mounts under its own heading, the allied races' together), Mythic+,
   Holidays, Timewalking, Other.
-- **My lists**: each of your own lists, with `+` to start one, and its
-  lockouts open today in green. It starts with an example, Mythic Mounts
-  (every mount that drops in Mythic dungeons), yours to edit, rename or delete.
-- **Quick lists**: the built-in ones. Daily lockouts, Weekly lockouts and Rare
-  Spawns each open Lockouts on that group, with what is left as the badge.
+- **Lists**, with `+` to start one:
+  - first the built-in lists, which fill themselves:
+    Daily lockouts, Weekly lockouts and Rare Spawns each open Lockouts on that
+    group, with what is left as the badge;
+  - then your own lists, with their lockouts open today in green. They start
+    with an example, Mythic Mounts (every mount that drops in Mythic
+    dungeons), yours to edit, rename or delete.
 
 Working with the column:
 
@@ -113,58 +117,80 @@ Working with the column:
   detail pane as on any list, and a `Pop out` button.
 - Right-click a list to pop it out; Shift-right-click one of your own lists to
   share, rename or delete it.
-- Click a list's star to make it a favourite, pinned to the top of its section
-  (click again to unpin).
-- Alt-drag an entry of My lists, Quick lists or Browse to put the
-  section in your own order (saved; a list never moves above a favourite).
+- Click a list's star to make it a favourite, pinned to the top of its part
+  (built-in or your own; click again to unpin).
+- Alt-drag a list or a Browse entry to put it in your own order (saved; a
+  list stays among the built-in ones or your own, and never moves above a
+  favourite).
 - Headings look like a pop-out's group headers ("- Browse" over a thin rule,
-  in the window's header colour). Click one (Browse, My lists, Quick lists)
-  to collapse or expand it (saved; "+" while collapsed).
+  in the window's header colour). Click one (Browse, Lists) to collapse or
+  expand it (saved; "+" while collapsed).
 - Lockouts, the lockout groups and your lists count what is left ("48
   left"); the entry you are on is gold.
-- The settings can hide My lists or Quick lists (`Show My lists`,
-  `Show Quick lists`). The column scrolls when your lists outgrow it.
+- The settings can hide your own lists or the built-in ones (`Show your
+  lists`, `Show built-in lists`). The column scrolls when your lists outgrow
+  it.
 
 ### Home
 
-- Your collected total (count, percent and a thick bar) over every mount you
-  count (see the `Count ...` options) and a search box over every mount (see
-  [Search](#search)).
-- **Expansions**: a row per expansion, its tag and name in its colour, a
-  progress bar, owned / total and percent (a check once complete). Click a
-  row for its mount list.
-- **By source**: the same rows for every source of the navigation's Browse
-  section (Drops, Vendors & Reputation, ... Trading Post); click one to open
-  it. A source you do not count (Options) is left out of Home (its Browse
-  page stays). The column scrolls
-  when the window is short.
-- **Today**: the daily and weekly lockouts and rare spawns left, and your
-  lists with lockouts open today (click one to open it).
-- **Nearby**: the first mounts still to get in your zone (click one for its
-  waypoint); the line under them opens Current Zone.
-- Every bar takes its completion colour: red under 25 %, yellow under 75 %,
-  green below complete and blue once complete (the total bar too).
+- A summary card: your collected total in large gold figures, "mounts
+  collected · 23%" under it, a thick gold bar, and a search box over every
+  mount (see [Search](#search)). It counts every mount you count (see the
+  `Count ...` options).
+- Under it, two columns on one page that scrolls when the window is short:
+  - **Expansions** (left): a row per expansion, its name and bar in its
+    colour, owned / total (green once complete). Click a row for its mount
+    list.
+  - **By source** (right): the same rows for every source of the
+    navigation's Browse section (Drops, Vendors & Reputation, ... Trading
+    Post), bars in bronze; click one to open it. A source you do not count
+    (Options) is left out of Home (its Browse page stays).
+  - **Nearby** (right, under By source): the first mounts still to get in
+    your zone, each with its icon (boxed in its rarity's colour), where it
+    comes from and its drop chance (click one for its waypoint), then how
+    many are left in the zone; click the Nearby heading to open Current Zone,
+    right-click it to pop it out. What is left to farm today is under
+    Lockouts in the left column.
 
 ### Mount lists
 
 Every list (an expansion, a Browse page, a list page, Holidays, Achievements,
 Timewalking, Lockouts, Current Zone, the zone panel) looks the same, as a
-pop-out does: one line per mount (its expansion tag, the name, and where it
-comes from on the right; the detail pane shows the mount itself) under
-headers. Top-level
-headers are gold; groups under them are in their expansion's colour when
-they are one, else light grey.
+pop-out's Cards layout does: each top-level group is a card (its header on a
+card top with an edge in its colour, a small gap above it), and each mount
+a two-line row on it (the mount's icon boxed in its rarity's colour, the
+name over where it comes from, and a badge: `Owned`; `✓ Done` when its
+lockout is spent today; your tries on a mount you are farming (`87 tries`);
+`Open` while its lockout is still open; the drop chance as `1 in 100`; or a
+vendor mount's price), its card
+edge in the mount's expansion colour. A group's count sits on its header's
+right. Top-level headers
+are gold; groups under them are in their expansion's colour when they are
+one, else light grey. The world map tab keeps its own rows (big icons, no
+cards).
 
+- **Fonts**: the game's own for headings and text (the left column's
+  section headings take the header font, its entries the body font). Change either under
+  `Font Styles` (the cogwheel, or Options > AddOns): Game font, Arial
+  Narrow, Morpheus, Skurri, and fonts from LibSharedMedia when another
+  add-on registers them. Korean and Chinese clients keep the game's font
+  (the others have no such letters). A font picked in a window's appearance
+  menu wins over the header font there.
+- **Page header**: every list page has the same one line: Back (where there
+  is one) and the title on the left; the search box, what is left as a badge
+  (`16 left`), the Filter button and the page's own buttons (`Pop out`) on
+  the right.
 - **Tooltip**: drop details, your attempts on this character and in total over
   all your characters (the game's kill statistics where it keeps them, else
   MountTrail's own per-character counter; Rarity's count when larger).
-- **Filters**: each list's Filter button offers its own categories as
-  `Show ...` checkboxes, plus Collected and Check all / Uncheck all. An
+- **Filters**: each list's Filter button opens MountTrail's own menu (the
+  gold-edged one every menu uses) with its own categories as `Show ...`
+  checkboxes, plus Collected and Check all / Uncheck all. An
   expansion's list has its sources (`Show dungeon drops`, `Show raid drops`,
   ...), Holidays each holiday, Achievements each expansion and General;
   Browse pages and Timewalking have Collected only. Choices are saved
-  account-wide per list (Collected is shared); the reset arrow next to the
-  button restores that list's defaults.
+  account-wide per list (Collected is shared); while they differ from the
+  defaults, a `Reset` button beside Filter restores them.
 - **Collected**: owned and other-faction mounts are hidden unless Collected is
   on; owned mounts then show on a light green row with a green name.
 - **Collapse**: click a header to collapse it. Shift-click any header to
@@ -195,12 +221,17 @@ shows:
 
 - Blizzard's 3D preview (rotate, zoom, with or without your character riding
   it).
-- Its flavour text and the tooltip's details: source, drop chance, attempts,
-  lockout, achievement progress.
+- Its name in its rarity's colour over "expansion · kind of source".
+- An info card in two columns (labels grey, values white): Status, Attempts
+  (and how many players would have it by now), Drop, From, Where, Cost and
+  Lockout (gold while open, green once done), then its flavour text, the
+  rarity and achievement progress.
 - Where to find it: the vendor that sells it or the rare that drops it, by
   name, its zones and how many spawn points.
 - With AllTheThings installed, its "How to get it" note (the Skyshards for the
   Thundering Ruby Cloud Serpent, ...).
+- Along the bottom: `Waypoint` (the same as clicking the row; dimmed where
+  there is nowhere to go), `+ List` and `Wowhead`.
 - `+ List` adds the mount to your lists (it reads `Lists (2)` once it is on
   some; see [Your lists](#your-lists)).
 - `Wowhead`: the mount's Wowhead page (guides, comments) as a link to copy.
@@ -250,7 +281,7 @@ it can still spend on a mount.
   out that whole group.
 - `Show completed` (top of the Filter menu): lockouts already done stay
   listed, dimmed, after the open ones (off by default; saved account-wide;
-  the Filter's reset arrow turns it off too).
+  the Filter's `Reset` turns it off too).
 
 **Rare Spawns (no lockout).** Rare-spawn mounts whose rare has no known kill
 flag (long-respawn rares such as Nok-Karosh, Gorok or the Time-Lost
@@ -321,13 +352,23 @@ What you can pop out:
 - Right-click the Daily, Weekly or Rare Spawns chip: that whole group, every
   expansion, under expansion headers.
 - Any list: your own lists (build them with `+ List` on any mount) and the
-  quick lists.
+  built-in ones.
 - `/mtrail rares`: the rare spawns of your zone.
 - `/mtrail zone` (or `/mtrail here`), a right-click on the zone panel's title or on Current Zone:
   every mount you can still get in your zone, under source headers (Dungeon
   drops, Vendors, Achievements, ...) when it has more than one source.
 
 The two zone pop-outs follow you into each new zone, sub-zone or cave.
+
+Two layouts, picked per window in its right-click menu:
+
+- **Cards** (the default): each group is a card with an edge in its
+  expansion's colour; each row has the mount's icon, its name over a grey
+  line (the boss or the mount, and the zone), and on the right `Open` /
+  `Done` for a lockout or the drop chance for a list mount. Rare spawns keep
+  their box on the right.
+- **Compact**: one line a row (box, expansion tag, name, zone), to fit more
+  in a small window.
 
 In a pop-out:
 
@@ -346,7 +387,8 @@ In a pop-out:
   Windows snap to each other and to the main window, and a snapped stack moves
   together.
 - Right-click the title for the window's menu: `Show completed` (done rows
-  stay listed, dimmed; off by default, saved per window), then opacity and
+  stay listed, dimmed; off by default, saved per window), `Cards` or
+  `Compact` (the layout, kept by `Apply to all pop-outs` too), then background opacity and
   font size sliders, background, header and text colour (headers and body
   text apart), font, `Apply to all pop-outs`, `Reset appearance`.
 - Ctrl-click a window's x to close every pop-out.
@@ -438,18 +480,23 @@ Options > AddOns > MountTrail (or `/mtrail options`). The cogwheel in the
 window's title bar has the same settings, plus `Reset text sizes` and
 `All options...`. Sizes come first: the whole window, then one slider per
 kind of text, named after what it sizes, in the window's order (the left
-column, headers, mount names, small notes).
+column, headers, body text, small text); then `Font Styles`. The AddOns
+page is in sections: Window & Text, Font Styles, Collection, Colours,
+Navigation, Alerts, Accessibility, Advanced.
 
 | Setting | Does |
 | --- | --- |
 | `Show unobtainable mounts` | Lists unobtainable mounts you do not own under "Unobtainable" (off by default; owned ones stay where they are; Home's numbers leave the unowned ones out unless `Count towards the total` is on). |
 | `Count towards the total` (under it; Options > AddOns only, not the cogwheel menu) | Off by default; only while `Show unobtainable mounts` is on. On: the unobtainable mounts you do not own also count in Home's collected numbers (the total and its bar, their expansion's and source's rows). Owned ones always count. |
 | `Whole window` | 80-150 %: everything in the window at once, text included. |
-| `Left column` | The navigation column's text (Home, Lockouts, Browse, your lists), +0 to +6. |
-| `Headers` | List headers (Classic, Wrath of the Lich King...), page titles and the detail pane's labels, -2 to +6. |
-| `Mount names and text` | Every mount's name and where it comes from, in every list, Lockouts and Home, and the detail pane's text, -2 to +6. Rows grow to fit. |
-| `Small notes` | Counts and percentages, hints and greyed-out text, -2 to +6. |
-| `Show My lists`, `Show Quick lists` | Show or hide those navigation sections. |
+| `Background opacity` | 20-100 %: the main window's background (text, icons and bars stay solid), the same as Background opacity in its appearance menu (right-click its title). |
+| `Navigation text` | The navigation column's text (Home, Lockouts, Browse, your lists), +0 to +6. |
+| `Header text` | List headers (Classic, Wrath of the Lich King...), page titles and the detail pane's labels, -2 to +6. |
+| `Body text` | Every mount's name and where it comes from, in every list, Lockouts and Home, and the detail pane's text, -2 to +6. Rows grow to fit. |
+| `Small text` | Counts and percentages, hints and greyed-out text, -2 to +6. |
+| `Header font` (Font Styles) | Window, page and card titles and pop-out titles. The game's font by default. |
+| `Body font` (Font Styles) | Mount names and every other line. The game's font by default. |
+| `Show your lists`, `Show built-in lists` | Show or hide your own lists or the built-in ones under Lists in the left column. |
 | `Count in-game shop mounts`, `Count Trading Post mounts`, `Count promotional mounts`, `Count Black Market mounts` | On by default. Off: those mounts stay listed everywhere (Browse, your lists, Lockouts, Current Zone), but, owned or not, they are left out of the collected numbers on Home: the total and its bar, the expansions' rows, and their source's row (a source with nothing counted, such as In-game Shop, leaves Home). |
 | `Colour pop-out names by rarity` | Off by default; needs Mount Journal Enhanced or MountsRarity. |
 | `Colour list names by rarity` | The same for the main window's lists, set apart from the pop-outs'. Off by default. |
@@ -474,7 +521,7 @@ column, headers, mount names, small notes).
 - **Sort**: `Order added` (the default) or `By expansion` (a header per
   expansion, your order inside each), from the Filter menu on the list's page
   or the pop-out's title menu (right-click its title). Saved per list.
-- `+` next to My lists starts an empty list or imports one.
+- `+` next to Lists starts an empty list or imports one.
 
 ## Sharing lists
 
@@ -491,7 +538,7 @@ Shift-right-click one of your lists in the navigation column for:
 - **Export...**: the list as one line of text (`MountTrail: !MT1!...`) to copy with
   Ctrl+C and paste anywhere: Discord, a forum post.
 
-To import a pasted line, click `+` next to My lists and pick `Import list...`
+To import a pasted line, click `+` next to Lists and pick `Import list...`
 (or type `/mtrail import`). Every import asks first, lets you rename the list,
 and adds a number when the name is taken. Mounts your version of MountTrail
 doesn't know are left out.

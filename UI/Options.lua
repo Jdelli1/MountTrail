@@ -16,7 +16,7 @@ local ADDON, ns = ...
 --                the main window, text included, UI.ApplyWindowScale), "Left
 --                column" (settings.navTextSize, points added to the
 --                navigation column's fonts, 0-6, default 2) and the text
---                sizes "Headers", "Mount names and text", "Small notes"
+--                sizes "Header text", "Body text", "Small text"
 --                (Options.TEXT_LABELS): sliders, when the client has
 --                Settings.CreateSlider,
 --   "Show minimap button" (ns.db.global.minimap.hide, LibDBIcon Show / Hide),
@@ -42,7 +42,10 @@ Options.RARITY_COLORS_MAIN = "MOUNTTRAIL_RARITY_COLORS_MAIN"
 Options.COLORBLIND = "MOUNTTRAIL_COLORBLIND"
 Options.DROP_CHIME = "MOUNTTRAIL_DROP_CHIME"
 Options.DROP_SOUND = "MOUNTTRAIL_DROP_SOUND"
+Options.HEADER_FONT = "MOUNTTRAIL_HEADER_FONT"
+Options.BODY_FONT = "MOUNTTRAIL_BODY_FONT"
 Options.WINDOW_SCALE = "MOUNTTRAIL_WINDOW_SCALE"
+Options.WINDOW_OPACITY = "MOUNTTRAIL_WINDOW_OPACITY"
 Options.SHOW_LISTS = "MOUNTTRAIL_SHOW_LISTS"
 Options.SHOW_QUICK = "MOUNTTRAIL_SHOW_QUICK"
 Options.NAV_TEXT = "MOUNTTRAIL_NAV_TEXT"
@@ -50,6 +53,7 @@ Options.DIFFICULTY_WARNING = "MOUNTTRAIL_DIFFICULTY_WARNING"
 
 -- Slider ranges (whole percent for the scale).
 Options.SCALE_RANGE = { min = 80, max = 150, step = 5 }
+Options.OPACITY_RANGE = { min = 20, max = 100, step = 5 }
 Options.NAV_TEXT_RANGE = { min = 0, max = 6, step = 1 }
 
 local function clamp(v, range, default)
@@ -65,6 +69,18 @@ function Options.WindowScale()
   return clamp(saved, Options.SCALE_RANGE, 100)
 end
 
+-- The main window's opacity in percent (20-100; its appearance's alpha,
+-- UI.WindowOpacity), 92 before the UI is loaded.
+function Options.WindowOpacity()
+  return ns.UI and ns.UI.WindowOpacity and ns.UI.WindowOpacity() or 92
+end
+
+local function setWindowOpacity(pct)
+  if ns.UI and ns.UI.SetWindowOpacity then
+    ns.UI.SetWindowOpacity(math.max(Options.OPACITY_RANGE.min, math.min(Options.OPACITY_RANGE.max, pct)))
+  end
+end
+
 -- Text sizes by colour (UI.FONT_ROLES): gold (headers, titles, mount
 -- names), white (body text), grey (second lines): points added, -2..+6.
 Options.TEXT_RANGE = { min = -2, max = 6, step = 1 }
@@ -72,7 +88,7 @@ Options.TEXT_KEYS = { header = "textHeader", body = "textBody", detail = "textDe
 Options.TEXT_VARS = { header = "MOUNTTRAIL_TEXT_HEADER", body = "MOUNTTRAIL_TEXT_BODY", detail = "MOUNTTRAIL_TEXT_DETAIL" }
 -- Named by what they size on screen (the roles are the fonts' colours:
 -- header = gold, body = white, detail = grey).
-Options.TEXT_LABELS = { header = "Headers", body = "Mount names and text", detail = "Small notes" }
+Options.TEXT_LABELS = { header = "Header text", body = "Body text", detail = "Small text" }
 Options.TEXT_TIPS = {
   header = "List headers (Classic, Wrath of the Lich King...), page titles and the labels in the detail pane.",
   body = "Every mount's name and where it comes from, in every list, Lockouts and Home, and the detail pane's text.",
@@ -80,7 +96,7 @@ Options.TEXT_TIPS = {
 }
 -- The order the sizes are offered in: the window's areas, left to right.
 Options.TEXT_ORDER = { "header", "body", "detail" }
-Options.NAV_LABEL = "Left column"
+Options.NAV_LABEL = "Navigation text"
 Options.NAV_TIP = "Home, Lockouts, Current Zone, Alts, Browse and your lists: the window's left column."
 Options.SCALE_LABEL = "Whole window"
 Options.SCALE_TIP = "Everything in the MountTrail window at once, text included. Use the sizes below for just one kind of text."
@@ -201,6 +217,28 @@ local function setDropSound(key)
   if ns.Game and ns.Game.PlaySoundKit then ns.Game.PlaySoundKit(key) end
 end
 
+-- The fonts (UI.FONT_CHOICES keys, or an LSM font's path): settings.headerFont
+-- / bodyFont, nil for the default (the game's own). A change re-sizes every
+-- font copy and redraws (UI.ApplyTextSizes), the pop-outs too.
+function Options.HeaderFont()
+  local global = ns.db and ns.db.global
+  local saved = global and type(global.settings) == "table" and global.settings.headerFont
+  return type(saved) == "string" and saved or nil
+end
+
+function Options.BodyFont()
+  local global = ns.db and ns.db.global
+  local saved = global and type(global.settings) == "table" and global.settings.bodyFont
+  return type(saved) == "string" and saved or nil
+end
+
+local function setFont(field, key)
+  settings()[field] = (key ~= "game") and key or nil
+  if ns.UI and ns.UI.ApplyTextSizes then ns.UI.ApplyTextSizes() end
+  if ns.UI and ns.UI.RefreshPopouts then ns.UI.RefreshPopouts() end
+  if ns.UI and ns.UI.RefreshNav then ns.UI.RefreshNav() end
+end
+
 -- Accessibility: "Colour-blind marks" (settings.colorblindMarks): a tick on
 -- finished lockouts and collected mounts, "open" on the left column's green
 -- badges, the owners' share after rarity-coloured names. Until the player
@@ -302,6 +340,7 @@ end
 function Options.Set(name, value)
   if not ns.db then return end
   if name == "windowScale" then setWindowScale(value)
+  elseif name == "windowOpacity" then setWindowOpacity(value)
   elseif name == "navTextSize" then setNavTextSize(value)
   elseif name == "showUnobtainable" then setUnobtainable(value)
   elseif name == "rarityColors" then setRarityColors(value)
@@ -312,6 +351,7 @@ function Options.Set(name, value)
   elseif name == "dropSound" then setDropSound(value)
   elseif name == "difficultyWarning" then setDifficultyWarning(value)
   elseif name == "minimap" then Options.SetMinimap(value)
+  elseif name == "headerFont" or name == "bodyFont" then setFont(name, value)
   elseif name == "showLists" or name == "showQuick" then
     -- Stored as "hide" flags, so a missing value (the default) shows them.
     settings()[name == "showLists" and "navHideLists" or "navHideQuick"] = (not value) or nil
@@ -320,10 +360,10 @@ function Options.Set(name, value)
   if type(name) == "string" and string.sub(name, 1, 6) == "count:" then
     Options.SetCounted(string.sub(name, 7), value)
   end
-  for _, var in pairs({ Options.WINDOW_SCALE, Options.NAV_TEXT, Options.UNOBTAINABLE, Options.RARITY_COLORS,
+  for _, var in pairs({ Options.WINDOW_SCALE, Options.WINDOW_OPACITY, Options.NAV_TEXT, Options.UNOBTAINABLE, Options.RARITY_COLORS,
     Options.RARITY_COLORS_MAIN, Options.COUNT_UNOBTAINABLE, Options.COLORBLIND, Options.DROP_CHIME,
     Options.DROP_SOUND, Options.MINIMAP, Options.SHOW_LISTS, Options.SHOW_QUICK,
-    Options.DIFFICULTY_WARNING }) do
+    Options.DIFFICULTY_WARNING, Options.HEADER_FONT, Options.BODY_FONT }) do
     Options.Changed(var)
   end
   for _, c in ipairs(Options.COUNT_SECTIONS) do Options.Changed(c.var) end
@@ -437,49 +477,31 @@ local REQUIRED = { "RegisterVerticalLayoutCategory", "RegisterProxySetting", "Cr
 local function build(api)
   local VarType = type(api.VarType) == "table" and api.VarType or {}
   local category, layout = api.RegisterVerticalLayoutCategory(L["MountTrail"])
+  local hasDropdown = type(api.CreateDropdown) == "function" and type(api.CreateControlTextContainer) == "function"
 
-  local unobtainable = api.RegisterProxySetting(category, Options.UNOBTAINABLE, VarType.Boolean or "boolean",
-    L["Show unobtainable mounts"], false, Options.ShowUnobtainable, setUnobtainable)
-  local showInit = api.CreateCheckbox(category, unobtainable,
-    L["List mounts you can no longer get on the Misc tab, under Unobtainable. Collected ones stay where they are."])
-  -- Its sub-option: greyed out while Show is off (where the client can).
-  local countUnobtainable = api.RegisterProxySetting(category, Options.COUNT_UNOBTAINABLE,
-    VarType.Boolean or "boolean", L["Count towards the total"], false, Options.CountUnobtainable,
-    setCountUnobtainable)
-  local countInit = api.CreateCheckbox(category, countUnobtainable,
-    L["Also count the unobtainable mounts you do not own in Home's collected numbers (total, expansions, sources). Owned ones always count."])
-  if type(countInit) == "table" and type(countInit.SetParentInitializer) == "function" and showInit then
-    countInit:SetParentInitializer(showInit, function() return Options.ShowUnobtainable() end)
+  -- A section header (where the client has them): the page in groups.
+  local function section(title)
+    if layout and type(layout.AddInitializer) == "function"
+      and type(CreateSettingsListSectionHeaderInitializer) == "function" then
+      layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(L[title]))
+    end
+  end
+  local function checkbox(var, label, default, get, set, tip)
+    local setting = api.RegisterProxySetting(category, var, VarType.Boolean or "boolean", L[label], default, get, set)
+    return api.CreateCheckbox(category, setting, L[tip])
   end
 
-  -- What is counted: each optional section (in-game shop, ...).
-  for _, c in ipairs(Options.COUNT_SECTIONS) do
-    local setting = api.RegisterProxySetting(category, c.var, VarType.Boolean or "boolean", L[c.label], true,
-      function() return Options.Counted(c.section) end, function(on) Options.SetCounted(c.section, on) end)
-    api.CreateCheckbox(category, setting, L[c.tip])
-  end
-
-  local rarity = api.RegisterProxySetting(category, Options.RARITY_COLORS, VarType.Boolean or "boolean",
-    L["Colour pop-out names by rarity"], false, Options.RarityColors, setRarityColors)
-  api.CreateCheckbox(category, rarity,
-    L["Colour each pop-out row by how many characters own the mount (legendary under 2 %, epic under 10 %, rare under 20 %, uncommon under 50 %). Needs Mount Journal Enhanced or the MountsRarity add-on."])
-
-  local rarityMain = api.RegisterProxySetting(category, Options.RARITY_COLORS_MAIN, VarType.Boolean or "boolean",
-    L["Colour list names by rarity"], false, Options.RarityColorsMain, setRarityColorsMain)
-  api.CreateCheckbox(category, rarityMain,
-    L["The same colours for the mount names in the main window's lists (Lockouts, Browse, your lists...). Needs Mount Journal Enhanced or the MountsRarity add-on."])
-
-  local difficulty = api.RegisterProxySetting(category, Options.DIFFICULTY_WARNING, VarType.Boolean or "boolean",
-    L["Warn about the wrong difficulty"], true, Options.DifficultyWarning, setDifficultyWarning)
-  api.CreateCheckbox(category, difficulty,
-    L["Entering an instance on a difficulty where a mount in your open pop-outs does not drop (Normal instead of Heroic, Heroic instead of Mythic...) shows a warning."])
-
-  -- The sliders, on clients that have them.
+  -- Window & text: the sizes.
   if type(api.CreateSlider) == "function" and type(api.CreateSliderOptions) == "function" then
+    section("Window & Text")
     local scale = api.RegisterProxySetting(category, Options.WINDOW_SCALE, VarType.Number or "number",
       L[Options.SCALE_LABEL], 100, Options.WindowScale, setWindowScale)
     slider(api, category, scale, Options.SCALE_RANGE, function(v) return string.format("%d%%", v) end,
       L[Options.SCALE_TIP])
+    local opacity = api.RegisterProxySetting(category, Options.WINDOW_OPACITY, VarType.Number or "number",
+      L["Background opacity"], 92, Options.WindowOpacity, setWindowOpacity)
+    slider(api, category, opacity, Options.OPACITY_RANGE, function(v) return string.format("%d%%", v) end,
+      L["The main window's background, as its appearance menu's Background opacity (right-click its title)."])
     local navText = api.RegisterProxySetting(category, Options.NAV_TEXT, VarType.Number or "number",
       L[Options.NAV_LABEL], 2, Options.NavTextSize, setNavTextSize)
     slider(api, category, navText, Options.NAV_TEXT_RANGE, function(v) return string.format("+%d", v) end,
@@ -493,28 +515,68 @@ local function build(api)
     end
   end
 
-  -- The navigation's list sections.
-  for _, s in ipairs({
-    { var = Options.SHOW_LISTS, name = "showLists", hide = "navHideLists", label = "Show My lists",
-      tip = "Your own lists in the window's left column." },
-    { var = Options.SHOW_QUICK, name = "showQuick", hide = "navHideQuick", label = "Show Quick lists",
-      tip = "The built-in lists (Daily / Weekly lockouts, Rare Spawns) in the window's left column." },
-  }) do
-    local setting = api.RegisterProxySetting(category, s.var, VarType.Boolean or "boolean", L[s.label], true,
-      function() return settings()[s.hide] ~= true end, function(on) Options.Set(s.name, on) end)
-    api.CreateCheckbox(category, setting, L[s.tip])
+  -- Font styles: the headers' and the body's.
+  if hasDropdown then
+    section("Font Styles")
+    for _, f in ipairs({
+      { var = Options.HEADER_FONT, field = "headerFont", label = "Header font", default = "game", get = Options.HeaderFont,
+        tip = "Window, page and card titles, pop-out titles. The game's font by default." },
+      { var = Options.BODY_FONT, field = "bodyFont", label = "Body font", default = "game", get = Options.BodyFont,
+        tip = "Mount names and every other line. The game's font by default." },
+    }) do
+      local setting = api.RegisterProxySetting(category, f.var, VarType.String or "string", L[f.label], f.default,
+        function() return f.get() or f.default end, function(key) setFont(f.field, key) end)
+      api.CreateDropdown(category, setting, function()
+        local container = api.CreateControlTextContainer()
+        for _, c in ipairs(ns.UI and ns.UI.FontChoices and ns.UI.FontChoices() or {}) do container:Add(c.key, c.name) end
+        return container:GetData()
+      end, L[f.tip])
+    end
   end
 
-  local minimap = api.RegisterProxySetting(category, Options.MINIMAP, VarType.Boolean or "boolean",
-    L["Show minimap button"], true, getMinimap, setMinimap)
-  api.CreateCheckbox(category, minimap, L["Show the MountTrail button on the minimap."])
+  -- Collection: what is listed and counted.
+  section("Collection")
+  local showInit = checkbox(Options.UNOBTAINABLE, "Show unobtainable mounts", false, Options.ShowUnobtainable,
+    setUnobtainable, "List mounts you can no longer get on the Misc tab, under Unobtainable. Collected ones stay where they are.")
+  -- Its sub-option: greyed out while Show is off (where the client can).
+  local countInit = checkbox(Options.COUNT_UNOBTAINABLE, "Count towards the total", false, Options.CountUnobtainable,
+    setCountUnobtainable,
+    "Also count the unobtainable mounts you do not own in Home's collected numbers (total, expansions, sources). Owned ones always count.")
+  if type(countInit) == "table" and type(countInit.SetParentInitializer) == "function" and showInit then
+    countInit:SetParentInitializer(showInit, function() return Options.ShowUnobtainable() end)
+  end
+  for _, c in ipairs(Options.COUNT_SECTIONS) do
+    checkbox(c.var, c.label, true, function() return Options.Counted(c.section) end,
+      function(on) Options.SetCounted(c.section, on) end, c.tip)
+  end
 
-  -- The drop alert's chime and its sound (a dropdown where the client has one).
-  local chime = api.RegisterProxySetting(category, Options.DROP_CHIME, VarType.Boolean or "boolean",
-    L["Chime when a mount drops"], false, Options.DropChime, setDropChime)
-  api.CreateCheckbox(category, chime,
-    L["Play a sound when you learn a mount MountTrail tracks (the chat line says how many attempts it took either way)."])
-  if type(api.CreateDropdown) == "function" and type(api.CreateControlTextContainer) == "function" then
+  -- Colours.
+  section("Colours")
+  checkbox(Options.RARITY_COLORS, "Colour pop-out names by rarity", false, Options.RarityColors, setRarityColors,
+    "Colour each pop-out row by how many characters own the mount (legendary under 2 %, epic under 10 %, rare under 20 %, uncommon under 50 %). Needs Mount Journal Enhanced or the MountsRarity add-on.")
+  checkbox(Options.RARITY_COLORS_MAIN, "Colour list names by rarity", false, Options.RarityColorsMain,
+    setRarityColorsMain,
+    "The same colours for the mount names in the main window's lists (Lockouts, Browse, your lists...). Needs Mount Journal Enhanced or the MountsRarity add-on.")
+
+  -- Navigation: what the left column and the minimap show.
+  section("Navigation")
+  for _, s in ipairs({
+    { var = Options.SHOW_LISTS, name = "showLists", hide = "navHideLists", label = "Show your lists",
+      tip = "Your own lists, under Lists in the window's left column." },
+    { var = Options.SHOW_QUICK, name = "showQuick", hide = "navHideQuick", label = "Show built-in lists",
+      tip = "The built-in lists that fill themselves (Daily / Weekly lockouts, Rare Spawns), at the top of Lists." },
+  }) do
+    checkbox(s.var, s.label, true, function() return settings()[s.hide] ~= true end,
+      function(on) Options.Set(s.name, on) end, s.tip)
+  end
+  checkbox(Options.MINIMAP, "Show minimap button", true, getMinimap, setMinimap,
+    "Show the MountTrail button on the minimap.")
+
+  -- Alerts: the drop chime and the wrong-difficulty warning.
+  section("Alerts")
+  checkbox(Options.DROP_CHIME, "Chime when a mount drops", false, Options.DropChime, setDropChime,
+    "Play a sound when you learn a mount MountTrail tracks (the chat line says how many attempts it took either way).")
+  if hasDropdown then
     local sound = api.RegisterProxySetting(category, Options.DROP_SOUND, VarType.String or "string",
       L["Drop sound"], ns.UI and ns.UI.DROP_SOUNDS[1] and ns.UI.DROP_SOUNDS[1].key or "", Options.DropSound, setDropSound)
     api.CreateDropdown(category, sound, function()
@@ -523,23 +585,19 @@ local function build(api)
       return container:GetData()
     end, L["The chime's sound; picking one plays it."])
   end
+  checkbox(Options.DIFFICULTY_WARNING, "Warn about the wrong difficulty", true, Options.DifficultyWarning,
+    setDifficultyWarning,
+    "Entering an instance on a difficulty where a mount in your open pop-outs does not drop (Normal instead of Heroic, Heroic instead of Mythic...) shows a warning.")
 
-  -- Accessibility (a section header where the client has one).
-  if layout and type(layout.AddInitializer) == "function"
-    and type(CreateSettingsListSectionHeaderInitializer) == "function" then
-    layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(L["Accessibility"]))
-  end
-  local colorblind = api.RegisterProxySetting(category, Options.COLORBLIND, VarType.Boolean or "boolean",
-    L["Colour-blind marks"], false, Options.ColorblindMarks, setColorblindMarks)
-  api.CreateCheckbox(category, colorblind,
-    L["Say in text or shape what a colour says: a tick on finished lockouts and collected mounts, \"open\" on your lists' green counts, the share of characters owning a mount after a rarity-coloured name. Starts as the game's Colorblind Mode (Options > Accessibility)."])
+  -- Accessibility.
+  section("Accessibility")
+  checkbox(Options.COLORBLIND, "Colour-blind marks", false, Options.ColorblindMarks, setColorblindMarks,
+    "Say in text or shape what a colour says: a tick on finished lockouts and collected mounts, \"open\" on your lists' green counts, the share of characters owning a mount after a rarity-coloured name. Starts as the game's Colorblind Mode (Options > Accessibility).")
 
-  local debug = api.RegisterProxySetting(category, Options.DEBUG, VarType.Boolean or "boolean",
-    L["Debug messages"], false, getDebug, setDebug)
-  api.CreateCheckbox(category, debug,
-    L["Show errors MountTrail catches around maps and waypoints (same as /mtrail debug)."])
-
-  -- Reset all settings: a button (with a warning first) on clients that have it.
+  -- Advanced: debug and Reset all settings (a button with a warning first).
+  section("Advanced")
+  checkbox(Options.DEBUG, "Debug messages", false, getDebug, setDebug,
+    "Show errors MountTrail catches around maps and waypoints (same as /mtrail debug).")
   if layout and type(layout.AddInitializer) == "function" and type(CreateSettingsButtonInitializer) == "function" then
     layout:AddInitializer(CreateSettingsButtonInitializer(L["Reset all settings"], L["Reset"],
       function() Options.ConfirmReset() end,

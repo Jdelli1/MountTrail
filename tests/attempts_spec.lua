@@ -23,6 +23,14 @@ describe("attempts", function()
       eq(A.Newly(state(), state({ [100] = true }), { 1 }, specFor, notOwned), { 1 })
     end)
 
+    it("a several-flag mount counts each flag that turned done (each rare looted)", function()
+      local A = load().Attempts
+      local specFor = function() return { quests = { 1, 2, 3, 4 }, reset = "daily" } end
+      eq(A.Newly({ quests = {} }, { quests = { [1] = true, [3] = true } }, { 611 }, specFor), { 611, 611 },
+        "two rares looted: two attempts")
+      eq(A.Newly({ quests = { [1] = true } }, { quests = { [1] = true, [2] = true } }, { 611 }, specFor), { 611 })
+    end)
+
     it("counts an lfg mount going open -> done", function()
       local A = load().Attempts
       eq(A.Newly(state(), state({}, { [200] = true }), { 2 }, specFor, notOwned), { 2 })

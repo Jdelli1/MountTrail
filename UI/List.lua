@@ -1,14 +1,14 @@
 local ADDON, ns = ...
 
--- Scrollable mount list shared by the Journal, Holidays, Achievements,
--- Timewalking and Misc tabs: a top
--- row with the search box and a Filter dropdown (UI.CreateFilterDropdown:
--- Collected, plus the view's own sections -- Journal sources, Misc
--- categories, holidays, achievement expansions; none on Timewalking -- as
--- "Show ..." checkboxes with Check all / Uncheck all), and a
--- full-width ScrollBox of section headers and mount rows. Clients without the
--- 11.x dropdown (WowStyle1FilterDropdownTemplate / SetupMenu) get the older
--- left filter panel of checkboxes instead.
+-- Scrollable mount list shared by every list page (an expansion, Browse,
+-- a list page, Current Zone, Holidays, Achievements, Timewalking, Misc): a
+-- page header, one line as the design's ([Back] the title, then on the
+-- right the search box, what is left as a badge, the Filter button --
+-- UI.CreateFilterDropdown: Collected, plus the view's own sections --
+-- Journal sources, Misc categories, holidays, achievement expansions; none
+-- on Timewalking -- as "Show ..." checkboxes with Check all / Uncheck all,
+-- in MountTrail's own menu -- and the page's own buttons), and a full-width
+-- ScrollBox of section headers and mount rows.
 --
 --   local list = ns.UI.List(parent, getQuery[, opts])
 --   list:Refresh([resetScroll])
@@ -27,7 +27,10 @@ local ADDON, ns = ...
 -- headerActive = fn(sectionKey) -> bool (the
 -- header text in green), rowTag = fn(mountID, m) -> string|nil (a green tag
 -- after the row's source line), menu = { items =, onChange = } (the list's
--- own choices after the Filter menu's: UI.ListFilterDropdown) }. The base
+-- own choices after the Filter menu's: UI.ListFilterDropdown), title =
+-- string (the header's title; list.Title to change it later), back = fn (a
+-- Back button before the title: list.Back), buttons = { { text =, onClick
+-- = } } (flat buttons at the header's right end: list.Buttons) }. The base
 -- query may carry pin = {[section]=true} (Journal.Select: those sections
 -- first) and bare = true (no headers: the mounts in the order selected).
 -- Rows are a tree (UI.ListRows): section headers, sub-headers (dungeon / raid
@@ -42,9 +45,9 @@ local ADDON, ns = ...
 -- (Map.SetWaypoint), Shift+left-click opens the world map there (Map.OpenMap);
 -- rows with a location (UI.HasLocation) show a small pin on the right.
 -- This file holds the row clicks (PreviewMount, RowClickAction, HasLocation,
--- PinIcon, PaneRowAction, ...) and the widgets (headers, mount rows,
--- HeaderColor, UI.List). Split out of it, loading right after it: the row
--- model (UI.ListRows, SubGroup, CollapseKey, ToggleCollapsed,
+-- PinIcon, PaneRowAction, ...) and the list widget (UI.List). Split out of
+-- it, loading right after it: the row and header frames (the card look,
+-- HeaderColor, pins) in UI/ListItems.lua; the row model (UI.ListRows, SubGroup, CollapseKey, ToggleCollapsed,
 -- ToggleAllCollapsed, HeaderGlyph, HeaderText, SourceLine, MountIcon,
 -- SectionLabel, InstanceName) in UI/ListRows.lua; the Filter menu, its
 -- dropdown and the fallback checkbox panel in UI/ListFilter.lua; the source
@@ -332,28 +335,11 @@ end
 
 -- Widgets ----------------------------------------------------------------------------
 
-local SEARCH_WIDTH = 220
-local TOP_ROW = 30 -- search box + Filter button above the list
-local HEADER_HEIGHT = 24
-local SUB_HEADER_HEIGHT = 20
-local INDICATOR_SIZE = 14
-local SUB_INDENT = 22 -- sub-header indicator inset (section headers: 6); icons of rows under it
-local DEPTH_STEP = 16 -- each deeper header level (the checklist's depth 3) moves in this much more
-local ROW_ICON_LEFT = 4 -- icon inset of other mount rows
-local ROW_HEIGHT = 22 -- one line, as a pop-out's rows
-local PIN_SIZE, PIN_RIGHT = 16, 8 -- the location pin on a row's right end
--- Map item icons are cropped past their baked-in edge (the pin).
-local ICON_CROP = 0.08
--- The world map tab's rows (row.withIcon): the mount's icon at a bag slot's
--- size, the name across the row, no expansion tag and no source (the map
--- shows the zone already).
-local ICON_SIZE = 37
-local ICON_ROW_HEIGHT = 41
--- Rounded icon mask of the current action bars, when the client has it.
-local ICON_MASK = "UI-HUD-ActionBar-IconFrame-Mask"
+local SEARCH_WIDTH = 160
+local TOP_ROW = 36 -- the page header: title, search, what is left, Filter
 
 -- A row's "where it comes from" line: the mount names' font (GameFontHighlight,
--- so "Mount names and text" sizes both) dimmed to 70 % grey; GameFontDisable
+-- so "Body text" sizes both) dimmed to 70 % grey; GameFontDisable
 -- when the client has no CreateFont.
 function UI.SourceFont()
   return UI.TintedFont("MountTrailFontSource", "GameFontHighlight", 0.7, 0.7, 0.7, UI.Font("GameFontDisable"))
@@ -407,347 +393,6 @@ local function collapsedDB()
   return global.collapsed
 end
 
--- Header colours, the same in every list, as a pop-out's group headers: a
--- header of an expansion (depth 1 or 2 with `exp`: the Lockouts'
--- expansions, a list by expansion) in that expansion's colour; any other
--- top-level header (depth 1) in the main window's header colour (its
--- appearance, UI/Style.lua), else gold; every other group (instances,
--- zones, the Lockouts' categories) light grey.
-local GOLD = { 1, 0.82, 0 }
-local LIGHT = { 0.85, 0.85, 0.85 }
-function UI.HeaderColor(data)
-  local depth = data and data.depth or 1
-  if depth <= 2 and data.exp and UI.EXPANSION_COLORS and UI.EXPANSION_COLORS[data.exp] then
-    return UI.EXPANSION_COLORS[data.exp]
-  end
-  if depth >= 2 then return LIGHT end
-  local style = UI.frame and UI.PopoutStyleOf and UI.PopoutStyleOf(UI.frame)
-  return style and style.header or GOLD
-end
-
--- Section header (depth 1) and sub-header (depth 2, indented;
--- depth 3 -- the checklist's categories -- looks the same, one DEPTH_STEP
--- further in), in the pop-outs' look: "- Name (count)" in the header's
--- colour (UI.HeaderColor) over a thin rule of it. A plain Frame (not a
--- Button) so the ScrollBox pools it apart from the mount rows; left-click
--- (OnMouseUp) calls frame.onToggle(key), a right-click
--- frame.onRightClick(data, frame) when the caller set one, and hovering
--- shows frame.hint (UI.ShowHint, beside the cursor) when set.
-local function initHeader(frame, data)
-  if not frame.Label then
-    frame:EnableMouse(true)
-    local hover = frame:CreateTexture(nil, "BORDER")
-    hover:SetAllPoints(frame)
-    hover:SetColorTexture(1, 1, 1, 0.05)
-    hover:Hide()
-    frame.Hover = hover
-    local rule = frame:CreateTexture(nil, "BORDER")
-    rule:SetHeight(1)
-    rule:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 1)
-    frame.Rule = rule
-    local glyph = frame:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormal"))
-    glyph:SetWidth(INDICATOR_SIZE)
-    glyph:SetJustifyH("LEFT")
-    frame.Glyph = glyph
-    local label = frame:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormal"))
-    label:SetPoint("LEFT", glyph, "RIGHT", 0, 0)
-    label:SetJustifyH("LEFT")
-    frame.Label = label
-    frame:SetScript("OnEnter", function(self)
-      self.Hover:Show()
-      local title, text = UI.HeaderHint(self.hint, self.onToggle ~= nil)
-      if title and UI.ShowHint then UI.ShowHint(self, title, text, "cursor") end
-    end)
-    frame:SetScript("OnLeave", function(self)
-      self.Hover:Hide()
-      if UI.HideHint then UI.HideHint(self) end
-    end)
-    frame:SetScript("OnMouseUp", function(self, button)
-      -- Only a release over the header counts (pressing, then dragging off
-      -- it cancels, as with buttons).
-      if type(self.IsMouseOver) == "function" and not self:IsMouseOver() then return end
-      if button == "RightButton" and self.onRightClick and self.data then
-        self.onRightClick(self.data, self)
-        return
-      end
-      if button ~= "LeftButton" then return end
-      -- Shift-click: every header of the list collapses (or, on a collapsed
-      -- one, expands) at once.
-      if UI.ShiftDown() and self.onToggleAll and self.data then
-        self.onToggleAll(self.data, self)
-        return
-      end
-      if not (self.key and self.onToggle) then return end
-      self.onToggle(self.key)
-    end)
-  end
-  local depth = data.depth or 1
-  local sub = depth >= 2
-  frame.key = data.key
-  frame.data = data
-  -- Recycled frames: the hover band follows the mouse, not the last use.
-  frame.Hover:SetShown(type(frame.IsMouseOver) == "function" and frame:IsMouseOver() == true)
-  local inset = sub and (SUB_INDENT + (depth - 2) * DEPTH_STEP) or 6
-  local c = UI.HeaderColor(data)
-  frame.Glyph:ClearAllPoints()
-  frame.Glyph:SetPoint("LEFT", frame, "LEFT", inset, 0)
-  frame.Rule:ClearAllPoints()
-  frame.Rule:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", inset, 1)
-  frame.Rule:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 1)
-  frame.Rule:SetColorTexture(c[1], c[2], c[3], depth >= 3 and 0.15 or 0.35)
-  -- One size for every level (the small font read too small): the colour and
-  -- the indent tell them apart.
-  local font = UI.Font("GameFontNormal")
-  frame.Glyph:SetFontObject(font)
-  frame.Glyph:SetText(UI.HeaderGlyph(data.collapsed == true))
-  frame.Glyph:SetTextColor(c[1], c[2], c[3])
-  frame.Label:SetFontObject(font)
-  frame.Label:SetTextColor(c[1], c[2], c[3])
-  frame.Label:SetText(UI.HeaderText(data))
-end
-
--- The section / sub-header row look, shared with the route checklist
--- (UI/ChecklistView.lua): a ScrollBox "Frame" initializer; set
--- frame.onToggle(key) for clicks.
-UI.InitListHeader = initHeader
-
--- Paints a row's location icon for UI.LocationIcon's kind: the map pin
--- (UI.PinIcon) for "spot" (true counts as "spot"), the map item icon for
--- "zone".
-function UI.ApplyPin(pin, kind)
-  local atlas, texture = UI.PinIcon()
-  if kind ~= "zone" and atlas then
-    pin:SetAtlas(atlas)
-    return
-  end
-  pin:SetTexture(texture)
-  pin:SetTexCoord(ICON_CROP, 1 - ICON_CROP, ICON_CROP, 1 - ICON_CROP)
-end
-
--- Shows a row's location icon for `kind` (UI.LocationIcon: "spot" / "zone";
--- true counts as "spot"), or hides it for nil / false.
-function UI.ShowPin(pin, kind)
-  if kind then UI.ApplyPin(pin, kind) end
-  pin:SetShown(kind and true or false)
-end
-
--- A row's location icon: a small texture on `owner`, hidden until the row
--- has a location (UI.ShowPin).
-function UI.CreatePin(owner)
-  local pin = owner:CreateTexture(nil, "OVERLAY")
-  pin:SetSize(PIN_SIZE, PIN_SIZE)
-  UI.ApplyPin(pin, "spot")
-  pin:Hide()
-  return pin
-end
-
--- Room a row leaves on its right for the pin (PIN_RIGHT + PIN_SIZE + a gap).
-UI.PIN_RIGHT = PIN_RIGHT
-UI.PIN_ROOM = PIN_RIGHT + PIN_SIZE + 8
-
-local function setupRow(row)
-  row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-  -- Modern list rows: no borders, a faint stripe on every other row and a
-  -- soft hover highlight.
-  local stripe = row:CreateTexture(nil, "BACKGROUND")
-  stripe:SetAllPoints(row)
-  stripe:SetColorTexture(1, 1, 1, 0.025)
-  row.Stripe = stripe
-  -- Owned (collected) mounts, listed with the Collected filter on: a light
-  -- translucent green tint above the stripe.
-  local owned = row:CreateTexture(nil, "BACKGROUND", nil, 1)
-  owned:SetAllPoints(row)
-  owned:SetColorTexture(0.25, 0.85, 0.35, 0.14)
-  owned:Hide()
-  row.Owned = owned
-  local highlight = row:CreateTexture(nil, "HIGHLIGHT")
-  highlight:SetAllPoints(row)
-  highlight:SetColorTexture(1, 1, 1, 0.07)
-  -- The row shown in the detail pane: a soft gold fill with a gold bar on
-  -- its left edge.
-  local selected = row:CreateTexture(nil, "BACKGROUND", nil, 2)
-  selected:SetAllPoints(row)
-  selected:SetColorTexture(1, 0.82, 0, 0.12)
-  local bar = row:CreateTexture(nil, "ARTWORK")
-  bar:SetWidth(2)
-  bar:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
-  bar:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0)
-  bar:SetColorTexture(1, 0.82, 0, 0.9)
-  selected:Hide()
-  bar:Hide()
-  row.Selected = {
-    SetShown = function(_, on) selected:SetShown(on); bar:SetShown(on) end,
-    IsShown = function() return selected:IsShown() end,
-  }
-
-  row.Tag = UI.ExpansionBadge(row)
-
-  -- Location pin on the right end (rows with a waypoint target only).
-  local pin = UI.CreatePin(row)
-  pin:SetPoint("RIGHT", row, "RIGHT", -PIN_RIGHT, 0)
-  row.Pin = pin
-
-  local name = row:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlight"))
-  name:SetWordWrap(false)
-  row.Name = name
-
-  local source = row:CreateFontString(nil, "OVERLAY", UI.SourceFont())
-  source:SetWordWrap(false)
-  row.Source = source
-
-  row:SetScript("OnEnter", function(self)
-    if self.onSelect and self.mountID then
-      -- The detail pane shows the mount: the hover just says what a click does.
-      UI.ShowHint(self, UI.RowHintTitle(self), UI.PaneRowHint(self.mountID, self.routeBoss, self.eventMap), "cursor")
-    elseif self.tooltip then
-      self.tooltip(self)
-    elseif self.mountID then
-      -- A route / checklist row's boss decides the lockout line.
-      UI.ShowMountTooltip(self, self.mountID, self.routeBoss)
-    end
-  end)
-  row:SetScript("OnLeave", function(self)
-    UI.HideMountTooltip()
-    UI.HideHint(self)
-  end)
-  row:SetScript("OnClick", function(self, button)
-    -- In a list with the detail pane any click selects the row, then
-    -- UI.PaneRowClick (right-click plots, Shift map, Ctrl achievement). Otherwise: left-click waypoint (or the
-    -- achievement), Shift+left-click world map, Ctrl+left-click preview,
-    -- Shift+right-click achievement (UI.RowClickAction).
-    if self.onSelect and self.mountID and (button == "LeftButton" or button == "RightButton") then
-      self.onSelect(self.mountID, self)
-      UI.PaneRowClick(self.mountID, self.routeBoss, self.eventMap, button)
-      return
-    end
-    UI.HandleRowClick(self.mountID, button, self.routeBoss, self.eventMap)
-  end)
-end
-
-local function noTooltip() end
-
--- A list name's colour when "Colour list names by rarity" is on (the main
--- window's own setting, apart from the pop-outs') and MountsRarity knows the
--- mount (ns.Owners), else nil.
-function UI.ListRarityColor(mountID)
-  local global = ns.db and ns.db.global
-  local settings = global and global.settings
-  local owners = ns.Owners
-  if not (type(settings) == "table" and settings.rarityColorsMain == true and owners) then return nil end
-  local pct = owners.Percent(mountID)
-  return pct and owners.Color(pct) or nil
-end
-
--- The row, a pop-out's: the mount's expansion tag at `left`, the name, and
--- the source line right-aligned in the row's right half (left of the pin),
--- all on one line (no icon: the detail pane shows the mount).
--- The mount's icon, made the first time a row shows one (row.withIcon),
--- cropped past its edge and rounded.
-local function rowIcon(row)
-  if row.Icon then return row.Icon end
-  local icon = row:CreateTexture(nil, "ARTWORK")
-  icon:SetSize(ICON_SIZE, ICON_SIZE)
-  icon:SetTexCoord(ICON_CROP, 1 - ICON_CROP, ICON_CROP, 1 - ICON_CROP)
-  if UI.AtlasExists(ICON_MASK) and row.CreateMaskTexture and icon.AddMaskTexture then
-    local mask = row:CreateMaskTexture()
-    mask:SetAtlas(ICON_MASK)
-    mask:SetAllPoints(icon)
-    icon:AddMaskTexture(mask)
-  end
-  row.Icon = icon
-  return icon
-end
-
-local function anchorRow(row, left)
-  local tag, name, source = row.Tag, row.Name, row.Source
-  tag:ClearAllPoints()
-  if row.withIcon then
-    local icon = rowIcon(row)
-    icon:ClearAllPoints()
-    icon:SetPoint("LEFT", row, "LEFT", left, 0)
-    left = left + ICON_SIZE + 8
-  end
-  tag:SetPoint("LEFT", row, "LEFT", left, 0)
-  name:ClearAllPoints()
-  if tag:IsShown() then
-    name:SetPoint("LEFT", tag, "RIGHT", 6, 0)
-  else
-    name:SetPoint("LEFT", row, "LEFT", left, 0)
-  end
-  name:SetJustifyH("LEFT")
-  source:ClearAllPoints()
-  if row.withIcon then
-    -- No source: the name runs up to the pin.
-    name:SetPoint("RIGHT", row, "RIGHT", -UI.PIN_ROOM, 0)
-    return
-  end
-  name:SetPoint("RIGHT", row, "CENTER", 4, 0)
-  source:SetPoint("LEFT", row, "CENTER", 12, 0)
-  source:SetPoint("RIGHT", row, "RIGHT", -UI.PIN_ROOM, 0)
-  source:SetJustifyH("RIGHT")
-end
-
-local function initRow(row, data)
-  if not row.Name then setupRow(row) end
-  row.mountID = data.id
-  row.tooltip = data.tooltip
-  row.onSelect = data.onSelect
-  row.Selected:SetShown(data.selected == true)
-  row.routeBoss = data.routeBoss
-  row.eventMap = data.eventMap
-  UI.SetExpansionBadge(row.Tag, data.m and data.m.exp)
-  if row.withIcon then row.Tag:Hide() end
-  row.Tag:EnableMouse(false) -- the row takes the clicks
-  -- Under a sub-header the tag lines up with the sub-header's glyph.
-  anchorRow(row, data.left or (data.depth == 2 and SUB_INDENT or ROW_ICON_LEFT))
-  if row.Icon then
-    row.Icon:SetShown(row.withIcon == true)
-    if row.withIcon then row.Icon:SetTexture(select(2, ns.Game.MountInfo(data.id))) end
-  end
-  local name = data.name or ns.Game.MountInfo(data.id) or data.m.name or tostring(data.id)
-  -- Colour-blind marks: a tick on owned rows (the green says it otherwise).
-  if data.owned and UI.ColorblindMarks and UI.ColorblindMarks() then name = UI.MARK_DONE .. " " .. name end
-  if data.suffix then name = name .. "  " .. data.suffix end
-  row.Name:SetText(name)
-  row.Source:SetText(UI.RowSourceText(data))
-  row.Source:SetShown(not row.withIcon)
-  row.Stripe:SetShown(data.alt == true)
-  UI.ShowPin(row.Pin, data.pin)
-  -- Owned (collected) mounts: green tint and a light green name; others
-  -- white (in their rarity's colour with the pop-outs' option on).
-  -- Everything reset for a recycled frame.
-  row.Owned:SetShown(data.owned == true)
-  if data.owned then
-    row.Name:SetFontObject(UI.OwnedFont())
-  else
-    row.Name:SetFontObject(UI.Font("GameFontHighlight"))
-    local c = UI.ListRarityColor(data.id)
-    if c then
-      row.Name:SetTextColor(c[1], c[2], c[3])
-      -- The colour's meaning as text too (colour-blind marks).
-      if UI.RarityTag then row.Name:SetText(row.Name:GetText() .. UI.RarityTag(data.id)) end
-    end
-  end
-end
-
--- The mount row, every list's (the lists, Lockouts, the zone panel, the map
--- tab), a pop-out's: a ScrollBox element initializer for "Button" frames.
--- data: { id=, m=, owned=, depth= (2: indented), left= (the icon's inset,
--- overriding depth), desc= (UI.RowDescription), tag=, alt= (striped), pin=
--- (UI.HasLocation), name= (overrides the mount's name), suffix= (text after
--- the name: the Lockouts' light blue status), tooltip= (function(row)
--- shown on hover instead of the mount tooltip), onSelect=
--- (function(mountID): a plain left-click selects instead of the waypoint;
--- the detail pane's lists), selected= (the selected row's look), routeBoss=
--- (the row's route boss, passed to the click: UI.HandleRowClick, and to the
--- hover: UI.ShowMountTooltip's lockout line) }. Rows are
--- UI.MOUNT_ROW_HEIGHT tall (UI.RowHeight for the text size). A row with
--- row.withIcon set (the world map tab's) shows the mount's icon first and no
--- source, UI.ICON_ROW_HEIGHT tall.
-UI.InitMountRow = initRow
-UI.MOUNT_ROW_HEIGHT = ROW_HEIGHT
-UI.ICON_ROW_HEIGHT = ICON_ROW_HEIGHT
-
 function UI.List(parent, getQuery, opts)
   local list = CreateFrame("Frame", nil, parent)
   list:SetAllPoints(parent)
@@ -769,15 +414,42 @@ function UI.List(parent, getQuery, opts)
   local rightEdge, rightPoint = list, "TOPRIGHT"
   if pane then rightEdge, rightPoint = pane, "TOPLEFT" end
 
-  -- Top row: search box + Filter button. Fallback: the left filter panel
-  -- (search box on top of it).
-  local dropdown = UI.ListFilterDropdown(list, opts and opts.menu)
-  list.FilterDropdown = dropdown
-  local searchParent = list
-  if not dropdown then searchParent = UI.BuildFilterPanel(list) end
+  -- The page header, one line: [Back] the title on the left; the search box,
+  -- what is left, Filter (its Reset beside it) and the page's buttons on the
+  -- right, over a thin rule.
+  local rule = list:CreateTexture(nil, "BORDER")
+  rule:SetHeight(1)
+  rule:SetPoint("TOPLEFT", list, "TOPLEFT", 0, -(TOP_ROW - 2))
+  rule:SetPoint("TOPRIGHT", rightEdge, rightPoint, 0, -(TOP_ROW - 2))
+  local line = UI.THEME and UI.THEME.cardEdge or { 0.2, 0.16, 0.09 }
+  rule:SetColorTexture(line[1], line[2], line[3], 1)
+  list.Rule = rule
 
-  local search = CreateFrame("EditBox", nil, searchParent, "SearchBoxTemplate")
+  -- The page's buttons (Pop out), right to left from the header's end.
+  list.Buttons = {}
+  local rightOf, rightOfPoint, gap = rightEdge, rightPoint == "TOPLEFT" and "TOPLEFT" or "TOPRIGHT", -20
+  for i = #((opts and opts.buttons) or {}), 1, -1 do
+    local spec = opts.buttons[i]
+    local b = UI.FlatButton(list, spec.text, "plain", 22)
+    b:SetPoint("TOPRIGHT", rightOf, rightOfPoint, gap, -6)
+    b:SetScript("OnClick", spec.onClick)
+    list.Buttons[i] = b
+    rightOf, rightOfPoint, gap = b, "TOPLEFT", -6
+  end
+
+  local dropdown = UI.ListFilterDropdown(list, opts and opts.menu)
+  dropdown:SetPoint("TOPRIGHT", rightOf, rightOfPoint, gap, -6)
+  list.FilterDropdown = dropdown
+
+  -- What is left (the mounts of the page not owned yet): a badge left of
+  -- Filter (of its Reset while that shows).
+  local count = UI.Badge(list)
+  list.Count = count
+
+  local search = CreateFrame("EditBox", nil, list, "SearchBoxTemplate")
+  UI.FlatSearchBox(search)
   search:SetAutoFocus(false)
+  search:SetSize(SEARCH_WIDTH, 20)
   search:HookScript("OnTextChanged", function(self)
     local text = self:GetText() or ""
     if text ~= list.searchText then
@@ -786,27 +458,45 @@ function UI.List(parent, getQuery, opts)
     end
   end)
   list.SearchBox = search
-  if dropdown then
-    -- The top row on the window's own fill, a thin rule underneath.
-    local rule = list:CreateTexture(nil, "BORDER")
-    rule:SetHeight(1)
-    rule:SetPoint("TOPLEFT", list, "TOPLEFT", 0, -(TOP_ROW - 2))
-    rule:SetPoint("TOPRIGHT", rightEdge, rightPoint, 0, -(TOP_ROW - 2))
-    rule:SetColorTexture(1, 1, 1, 0.1)
-    search:SetSize(SEARCH_WIDTH, 20)
-    search:SetPoint("TOPLEFT", list, "TOPLEFT", 10, -4)
-    dropdown:SetPoint("LEFT", search, "RIGHT", 8, 0)
-  else
-    UI.LayoutFilterPanel(list, search)
+
+  -- Back and the title.
+  local back
+  if opts and opts.back then
+    back = UI.FlatButton(list, L["Back"], "plain", 22)
+    back:SetPoint("TOPLEFT", list, "TOPLEFT", 4, -6)
+    back:SetScript("OnClick", opts.back)
+    list.Back = back
   end
+  local titleText = list:CreateFontString(nil, "OVERLAY", UI.Font("GameFontNormalLarge"))
+  if back then
+    titleText:SetPoint("LEFT", back, "RIGHT", 12, 0)
+  else
+    titleText:SetPoint("TOPLEFT", list, "TOPLEFT", 10, -9)
+  end
+  titleText:SetPoint("RIGHT", search, "LEFT", -12, 0)
+  titleText:SetJustifyH("LEFT")
+  titleText:SetWordWrap(false)
+  titleText:SetText(opts and opts.title or "")
+  UI.ApplyHeadingFont(titleText)
+  list.Title = titleText
+
+  -- The right side's places follow the Reset button's (it comes and goes).
+  function list.LayoutHeader()
+    local reset = dropdown.Reset
+    local anchor = (reset and reset:IsShown()) and reset or dropdown
+    count:ClearAllPoints()
+    if count:IsShown() then
+      count:SetPoint("RIGHT", anchor, "LEFT", -8, 0)
+      anchor = count
+    end
+    search:ClearAllPoints()
+    search:SetPoint("RIGHT", anchor, "LEFT", -10, 0)
+  end
+  list.LayoutHeader()
 
   -- Scroll list ----------------------------------------------------------------
   local scrollBox = CreateFrame("Frame", nil, list, "WowScrollBoxList")
-  if list.FilterPanel then
-    scrollBox:SetPoint("TOPLEFT", list.FilterPanel, "TOPRIGHT", 4, 0)
-  else
-    scrollBox:SetPoint("TOPLEFT", list, "TOPLEFT", 0, -TOP_ROW) -- full width
-  end
+  scrollBox:SetPoint("TOPLEFT", list, "TOPLEFT", 0, -TOP_ROW) -- full width
   if pane then
     scrollBox:SetPoint("BOTTOMRIGHT", pane, "BOTTOMLEFT", -20, 0)
   else
@@ -822,9 +512,9 @@ function UI.List(parent, getQuery, opts)
   local view = CreateScrollBoxListLinearView()
   view:SetElementExtentCalculator(function(_, elementData)
     if elementData.header then
-      return UI.HeaderHeight(elementData.depth == 2 and SUB_HEADER_HEIGHT or HEADER_HEIGHT)
+      return UI.HeaderHeight(elementData.depth == 2 and UI.SUB_HEADER_HEIGHT or UI.CARD_HEADER_HEIGHT)
     end
-    return UI.RowHeight(ROW_HEIGHT)
+    return UI.RowHeight(UI.MOUNT_ROW_HEIGHT)
   end)
   -- Clicking a header flips its saved collapse state and redraws in place.
   local function toggle(key)
@@ -842,13 +532,13 @@ function UI.List(parent, getQuery, opts)
   local function initListHeader(frame, data)
     frame.onToggle = toggle
     frame.onToggleAll = toggleAll
-    initHeader(frame, data)
+    UI.InitListHeader(frame, data)
   end
   view:SetElementFactory(function(factory, elementData)
     if elementData.header then
       factory("Frame", initListHeader)
     else
-      factory("Button", initRow)
+      factory("Button", UI.InitMountRow)
     end
   end)
   ScrollUtil.InitScrollBoxListWithScrollBar(scrollBox, scrollBar, view)
@@ -886,16 +576,12 @@ function UI.List(parent, getQuery, opts)
     query.sourceText = memoText(query.sourceText or ns.Game.MountSourceText)
     if query.showUnobtainable == nil then query.showUnobtainable = UI.ShowUnobtainable() end
 
-    local tab = query.view or query.tab
-    if tab ~= self.tab then
-      self.tab = tab
-      local dd = self.FilterDropdown
-      if dd and type(dd.GenerateMenu) == "function" then dd:GenerateMenu() end
-    end
-    if self.FilterPanel then UI.RefreshFilterPanel(self, filters, tab) end
-    if self.FilterDropdown and type(self.FilterDropdown.ValidateResetState) == "function" then
-      self.FilterDropdown:ValidateResetState()
-    end
+    -- The title in the headings' font, at the header size's current height.
+    self.Title:SetFontObject(UI.Font("GameFontNormalLarge"))
+    UI.ApplyHeadingFont(self.Title)
+    self.tab = query.view or query.tab
+    local tab = self.tab
+    if self.FilterDropdown.ValidateResetState then self.FilterDropdown:ValidateResetState() end
 
     local select = (opts and opts.select) or ns.Journal.Select
     if not (opts and opts.select) and UI.SearchMatches then
@@ -905,6 +591,13 @@ function UI.List(parent, getQuery, opts)
       query.match = UI.SearchMatches(ids, query.search, query.sourceText)
     end
     local selected = select((ns.Data and ns.Data.Mounts) or {}, query)
+    -- What is left on the page: its mounts not owned yet.
+    local left = 0
+    for _, e in ipairs(selected) do
+      if e.id and not query.isOwned(e.id) then left = left + 1 end
+    end
+    UI.SetBadge(self.Count, string.format(L["%d left"], left), left > 0 and "gold" or "green")
+    self.LayoutHeader()
     local rows = UI.ListRows(selected, query.isOwned, {
       bare = query.bare,
       headerSuffix = opts and opts.headerSuffix,
@@ -950,7 +643,7 @@ function UI.List(parent, getQuery, opts)
         if pane then
           row.selected = row.id == selectedID
           row.onSelect = self.selectHandler
-          row.tooltip = noTooltip -- the pane shows what the tooltip would
+          row.tooltip = UI.NoTooltip -- the pane shows what the tooltip would
         end
       end
     end

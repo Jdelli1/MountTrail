@@ -43,13 +43,6 @@ function CreateFont(name)
   _G[name] = font
   return font
 end
-MenuResponse = { Refresh = 2 }
-STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate = {
-  SetupMenu = function(self, generator) self.generator = generator end,
-  SetDefaultCallback = function(self, fn) self.defaultCallback = fn end,
-  SetIsDefaultCallback = function(self, fn) self.isDefaultCallback = fn end,
-  ValidateResetState = noop,
-}
 
 -- The Mount Journal's preview pieces, recording what they are asked.
 local scenes
@@ -151,7 +144,63 @@ describe("detail pane", function()
     local pane = ns.UI.CreateDetailPane(UIParent)
     pane:SetMount(1)
     eq(pane.Icon, nil)
-    eq({ pane.Name:GetPoint(1) }, { "LEFT", pane.Header, "LEFT", 0, 0 }, "the name starts the header")
+    eq({ pane.Name:GetPoint(1) }, { "TOPLEFT", pane.Header, "TOPLEFT", 0, 0 }, "the name starts the header")
+    eq({ pane.Sub:GetPoint(1) }, { "TOPLEFT", pane.Name, "BOTTOMLEFT", 0, -3 }, "its sub line under it")
+  end)
+
+  it("the info card: Status first, then label / value pairs in two columns; Waypoint goes there", function()
+    local ns = loadUI()
+    local pane = ns.UI.CreateDetailPane(UIParent)
+    ns.UI.DetailContent = function()
+      return { name = "Invincible", sub = "Wrath of the Lich King · Raid drop", owned = false, location = true,
+        facts = { { label = "Status", value = "Not collected" }, { label = "Lockout", value = "Available", kind = "open" } },
+        lines = { { double = true, left = "Drop chance", right = "1 in 100" } } }
+    end
+    local went
+    ns.UI.GoTo = function(id) went = id end
+    pane:SetMount(1)
+    eq(pane.Sub:GetText(), "Wrath of the Lich King · Raid drop")
+    eq(pane.lineStrings[1]:GetText(), "Status")
+    eq(pane.rightStrings[1]:GetText(), "Not collected")
+    eq(pane.rightStrings[2]:GetText(), "Available")
+    eq(pane.rightStrings[2].textColor, { 1, 0.82, 0.29 }, "an open lockout in gold")
+    eq(pane.lineStrings[3]:GetText(), "Drop chance", "the label")
+    eq(pane.lineStrings[3].textColor, { 0.64, 0.6, 0.53 }, "grey")
+    eq(pane.rightStrings[3]:GetText(), "1 in 100", "the value")
+    eq(pane.rightStrings[3].justifyH, "LEFT", "in its column, not pushed right")
+    pane.Waypoint:RunScript("OnClick", "LeftButton")
+    eq(went, 1)
+  end)
+
+  it("UI.DetailFacts: the design's rows from the mount's data and source text", function()
+    local ns = loadUI()
+    ns.Data.Mounts[1].chance = 100
+    ns.Game.MountSourceText = function() return "|cFFFFD200Drop:|r The Lich King|n|cFFFFD200Zone:|r Icecrown Citadel" end
+    ns.UI.IsTracked = function() return true end
+    ns.UI.MountAttempts = function() return { this = 3, total = 87 } end
+    ns.UI.LockoutStatus = function() return "available" end
+    local facts = ns.UI.DetailFacts(1)
+    local byLabel = {}
+    for _, f in ipairs(facts) do byLabel[f.label] = f end
+    eq(facts[1].label, "Status", "Status first")
+    eq(byLabel.Attempts.value:match("^87"), "87")
+    ok(byLabel.Attempts.value:find("would have it by now", 1, true), byLabel.Attempts.value)
+    eq(byLabel.Drop.value, "1 in 100")
+    eq(byLabel.From.value, "The Lich King")
+    eq(byLabel.Where.value, "Icecrown Citadel")
+    eq(byLabel.Lockout.value, "Available")
+    eq(byLabel.Lockout.kind, "open")
+    eq(byLabel.Cost, nil, "no cost: no row")
+  end)
+
+  it("the info sits on a card with a gold edge; no mount, no card", function()
+    local ns = loadUI()
+    local pane = ns.UI.CreateDetailPane(UIParent)
+    pane:SetMount(1)
+    ok(pane.InfoCard:IsShown(), "the card")
+    eq(pane.InfoCard.Edge.edges[1].color, { 0.2, 0.16, 0.09, 1 }, "its 1 px border")
+    pane:SetMount(nil)
+    ok(not pane.InfoCard:IsShown(), "folded: no card")
   end)
 
   it("selects the first mount when nothing is selected and shows it", function()
@@ -169,7 +218,10 @@ describe("detail pane", function()
     eq(pane.Scene.sceneID, 7)
     eq(pane.Scene.noRider, true, "rider hidden while the Mount Journal setting is off")
     eq(pane.Scene.fanfare, false, "no present box")
-    eq(pane.Waypoint, nil, "no buttons: the rows' clicks do it")
+    eq(pane.Waypoint.Text:GetText(), "Waypoint", "Waypoint along the bottom")
+    eq(select(1, pane.Waypoint:GetPoint(1)), "BOTTOMLEFT")
+    eq(select(2, pane.AddList:GetPoint(1)), pane.Waypoint, "+ List beside it")
+    eq(select(2, pane.Wowhead:GetPoint(1)), pane.AddList, "Wowhead after it")
   end)
 
   it("a plain left-click selects (nowhere to go: no waypoint); the hover says what clicks do", function()

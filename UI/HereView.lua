@@ -15,7 +15,7 @@ ns.UI = UI
 
 local view = {}
 
-local root, list, title
+local root, list
 local shownMap -- the map the list was built for
 
 -- UI.List's select: the zone's mounts, by source, then name; the search box
@@ -51,25 +51,21 @@ end
 function view.Build(parent)
   root = CreateFrame("Frame", nil, parent)
   root:SetAllPoints(parent)
-  local _
-  _, title = UI.PageHeader(root, false)
-  local pop = UI.PageButton(root, L["Pop out"])
-  pop:SetScript("OnClick", function() if UI.OpenPopout then UI.OpenPopout({ kind = "zonemounts" }) end end)
-  root.PopOut = pop
-  local holder = CreateFrame("Frame", nil, root)
-  holder:SetPoint("TOPLEFT", root, "TOPLEFT", 0, UI.PAGE_TOP)
-  holder:SetPoint("BOTTOMRIGHT", root, "BOTTOMRIGHT", 0, 0)
-  list = UI.List(holder, function()
+  list = UI.List(root, function()
     return { view = "here", sourceText = ns.Game.MountSourceText }
   end, {
     select = function(_, query)
       local zoneList, zone = {}, nil
       if UI.ZoneMounts then zoneList, zone = UI.ZoneMounts() end
-      title:SetText(string.format(L["Mounts in %s"], zone and zone.name or L["this zone"]))
+      list.Title:SetText(string.format(L["Mounts in %s"], zone and zone.name or L["this zone"]))
       return UI.HereSelect(zoneList, query)
     end,
+    buttons = { { text = L["Pop out"], onClick = function()
+      if UI.OpenPopout then UI.OpenPopout({ kind = "zonemounts" }) end
+    end } },
   })
   root.List = list
+  root.PopOut = list.Buttons[1]
   return root
 end
 

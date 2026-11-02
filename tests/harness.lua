@@ -74,7 +74,7 @@ end
 COMPANIONS = {
   ["UI/Frame.lua"] = { "UI/Widgets.lua", "UI/Style.lua", "UI/Nav.lua" },
   ["UI/Popouts.lua"] = { "UI/Style.lua", "UI/PopoutRows.lua" },
-  ["UI/List.lua"] = { "UI/ListRows.lua", "UI/ListFilter.lua", "UI/SourceText.lua", "UI/Search.lua" },
+  ["UI/List.lua"] = { "UI/ListItems.lua", "UI/ListRows.lua", "UI/ListFilter.lua", "UI/SourceText.lua", "UI/Search.lua" },
   ["UI/ChecklistView.lua"] = { "UI/ChecklistStatus.lua" },
 }
 

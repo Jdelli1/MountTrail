@@ -47,15 +47,7 @@ function CreateFont(name)
   _G[name] = font
   return font
 end
-MenuResponse = { Refresh = 2 }
-STUB_TEMPLATE_METHODS.WowStyle1FilterDropdownTemplate = {
-  SetupMenu = function(self, generator) self.generator = generator end,
-  SetDefaultCallback = function(self, fn) self.defaultCallback = fn end,
-  SetIsDefaultCallback = function(self, fn) self.isDefaultCallback = fn end,
-  ValidateResetState = noop,
-}
 
-local CHECK_ATLAS = "activities-icon-checkmark"
 
 -- `owned(id)` decides ownership (default: every third mount).
 local function loadUI(owned)
@@ -94,36 +86,47 @@ end
 local function backOf(page) return page.Back end
 
 describe("journal home", function()
-  it("a summary strip, then Expansions and By source rows on the left and the Today column on the right", function()
+  it("a summary card, then Expansions on the left, By source and Nearby on the right", function()
     local ns = loadUI()
     local home = openHome(ns)
     local summary = home.Summary
-    eq(summary.Title:GetText(), "Mount Collection")
-    eq(summary.Title.template, ns.UI.Font("GameFontNormalLarge"))
-    eq(summary.Totals.template, ns.UI.Font("GameFontHighlight"))
+    eq(summary.Totals:GetText(), string.format("%d / %d", summary.have, summary.total), "the total, large")
+    eq(summary.Totals.template, ns.UI.Font("GameFontNormalHuge"))
+    eq(summary.Title:GetText(), string.format("Mounts collected · %d%%", ns.UI.HomePercent(summary.have, summary.total)))
     eq(summary.Bar.height, 12, "a thick 12 px total bar")
-    eq(summary.Bar:GetNumPoints(), 2, "full width: anchored left and right")
-    eq(summary.Bar.barColor, ns.UI.ProgressColor(summary.have, summary.total), "its percent's colour")
+    eq(summary.Bar:GetNumPoints(), 2, "between the total and the search box")
+    eq(summary.Bar.barColor, { 1, 0.82, 0, 1 }, "gold")
+    eq(home.ExpHeading.Note:GetText(), "Collected", "a grey note on the header's right")
     eq(home.ExpHeading.Text:GetText(), "Expansions")
     eq(home.ExpHeading.Text.textColor, { 1, 0.82, 0 }, "a pop-out header: gold by default")
-    eq(home.ExpHeading.Rule.color, { 1, 0.82, 0, 0.35 })
+    eq(home.ExpHeading.Rule.color, { 0.15, 0.13, 0.07, 1 }, "a faint rule inside the card")
+    ok(home.ExpCard.Fill:IsShown() and home.ExpCard.Edge:IsShown(), "Expansions on a card")
+    ok(home.SourceCard.Fill:IsShown(), "By source on a card")
+    ok(summary.Card.Edge:IsShown(), "the summary on a card")
     eq(#home.Expansions, #ns.Data.Expansions)
     for i, row in ipairs(home.Expansions) do
       eq(row.kind, "Button", "row " .. i)
       eq(row.Bar.height, 6, "slim bar")
       eq(row.Count.template, ns.UI.Font("GameFontHighlight"), "readable, not the small font")
-      eq(row.Percent.template, ns.UI.Font("GameFontDisable"))
+      eq(row.Percent, nil, "no percent: the count says it")
       eq(row.Name:GetText(), ns.Data.Expansions[i])
+      local c = ns.UI.EXPANSION_COLORS[ns.Data.Expansions[i]]
+      if c then eq(row.Bar.barColor, { c[1], c[2], c[3], 1 }, "the bar in the expansion's colour") end
       eq(row.Stripe:IsShown(), i % 2 == 0, "striped every other row")
     end
     eq(home.SourceHeading.Text:GetText(), "By source")
     eq(#home.Sources, #ns.Browse.CATEGORIES, "a row per Browse source, not Misc")
     eq(home.Sources[1].Name:GetText(), "Drops")
-    ok(home.Side and home.Side.TodayHeading:IsShown(), "the right column")
-    eq({ home.Side:GetPoint(1) }, { "TOPRIGHT", home, "TOPRIGHT", -12, -58 })
+    ok(home.Side and home.Side.NearbyHeading:IsShown(), "the right column: Nearby")
+    eq(home.Side.TodayHeading, nil, "no Today")
+    eq(select(2, home.SourceHeading:GetPoint(1)), home.Side, "By source on the right")
+    eq(select(2, home.ExpHeading:GetPoint(1)), home.Left, "Expansions on the left")
+    eq({ home.Side:GetPoint(1) }, { "TOPRIGHT", home.MainContent, "TOPRIGHT", 0, 0 }, "inside the one scrolling page")
+    ok(select(5, home.Side.NearbyHeading:GetPoint(1)) < select(5, home.SourceHeading:GetPoint(1)) - 100,
+      "Nearby under By source")
   end)
 
-  it("expansion counts and percents match their text", function()
+  it("expansion counts match their text", function()
     local ns = loadUI()
     local home = openHome(ns)
     local have, total = 0, 0
@@ -133,7 +136,6 @@ describe("journal home", function()
       eq(tonumber(h), row.have)
       eq(tonumber(t), row.total)
       have, total = have + row.have, total + row.total
-      eq(row.Percent:GetText(), ns.UI.HomePercent(row.have, row.total) .. "%")
     end
     ok(total > 0 and have > 0 and have < total, "a partial collection")
   end)
@@ -154,7 +156,8 @@ describe("journal home", function()
     local home = openHome(ns)
     local s = home.Summary
     eq({ s.have, s.total }, { 3, 7 }, "unobtainable unowned and other-faction mounts left out")
-    eq(s.Totals:GetText(), string.format("%d / %d collected  ·  %d%%", 3, 7, ns.UI.HomePercent(3, 7)))
+    eq(s.Totals:GetText(), "3 / 7")
+    eq(s.Title:GetText(), string.format("Mounts collected · %d%%", ns.UI.HomePercent(3, 7)))
     eq(s.Bar.max, 7)
     eq(s.Bar.value, 3)
     local want = {
@@ -190,27 +193,20 @@ describe("journal home", function()
     eq(P(5, 5), 100)
   end)
 
-  it("complete rows: blue bar and the check; incomplete: their percent's colour, no check", function()
+  it("a complete row's count turns green; others stay light", function()
     local ns = loadUI(function() return true end)
-    STUB_ATLASES[CHECK_ATLAS] = true -- after loadUI: reset_ui_stub clears atlases
     local home = openHome(ns)
     local seen = 0
     for _, row in ipairs(home.Expansions) do
       if row.total > 0 then
         seen = seen + 1
-        eq(row.Bar.barColor, { 0.25, 0.6, 1, 1 }, "blue when complete")
-        ok(row.Check:IsShown(), "check shown")
-        eq(row.Check.atlas, CHECK_ATLAS)
+        eq(row.Count.textColor, { 0.56, 0.88, 0.56 }, "green when complete")
       end
     end
     ok(seen > 0, "some expansion has mounts")
-    STUB_ATLASES[CHECK_ATLAS] = nil
     local ns2 = loadUI()
     for _, row in ipairs(openHome(ns2).Expansions) do
-      if row.have < row.total then
-        eq(row.Bar.barColor, ns2.UI.ProgressColor(row.have, row.total))
-        ok(not row.Check:IsShown(), "no check")
-      end
+      if row.have < row.total then eq(row.Count.textColor, { 0.79, 0.75, 0.68 }) end
     end
   end)
 
@@ -226,32 +222,6 @@ describe("journal home", function()
     ok(home:IsShown() and not listPage:IsShown(), "Back returns home")
   end)
 
-  it("Today: the lockouts left per group and your lists with lockouts open; a click opens them", function()
-    local ns = loadUI()
-    local built = { daily = {}, weekly = {}, camp = {} }
-    ns.UI.ChecklistLeft = function() return { daily = 4, weekly = 0, camp = 2 } end
-    local rows = ns.UI.HomeToday(built, nil, {
-      { name = "Mine", open = 3, source = { kind = "list", list = 1 } },
-      { name = "Done", open = 0, source = { kind = "list", list = 2 } },
-    })
-    eq(#rows, 4, "three groups and the list with something open")
-    eq({ rows[1].label, rows[1].value, rows[1].open }, { "Daily lockouts", "4 left", true })
-    eq({ rows[2].value, rows[2].open }, { "0 left", false })
-    eq({ rows[4].label, rows[4].value }, { "Mine", "3 left" })
-    local clicked
-    ns.UI.NavClick = function(e) clicked = e end
-    rows[1].click()
-    eq(clicked, { show = "daily" })
-    rows[4].click()
-    eq(clicked.source, { kind = "list", list = 1 })
-    -- On the page.
-    local home = openHome(ns)
-    local today = home.Side.Today
-    eq(today[1].Label:GetText(), "Daily lockouts")
-    eq(today[1].Value:GetText(), "|cff40c0404 left|r", "green while some are left")
-    eq(today[2].Value:GetText(), "|cff9d9d9d0 left|r", "grey when none")
-  end)
-
   it("Nearby: the first mounts of the zone, kept per zone for a minute; the last line opens Current Zone", function()
     local ns = loadUI()
     local calls = 0
@@ -262,7 +232,7 @@ describe("journal home", function()
     ns.Zone.Key = function() return "107" end
     local now = 1700000000
     ns.Game.Now = function() return now end
-    ns.Game.MountInfo = function() return nil end
+    ns.Game.MountInfo = function(id) return nil, 7000 + id end
     local home = openHome(ns)
     local side = home.Side
     eq(calls, 1)
@@ -270,8 +240,10 @@ describe("journal home", function()
     for _, b in ipairs(side.Nearby) do if b:IsShown() then shown = shown + 1 end end
     eq(shown, 5, "the first five")
     eq(side.Nearby[1].Name:GetText(), "Mount 1")
-    eq(side.Nearby[1].Tag.exp, ns.Data.Expansions[2], "its expansion tag")
-    eq(side.NearbyMore.Text:GetText(), "|cff9d9d9d7 in Nagrand: open Current Zone|r")
+    eq(side.Nearby[1].Icon.texture, 7001, "its icon")
+    ok(side.Nearby[1].IconBox:IsShown(), "boxed")
+    ok(side.Card.Fill:IsShown(), "Nearby on a card")
+    eq(side.NearbyMore.Text:GetText(), "|cff9d9d9d7 left in Nagrand|r")
     ns.Refresh()
     eq(calls, 1, "same zone within a minute: kept")
     now = now + 61
@@ -284,8 +256,16 @@ describe("journal home", function()
     ns.UI.GoTo = function(id) went = id end
     side.Nearby[2]:RunScript("OnClick", "LeftButton")
     eq(went, 2, "a click is the waypoint")
-    side.NearbyMore:RunScript("OnClick", "LeftButton")
-    eq(ns.UI.CurrentTab(), "here", "the last line opens Current Zone")
+    local hint
+    ns.UI.ShowHint = function(_, title, text) hint = { title, text } end
+    side.NearbyOpen:RunScript("OnEnter")
+    eq(hint, { "Current Zone", "Click: open. Right-click: pop out" })
+    local popped
+    ns.UI.ToggleZoneMountsPopout = function() popped = true end
+    side.NearbyOpen:RunScript("OnClick", "RightButton")
+    ok(popped, "right-click pops Current Zone out")
+    side.NearbyOpen:RunScript("OnClick", "LeftButton")
+    eq(ns.UI.CurrentTab(), "here", "a click on the heading opens Current Zone")
   end)
 
   it("typing in the home search box opens the search page with grouped results; Back returns", function()
@@ -329,26 +309,13 @@ describe("journal home", function()
     -- Window 900 x 560: the navigation column (6 + NAV_WIDTH + 4) on the
     -- left, 6 px right; 4 px inside.
     local contentW = 900 - (6 + ns.UI.NAV_WIDTH + 4) - 6 - 8
-    eq(home.Main.kind, "ScrollFrame", "the left column scrolls")
-    eq(home.MainContent.height, home.mainHeight, "its content as tall as its rows")
-    local leftW = contentW - 2 * G.left - G.sideW - G.gap
-    -- tag 62, name 140, gap 8, a 60 px bar at least, check 6 + 14 + 4, count 80, gap 6, percent 40, 4.
-    ok(leftW >= 62 + 140 + 8 + 60 + 6 + 14 + 4 + 80 + 6 + 40 + 4, "room for tag, name, bar, count and percent: " .. leftW)
-    eq(select(4, home.Expansions[1].Name:GetPoint(1)), 4 + 62, "names start past the widest tag (CLASSIC)")
+    eq(home.Main.kind, "ScrollFrame", "the page scrolls")
+    eq(home.MainContent.height, home.mainHeight, "its content as tall as the taller column")
+    local colW = (contentW - 2 * G.left - G.gap) / 2
+    -- The card's insets 10 + 6, name 4 + 128, gap 8, a 60 px bar at least,
+    -- gap 8, count 70, 4.
+    ok(colW >= 16 + 132 + 8 + 60 + 8 + 70 + 4, "room for name, bar and count in half the page: " .. colW)
+    eq(select(4, home.Expansions[1].Name:GetPoint(1)), 4, "no tag column: names start at the row's edge")
   end)
 end)
 
-describe("UI.ProgressColor", function()
-  it("red under 25 %, yellow under 75 %, green below complete, blue when complete", function()
-    local ns = loadUI()
-    local P = ns.UI.ProgressColor
-    eq(P(0, 10), { 0.85, 0.22, 0.2, 1 })
-    eq(P(2, 10), { 0.85, 0.22, 0.2, 1 }, "20 %")
-    eq(P(25, 100), { 1, 0.82, 0, 1 }, "25 %: yellow")
-    eq(P(74, 100), { 1, 0.82, 0, 1 })
-    eq(P(75, 100), { 0.25, 0.78, 0.35, 1 }, "75 %: green")
-    eq(P(99, 100), { 0.25, 0.78, 0.35, 1 })
-    eq(P(100, 100), { 0.25, 0.6, 1, 1 }, "complete: blue")
-    eq(P(0, 0), { 0.85, 0.22, 0.2, 1 }, "nothing to collect")
-  end)
-end)

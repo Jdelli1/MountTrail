@@ -210,6 +210,22 @@ describe("lockouts", function()
     end)
   end)
 
+  describe("several kill flags (quests)", function()
+    it("done once every flag is; QuestsDone counts them", function()
+      local L = load().Lockouts
+      local spec = { quests = { 1, 2, 3, 4 }, reset = "daily" }
+      local done = {}
+      local function isDone(id) return done[id] == true end
+      eq(L.State(spec, {}, isDone), "open")
+      done[1], done[3] = true, true
+      eq({ L.QuestsDone(spec, isDone) }, { 2, 4 })
+      eq(L.State(spec, {}, isDone), "open", "two of four: still open")
+      done[2], done[4] = true, true
+      eq(L.State(spec, {}, isDone), "done", "all four looted")
+      eq({ L.QuestsDone({ quest = 1 }, isDone) }, { 0, 0 }, "other specs: nothing")
+    end)
+  end)
+
   describe("GroupsDone", function()
     it("numbers are their own group, tables are any-of groups", function()
       local L = load().Lockouts

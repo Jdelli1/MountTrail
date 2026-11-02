@@ -44,6 +44,9 @@ local function tracking()
     if spec and spec.quest and not seenQuest[spec.quest] then
       seenQuest[spec.quest] = true; quests[#quests + 1] = spec.quest
     end
+    for _, q in ipairs(spec and type(spec.quests) == "table" and spec.quests or {}) do
+      if not seenQuest[q] then seenQuest[q] = true; quests[#quests + 1] = q end
+    end
     if spec and spec.lfg and not seenLfg[spec.lfg] then
       seenLfg[spec.lfg] = true; lfg[#lfg + 1] = spec.lfg
     end

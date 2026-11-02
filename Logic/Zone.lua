@@ -420,8 +420,12 @@ end
 
 -- The Journal's gate (Journal.Gate: known to this client, the player's
 -- faction, obtainable or owned) as a ctx.gate: fn(id, m) -> owned or nil.
-function Zone.Gate(isOwned, exists, faction)
+-- active (optional, {[holidayKey]=true}, Game.ActiveHolidays): a holiday's
+-- mounts (tab "holiday", section one of Data.Holidays) only while it is on.
+function Zone.Gate(isOwned, exists, faction, active)
+  local holidays = ns.Data and ns.Data.Holidays or {}
   return function(id, m)
+    if active and m.tab == "holiday" and holidays[m.section] and not active[m.section] then return nil end
     return ns.Journal.Gate(id, m, isOwned, exists, faction)
   end
 end

@@ -56,6 +56,7 @@ UI\Style.lua
 UI\Nav.lua
 UI\Tooltip.lua
 UI\List.lua
+UI\ListItems.lua
 UI\ListRows.lua
 UI\ListFilter.lua
 UI\SourceText.lua

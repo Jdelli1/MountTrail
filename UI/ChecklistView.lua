@@ -2,8 +2,7 @@ local ADDON, ns = ...
 
 -- The Checklist tab (F16: it replaced the retired Route tab): this
 -- character's daily and weekly lockouts (Logic/Checklist.lua) under a flat
--- header (character name, reset timers, the Oregon-Trail flavour line with
--- the lockouts left, and a Filter button top right). The list has two
+-- header (character name, reset timers and a Filter button top right). The list has two
 -- collapsible headers ("Daily · resets in ..." with done/total, F4's
 -- header rows, collapse state in ns.db.global.collapsed under
 -- "checklist|daily" / "checklist|weekly"), each split into collapsible
@@ -32,7 +31,7 @@ local ADDON, ns = ...
 -- left-click selects; modifier clicks and the tick boxes keep their
 -- actions; no hover tooltip, no location icon). The header strip: the
 -- character's name, the reset timers ("Daily reset in 9 hr ..."),
--- the flavour line, then chips All / Daily / Weekly / Rare Spawns (with
+-- then chips All / Daily / Weekly / Rare Spawns (with
 -- what is left) that show one group or all (ns.db.char.checklistShow).
 -- Right-clicking a header pops that set out as its own window
 -- (UI.ChecklistPopout / UI.OpenPopout, UI/Popouts.lua); hovering says so.
@@ -107,7 +106,7 @@ function UI.ForgetChecklistBuild()
 end
 
 -- Lockouts this character has left at `now` in the categories its Filter
--- menu shows (the header's flavour line and the minimap tooltip).
+-- menu shows (the minimap tooltip).
 function UI.ChecklistRemaining(now)
   local char = ns.db and ns.db.char
   local filters = char and type(char.checklistFilters) == "table" and char.checklistFilters or nil
@@ -358,8 +357,8 @@ local CHECK_SIZE = 18
 local CHECK_LEFT = 6
 local ICON_LEFT = CHECK_LEFT + CHECK_SIZE + 4 -- where a row's expansion tag starts
 local SUB_OFFSET = 16 -- per header level under the reset header (UI/List.lua: sub-header indicator 22 vs 6, +16 per level)
-local TOP_HEIGHT = 96 -- the tab's own header: name, summary, flavour line, chips
-local HEADER_HEIGHT = 24 -- UI/List.lua section headers
+local TOP_HEIGHT = 74 -- the tab's own header: name, the reset timers, the tabs
+local HEADER_HEIGHT = 30 -- UI/List.lua section headers (a card's top, its gap included)
 local SUB_HEADER_HEIGHT = 20 -- UI/List.lua sub-headers
 
 local view = {}
@@ -419,11 +418,9 @@ function view.Filters()
 end
 
 -- The Filter button for the checklist (UI.CreateFilterDropdown) on
--- `parent` (the tab's header), or nil on clients without the 11.x dropdown.
+-- `parent` (the tab's header).
 function view.CreateFilterDropdown(parent)
   return UI.CreateFilterDropdown(parent, {
-    -- /mtrail debug: without the dropdown there is no checklist filter.
-    fallbackName = "checklist filter (all categories shown)",
     items = function() return UI.ChecklistFilterItems(view.Filters()) end,
     onChange = function(kind, value)
       local filters = view.Filters()
@@ -482,9 +479,7 @@ local function initRow(row, data)
   data.left = ICON_LEFT + inset
   UI.InitMountRow(row, data)
   if not row.Check then
-    local check = CreateFrame("CheckButton", nil, row,
-      UI.TemplateChain("MinimalCheckboxTemplate", "SettingsCheckboxTemplate", "UICheckButtonTemplate"))
-    check:SetSize(CHECK_SIZE, CHECK_SIZE)
+    local check = UI.FlatCheckBox(row, CHECK_SIZE)
     check:SetScript("OnClick", onTick)
     if check.RegisterForClicks then check:RegisterForClicks("LeftButtonUp", "RightButtonUp") end
     row.Check = check
@@ -637,7 +632,7 @@ function UI.ChecklistSummary(untilDaily, untilWeekly)
     .. "    " .. string.format(L["Weekly reset in %s"], UI.FormatDuration(untilWeekly))
 end
 
--- The flat header strip: name, reset timers, flavour line, and the Filter
+-- The flat header strip: name, reset timers, and the Filter
 -- button in the top right (none on clients without the 11.x dropdown: every
 -- category shown).
 local function buildHeader(parent)
@@ -669,17 +664,9 @@ local function buildHeader(parent)
   resets:SetJustifyH("LEFT")
   top.Resets = resets
 
-  local flavour = top:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlight"))
-  flavour:SetPoint("TOPLEFT", resets, "BOTTOMLEFT", 0, -8)
-  flavour:SetPoint("TOPRIGHT", resets, "BOTTOMRIGHT", 0, -8)
-  flavour:SetJustifyH("LEFT")
-  top.Flavour = flavour
-
   local filter = view.CreateFilterDropdown(top)
-  if filter then
-    filter:SetPoint("TOPRIGHT", top, "TOPRIGHT", -8, -4)
-    top.ChecklistFilter = filter
-  end
+  filter:SetPoint("TOPRIGHT", top, "TOPRIGHT", -8, -4)
+  top.ChecklistFilter = filter
 
   -- Tabs (flat text on the rule, the shown one gold over a gold line): All /
   -- Daily / Weekly / Rare Spawns.
@@ -889,7 +876,7 @@ function view.Refresh()
       -- The boss / instance on the right; the light blue status (an event
       -- rare's, a lockout's difficulties) beside the name, where there is room.
       row.desc = UI.ChecklistDescription(e, sourceText(e.id))
-      local status = row.status or (not e.done and UI.LockoutProgressText(e.spec, snap)) or nil
+      local status = row.status or (not e.done and UI.LockoutProgressText(e.spec, snap, Game.IsQuestDone)) or nil
       row.suffix = status and UI.ChecklistStatusDesc("", status) or nil
       if row.camp then
         row.desc = UI.ChecklistCampDesc(row.desc, UI.CampCheckedText(campStore, e.key, now))
@@ -933,10 +920,8 @@ function view.Refresh()
   local left = UI.ChecklistLeft(built, filters)
   header.Resets:SetText(UI.ChecklistSummary(untilDaily, untilWeekly))
   paintChips(left, show)
-  -- Lockouts left in the categories the Filter menu shows.
-  header.Flavour:SetText(UI.RouteFlavour(ns.Checklist.Remaining(built, filters), name))
   local filter = header.ChecklistFilter
-  if filter and type(filter.ValidateResetState) == "function" then filter:ValidateResetState() end
+  if filter.ValidateResetState then filter:ValidateResetState() end
   return built
 end
 

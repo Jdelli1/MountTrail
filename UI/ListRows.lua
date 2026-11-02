@@ -426,10 +426,23 @@ end
 -- calendar now) paint the name and badge in the game's GREEN_FONT_COLOR.
 local ACTIVE_GREEN = "|cff19ff19"
 local STATUS_BLUE = "|cff71d5ff"
-function UI.HeaderText(row)
+-- A header's count alone, for the right end of a card's header ("1 / 4",
+-- "3 left"), or nil.
+function UI.HeaderCount(row)
+  if row.total and row.reset then return string.format(L["%d left"], row.total - (row.owned or 0)) end
+  if row.total then return (row.owned or 0) .. " / " .. row.total end
+  if row.left then return string.format(L["%d left"], row.left) end
+  return nil
+end
+
+-- noCount: leave the count out (a card's header shows it on its right:
+-- UI.HeaderCount).
+function UI.HeaderText(row, noCount)
   local text = row.text or ""
   if row.active then text = ACTIVE_GREEN .. text .. "|r" end
-  if row.total and row.reset then
+  if noCount then
+    -- The count goes on the header's right.
+  elseif row.total and row.reset then
     -- A Lockouts header counts what is left, as the pop-outs do.
     text = text .. "  " .. GREY .. "(" .. string.format(L["%d left"], row.total - (row.owned or 0)) .. ")|r"
   elseif row.total then

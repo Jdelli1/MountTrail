@@ -14,7 +14,8 @@ ns.UI = UI
 
 -- The navigation column's fixed entries, top to bottom: views (key), an
 -- action (Alts: its own window), section headings. Badges come from
--- UI.NavBadge. The lists follow under "My lists" (UI.NavListEntries).
+-- UI.NavBadge. The lists follow under "Lists" (UI.NavListEntries): the
+-- built-in ones first, then the player's own.
 UI.NAV = {
   { key = "journal", label = "Home" },
   { key = "checklist", label = "Lockouts" },
@@ -38,7 +39,7 @@ function UI.NavBrowseEntries(categories)
 end
 UI.NAV_WIDTH = 176
 -- The collapse keys of the My lists and Quick lists sections.
-UI.NAV_LISTS_KEY, UI.NAV_QUICK_KEY = "nav|lists", "nav|quick"
+UI.NAV_LISTS_KEY = "nav|lists"
 UI.NAV_BROWSE_KEY = "nav|browse"
 -- A list entry's favourite star (the Auction House's: filled / hollow). A
 -- favourite (ns.db.global.navFavorites[entry key]) is pinned to the top of
@@ -124,7 +125,8 @@ function UI.NavDropIndex(rects, y)
   return #rects
 end
 
--- Whether a section is shown (Options: "Show My lists" / "Show Quick lists").
+-- Whether a part of Lists is shown (Options: "Show your lists" / "Show
+-- built-in lists"): "lists" the player's own, "quick" the built-in ones.
 function UI.NavSectionShown(section)
   local global = ns.db and ns.db.global
   local saved = global and type(global.settings) == "table" and global.settings or {}
@@ -164,16 +166,19 @@ function UI.NavFontBonus()
 end
 
 -- `fs` in game font `name` (its colour), the game's own size plus the
--- "Left column" setting (UI.NavFontBonus) only: the column follows that
+-- "Navigation text" setting (UI.NavFontBonus) only: the column follows that
 -- slider alone, not the Headers / Mount names ones (UI.Font's copies). The
 -- size comes from the game font itself, never from `fs`: a font string keeps
 -- a size set with SetFont through SetFontObject, so reading it back would
 -- grow the text on every repaint.
-local function navFont(fs, name)
+-- `path` (optional): the font file instead of the object's own (the header
+-- or body font, Options; nil keeps the game's).
+local function navFont(fs, name, path)
   fs:SetFontObject(name)
   local fo = _G[name]
   if not (fs.SetFont and type(fo) == "table" and type(fo.GetFont) == "function") then return end
-  local path, size, flags = fo:GetFont()
+  local own, size, flags = fo:GetFont()
+  path = path or own
   if path and size then fs:SetFont(path, size + UI.NavFontBonus(), flags or "") end
 end
 local NAV_GOLD = { 1, 0.82, 0 }
@@ -185,7 +190,7 @@ local function headerColor()
   return style and style.header or NAV_GOLD
 end
 
--- The entries under "My lists": each custom list ({ list = id }), then each
+-- The entries under "Lists": each custom list ({ list = id }), then each
 -- quick list ({ quick = key, builtIn = true }) -> { { key = "list:<id>" |
 -- "quick:<key>", label =, source = (UI.OpenPopout / UI.ShowListPage source),
 -- builtIn = } }.
@@ -267,9 +272,10 @@ local function navButton(parent)
   local b = CreateFrame("Button", nil, parent)
   b:SetHeight(NAV_ROW)
   b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+  -- The entry you are on: a gold-tinted band (its name turns gold too).
   local sel = b:CreateTexture(nil, "BACKGROUND")
   sel:SetAllPoints(b)
-  sel:SetColorTexture(1, 1, 1, 0.07)
+  sel:SetColorTexture(1, 0.82, 0, 0.12)
   sel:Hide()
   b.Selected = sel
   local hl = b:CreateTexture(nil, "HIGHLIGHT")
@@ -295,6 +301,13 @@ local function navButton(parent)
   local badge = b:CreateFontString(nil, "OVERLAY", UI.Font("GameFontDisableSmall"))
   badge:SetPoint("RIGHT", b, "RIGHT", -8, 0)
   b.Badge = badge
+  -- The count sits on a small dark box, shown while it has text.
+  local box = b:CreateTexture(nil, "BORDER")
+  box:SetPoint("TOPLEFT", badge, "TOPLEFT", -5, 3)
+  box:SetPoint("BOTTOMRIGHT", badge, "BOTTOMRIGHT", 5, -3)
+  box:SetColorTexture(1, 1, 1, 0.07)
+  box:Hide()
+  b.BadgeBox = box
   local text = b:CreateFontString(nil, "OVERLAY", UI.Font("GameFontHighlight"))
   text:SetPoint("LEFT", b, "LEFT", 12, 0)
   text:SetPoint("RIGHT", badge, "LEFT", -4, 0)
@@ -454,7 +467,7 @@ end
 
 -- A section heading, as a pop-out's group header: "- Browse" in the header
 -- colour over a thin rule of it; a collapsible one (`key`) flips on click
--- ("+" while collapsed).
+-- ("+" while collapsed); the pointer over one lights it, as the lists' rows.
 local function navHeading(parent)
   local h = CreateFrame("Button", nil, parent)
   h:SetHeight(NAV_HEADING)
@@ -467,16 +480,20 @@ local function navHeading(parent)
   rule:SetPoint("BOTTOMLEFT", h, "BOTTOMLEFT", 8, 2)
   rule:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", -8, 2)
   h.Rule = rule
+  local hover = h:CreateTexture(nil, "BACKGROUND")
+  hover:SetPoint("TOPLEFT", h, "TOPLEFT", 6, 0)
+  hover:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", -6, 2)
+  hover:SetColorTexture(1, 1, 1, 0.07)
+  hover:Hide()
+  h.Hover = hover
   h:SetScript("OnClick", function(self)
     if not self.key then return end
     local store = navCollapsed()
     store[self.key] = (not store[self.key]) or nil
     UI.RefreshNav()
   end)
-  h:SetScript("OnEnter", function(self)
-    if self.key then UI.ShowHint(self, L["Click: collapse or expand"]) end
-  end)
-  h:SetScript("OnLeave", function(self) UI.HideHint(self) end)
+  h:SetScript("OnEnter", function(self) self.Hover:SetShown(self.key ~= nil) end)
+  h:SetScript("OnLeave", function(self) self.Hover:Hide() end)
   return h
 end
 
@@ -486,9 +503,11 @@ local function paintHeading(h, text, key)
   h.key = key
   local collapsed = key ~= nil and navCollapsed()[key] == true
   h.collapsed = key ~= nil and collapsed or nil
-  navFont(h.Text, "GameFontNormalSmall")
+  navFont(h.Text, "GameFontNormalSmall", UI.HeadingFont and UI.HeadingFont())
   local c = headerColor()
   h.Text:SetTextColor(c[1], c[2], c[3])
+  -- Section labels in capitals, as the design's small gold caps.
+  text = string.upper(text)
   h.Text:SetText(key and ((collapsed and "+ " or "- ") .. text) or text)
   h.Rule:SetColorTexture(c[1], c[2], c[3], 0.35)
   h:EnableMouse(key ~= nil)
@@ -590,7 +609,7 @@ function UI.RefreshNav()
   local y, nb, nh = 0, 0, 0
   for k in pairs(sectionButtons) do sectionButtons[k] = nil end
   -- -> whether the section is collapsed (only for a collapsible `key`).
-  -- withAdd: true for My lists' +, or the + button to place.
+  -- withAdd: true for Lists' +, or the + button to place.
   local function heading(text, withAdd, key)
     nh = nh + 1
     local h = nav.Headings[nh] or navHeading(nav.Content)
@@ -628,24 +647,28 @@ function UI.RefreshNav()
       b.Star.favorite = UI.IsNavFavorite(e.key)
       b.Star.Icon:SetAtlas(b.Star.favorite and UI.STAR_ON or UI.STAR_OFF)
       b.Star.Icon:SetAlpha(b.Star.favorite and 1 or 0.5)
-      b.Badge:SetPoint("RIGHT", b.Star, "LEFT", -4, 0)
+      -- Clear of the star: the count's box reaches 5 px past its text.
+      b.Badge:SetPoint("RIGHT", b.Star, "LEFT", -12, 0)
     else
       b.Badge:SetPoint("RIGHT", b, "RIGHT", -8, 0)
     end
     b.Text:SetText(label)
+    b.Text:SetPoint("RIGHT", b.Badge, "LEFT", -10, 0) -- clear of the count's box
     local badge, green = UI.NavBadge(e, built)
     b.Badge:SetText(badge and ((green and "|cff40c040" or "") .. badge .. (green and "|r" or "")) or "")
+    b.BadgeBox:SetShown(badge ~= nil and badge ~= "")
     local on = (e.key ~= nil and e.key == selected)
     b.Selected:SetShown(on)
-    navFont(b.Text, on and "GameFontNormal" or "GameFontHighlight")
-    navFont(b.Badge, "GameFontDisableSmall")
+    local body = UI.BodyFont and UI.BodyFont()
+    navFont(b.Text, on and "GameFontNormal" or "GameFontHighlight", body)
+    navFont(b.Badge, "GameFontDisableSmall", body)
     b.selected = on
     if e.section then
       sectionButtons[e.section] = sectionButtons[e.section] or {}
       local list = sectionButtons[e.section]
       list[#list + 1] = b
     end
-    -- Taller with the "Left column" size only.
+    -- Taller with the "Navigation text" size only.
     local rowH = NAV_ROW + math.max(0, UI.NavFontBonus() - 2)
     b:SetHeight(rowH)
     b:Show()
@@ -666,7 +689,8 @@ function UI.RefreshNav()
   if not heading(L["Browse"], false, UI.NAV_BROWSE_KEY) then
     for _, e in ipairs(browse) do entry(e, true) end
   end
-  -- My lists (with +) and Quick lists: each its own collapsible section.
+  -- Lists (with +), one collapsible section: the built-in lists first (each
+  -- always first), then the player's own.
   y = y + 4
   local store = UI.ListsDB and UI.ListsDB()
   local lists = UI.NavListEntries(store, ns.QuickLists and ns.QuickLists.LISTS)
@@ -679,21 +703,21 @@ function UI.RefreshNav()
   record("lists", mine)
   record("quick", quick)
   local showMine = UI.NavSectionShown("lists")
-  local mineCollapsed = showMine and heading(L["My lists"], true, UI.NAV_LISTS_KEY)
+  local showQuick = #quick > 0 and UI.NavSectionShown("quick")
+  local collapsed = (showMine or showQuick) and heading(L["Lists"], showMine, UI.NAV_LISTS_KEY)
   if not showMine then nav.AddList:Hide() end
-  nav.Empty:SetShown(showMine and #mine == 0 and not mineCollapsed)
-  if showMine and not mineCollapsed then
-    if #mine == 0 then
+  nav.Empty:SetShown(showMine and #mine == 0 and not collapsed)
+  if (showMine or showQuick) and not collapsed then
+    if showQuick then
+      for _, e in ipairs(quick) do entry(e, true) end
+    end
+    if showMine and #mine == 0 then
       nav.Empty:ClearAllPoints()
       nav.Empty:SetPoint("TOPLEFT", nav.Content, "TOPLEFT", 12, -(y + 2))
       y = y + 30
     end
-    for _, e in ipairs(mine) do entry(e, true) end
-  end
-  if #quick > 0 and UI.NavSectionShown("quick") then
-    y = y + 4
-    if not heading(L["Quick lists"], false, UI.NAV_QUICK_KEY) then
-      for _, e in ipairs(quick) do entry(e, true) end
+    if showMine then
+      for _, e in ipairs(mine) do entry(e, true) end
     end
   end
   for i = nb + 1, #nav.Buttons do nav.Buttons[i]:Hide() end

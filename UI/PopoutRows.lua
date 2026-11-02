@@ -164,6 +164,32 @@ function UI.PopoutRows(source, built, ctx)
   return rows, left
 end
 
+-- A row's lines in the Cards layout -> sub, status, statusKind. sub: the grey
+-- second line (the mount's name under a rare's, else the boss when it is not
+-- the name; then `place`: the zone, or a rare's "checked 5m ago"), joined by
+-- " · ". status: "Done" / "Open" for a lockout (statusKind "done" / "open"),
+-- "1 in N" for a plain list mount with a known drop chance ("info"), else nil
+-- (a rare spawn keeps its box instead). mountName: the mount's own name.
+function UI.PopoutCardLines(row, place, mountName)
+  local e = row.entry or {}
+  local parts = {}
+  if mountName and mountName ~= row.name then
+    parts[#parts + 1] = mountName
+  elseif e.boss and e.boss ~= row.name then
+    parts[#parts + 1] = e.boss
+  end
+  if place and place ~= "" then parts[#parts + 1] = place end
+  local sub = table.concat(parts, " \194\183 ")
+  if row.camp then return sub, nil, nil end
+  if not row.listOnly then
+    if row.done then return sub, L["Done"], "done" end
+    return sub, L["Open"], "open"
+  end
+  local chance = e.m and tonumber(e.m.chance)
+  if chance and chance > 1 then return sub, string.format(L["1 in %d"], chance), "info" end
+  return sub, nil, nil
+end
+
 -- The mounts "Plot all" plots: rows whose box is not ticked (not done,
 -- and a rare spawn not marked checked).
 function UI.PopoutPlotIDs(rows)

@@ -342,6 +342,19 @@ describe("Zone.MountsFor", function()
     eq(gate(5, { name = "Gone but owned", unobtainable = true }), true)
   end)
 
+  it("Zone.Gate with the active holidays: a holiday's mounts only while it is on", function()
+    local ns = loadZone()
+    ns.Data = ns.Data or {}
+    ns.Data.Holidays = { lunarfestival = { title = "Lunar Festival" }, brewfest = { title = "Brewfest" } }
+    local gate = ns.Zone.Gate(function() return false end, function() return true end, "Alliance", { brewfest = true })
+    eq(gate(1, { name = "Lunar Launcher", tab = "holiday", section = "lunarfestival" }), nil, "Lunar Festival is off")
+    eq(gate(2, { name = "Brewfest Ram", tab = "holiday", section = "brewfest" }), false, "Brewfest is on")
+    eq(gate(3, { name = "Other", tab = "holiday", section = "other" }), false, "not tied to a holiday")
+    eq(gate(4, { name = "Plain", tab = "journal", section = "world" }), false)
+    local always = ns.Zone.Gate(function() return false end, function() return true end, "Alliance")
+    eq(always(1, { name = "Lunar Launcher", tab = "holiday", section = "lunarfestival" }), false, "no holiday list: kept")
+  end)
+
   it("considers every data tab (journal, holiday, misc)", function()
     local ns = loadZone()
     local mounts = {
