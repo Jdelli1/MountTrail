@@ -14,7 +14,8 @@
   zone panel and the map only while their holiday is on.
 - **Font styles**, in the cogwheel menu and on the AddOns page: a Header
   font (titles) and a Body font (mount names and text), the game's own by
-  default; Arial Narrow, Morpheus, Skurri, or a LibSharedMedia font. Korean
+  default; Arial Narrow, Morpheus, Skurri, or a LibSharedMedia font. The
+  left column follows them too (headings, then entries and counts). Korean
   and Chinese clients keep the game's font.
 - The AddOns settings page is in sections: Window & text, Font styles,
   Collection, Colours, Navigation, Alerts, Accessibility, Advanced.

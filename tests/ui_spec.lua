@@ -204,6 +204,16 @@ describe("ui", function()
     local nav = ns.UI.frame.Nav
     eq(nav.Buttons[2].Text.fontSize, 12 + ns.UI.NAV_FONT_BONUS, "no growth")
     eq(nav.Headings[1].Text.fontSize, 12 + ns.UI.NAV_FONT_BONUS)
+    eq(nav.Buttons[2].Text.fontPath, "Fonts\\FRIZQT__.TTF", "the game's font by default")
+    ns.Options = ns.Options or {}
+    local savedHeader, savedBody = ns.Options.HeaderFont, ns.Options.BodyFont
+    ns.Options.HeaderFont = function() return "morpheus" end
+    ns.Options.BodyFont = function() return "arialn" end
+    ns.UI.RefreshNav()
+    eq(nav.Headings[1].Text.fontPath, "Fonts\\MORPHEUS.TTF", "headings in the header font")
+    eq(nav.Buttons[2].Text.fontPath, "Fonts\\ARIALN.TTF", "entries in the body font")
+    eq(nav.Buttons[2].Text.fontSize, 12 + ns.UI.NAV_FONT_BONUS, "same size")
+    ns.Options.HeaderFont, ns.Options.BodyFont = savedHeader, savedBody
     for _, name in ipairs(fonts) do _G[name] = nil end
     mt.SetFont, mt.GetFont = savedSet, savedGet
   end)

@@ -169,7 +169,8 @@ are gold; groups under them are in their expansion's colour when they are
 one, else light grey. The world map tab keeps its own rows (big icons, no
 cards).
 
-- **Fonts**: the game's own for headings and text. Change either under
+- **Fonts**: the game's own for headings and text (the left column's
+  section headings take the header font, its entries the body font). Change either under
   `Font styles` (the cogwheel, or Options > AddOns): Game font, Arial
   Narrow, Morpheus, Skurri, and fonts from LibSharedMedia when another
   add-on registers them. Korean and Chinese clients keep the game's font

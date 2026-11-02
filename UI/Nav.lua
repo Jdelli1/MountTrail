@@ -171,11 +171,14 @@ end
 -- size comes from the game font itself, never from `fs`: a font string keeps
 -- a size set with SetFont through SetFontObject, so reading it back would
 -- grow the text on every repaint.
-local function navFont(fs, name)
+-- `path` (optional): the font file instead of the object's own (the header
+-- or body font, Options; nil keeps the game's).
+local function navFont(fs, name, path)
   fs:SetFontObject(name)
   local fo = _G[name]
   if not (fs.SetFont and type(fo) == "table" and type(fo.GetFont) == "function") then return end
-  local path, size, flags = fo:GetFont()
+  local own, size, flags = fo:GetFont()
+  path = path or own
   if path and size then fs:SetFont(path, size + UI.NavFontBonus(), flags or "") end
 end
 local NAV_GOLD = { 1, 0.82, 0 }
@@ -500,7 +503,7 @@ local function paintHeading(h, text, key)
   h.key = key
   local collapsed = key ~= nil and navCollapsed()[key] == true
   h.collapsed = key ~= nil and collapsed or nil
-  navFont(h.Text, "GameFontNormalSmall")
+  navFont(h.Text, "GameFontNormalSmall", UI.HeadingFont and UI.HeadingFont())
   local c = headerColor()
   h.Text:SetTextColor(c[1], c[2], c[3])
   -- Section labels in capitals, as the design's small gold caps.
@@ -656,8 +659,9 @@ function UI.RefreshNav()
     b.BadgeBox:SetShown(badge ~= nil and badge ~= "")
     local on = (e.key ~= nil and e.key == selected)
     b.Selected:SetShown(on)
-    navFont(b.Text, on and "GameFontNormal" or "GameFontHighlight")
-    navFont(b.Badge, "GameFontDisableSmall")
+    local body = UI.BodyFont and UI.BodyFont()
+    navFont(b.Text, on and "GameFontNormal" or "GameFontHighlight", body)
+    navFont(b.Badge, "GameFontDisableSmall", body)
     b.selected = on
     if e.section then
       sectionButtons[e.section] = sectionButtons[e.section] or {}
