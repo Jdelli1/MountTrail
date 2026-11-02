@@ -13,7 +13,7 @@ keep on screen while you farm.
 
 - **Every mount you're missing**, by expansion or by source (drops, vendors &
   reputation, quests, achievements, professions, in-game shop, Trading Post,
-  PvP, Mythic+, holidays, Timewalking), with a 3D preview, drop chance, your
+  PvP, faction / race, Mythic+, holidays, Timewalking), with a 3D preview, drop chance, your
   attempts, its lockout and where to find it.
 - **Home**: your collection at a glance (a total, a bar per expansion and per
   source) and the mounts still to get in your zone, each part on a card.
@@ -99,7 +99,8 @@ The left column:
   window that follows you.
 - **Alts**: the [alt lockout matrix](#alt-lockout-matrix).
 - **Browse** by source: Drops, Vendors & Reputation, Quests & Activities,
-  Achievements, Professions, In-game Shop, Trading Post, PvP, Mythic+,
+  Achievements, Professions, In-game Shop, Trading Post, PvP, Faction (each
+  race's mounts under its own heading, the allied races' together), Mythic+,
   Holidays, Timewalking, Other.
 - **Lists**, with `+` to start one:
   - first the built-in lists, which fill themselves:

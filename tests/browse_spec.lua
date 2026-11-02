@@ -23,7 +23,8 @@ describe("Browse", function()
         viewed = viewed + 1
       end
     end
-    for _, key in ipairs({ "drops", "vendors", "quests", "professions", "shop", "tradingpost", "pvp", "keystone", "other" }) do
+    for _, key in ipairs({ "drops", "vendors", "quests", "professions", "shop", "tradingpost", "pvp", "faction",
+      "keystone", "other" }) do
       ok((counts[key] or 0) > 0, key .. " has mounts")
     end
     ok(viewed > 0)
@@ -33,10 +34,30 @@ describe("Browse", function()
     local B = load().Browse
     local keys = {}
     for i, c in ipairs(B.CATEGORIES) do keys[i] = c.key end
-    eq(keys, { "drops", "vendors", "quests", "achievements", "professions", "shop", "tradingpost", "pvp", "keystone",
-      "holidays", "timewalking", "other" })
+    eq(keys, { "drops", "vendors", "quests", "achievements", "professions", "shop", "tradingpost", "pvp", "faction",
+      "keystone", "holidays", "timewalking", "other" })
     eq({ B.Get("holidays").view, B.Get("achievements").view, B.Get("timewalking").view },
       { "holidays", "achievements", "timewalking" })
+  end)
+
+  it("Faction: the racial mounts by race, the allied races' last under their own heading", function()
+    local ns = load_addon({ "Core/Locale.lua", "Logic/Journal.lua", "Logic/Browse.lua" })
+    local B = ns.Browse
+    local mounts = {
+      [1] = { name = "Timber Wolf", tab = "misc", section = "racial", group = "Orc" },
+      [2] = { name = "Brown Horse", tab = "misc", section = "racial", group = "Human" },
+      [3] = { name = "Caravan Hyena", tab = "journal", section = "activity", group = "Allied Races", exp = "Battle for Azeroth" },
+      [4] = { name = "Black Stallion", tab = "misc", section = "racial", group = "Human" },
+      [5] = { name = "A quest mount", tab = "journal", section = "quest", exp = "Legion" },
+    }
+    eq(B.CategoryOf(1, mounts[1]), "faction", "a racial mount")
+    eq(B.CategoryOf(3, mounts[3]), "faction", "an allied race's mount, though filed as an activity")
+    eq(B.CategoryOf(5, mounts[5]), "quests", "other activities stay put")
+    local yes = function() return true end
+    local rows = B.Select("faction", mounts, { isOwned = function() return false end, exists = yes }, { "Legion" })
+    local got = {}
+    for i, r in ipairs(rows) do got[i] = r.section .. ":" .. r.m.name end
+    eq(got, { "Human:Black Stallion", "Human:Brown Horse", "Orc:Timber Wolf", "Allied Races:Caravan Hyena" })
   end)
 
   it("Select: the category's mounts the gate keeps, by expansion order then name; search narrows", function()

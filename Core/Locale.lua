@@ -202,6 +202,7 @@ L["Open"] = "Open"
 L["Done"] = "Done"
 L["1 in %d"] = "1 in %d"
 L["Owned"] = "Owned"
+L["Faction"] = "Faction"
 L["mounts collected · %d%%"] = "mounts collected · %d%%"
 L["collected"] = "collected"
 

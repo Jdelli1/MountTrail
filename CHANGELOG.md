@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Browse has a **Faction** page: each race's mounts under its own heading
+  (Human, Orc, ... Dracthyr), the allied races' mounts together under
+  Allied Races. They left Other and Quests & Activities; Home's By source
+  has a Faction row.
 - Lockouts: the "You have N lockouts left. Saddle up?" line is gone (the
   tabs already count what is left); the header is shorter.
 - Pop-outs have two layouts, picked in each window's right-click menu:
