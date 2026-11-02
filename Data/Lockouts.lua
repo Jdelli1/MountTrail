@@ -54,10 +54,13 @@ ns.Data = ns.Data or {}
 
 ns.Data.Lockouts = {
   -- Classic / The Burning Crusade -------------------------------------------
-  [117] = { manual = true, reset = "weekly" }, -- Blue Qiraji Battle Tank: Ahn'Qiraj trash, no saved encounter
-  [118] = { manual = true, reset = "weekly" }, -- Red Qiraji Battle Tank: Ahn'Qiraj trash
-  [119] = { manual = true, reset = "weekly" }, -- Yellow Qiraji Battle Tank: Ahn'Qiraj trash
-  [120] = { manual = true, reset = "weekly" }, -- Green Qiraji Battle Tank: Ahn'Qiraj trash
+  -- Qiraji Battle Tanks: Ahn'Qiraj Temple trash, no saved encounter of their own; the
+  -- week's run ends with C'Thun (owner ruling): his kill on the 40-player raid
+  -- (difficulty 9) spends the week.
+  [117] = { instance = 531, boss = "C'Thun", difficulties = { 9 }, reset = "weekly" }, -- Blue Qiraji Battle Tank -- verify in game
+  [118] = { instance = 531, boss = "C'Thun", difficulties = { 9 }, reset = "weekly" }, -- Red Qiraji Battle Tank -- verify in game
+  [119] = { instance = 531, boss = "C'Thun", difficulties = { 9 }, reset = "weekly" }, -- Yellow Qiraji Battle Tank -- verify in game
+  [120] = { instance = 531, boss = "C'Thun", difficulties = { 9 }, reset = "weekly" }, -- Green Qiraji Battle Tank -- verify in game
   [69]  = { manual = true, reset = "daily", repeatable = true },  -- Rivendare's Deathcharger: Stratholme is normal-only and has no lockout (repeatable: a route step, not a checklist entry)
   [168] = { instance = 532, boss = "Attumen the Huntsman", difficulties = { 3 }, reset = "weekly" }, -- Fiery Warhorse, Karazhan (10-player) -- verify in game
   [183] = { instance = 550, boss = "Kael'thas Sunstrider", difficulties = { 4 }, reset = "weekly" }, -- Ashes of Al'ar, Tempest Keep (25-player) -- verify in game
@@ -80,8 +83,11 @@ ns.Data.Lockouts = {
   -- Bronze Drake: "Infinite Corruptor" (the timed heroic's bonus boss) is neither a JournalEncounter nor a
   -- DungeonEncounter of The Culling of Stratholme (map 595) in the game's tables (tools/verify_data.py,
   -- build 12.1.5.70448: only Meathook, Salramm, Chrono-Lord Epoch, Mal'Ganis), so the saved-instance
-  -- list can never name it: hand tick, no auto tick. Mount.db2 SourceText: "Drop: Infinite Corruptor".
-  [248] = { manual = true, reset = "daily" }, -- Bronze Drake, Culling of Stratholme timed heroic -- verify in game
+  -- list can never name it. Mount.db2 SourceText: "Drop: Infinite Corruptor". The run's daily
+  -- heroic lockout is Mal'Ganis's kill (difficulty 2: Heroic): once he is down the day is
+  -- spent, timer met or not; the drake is a 100% drop (owner), so a met timer leaves the
+  -- mount owned and the row gone.
+  [248] = { instance = 595, boss = "Mal'Ganis", difficulties = { 2 }, reset = "daily" }, -- Bronze Drake, Culling of Stratholme timed heroic -- verify in game
 
   -- Cataclysm ----------------------------------------------------------------
   [395] = { instance = 657, boss = "Altairus", difficulties = { 2 }, reset = "daily" }, -- Drake of the North Wind, Vortex Pinnacle heroic (normal is never saved)
